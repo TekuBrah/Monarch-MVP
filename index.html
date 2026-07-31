@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      Mobile-first viewport (roadmap D1: React DOM, mobile-first, PWA-installable).
+      viewport-fit=cover exposes env(safe-area-inset-*) for notched devices.
+      Pinch-zoom is deliberately NOT disabled — no maximum-scale / user-scalable=no,
+      per the accessibility baseline in the design system's CLAUDE.md.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Monarch MVP</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

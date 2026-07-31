@@ -1,0 +1,27 @@
+/*
+  Scaffold reset only (Step 4.1).
+
+  Deliberately contains NO design values — no colors, radii, spacing, or fonts.
+  Those come from the Monarch design system's token layer once Step 4.2 wires
+  the linkage; this file must never grow raw literals (MVP CLAUDE.md rule 2,
+  landing in Step 4.5).
+
+  The `body { margin: 0 }` reset is here from the start on purpose: the design
+  system's showcase shell shipped without it and the whole app sat inset from
+  the viewport, with the sticky nav never reaching the window edges (Phase 3.2,
+  shell defect #5).
+*/
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
