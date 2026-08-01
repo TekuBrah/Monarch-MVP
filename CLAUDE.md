@@ -97,19 +97,41 @@ imports). **Symptom of a missing transform: React's "Element type is invalid" at
 render, with a completely green build** — because `?react` silently degrades to
 an asset URL string. A passing build proves nothing here.
 
-### The package ships no base layer and no font
+### The package ships no base layer and no font — CLOSED in the MVP (4.7)
 
-- `globals.css` styles neither `html` nor `body` — verified, zero matches. So
-  there is no page background and no body text color out of the box. In dark
-  mode that currently means a white button on a still-white page.
-- `@fontsource/poppins` is loaded by the DS's **own `main.tsx`**, which is not
-  part of the package. `--font-family-primary` resolves to `'Poppins',
-  sans-serif`, but with no `@font-face` registered the text silently falls back
-  to `sans-serif`. (`document.fonts.check()` misleadingly returns `true`;
-  `document.fonts.size === 0` and identical text metrics against a bogus family
-  are the honest signals.)
+**The DS package still ships neither.** This is permanently an MVP
+responsibility, not something to expect the library to start providing.
 
-Supplying both is the MVP's job — step 4.7.
+- `globals.css` styles neither `html` nor `body` — verified, zero matches. With
+  no base layer the page background is transparent, which in dark mode renders a
+  white button on a still-white page.
+  **Supplied by `src/index.css`** (`background: var(--mapped-surface-page)`,
+  `color: var(--mapped-text-default-default)`, `font-family:
+  var(--font-family-primary)`). Do not delete it.
+- `@fontsource/poppins` is loaded by the DS's **own showcase entry**, which is
+  not part of the package. `--font-family-primary` resolves to `'Poppins',
+  sans-serif`, but with no `@font-face` registered every glyph silently falls
+  back to `sans-serif`.
+  **Supplied by `src/main.tsx`** — weights 400/500/600, matching the DS.
+
+Verified after the fix: 9 font faces registered (was 0), and text measured at
+221.17px under Poppins vs 209.86px under both plain `sans-serif` and a
+deliberately bogus family. **`document.fonts.check()` returns a misleading
+`true` either way and must not be used** — the honest signals are
+`document.fonts.size` and the three-way width comparison.
+
+### `react-router-dom` security advisories — reviewed, not applicable
+
+`npm install` reports **2 high-severity findings: "React Router: RSC Mode CSRF
+Bypass Allows Action Execution Before 400 Response."**
+
+**This was assessed and deliberately accepted.** The MVP is a client-only SPA
+with no React Server Components, so the vulnerable path does not exist here.
+`npm audit fix` offers only `--force`, which is a breaking change for a risk
+that does not apply.
+
+Do not re-litigate this at every install, and do not run `npm audit fix --force`.
+Revisit only if the MVP ever adopts RSC or a framework that enables it.
 
 ### Propagation status — both mechanisms confirmed live
 
@@ -123,6 +145,28 @@ verified with a `window` sentinel plus
 `performance.getEntriesByType('navigation').length === 1`, so "it updated" cannot
 be confused with "the page reloaded". Both DS edits were reverted byte-identical
 (SHA256 before/after).
+
+## Open — needs a decision, deliberately not built
+
+### Desktop max-width for the mobile frame
+
+`AppShell.css` has **no desktop max-width and no media query**. On a wide
+viewport the shell simply fills the window.
+
+This is unbuilt on purpose, not an oversight. A phone-width frame wants roughly
+**430px**, and the `--brand-scale` ramp tops out at **96px** — so there is no
+token for it. Writing a raw `430px` would violate rule 2, and curve-fitting it
+out of `calc()` on unrelated scale steps is explicitly banned by the DS's
+token-gap protocol (that pattern was rejected there once already).
+
+**This needs a DS token decision, not an MVP literal.** It belongs with the
+roadmap's parked **motion/elevation token layer** item — the same class of gap,
+where real design values have no backing token (`0.12s` transitions, z-index,
+some opacity values). Resolve them together.
+
+If it is ever built here as an interim measure, it must use the guardrail's
+`token-exempt: <reason>` escape hatch so it stays visible, never a silent
+literal.
 
 ## Verification discipline
 

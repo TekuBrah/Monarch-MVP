@@ -6,12 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint:tokens": "node scripts/check-tokens.mjs"
   },
   "dependencies": {
+    "@fontsource/poppins": "^5.3.0",
     "@monarch/design-system": "github:TekuBrah/Monarch-Design-System#v1.0.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

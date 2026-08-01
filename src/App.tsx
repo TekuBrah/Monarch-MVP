@@ -1,20 +1,17 @@
-import { Button, Icon } from '@monarch/design-system'
+import { Route, Routes } from 'react-router-dom'
+import { AppShell } from './shell/AppShell'
+import { PlaceholderScreen } from './screens/PlaceholderScreen'
 
-// Step 4.3 — linkage proof. One design-system Button, imported from the bare
-// specifier, styled entirely by the DS's token layer. No local styling.
-//
-// The leading Icon is here to prove vite-plugin-svgr transforms the DS's
-// `?react` SVG imports: without svgr the default export is a URL string and
-// this fails at render as "Element type is invalid", not at build time.
+// Phase 4.7 — shell only. Three placeholder routes prove the router and the
+// nav pattern; the real route table is Phase 5's.
 export default function App() {
   return (
-    <main>
-      <Button
-        variant="primary"
-        size="m"
-        label="Monarch Button"
-        leadingIcon={<Icon name="add" size="s" />}
-      />
-    </main>
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route index element={<PlaceholderScreen title="Home" />} />
+        <Route path="search" element={<PlaceholderScreen title="Search" />} />
+        <Route path="settings" element={<PlaceholderScreen title="Settings" />} />
+      </Route>
+    </Routes>
   )
 }

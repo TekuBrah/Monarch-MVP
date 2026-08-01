@@ -1,0 +1,50 @@
+/*
+  Mobile layout frame (roadmap D1: React DOM, mobile-first).
+
+  Token-only, per CLAUDE.md rule 2. Note there is deliberately NO desktop
+  max-width and no media query: every candidate value for a phone-width frame
+  (e.g. 430px) is off the --brand-scale ramp, which tops out at 96px, and
+  inventing one would need either a new DS token or a documented exemption.
+  Flagged for a decision rather than fabricated. Today the shell simply fills
+  the viewport, which is correct mobile-first behaviour.
+*/
+
+.mvp-shell {
+  display: flex;
+  flex-direction: column;
+  /* dvh, not vh — vh ignores mobile browser chrome and the nav sits offscreen. */
+  min-height: 100dvh;
+  background: var(--mapped-surface-page);
+}
+
+.mvp-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-200);
+  padding: var(--spacing-300) var(--spacing-400);
+  padding-top: max(var(--spacing-300), env(safe-area-inset-top));
+}
+
+.mvp-shell__main {
+  flex: 1;
+  padding: var(--spacing-400);
+}
+
+.mvp-shell__nav {
+  position: sticky;
+  bottom: 0;
+  padding-bottom: max(var(--spacing-300), env(safe-area-inset-bottom));
+  /* BottomNavigation sets no background of its own — the pill floats and the
+     page colour shows through, per its own CSS comment. */
+  background: var(--mapped-surface-page);
+}
+
+.mvp-screen__title {
+  margin: 0 0 var(--spacing-200);
+}
+
+.mvp-screen__body {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
