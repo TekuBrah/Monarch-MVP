@@ -75,5 +75,5 @@ is both the correct outcome and the better case-study story.
   "DS-side, for a future DS session": `ElementWrapper` uses an inline style
   object the DS's own rules ban, and the DS's `CLAUDE.md` still points at
   `src/main.tsx`, which moved to `showcase/` in Phase 2.
-- **Uncommitted work exists right now** — steps 4.6 and 4.7 plus this handoff
-  pair are in the working tree, not yet committed. Teku commits via Sourcetree.
+- **All Phase 4 work is committed** — `50b70de` "Phase 4 close out" is HEAD, tree
+  clean. Teku commits via Sourcetree; Claude Code never pushes.

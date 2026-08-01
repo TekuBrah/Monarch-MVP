@@ -27,23 +27,23 @@ Phase/step structure and locked decisions D1–D8 live in
 |---|---|
 | Repo | `Monarch-MVP` · `https://github.com/TekuBrah/Monarch-MVP.git` |
 | Branch | `main` |
-| HEAD | `18e2230` — "First commit" |
-| Earlier commit | `bd94e4d` — "Phase 4.1: scaffold Monarch-MVP (Vite + React + TS, mobile-first)" |
-| Working tree | **5 modified, 4 untracked** — steps 4.6 + 4.7, uncommitted (see below) |
+| HEAD | `50b70de` — "Phase 4 close out" |
+| Earlier commits | `18e2230` "First commit" · `bd94e4d` "Phase 4.1: scaffold Monarch-MVP (Vite + React + TS, mobile-first)" |
+| Working tree | **clean** — all Phase 4 work committed |
 | `npm run build` | ✅ clean, exit 0, built in 2.73s |
 | `npm run lint:tokens` | ✅ **PASS** — 10 files scanned, 0 violations |
 | Dev server | port **5174** (`strictPort`), pinned off the DS's 5173 |
 
-### Uncommitted right now
+### Commit history
 
-```
- M package-lock.json   M package.json   M src/App.tsx
- M src/index.css       M src/main.tsx
-?? scripts/  ?? src/screens/  ?? src/shell/  ?? src/theme/
-```
+| Commit | Contents |
+|---|---|
+| `bd94e4d` | Step 4.1 — the scaffold |
+| `18e2230` | Steps 4.2–4.5 — linkage, tokens + Button, `CLAUDE.md` |
+| `50b70de` | Steps 4.6–4.7 + closeout — guardrail, app shell, this handoff pair |
 
-That is steps **4.6** (guardrail) and **4.7** (app shell), plus this handoff pair
-and the `CLAUDE.md` update. Teku commits via Sourcetree; Claude Code never pushes.
+Working tree clean at `50b70de`. Teku commits via Sourcetree; Claude Code never
+pushes.
 
 ### Design-system repo state, as observed from here
 
