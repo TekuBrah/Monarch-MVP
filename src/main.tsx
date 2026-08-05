@@ -17,6 +17,7 @@ import '@monarch/design-system/styles.css'
 import './index.css'
 
 import { ThemeProvider } from './theme/ThemeProvider'
+import { AccountsProvider } from './accounts/AccountsProvider'
 import App from './App'
 
 const rootEl = document.getElementById('root')
@@ -25,9 +26,13 @@ if (!rootEl) throw new Error('Root element #root not found in index.html')
 createRoot(rootEl).render(
   <StrictMode>
     <ThemeProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      {/* App-level, above the router: the balance is read by four flows and
+          written by three (inventory §4b W1), so it cannot be route-scoped. */}
+      <AccountsProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </AccountsProvider>
     </ThemeProvider>
   </StrictMode>,
 )

@@ -192,5 +192,16 @@ Inherited from the design system, and it applies identically here:
 
 ## Git workflow
 
-Staging and committing locally with clear messages is fine. **Never push, never
-open PRs, never touch remotes** — see rule 5.
+**Branch creation is Claude Code's, when a step calls for it.** Phase 5 runs one
+branch per flow, and creating that branch off `main` is the first action of the
+flow — e.g. `git checkout -b phase/5-flow01-homepage`.
+
+**Staging, committing and pushing are Teku's alone, via Sourcetree.** Not
+"pushing only" — *all three*. Claude Code leaves the working tree dirty at the
+end of a step so the diff can be reviewed whole, and Teku decides how to split
+it into commits.
+
+**Never push, never open PRs, never touch remotes** — see rule 5.
+
+Branch creation is therefore the only git write Claude Code makes. This
+supersedes the earlier "staging and committing locally is fine."

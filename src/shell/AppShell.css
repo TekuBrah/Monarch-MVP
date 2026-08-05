@@ -7,9 +7,14 @@
   inventing one would need either a new DS token or a documented exemption.
   Flagged for a decision rather than fabricated. Today the shell simply fills
   the viewport, which is correct mobile-first behaviour.
+
+  Chrome layering follows the Figma structure rather than approximating it: on
+  both Homepage screens the FAB and the navbar are SIBLINGS of the scroll frame,
+  not children of it, so both are fixed here and the screen scrolls beneath them.
 */
 
 .mvp-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   /* dvh, not vh — vh ignores mobile browser chrome and the nav sits offscreen. */
@@ -17,34 +22,58 @@
   background: var(--mapped-surface-page);
 }
 
-.mvp-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--spacing-200);
-  padding: var(--spacing-300) var(--spacing-400);
-  padding-top: max(var(--spacing-300), env(safe-area-inset-top));
-}
-
 .mvp-shell__main {
   flex: 1;
-  padding: var(--spacing-400);
+  /*
+    No padding. Screens are full-bleed compositions — the Homepage header runs
+    edge to edge — so horizontal padding belongs to the screen, not the shell.
+    The bottom reserve clears the fixed nav and FAB; without it the last row of
+    a screen sits under the nav with nowhere to scroll (the condition recorded
+    as Flow 1 C2).
+  */
+  padding-bottom: var(--brand-scale-1600);
 }
 
 .mvp-shell__nav {
-  position: sticky;
+  position: fixed;
+  right: 0;
   bottom: 0;
-  padding-bottom: max(var(--spacing-300), env(safe-area-inset-bottom));
+  left: 0;
+  z-index: 2;
+  padding-bottom: env(safe-area-inset-bottom);
   /* BottomNavigation sets no background of its own — the pill floats and the
      page colour shows through, per its own CSS comment. */
   background: var(--mapped-surface-page);
 }
 
-.mvp-screen__title {
-  margin: 0 0 var(--spacing-200);
+/*
+  One FAB position for the whole app (F1 A9). Figma draws it at x=298 on Fiat
+  and x=297 on Crypto; a single shell-owned rule cannot disagree with itself.
+  Insets are rounded to real tokens rather than reproducing the source's
+  21px/103px, per SYS-5's "round in implementation".
+*/
+.mvp-shell__fab {
+  position: fixed;
+  right: var(--spacing-400);
+  bottom: var(--brand-scale-1500);
+  z-index: 3;
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
-.mvp-screen__body {
-  margin: 0;
-  color: var(--mapped-text-subtle-default);
+.mvp-shell__fab:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+  border-radius: var(--brand-scale-1800);
+}
+
+/* Demo affordance, not part of the design — mirrored opposite the FAB. */
+.mvp-shell__theme-switch {
+  position: fixed;
+  bottom: var(--brand-scale-1500);
+  left: var(--spacing-400);
+  z-index: 3;
 }

@@ -1,0 +1,303 @@
+/*
+  Flow 1 — Homepage layout.
+
+  Composition only. Every visual property here is spacing, alignment or a DS
+  token; nothing styles a DS component's internals, and there is not one raw
+  colour, radius, spacing or font value (CLAUDE.md rule 2).
+
+  Figma's absolute geometry is NOT reproduced literally. SYS-5's disposition for
+  the file's subpixel coordinates (x=74.5, 108.33333587646484, 2.27e-13, …) is
+  "FIX IN CODE — round in implementation", so this file uses flow layout on the
+  token ramp rather than transcribing offsets.
+*/
+
+.mvp-home {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  /* Figma's screen surface is `surface/subtlest/default`, not the page colour;
+     the cards below sit on `surface/elevation/default` above it. */
+  background: var(--mapped-surface-subtlest-default);
+}
+
+/*
+  Stands in for Figma's `img/bg01` photograph. `HeaderBg` treats its background
+  as a swappable slot ("image, gradient, video, etc"), so a token gradient is a
+  supported fill rather than a workaround — and it keeps a binary asset out of
+  the repo.
+*/
+.mvp-home__header-bg {
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(
+    160deg,
+    var(--brand-blue-600) 0%,
+    var(--brand-blue-500) 55%,
+    var(--brand-violet-600) 100%
+  );
+}
+
+.mvp-home__tabs {
+  padding: var(--spacing-400);
+  padding-bottom: var(--spacing-200);
+}
+
+/* Tabs fills the row rather than hugging its content — SYS-11 / A3. */
+.mvp-home__tabs .mn-tabs {
+  width: 100%;
+}
+
+.mvp-home__tabs .mn-tabs > * {
+  flex: 1 1 0;
+}
+
+.mvp-home__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  padding-bottom: var(--spacing-600);
+}
+
+.mvp-home__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+}
+
+/* Sections whose content is inset from the screen edge. The Smart Insights
+   carousel is deliberately NOT one of these — see A12 below. */
+.mvp-home__section--inset,
+.mvp-home__section-inset {
+  padding-right: var(--spacing-400);
+  padding-left: var(--spacing-400);
+}
+
+.mvp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-200);
+}
+
+.mvp-home__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ------------------------------------------------------------- balance card */
+
+.mvp-balance-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  margin: 0 var(--spacing-400);
+  padding: var(--spacing-400);
+  border-radius: var(--brand-scale-300);
+  background: var(--mapped-surface-elevation-default);
+}
+
+.mvp-balance-card__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+}
+
+.mvp-balance-card__logo {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: var(--brand-scale-1800);
+}
+
+.mvp-balance-card__names {
+  display: flex;
+  flex-direction: column;
+}
+
+.mvp-balance-card__group {
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-balance-card__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-50);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mapped-text-primary-default);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.mvp-balance-card__switch:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+  border-radius: var(--brand-scale-100);
+}
+
+.mvp-balance-card__amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+}
+
+.mvp-balance-card__amount {
+  display: flex;
+  align-items: baseline;
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-balance-card__fraction {
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-balance-card__change {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-balance-card__trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-100);
+}
+
+.mvp-balance-card__trend--up {
+  color: var(--mapped-text-success-default);
+}
+
+.mvp-balance-card__trend--down {
+  color: var(--mapped-text-error-default);
+}
+
+.mvp-balance-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+}
+
+/* ---------------------------------------------------------------- carousel */
+
+/*
+  A12 / SYS-9 — recorded and LEFT: the third Smart Insights card genuinely
+  extends past the 375px frame in Figma, and the disposition is "intentional
+  horizontal scroll". So it scrolls; it does not wrap and it does not shrink.
+*/
+.mvp-home__carousel {
+  display: flex;
+  gap: var(--spacing-200);
+  padding: 0 var(--spacing-400) var(--spacing-100);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mvp-home__carousel > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.mvp-home__logo-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-100);
+}
+
+.mvp-home__logo-overflow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--brand-scale-500);
+  height: var(--brand-scale-500);
+  padding: 0 var(--spacing-100);
+  border-radius: var(--brand-scale-1800);
+  background: var(--mapped-surface-subtle-default);
+  color: var(--mapped-text-subtle-default);
+}
+
+/* ------------------------------------------------------------------- promo */
+
+.mvp-home__promo-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+}
+
+/*
+  The `❖ System message` block. Figma paints it with a two-stop gradient whose
+  second stop (#0caaff) has NO backing token anywhere in the DS ramp — the
+  nearest step is brand-teal-500. Rather than write the literal, both stops are
+  real tokens and the divergence is recorded here and in the handoff. This is
+  the one place in Flow 1 where a raw colour was genuinely tempting.
+*/
+.mvp-home__promo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-400);
+  padding: var(--spacing-300);
+  border-radius: var(--brand-scale-200);
+  background-image: linear-gradient(
+    141deg,
+    var(--brand-blue-500) 20%,
+    var(--brand-teal-500) 97%
+  );
+}
+
+.mvp-home__promo-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-50);
+  min-width: 0;
+}
+
+.mvp-home__promo-title {
+  margin: 0;
+  color: var(--mapped-text-primary-on-color);
+}
+
+.mvp-home__promo-subtitle {
+  margin: 0;
+  color: var(--mapped-text-on-color-caption);
+}
+
+.mvp-home__feature-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-200);
+}
+
+.mvp-home__feature-row > * {
+  flex: 1 1 0;
+}
+
+/* -------------------------------------------------------------- coming soon */
+
+.mvp-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-300);
+  padding: var(--spacing-1400) var(--spacing-600);
+  text-align: center;
+}
+
+.mvp-coming-soon__title {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-coming-soon__description {
+  max-width: 75%;
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
