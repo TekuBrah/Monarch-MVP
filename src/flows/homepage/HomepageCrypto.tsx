@@ -1,7 +1,7 @@
 import { ListItem, Logo } from '@monarch/design-system'
 import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
-import { topHoldings } from '../../data/derive'
+import { topHoldings, trendOf } from '../../data/derive'
 import { formatMyr, formatQuantity, formatSignedPercent } from '../../data/format'
 import { FEATURED_COINS } from '../../data/market'
 import { BalanceCard } from './components/BalanceCard'
@@ -15,11 +15,14 @@ import { SectionHeader } from './components/SectionHeader'
  * C1 — the green sparklines beside the Featured Coin rows. They resolve to raw
  * vector geometry, not a DS component: Figma emits each one as a single
  * flattened `<img src=…svg>` named `graph`, and all three rows point at the
- * SAME asset, which a data-driven chart could not do. The DS ships no charting
- * primitive — and `ListItem` proves the point, because it exposes a `miniChart`
- * slot with nothing in the library to fill it. That is a Rule-3 gap, joining
- * G1 (donut) and G3 (trend line) as ONE charting decision for the DS repo. The
- * rows still carry token, price and move, so nothing else is lost.
+ * SAME asset, which a data-driven chart could not do. That was a Rule-3 gap,
+ * raised with G1 (donut) and G3 (trend line) as ONE charting decision.
+ *
+ * RESOLVED DS-SIDE in v1.1.0 — `LineChart` now exists and a sparkline is that
+ * component with its chrome switched off, sized for `ListItem`'s `miniChart`
+ * slot. It is deliberately NOT adopted here: charts land with Flow 7, and this
+ * flow is not being reopened for them. The rows still carry token, price and
+ * move, so nothing is lost by waiting.
  *
  * A5 — Figma has two `navbar/mobile/section` instances at identical positions,
  * one hidden. Nav is shell-owned chrome here, so a duplicate cannot occur.
@@ -61,10 +64,11 @@ export function HomepageCrypto() {
                   holding.symbol,
                 )}
                 amount={formatMyr(holding.valueMyr)}
-                // Signed: the DS crypto row draws a green up-triangle
-                // unconditionally, so the number is the only thing that can
-                // carry direction. See formatSignedPercent.
                 amountInfo={formatSignedPercent(holding.changePct)}
+                // Derived from the same number the label formats, so the arrow
+                // and the percentage cannot disagree. DS v1.1.0: before this
+                // prop existed the row drew a green up-triangle unconditionally.
+                trendDirection={trendOf(holding.changePct)}
               />
             </li>
           ))}
@@ -87,6 +91,7 @@ export function HomepageCrypto() {
                 titleInfo={coin.symbol}
                 amount={formatMyr(coin.priceMyr)}
                 amountInfo={formatSignedPercent(coin.changePct)}
+                trendDirection={trendOf(coin.changePct)}
               />
             </li>
           ))}

@@ -1,3 +1,4 @@
+import type { TrendDirection } from '@monarch/design-system'
 import type {
   Amount,
   CryptoHolding,
@@ -89,6 +90,26 @@ export function recentTransactions(
   return [...transactions]
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
     .slice(0, limit)
+}
+
+/**
+ * Which way a change went, derived from the SAME number the label formats.
+ *
+ * This exists so the arrow and the percentage cannot disagree. Passing a
+ * direction per call site would be a second source of truth for a fact the data
+ * already states — precisely the pattern §6 exists to prevent, and precisely how
+ * the DS's old `ListItem` got it wrong (it drew a green up-triangle
+ * unconditionally, so a decline rendered as a rise).
+ *
+ * `0` is `'flat'`, never `'up'`. Three of the seeded holdings — Tether, Stellar
+ * and Uniswap — sit at exactly `changePct: 0`, and a stablecoin showing a green
+ * up-arrow on no movement is wrong in an obvious way. That state is why the DS
+ * shipped `'flat'`.
+ */
+export function trendOf(changePct: number): TrendDirection {
+  if (changePct > 0) return 'up'
+  if (changePct < 0) return 'down'
+  return 'flat'
 }
 
 /** Holdings ranked by value — what "My Tokens" shows before "See all". */
