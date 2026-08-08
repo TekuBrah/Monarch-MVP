@@ -59,8 +59,36 @@ const CHROME_BY_ROUTE: Record<string, ChromeConfig> = {
   '/steward': { nav: 'suppressed', fab: false },
 }
 
+/**
+ * Chrome for route FAMILIES, matched by path prefix — B7 / §5 S2.
+ *
+ * Flow 7's nine drill-downs are `/finance/holding/<id>`, one per holding, and
+ * listing nine identical rows above would be a table that has to be edited every
+ * time a holding is added. A prefix rule is still EXPLICIT CONFIG — it is
+ * declared here, by path, and nothing inspects what the screen renders. That is
+ * the property §5 actually asks for; the ban is on inference, not on families.
+ *
+ * WHY SUPPRESSED. A drill-down displaces the page's own chrome with its bottom
+ * action buttons — "Set Maturity Reminder" and "Download Statement" occupy
+ * exactly where the nav pill sits. §5's S1 insight is that suppressed is a
+ * USER-FACING state: a nav the user cannot reach is suppressed whether it is
+ * covered or simply not drawn. The FAB goes with it, for the same reason.
+ *
+ * Ordered longest-prefix-first, so a future `/finance/holding/x/y` could not be
+ * captured by a shorter rule.
+ */
+const CHROME_BY_PREFIX: [string, ChromeConfig][] = [
+  ['/finance/holding/', { nav: 'suppressed', fab: false }],
+]
+
 export const DEFAULT_CHROME: ChromeConfig = { nav: 'suppressed', fab: false }
 
 export function chromeFor(pathname: string): ChromeConfig {
-  return CHROME_BY_ROUTE[pathname] ?? DEFAULT_CHROME
+  const exact = CHROME_BY_ROUTE[pathname]
+  if (exact) return exact
+
+  const prefixed = CHROME_BY_PREFIX.find(([prefix]) => pathname.startsWith(prefix))
+  if (prefixed) return prefixed[1]
+
+  return DEFAULT_CHROME
 }

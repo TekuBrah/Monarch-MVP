@@ -1,8 +1,14 @@
 import { ListItem, Logo } from '@monarch/design-system'
 import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
-import { topHoldings, trendOf } from '../../data/derive'
-import { formatMyr, formatQuantity, formatSignedPercent } from '../../data/format'
+import {
+  cryptoWalletChange,
+  cryptoWalletTotal,
+  topHoldings,
+  trendOf,
+  walletHoldings,
+} from '../../data/derive'
+import { formatMyr, formatQuantity, formatTrendPercent } from '../../data/format'
 import { FEATURED_COINS } from '../../data/market'
 import { BalanceCard } from './components/BalanceCard'
 import { SectionHeader } from './components/SectionHeader'
@@ -29,11 +35,25 @@ import { SectionHeader } from './components/SectionHeader'
  */
 export function HomepageCrypto() {
   const navigate = useNavigate()
-  const { cryptoWallets, cryptoHoldings, cryptoTotal, cryptoChange } = useAccounts()
+  const { cryptoWallets, cryptoHoldings } = useAccounts()
 
   const wallet = cryptoWallets[0]
+  /*
+    SCOPED TO THE NAMED WALLET, from Flow 7 on.
+
+    This card names one wallet, so it must total that wallet. Flow 1 summed the
+    whole holdings list because only one wallet had ever been drawn — harmless
+    then, wrong the moment Flow 7 added a second card. Nothing was hand-patched
+    to fix it: the same `derive.ts` functions the Finance Overview uses are
+    called here with the wallet's own tokens, and the card now reads
+    RM 102,354.02, which is what Figma draws on this screen.
+  */
+  const tokens = walletHoldings(cryptoHoldings, wallet?.id ?? '')
+  const walletTotal = cryptoWalletTotal(tokens)
+  const walletChange = cryptoWalletChange(tokens)
+
   // "My Tokens" shows the largest holdings; "See all" is the rest.
-  const shown = topHoldings(cryptoHoldings, 2)
+  const shown = topHoldings(tokens, 2)
 
   return (
     <div className="mvp-home__body">
@@ -41,10 +61,11 @@ export function HomepageCrypto() {
         logo={wallet?.logo ?? 'general'}
         group="Wallet"
         name={wallet?.name ?? 'Crypto'}
-        // DERIVED: sum(holdings). See derive.ts for why this does not equal the
-        // RM 102,354.02 the design draws.
-        amount={cryptoTotal}
-        change={cryptoChange}
+        // DERIVED: sum(this wallet's holdings). As of Flow 7 this DOES equal the
+        // RM 102,354.02 the design draws — the missing sixth holding was the
+        // whole of the old shortfall. See accounts.ts for the evidence.
+        amount={walletTotal}
+        change={walletChange}
         addLabel="Add crypto"
         onSend={() => navigate('/transfer')}
       />
@@ -64,7 +85,7 @@ export function HomepageCrypto() {
                   holding.symbol,
                 )}
                 amount={formatMyr(holding.valueMyr)}
-                amountInfo={formatSignedPercent(holding.changePct)}
+                amountInfo={formatTrendPercent(holding.changePct)}
                 // Derived from the same number the label formats, so the arrow
                 // and the percentage cannot disagree. DS v1.1.0: before this
                 // prop existed the row drew a green up-triangle unconditionally.
@@ -90,7 +111,7 @@ export function HomepageCrypto() {
                 title={coin.name}
                 titleInfo={coin.symbol}
                 amount={formatMyr(coin.priceMyr)}
-                amountInfo={formatSignedPercent(coin.changePct)}
+                amountInfo={formatTrendPercent(coin.changePct)}
                 trendDirection={trendOf(coin.changePct)}
               />
             </li>

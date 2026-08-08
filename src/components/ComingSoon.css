@@ -1,0 +1,29 @@
+/*
+  ComingSoon — moved out of `flows/homepage/homepage.css` when Flow 7 promoted
+  the component. A shared component owning its own stylesheet is what stops a
+  Finance screen from importing the Homepage's layout CSS to render a
+  placeholder.
+
+  Composition only: spacing, alignment and DS tokens. No raw colour, radius,
+  spacing or font value (CLAUDE.md rule 2).
+*/
+
+.mvp-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-300);
+  padding: var(--spacing-1400) var(--spacing-600);
+  text-align: center;
+}
+
+.mvp-coming-soon__title {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-coming-soon__description {
+  max-width: 75%;
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}

@@ -1,4 +1,4 @@
-import type { FeaturedCoin } from './types'
+import type { Amount, FeaturedCoin } from './types'
 
 /**
  * Homepage_Crypto's "Featured Coin" rows — a market watchlist, not holdings.
@@ -41,3 +41,20 @@ export const FEATURED_COINS: FeaturedCoin[] = [
     changePct: 175.37,
   },
 ]
+
+/**
+ * A quoted price, by coin id. Throws rather than returning a fallback — a
+ * missing price would otherwise silently value a holding at zero.
+ *
+ * THIS EXISTS TO STOP A LITERAL BEING WRITTEN TWICE. Solana has two roles in
+ * this app: a market quote on `Homepage_Crypto`'s Featured Coin list (Flow 1)
+ * and, from Flow 7, a holding in Marge's Wallet. Both must read the SAME price,
+ * so the holding derives its quantity from this function instead of restating
+ * RM 4,465.00 in `accounts.ts`. Update the quote above and the holding's value
+ * follows on its own.
+ */
+export function coinPrice(id: string): Amount {
+  const coin = FEATURED_COINS.find((c) => c.id === id)
+  if (!coin) throw new Error(`No quoted price for coin "${id}"`)
+  return coin.priceMyr
+}

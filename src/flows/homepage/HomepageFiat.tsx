@@ -76,8 +76,22 @@ export function HomepageFiat() {
           A12 / SYS-9, recorded and LEFT ALONE: the carousel genuinely overflows
           375px in Figma, and the disposition is "intentional horizontal
           scroll". So it scrolls here rather than wrapping or shrinking.
+
+          KEYBOARD REACHABILITY — added by Flow 7, a Flow 1 defect rather than a
+          Flow 7 need. This was a bare <div>, so it was not focusable and a
+          keyboard user could not scroll it at all; the third card was reachable
+          only with a pointer. `tabIndex={0}` plus a region role is what earns
+          the browser's built-in arrow-key / Home / End scrolling, and it had to
+          land in the same change as hiding the scrollbar — suppressing the
+          indicator without this would have removed the last visible hint that
+          there was anything to scroll.
         */}
-        <div className="mvp-home__carousel">
+        <div
+          className="mvp-home__carousel"
+          role="region"
+          aria-label="Smart Insights"
+          tabIndex={0}
+        >
           {SMART_INSIGHTS.map((insight) => (
             <CardSmartInsights
               key={insight.id}

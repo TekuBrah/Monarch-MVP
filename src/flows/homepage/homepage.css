@@ -199,6 +199,43 @@
   overflow-x: auto;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+
+  /*
+    THE SCROLLBAR RULE — no visible scrollbar anywhere, ever. Native apps do not
+    show one; a visible bar is a browser artifact that breaks the mobile
+    illusion. Same three-rule pattern the DS applies to `.mn-tabs--is-scrollable`
+    at v1.2.0.
+
+    HIDE THE BAR, NEVER THE SCROLLING. `overflow-x: auto` above stays exactly as
+    it was — this suppresses only the indicator. Reaching for `overflow: hidden`
+    would be the mistake.
+
+    Nothing looked broken before this because the dev environment paints overlay
+    scrollbars; on a classic-scrollbar platform the bar was taking ~15px out of
+    the row's height.
+  */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+
+.mvp-home__carousel::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+/*
+  KEYBOARD ACCESS — a separate defect from the scrollbar, fixed separately.
+
+  The carousel was a plain <div>, so `element.tabIndex` read -1 and a keyboard
+  user could not scroll it AT ALL: the third Smart Insights card was unreachable
+  without a pointer. `tabIndex={0}` in the markup makes it a real scroll region,
+  which is what gives it browser-native arrow-key, Home/End and Page scrolling —
+  and it is why hiding the bar had to come with this rather than before it.
+  Suppressing an indicator must never remove the affordance underneath.
+*/
+.mvp-home__carousel:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+  border-radius: var(--brand-scale-200);
 }
 
 .mvp-home__carousel > * {
@@ -280,24 +317,7 @@
   flex: 1 1 0;
 }
 
-/* -------------------------------------------------------------- coming soon */
-
-.mvp-coming-soon {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-300);
-  padding: var(--spacing-1400) var(--spacing-600);
-  text-align: center;
-}
-
-.mvp-coming-soon__title {
-  margin: 0;
-  color: var(--mapped-text-default-default);
-}
-
-.mvp-coming-soon__description {
-  max-width: 75%;
-  margin: 0;
-  color: var(--mapped-text-subtle-default);
-}
+/*
+  `.mvp-coming-soon` MOVED to `src/components/ComingSoon.css` — Flow 7 promoted
+  the component to the shared bucket, and it took its stylesheet with it.
+*/

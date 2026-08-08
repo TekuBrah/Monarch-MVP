@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
-import { ComingSoon } from './components/ComingSoon'
+import { ComingSoon } from '../../components/ComingSoon'
 import { HomepageCrypto } from './HomepageCrypto'
 import { HomepageFiat } from './HomepageFiat'
 import './homepage.css'

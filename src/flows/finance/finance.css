@@ -1,0 +1,331 @@
+/*
+  Flow 7 — Finance Overview layout.
+
+  Composition only. Every visual property here is spacing, alignment or a DS
+  token; nothing styles a DS component's internals, and there is not one raw
+  colour, radius, spacing or font value (CLAUDE.md rule 2).
+
+  SYS-5 / SYS-10 / SYS-12 are all FIXED IN CODE by construction rather than
+  chased value by value:
+   - SYS-5, the fractional 165.5px tile width, is what `flex: 1 0 0` with a
+     min-width computes to in a wrapping row. Reproduced by flex, not typed.
+   - SYS-10, header heights varying 44/48/68/112 across frames, cannot occur:
+     each screen renders exactly one header component.
+   - SYS-12's absolute offsets are not transcribed at all; this file is flow
+     layout on the token ramp.
+*/
+
+.mvp-finance,
+.mvp-finance-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  /* Figma's screen surface is `surface/subtlest/default`, not the page colour;
+     the cards sit on `surface/elevation/default` above it. */
+  background: var(--mapped-surface-subtlest-default);
+}
+
+/* Stands in for Figma's `img/bg01` photograph — same slot fill the Homepage
+   uses, so the two headers cannot drift apart. */
+.mvp-finance__header-bg {
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(
+    160deg,
+    var(--brand-blue-600) 0%,
+    var(--brand-blue-500) 55%,
+    var(--brand-violet-600) 100%
+  );
+}
+
+/* ------------------------------------------------------------------- tabs */
+
+.mvp-finance__tabs {
+  padding: var(--spacing-400);
+  padding-bottom: var(--spacing-200);
+}
+
+/*
+  NOTE WHAT IS *NOT* HERE. The Homepage stretches its four tabs with
+  `flex: 1 1 0` to fill the row. Flow 7 must not: five tabs at their natural
+  widths measure 426px in a 343px row, so stretching is meaningless and
+  shrinking is impossible ("Transactions" is one word with no wrap point).
+
+  The row scrolls instead, and the scrolling belongs to the DS's
+  `Tabs isScrollable` — including hiding the scrollbar and scrolling the
+  selected tab into view on arrow-key navigation, which no outer wrapper could
+  do because only `Tabs` knows which tab is selected.
+*/
+
+.mvp-finance__body,
+.mvp-finance-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  padding-bottom: var(--spacing-600);
+}
+
+.mvp-finance__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  padding-right: var(--spacing-400);
+  padding-left: var(--spacing-400);
+}
+
+/* --------------------------------------------------------- net worth card */
+
+/*
+  D10 / the `#0caaff` precedent. Figma paints this card with a 109.36deg ramp
+  whose stops have NO backing token: the nearest steps on the DS ramp are
+  brand-blue-400 and brand-blue-300, and those are what is used.
+
+  DIVERGENCE RECORDED, NOT HIDDEN, and deliberately NOT written as a literal
+  with a `token-exempt` marker — the gradient tier was checked first and holds
+  only two white scrim tokens (`--mapped-gradient-subtle` / `-default`), which
+  are a different kind of object entirely and cover neither hero card. Figma
+  catches up to the ramp later; the app does not grow a raw hex in the meantime.
+*/
+.mvp-finance__networth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  margin: 0 var(--spacing-400);
+  padding: var(--spacing-400);
+  border-radius: var(--brand-scale-300);
+  background-image: linear-gradient(
+    109deg,
+    var(--brand-blue-400) 0%,
+    var(--brand-blue-300) 100%
+  );
+}
+
+.mvp-finance__networth-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-200);
+}
+
+.mvp-finance__networth-label,
+.mvp-finance__networth-amount {
+  margin: 0;
+  /* On-colour tier: this card is a brand fill in BOTH themes, so its text does
+     not follow the page's light/dark mapping. */
+  color: var(--mapped-text-primary-on-color);
+}
+
+.mvp-finance__networth-amount {
+  display: flex;
+  align-items: baseline;
+}
+
+/*
+  The chart's box. `LineChart` is size-agnostic by design — the parent owns the
+  box, same as DonutChart — so this is the only place its height is decided.
+*/
+.mvp-finance__networth-chart {
+  height: var(--brand-scale-1600);
+}
+
+/* ------------------------------------------------------------- card grid */
+
+/*
+  D13 — A WRAPPING FLEX ROW, NOT A CSS GRID, matching what Figma authors
+  (`flex-wrap` with `gap: 8`). The cards carry their own width range
+  (`w-161 / min-w-128 / max-w-172`) from `CardBalance` itself, so this row must
+  not impose a track size: a two-column grid would stretch the ninth card to a
+  half-width it was never given and would stop the row reflowing on a wider
+  frame.
+
+  The ninth card sitting alone on the final row is correct wrapping behaviour.
+*/
+.mvp-finance__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  `flex: 1 1 0` — a ZERO basis, not `auto`, and the difference is visible.
+
+  With an `auto` basis each card's flex-basis is its own content width, so the
+  card holding "RM 102,354.02" ends up wider than the one holding "RM 2,000.00"
+  and two cards sitting side by side in the same row measure 172 and 160.4. A
+  zero basis distributes the row's width equally instead, so every card in a row
+  is identical: (343 - 8) / 2 = 167.5 each.
+
+  The cap is still `CardBalance`'s own `max-width: 172px` — nothing here
+  overrides the DS component's width range, it only decides how the spare width
+  in the row is shared out. The ninth card, alone on the last row, therefore
+  settles at its own 172px maximum rather than stretching to 343.
+*/
+.mvp-finance__grid-item {
+  display: flex;
+  flex: 1 1 0;
+}
+
+.mvp-finance__grid-item > * {
+  width: 100%;
+}
+
+/* ----------------------------------------------------------- detail: hero */
+
+/*
+  The FD hero. Same D10 treatment as the net-worth card: Figma's 126.85deg teal
+  ramp has no backing token, so the nearest steps are used and the divergence is
+  recorded here.
+*/
+.mvp-finance__hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  margin: 0 var(--spacing-400);
+  padding: var(--spacing-400);
+  border-radius: var(--brand-scale-300);
+  background-image: linear-gradient(
+    127deg,
+    var(--brand-teal-500) 0%,
+    var(--brand-teal-400) 100%
+  );
+  color: var(--mapped-text-primary-on-color);
+}
+
+.mvp-finance__hero-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+}
+
+.mvp-finance__hero-names {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mvp-finance__hero-category {
+  color: var(--mapped-text-on-color-caption);
+}
+
+.mvp-finance__hero-amount {
+  display: flex;
+  align-items: baseline;
+  margin: 0;
+}
+
+.mvp-finance__hero-footnote {
+  margin: 0;
+  color: var(--mapped-text-on-color-caption);
+}
+
+/* ---------------------------------------------------------- detail: body */
+
+.mvp-finance-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  padding-right: var(--spacing-400);
+  padding-left: var(--spacing-400);
+}
+
+/*
+  SYS-5's real shape. Figma's four `card/data display` are `flex: 1 0 0` with
+  `min-width: 128px` in a wrapping row with a 12px gap — 165.5px is what that
+  COMPUTES to at 343px wide, not a value anyone typed. Reproducing the rule
+  rather than the result is what makes the fractional pixel disappear.
+*/
+.mvp-finance-detail__tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-300);
+}
+
+.mvp-finance-detail__tiles > * {
+  flex: 1 0 0;
+  /* Figma's own `min-width: 128px`, which is exactly `--brand-scale-1600`. */
+  min-width: var(--brand-scale-1600);
+}
+
+.mvp-finance__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--spacing-200) var(--spacing-400);
+  border-radius: var(--brand-scale-200);
+  background: var(--mapped-surface-elevation-default);
+}
+
+.mvp-finance__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+  padding: var(--spacing-300) 0;
+}
+
+.mvp-finance__row-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-finance__row-value {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+  text-align: right;
+}
+
+.mvp-finance-detail__list-section {
+  gap: var(--spacing-300);
+}
+
+.mvp-finance-detail__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ------------------------------------------------------- detail: actions */
+
+/*
+  The bottom action bar, and the one place `--mapped-gradient-default` is used.
+
+  Figma names this scrim `Gradient/default` and the token matches it to the
+  value. Until DS v1.2.0 the token hardcoded `#ffffff` and never dark-flipped,
+  which would have put a white fade over a dark page; it now derives from
+  `--mapped-surface-page`, so it fades to whatever the page actually is.
+*/
+.mvp-finance-detail__actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  padding: var(--spacing-600) var(--spacing-400) var(--spacing-400);
+  background-image: var(--mapped-gradient-default);
+}
+
+.mvp-finance-detail__actions > * {
+  width: 100%;
+}
+
+.mvp-finance__presets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+}
+
+/* The toast sits above the action bar, clear of both it and the nav pill. */
+.mvp-finance-detail__toast {
+  position: fixed;
+  right: var(--spacing-400);
+  bottom: var(--spacing-1400);
+  left: var(--spacing-400);
+  display: flex;
+  justify-content: center;
+}

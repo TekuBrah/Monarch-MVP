@@ -80,6 +80,21 @@ export function formatSignedPercent(pct: number): string {
   return `${pct < 0 ? '-' : '+'}${formatPercent(pct)}`
 }
 
+/**
+ * A trend's label — signed, EXCEPT at zero.
+ *
+ * `formatSignedPercent(0)` returns "+0%", and a signed zero is a small lie: it
+ * claims a direction on a holding that did not move. It never surfaced in Flow 1
+ * because the Homepage draws only the top two tokens, both of which move. Flow 7
+ * draws every token in a wallet, so Tether and Solana put it on screen — beside
+ * a `flat` indicator, which made the contradiction visible.
+ *
+ * Pairs with `trendOf()`, which returns `'flat'` on exactly the same input.
+ */
+export function formatTrendPercent(pct: number): string {
+  return pct === 0 ? formatPercent(pct) : formatSignedPercent(pct)
+}
+
 const DAY = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' })
 const TIME = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',

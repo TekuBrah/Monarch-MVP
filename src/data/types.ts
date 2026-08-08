@@ -1,4 +1,4 @@
-import type { IconName, LogoName } from '@monarch/design-system'
+import type { IconName, IconObjectColor, LogoName } from '@monarch/design-system'
 
 /**
  * The MVP domain model.
@@ -93,6 +93,15 @@ export interface Transaction {
   category: TransactionCategoryId
   /** Drives `ListItem`'s `hasReceiptIcon`. Becomes writable state in Flow 9 (W2). */
   hasReceipt: boolean
+  /**
+   * Which cash account the row was spent from — joins to `BankHolding.accountId`.
+   *
+   * Added by Flow 7 so a bank holding's drill-down can show its own rows. It is
+   * an ATTRIBUTION of the existing ledger, not new transactions: no merchant,
+   * amount, date or category below changed, and `categoryTotal()` is unfiltered
+   * so the Groceries chain still computes RM 1,800.00 exactly as before.
+   */
+  accountId: string
 }
 
 // -------------------------------------------------------------- crypto
@@ -147,6 +156,161 @@ export interface FeaturedCoin {
   priceMyr: Amount
   changePct: number
 }
+
+// ------------------------------------------------------------ holdings
+
+/**
+ * Flow 7 — the Finance Overview's unit of net worth.
+ *
+ * A HOLDING is anything the net-worth figure is a sum of. The eight cards Figma
+ * draws span four categories with four different shapes behind them, and the
+ * drill-down screen renders a different field set per shape — so this is a
+ * DISCRIMINATED UNION, not one wide optional-everything interface. The type tag
+ * is what lets the drill-down template be one component with an exhaustive
+ * switch, rather than nine screens or a pile of `field && <Row/>`.
+ *
+ * THE ARITHMETIC RULE STILL HOLDS. A holding stores what it is, not what it is
+ * worth, wherever the worth is computable: Gold stores grams and a price, an
+ * investment stores its lines, a wallet stores nothing at all and reads the
+ * token list. `holdingValue()` in `derive.ts` is the only thing that turns a
+ * holding into a number, and net worth is `sum(holdings.map(holdingValue))`.
+ */
+export type HoldingType =
+  | 'fixed-deposit'
+  | 'bank'
+  | 'joint'
+  | 'stocks'
+  | 'unit-trust'
+  | 'prs'
+  | 'gold'
+  | 'crypto-wallet'
+
+/**
+ * The card's caption line — Figma's four groupings, verbatim.
+ *
+ * ⚠️ Recorded because it is easy to get wrong from memory: the categories are
+ * Bank Account / Investment / Assets / Crypto Wallet, and their badge hues are
+ * teal / green / yellow / orange. NOT "bank = blue" and NOT "assets = gold".
+ */
+export type HoldingCategory =
+  | 'Bank Account'
+  | 'Investment'
+  | 'Assets'
+  | 'Crypto Wallet'
+
+interface HoldingBase {
+  id: string
+  category: HoldingCategory
+  /** Figma: the card's second line — "Fixed Deposit", "Main", "Stocks". */
+  name: string
+  /** DS `Icon` name for the card badge. */
+  icon: IconName
+  /**
+   * The badge tint Figma paints per category.
+   *
+   * ⚠️ NOT CURRENTLY REACHABLE. `CardBalance` hard-codes `IconObject
+   * color="slate"` and exposes no prop for it (checked in DS source at v1.2.0),
+   * so every card renders a slate badge and this field is carried but unused on
+   * the overview. It is kept — not deleted — because the value is measured from
+   * Figma, the drill-down hero does honour it, and deleting it would lose the
+   * only record of what the design asks for. See the note in `holdings.ts`.
+   */
+  badgeColor: IconObjectColor
+  /**
+   * Recent movement, where the file records one.
+   *
+   * `0` means "no movement recorded", never "unchanged in reality" — the same
+   * convention `CryptoHolding.changePct` already sets, and the reason the DS
+   * ships a `'flat'` trend direction at all. Only the crypto wallets carry a
+   * real figure, derived from their own tokens; the equity and fund holdings
+   * are flat because NOTHING IN THE FILE STATES A MOVE FOR THEM and authoring
+   * one would be authoring product data.
+   */
+  changePct?: number
+  /**
+   * Cost basis, where the drill-down shows an "Invested" tile.
+   *
+   * AUTHORED (see `holdings.ts`) — the file records no cost basis anywhere.
+   */
+  invested?: Amount
+}
+
+/**
+ * A term deposit. Its value is stored and its PRINCIPAL IS DERIVED — B3, and
+ * the reverse of the intuitive direction. RM 150,000 is the authoritative
+ * current value (it is the figure the overview card and the drill-down hero
+ * both draw); Figma's "Principal Amount RM 125,000" does not reconcile with it
+ * at 3.5% over any term the same screen states, so the principal is recomputed
+ * from value, rate and elapsed time instead of transcribed.
+ */
+export interface FixedDepositHolding extends HoldingBase {
+  type: 'fixed-deposit'
+  currentValue: Amount
+  /** Annual simple rate as a percentage — Figma: "3.5% p.a". */
+  ratePct: number
+  /** Whole years from start to maturity. Figma draws a three-year term. */
+  termYears: number
+  /**
+   * Months from `TODAY` to maturity. Figma writes "15 Months" remaining, so the
+   * maturity date is TODAY + 15 months and the start date is three years before
+   * that — B5, every date an offset. The literal dates Figma prints
+   * ("15 Dec 2023" / "15 Dec 2026") are NOT reproduced; they were true when the
+   * file was drawn and are stale now.
+   */
+  remainingMonths: number
+}
+
+/** A cash account — the Main account, and the Joint account from Flow 4. */
+export interface BankHolding extends HoldingBase {
+  type: 'bank' | 'joint'
+  balance: Amount
+  /** Masked, as a statement would print it. AUTHORED. */
+  accountNo: string
+  bank: string
+  /** "Savings Account", "Joint Savings". */
+  accountType: string
+  /** Which ledger rows belong to this account. */
+  accountId: string
+}
+
+/** One equity line inside the Stocks holding, or one fund inside UT / PRS. */
+export interface InvestmentLine {
+  id: string
+  name: string
+  /** Ticker for an equity; omitted for a fund, which has none. */
+  symbol?: string
+  valueMyr: Amount
+  changePct: number
+}
+
+/** Stocks, Unit Trust and PRS — same shape, three different labels. */
+export interface InvestmentHolding extends HoldingBase {
+  type: 'stocks' | 'unit-trust' | 'prs'
+  /** Heading above the line list on the drill-down. */
+  linesLabel: string
+  lines: InvestmentLine[]
+}
+
+/** Physical gold. Value is `grams * pricePerGram`, never stored. */
+export interface GoldHolding extends HoldingBase {
+  type: 'gold'
+  grams: number
+  pricePerGram: Amount
+}
+
+/** A crypto wallet. Holds nothing itself — its value is its token list. */
+export interface CryptoWalletHolding extends HoldingBase {
+  type: 'crypto-wallet'
+  /** Joins to `CryptoWallet.id`, which joins to `CryptoHolding.walletId`. */
+  walletId: string
+}
+
+export type Holding =
+  | FixedDepositHolding
+  | BankHolding
+  | InvestmentHolding
+  | GoldHolding
+  | CryptoWalletHolding
 
 // ------------------------------------------------------------- content
 

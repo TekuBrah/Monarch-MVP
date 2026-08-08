@@ -20,6 +20,27 @@ import type { Transaction, TransactionCategory } from './types'
  * YEAR: the file states no year on these rows. Inventory SYS-7 / F9 A6 records
  * the September items as 2025 (flagging a stray "15 Sept 2026" as the defect),
  * so 2025 is used throughout. Dates are stored ISO and formatted at render.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FLOW 7 — ACCOUNT ATTRIBUTION, AND WHY IT IS NOT NEW DATA.
+ *
+ * The Joint Account's drill-down needs transactions, and the file authors none
+ * for it anywhere. The two ways to get them are to invent rows or to attribute
+ * existing ones; inventing was rejected, so each row below now names the account
+ * it was spent from and two are attributed to the Joint account.
+ *
+ * WHICH TWO, AND WHY THOSE. `Lotus's` and `Giant` — both household groceries,
+ * which is what a joint account is for, and both sit in the MIDDLE of the
+ * ledger. That last part is deliberate: the Homepage draws the two NEWEST rows
+ * (Aeon Big 15 Sept, Caring Pharmacy 13 Sept), so attributing mid-list rows
+ * leaves every Flow 1 screen byte-identical.
+ *
+ * NOTHING ELSE MOVED. No merchant, amount, date, category or receipt flag
+ * changed, and `categoryTotal()` does not filter by account — so the Groceries
+ * chain still computes RM 1,800.00, which is the one hand-authored total in the
+ * whole design that survives being recomputed. That invariant was checked, not
+ * assumed.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 export const TRANSACTION_CATEGORIES: TransactionCategory[] = [
@@ -36,6 +57,7 @@ export const TRANSACTIONS: Transaction[] = [
   // --- the five Groceries rows that sum to RM 1,800.00 ------------------
   {
     id: 'txn-aeon-0915',
+    accountId: 'main',
     merchant: 'Aeon Big',
     logo: 'aeon',
     method: 'Card Payment',
@@ -50,6 +72,7 @@ export const TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'txn-aeon-0909',
+    accountId: 'main',
     merchant: 'Aeon Big',
     logo: 'aeon',
     method: 'Card Payment',
@@ -61,6 +84,8 @@ export const TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'txn-lotus-0905',
+    // Attributed to the Joint account — see the header note. Household spend.
+    accountId: 'joint',
     merchant: "Lotus's",
     logo: 'lotus_s',
     method: 'Card Payment',
@@ -72,6 +97,8 @@ export const TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'txn-giant-0902',
+    // Attributed to the Joint account — see the header note. Household spend.
+    accountId: 'joint',
     merchant: 'Giant',
     logo: 'giant',
     method: 'Card Payment',
@@ -83,6 +110,7 @@ export const TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'txn-jaya-0901',
+    accountId: 'main',
     merchant: 'Jaya Grocer',
     logo: 'jayagrocer',
     method: 'Card Payment',
@@ -96,6 +124,7 @@ export const TRANSACTIONS: Transaction[] = [
   // --- the Homepage's second row ---------------------------------------
   {
     id: 'txn-caring-0913',
+    accountId: 'main',
     merchant: 'Caring Pharmacy',
     logo: 'caring',
     method: 'Card Payment',

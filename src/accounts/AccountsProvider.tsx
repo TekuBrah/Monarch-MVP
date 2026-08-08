@@ -1,12 +1,19 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { CRYPTO_HOLDINGS, CRYPTO_WALLETS, FIAT_ACCOUNTS } from '../data/accounts'
+import { HOLDINGS } from '../data/holdings'
 import { TRANSACTIONS } from '../data/transactions'
-import { cryptoWalletChange, cryptoWalletTotal } from '../data/derive'
+import {
+  cryptoWalletChange,
+  cryptoWalletTotal,
+  netWorth,
+  netWorthSeries,
+} from '../data/derive'
 import type {
   Amount,
   CryptoHolding,
   CryptoWallet,
   FiatAccount,
+  Holding,
   Transaction,
 } from '../data/types'
 
@@ -42,6 +49,19 @@ interface AccountsContextValue {
   /** DERIVED — from each holding's own move, not transcribed. */
   cryptoChange: { amount: Amount; pct: number }
   transactions: Transaction[]
+
+  // ------------------------------------------------------------- Flow 7
+  /**
+   * Everything net worth is a sum of — the nine Finance Overview cards.
+   *
+   * ADDITIVE. Flow 7 widens this value object and changes NO existing field, so
+   * not one Flow 1 call site moved. That is the property §2.6 was set up for.
+   */
+  holdings: Holding[]
+  /** DERIVED — `sum(holdings)`. Never stored, never transcribed (B1). */
+  netWorth: Amount
+  /** DERIVED — month-to-date, one point per elapsed day (B6). */
+  netWorthSeries: number[]
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
@@ -59,6 +79,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       cryptoTotal: cryptoWalletTotal(CRYPTO_HOLDINGS),
       cryptoChange: cryptoWalletChange(CRYPTO_HOLDINGS),
       transactions: TRANSACTIONS,
+      holdings: HOLDINGS,
+      netWorth: netWorth(HOLDINGS, CRYPTO_HOLDINGS),
+      netWorthSeries: netWorthSeries(HOLDINGS, CRYPTO_HOLDINGS),
     }
   }, [])
 

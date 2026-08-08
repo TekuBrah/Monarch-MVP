@@ -1,6 +1,8 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
-import { ComingSoon } from './flows/homepage/components/ComingSoon'
+import { ComingSoon } from './components/ComingSoon'
+import { FinanceScreen } from './flows/finance/FinanceScreen'
+import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
 
 /**
@@ -32,16 +34,17 @@ export default function App() {
             />
           }
         />
-        <Route
-          path="finance"
-          element={
-            <ComingSoon
-              title="Finance"
-              description="Your net worth, budgets and plans in one view."
-              icon="icon_finance"
-            />
-          }
-        />
+        {/*
+          Flow 7. ONE route for the overview, whose five tabs are in-screen state
+          the same way the Homepage's four are — and one route PER HOLDING for
+          the drill-downs, because those genuinely are separate screens with
+          their own chrome (B7: overview present, drill-downs suppressed).
+
+          The holding is a route param, not a route-scoped provider (B8) — the
+          data comes from the app-level `useAccounts()` every other screen reads.
+        */}
+        <Route path="finance" element={<FinanceScreen />} />
+        <Route path="finance/holding/:holdingId" element={<HoldingDetailScreen />} />
         <Route
           path="more"
           element={
