@@ -48,9 +48,9 @@ export type MediaSlot = 'profile' | 'banner' | 'academy'
  * this constant is up here because it is the one thing anyone comes to edit.)
  */
 export const ACTIVE_MEDIA: MediaSource = {
-  profile: '/media/profile/user_margaret.svg',
-  banner: '/media/banner/imgbg01.svg',
-  academy: '/media/academy/monarchacademy_img.svg',
+  profile: '/media/profile/user_margaret.webp',
+  banner: '/media/banner/imgbg01.webp',
+  academy: '/media/academy/monarchacademy_img.webp',
 }
 
 export interface MediaSlotSpec {

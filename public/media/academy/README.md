@@ -114,5 +114,16 @@ verified at build time** — a typo gives a green `tsc` and a green `vite build`
 There is no visible symptom here today because nothing renders the slot, so this
 path will stay unverified until v1.4.0 wires it. Re-check it then.
 
-**Currently set to:** `monarchacademy_img.svg` — 218 × 184 Figma export wrapping
-two rasters (1920 × 1181 and 1024 × 1024). Configured, fetched by nothing.
+**Currently set to:** `monarchacademy_img.webp` — 681 × 575, 17.1 KB (lossy VP8).
+Configured, fetched by nothing.
+
+The superseded `monarchacademy_img.svg` (1.8 MB, a 218 × 184 frame wrapping two
+rasters) was deleted in Gate 1c. Verified equivalent first: Pearson r = 0.9993
+against the WebP when both are flattened onto white.
+
+**⚠️ Transparency was lost in the conversion.** The SVG was **47.6% transparent**;
+the WebP is **0%** — lossy VP8 carries no alpha channel, so it has been flattened
+onto white. Nothing renders this slot today so nothing is broken by it, but if
+the DS v1.4.0 slot turns out to want a cut-out illustration over a coloured card,
+this file will show a white rectangle. Re-export with alpha (lossless WebP or
+PNG) at that point.

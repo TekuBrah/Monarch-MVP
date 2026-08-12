@@ -80,5 +80,11 @@ only used when the slot is *unset* in `ACTIVE_MEDIA`, not when its file is
 missing. Set the slot to `null` (or delete the line) to get the placeholder back
 deliberately.
 
-**Currently set to:** `user_margaret.svg` — 64 × 64 Figma export wrapping a
-319 × 313 raster.
+**Currently set to:** `user_margaret.webp` — 200 × 200, 1.8 KB (lossy VP8, no
+alpha). Square, so no crop. 200 is 3.1× the documented 64 × 64 target and
+comfortably over the 64 device px the box needs at dpr 2 — oversized rather than
+soft, which is the right way round.
+
+The superseded `user_margaret.svg` (115 KB, a 64 × 64 frame wrapping a 319 × 313
+raster) was deleted in Gate 1c. Verified equivalent first: Pearson r = 0.9986
+against the WebP, mean abs diff 5.51/765 per pixel.

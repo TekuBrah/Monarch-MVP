@@ -94,7 +94,25 @@ fallback** shows through instead of your image. That gradient lives on the
 brand gradient rather than to a broken-image glyph. If the header suddenly looks
 like a blue/violet gradient again, the path is wrong.
 
-**Currently set to:** `imgbg01.svg` — 1125 × 270 Figma export wrapping a
-626 × 487 raster. See the note in the Gate 1b report about that raster's baked-in
-rotation and crop; the crop you see is from the SVG export, not from
-`object-fit: cover`.
+**Currently set to:** `imgbg01.webp` — 3515 × 843, 65.7 KB (lossy VP8). That is
+3.1× the documented 1125 × 270 target, and the aspect (4.1696) still matches, so
+`object-fit` has nothing to crop.
+
+## ⚠️ The rotation defect SURVIVED the WebP conversion
+
+Established in Gate 1c, and it is a **Figma re-export job**, not a code fix:
+
+- `imgbg01.webp` vs `imgbg01.svg` rendered at 1125 × 270 → **Pearson r = 0.9987**,
+  mean abs diff 4.54/765 across 6,118 sampled points. **The same image.**
+- Against the Gate 1b rotated-slice prediction → **r = 0.952**. Still the same
+  rotated band of the original 626 × 487 photo.
+- Downscaling the WebP to 1125 × 270 and re-upscaling to 3515 × 843 reproduces
+  the native file at **r = 0.9991**. So the extra resolution is empty — the
+  3515-wide file carries **no detail beyond 1125**.
+
+Net: the WebP is a ~3.1× rasterisation of the same defective SVG. It is 91.4%
+smaller (783 KB → 65.7 KB) and visually identical, including the defect. Only
+about **487 × 117 real source pixels** sit behind it, stretched across 3515 × 843.
+
+`imgbg01.svg` has therefore been **kept on disk** for now, unwired, so the two
+can be compared after a corrected Figma export. Delete it once that lands.
