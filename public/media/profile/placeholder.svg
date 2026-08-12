@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Placeholder profile picture">
+  <title>Placeholder — profile</title>
+  <defs>
+    <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#3d3d4e"/>
+      <rect width="4" height="8" fill="#4b4b60"/>
+    </pattern>
+  </defs>
+  <rect width="64" height="64" fill="url(#hatch)"/>
+  <!-- Person silhouette, so the circular crop reads as an avatar at a glance. -->
+  <circle cx="32" cy="25" r="10" fill="#ff2fd0"/>
+  <path d="M12 64c0-11 9-20 20-20s20 9 20 20z" fill="#ff2fd0"/>
+  <text x="32" y="60" text-anchor="middle" font-family="monospace" font-size="7" font-weight="bold" fill="#12121a">TEMP</text>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="218" height="184" viewBox="0 0 218 184" role="img" aria-label="Placeholder Monarch Academy image">
+  <title>Placeholder — Monarch Academy</title>
+  <defs>
+    <pattern id="hatch" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="16" height="16" fill="#3d3d4e"/>
+      <rect width="8" height="16" fill="#4b4b60"/>
+    </pattern>
+  </defs>
+  <rect width="218" height="184" fill="url(#hatch)"/>
+  <rect x="6" y="6" width="206" height="172" fill="none" stroke="#ff2fd0" stroke-width="4" stroke-dasharray="14 10"/>
+  <text x="109" y="72" text-anchor="middle" font-family="monospace" font-size="20" font-weight="bold" fill="#ff2fd0">PLACEHOLDER</text>
+  <text x="109" y="98" text-anchor="middle" font-family="monospace" font-size="14" fill="#e8e8f0">academy</text>
+  <text x="109" y="120" text-anchor="middle" font-family="monospace" font-size="13" fill="#b8b8cc">218 &#215; 184</text>
+  <text x="109" y="146" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#ffd24a">NOT WIRED &#8212; DS GAP</text>
+</svg>

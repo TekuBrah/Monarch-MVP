@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1125" height="270" viewBox="0 0 1125 270" role="img" aria-label="Placeholder banner image">
+  <title>Placeholder — top banner</title>
+  <defs>
+    <pattern id="hatch" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="24" height="24" fill="#3d3d4e"/>
+      <rect width="12" height="24" fill="#4b4b60"/>
+    </pattern>
+  </defs>
+  <rect width="1125" height="270" fill="url(#hatch)"/>
+  <rect x="9" y="9" width="1107" height="252" fill="none" stroke="#ff2fd0" stroke-width="6" stroke-dasharray="24 18"/>
+  <text x="562" y="120" text-anchor="middle" font-family="monospace" font-size="54" font-weight="bold" fill="#ff2fd0">PLACEHOLDER</text>
+  <text x="562" y="170" text-anchor="middle" font-family="monospace" font-size="30" fill="#e8e8f0">banner &#183; 1125 &#215; 270 &#183; 25:6</text>
+  <text x="562" y="212" text-anchor="middle" font-family="monospace" font-size="22" fill="#b8b8cc">drop a real image in public/media/banner/</text>
+</svg>

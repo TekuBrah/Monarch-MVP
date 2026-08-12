@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
+import { mediaUrl } from '../../config/media'
 import { FinanceOverview } from './FinanceOverview'
 import './finance.css'
 
@@ -51,15 +52,26 @@ export function FinanceScreen() {
         slot and a scrim. That is node-for-node what Figma's 112-tall `Header`
         draws on this screen.
 
-        The background is the same token gradient the Homepage uses in place of
-        Figma's `img/bg01` photograph — a supported slot fill, and it keeps a
-        binary asset out of the repo.
+        The banner and avatar are the SAME two logical slots the Homepage uses,
+        resolved through `src/config/media.ts` (Gate 1). Wired here as well as
+        on the Homepage on purpose: this header's background box measures
+        identically (viewport × 90), and the two were already documented as
+        sharing one stand-in fill, so one slot serves both and the two headers
+        still "cannot drift apart". The gradient class rides along on the `<img>`
+        as its load-failure fallback.
+
+        Note this variant also lays a bottom-up black legibility scrim over the
+        image — DS-owned, and the reason the banner README asks for subjects
+        composed toward the top.
       */}
       <HeaderBg
         variant="compact"
-        background={<div className="mvp-finance__header-bg" />}
+        background={
+          <img className="mvp-finance__header-bg" src={mediaUrl('banner')} alt="" />
+        }
         title="Finance"
         avatarName="Margaret"
+        avatarSrc={mediaUrl('profile')}
         statusBarTime="9:41"
         hasNotification
       />

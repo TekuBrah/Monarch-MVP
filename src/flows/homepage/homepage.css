@@ -21,10 +21,19 @@
 }
 
 /*
-  Stands in for Figma's `img/bg01` photograph. `HeaderBg` treats its background
-  as a swappable slot ("image, gradient, video, etc"), so a token gradient is a
-  supported fill rather than a workaround — and it keeps a binary asset out of
-  the repo.
+  Figma's `img/bg01` photograph. As of Gate 1 this class sits on the `<img>` in
+  `HeaderBg`'s background slot, whose src resolves through `src/config/media.ts`.
+
+  The gradient is therefore no longer the stand-in — it is the LOAD-FAILURE
+  FALLBACK. It is the img element's own `background-image`, so it is invisible
+  while the file decodes correctly and shows through if the file is missing.
+  That is worth keeping rather than deleting: `public/` paths are not verified at
+  build time, so "file renamed, nobody noticed" is a live failure mode, and the
+  alternative is a browser broken-image glyph in the header.
+
+  width/height are redundant against DS `.mn-header-bg__background > *` (which
+  also sets `object-fit: cover`); kept so the rule stands on its own if this
+  class is ever reused outside that slot.
 */
 .mvp-home__header-bg {
   width: 100%;

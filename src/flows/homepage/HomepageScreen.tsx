@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
+import { mediaUrl } from '../../config/media'
 import { HomepageCrypto } from './HomepageCrypto'
 import { HomepageFiat } from './HomepageFiat'
 import './homepage.css'
@@ -41,15 +42,30 @@ export function HomepageScreen() {
       {/*
         `HeaderBg` renders the status bar, avatar, greeting and notification
         bell itself. Its `background` is a deliberate slot — Figma fills it with
-        a photograph (`img/bg01`); a brand gradient stands in here so the app
-        ships no binary asset and no colour literal. Swapping in the real image
-        later is a one-line change to this prop.
+        a photograph (`img/bg01`).
+
+        Both image slots now resolve through `src/config/media.ts`, never a
+        literal path, so a real photo is dropped into `public/media/<slot>/` and
+        picked up on refresh with no code change here (Gate 1).
+
+        The gradient class stays ON the `<img>` rather than being deleted: it is
+        the element's own `background-image`, so it shows through only if the
+        file is missing or fails to decode. Dead CSS became a real fallback —
+        which matters precisely because `public/` paths are not build-verified.
+
+        No sizing CSS is needed. DS `HeaderBg.css` already covers the slot:
+        `.mn-header-bg__background > *` sets width/height 100% + `object-fit:
+        cover`, and the container is `aria-hidden`, so `alt=""` is belt and
+        braces rather than the thing doing the work.
       */}
       <HeaderBg
         variant="noSearchBar"
-        background={<div className="mvp-home__header-bg" />}
+        background={
+          <img className="mvp-home__header-bg" src={mediaUrl('banner')} alt="" />
+        }
         greeting="Hi, Margaret 👋"
         avatarName="Margaret"
+        avatarSrc={mediaUrl('profile')}
         statusBarTime="9:41"
         hasNotification
       />
