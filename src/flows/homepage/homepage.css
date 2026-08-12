@@ -285,13 +285,64 @@
   real tokens and the divergence is recorded here and in the handoff. This is
   the one place in Flow 1 where a raw colour was genuinely tempting.
 */
+/*
+  `justify-content: space-between` REMOVED in Gate 3c, not left as a no-op.
+
+  It meant something when the band held two independent children (copy on the
+  left, link pushed to the right edge). Now the link is nested inside the text
+  column, there are exactly two children — artwork and text column — and the
+  text column carries `flex: 1`, so there is no free space left to distribute.
+  `space-between` would have been inert at best; had the text column ever stopped
+  growing it would have silently reopened the art-to-text gap this gate just
+  pinned to 8px.
+
+  The gap is `--spacing-200` (8px), which is Figma's own offset: the illustration
+  ends at x=94.08 and the text column starts at x=102.08. It was inheriting
+  `--spacing-400` (16px), i.e. exactly double, and those 8px came straight out of
+  the text column's width.
+
+  PADDING is also `--spacing-200` (8px), Figma's `Frame 443` inset, corrected in
+  Gate 3d from `--spacing-300` (12px). That 4px-per-side surplus was the larger
+  half of why the band measured 87.45 against Figma's 82.
+*/
 .mvp-home__promo {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-400);
-  padding: var(--spacing-300);
+  gap: var(--spacing-200);
+  padding: var(--spacing-200);
   border-radius: var(--brand-scale-200);
+  /*
+    ⚠️ CONTRAST EXEMPTION — RECORDED, DELIBERATELY NOT FIXED HERE (Gate 3d).
+
+    Every text element on this band fails WCAG AA (4.5:1). Measured against the
+    ACTUAL gradient colour under each element — not against the stops, which is
+    the mistake that produced a wrong reading once already — at 375x812, both
+    themes (the band is theme-invariant, so the numbers are identical in each):
+
+      Explore link   2.88:1 centre / 2.69:1 far corner   <- WORST POINT
+      subtitle       3.35:1 centre / 2.78:1 far corner
+      title          3.51:1 centre / 2.89:1 far corner
+
+    Against the stops for reference: 4.49:1 on --brand-blue-500 rgb(4,110,255),
+    2.61:1 on --brand-teal-500 rgb(0,172,229). Nothing reaches 4.5:1 anywhere.
+
+    NONE OF IT QUALIFIES AS WCAG LARGE TEXT, so the 3:1 allowance does not
+    apply: the title is 16px/600 and bold needs >=18.66px; subtitle and link are
+    12px and 14px.
+
+    THIS PREDATES THIS PASS. The white title and link have always been on this
+    gradient. Gate 3c only made the subtitle theme-invariant — it had been
+    flipping to near-black in dark via --mapped-text-on-color-caption, which
+    happened to measure 5.73:1 there but rendered a white title above a
+    near-black subtitle on one band. Accidental, and it read as broken.
+
+    THE REMEDY IS A FIGMA-SIDE SURFACE CHANGE, not a code one: darker stops
+    (brand-blue-600/700 class), or the legibility scrim HeaderBg.css already
+    uses and justifies as "contrast math, not palette". Correcting it in MVP CSS
+    would make the build diverge from the file, which is the exact failure this
+    pass exists to prevent. So: no scrim, no altered gradient, no token-exempt
+    override here. Recorded and handed back to design.
+  */
   background-image: linear-gradient(
     141deg,
     var(--brand-blue-500) 20%,
@@ -299,11 +350,50 @@
   );
 }
 
+/*
+  The Academy illustration, leading the band (Gate 3b).
+
+  PROPORTION, NOT PIXELS. Figma gives the illustration 94.08 of a 327-wide
+  content frame at a 94.08:65 box — so the width is expressed as that fraction
+  and the height falls out of `aspect-ratio`, which keeps the shape correct at
+  any frame width. Neither is a spacing/colour/radius value, so neither wants a
+  token; writing 94.08px would have pinned it to one viewport.
+
+  `contain`, never `cover`: this is a transparent cut-out. `cover` would crop the
+  artwork to fill the box; `contain` fits it whole and leaves the surplus box
+  space transparent, which is what lets the gradient behind it show through.
+  The PNG is 436x368 (1.1848) against this box's 1.4474, so it fits to HEIGHT and
+  letterboxes horizontally — that surplus is transparent by design, not padding.
+
+  `flex-shrink: 0` so the artwork holds its size; the text column carries
+  `min-width: 0` and absorbs the remainder.
+*/
+.mvp-home__promo-art {
+  flex-shrink: 0;
+  width: 28.8%;
+  aspect-ratio: 94.08 / 65;
+  object-fit: contain;
+}
+
+/*
+  `flex: 1` so the column claims everything the artwork leaves, rather than
+  sizing to its own content. That is what holds the title and subtitle on one
+  line each, and what gives the action row below a full-width box to right-align
+  within. `min-width: 0` stays: without it a flex item refuses to shrink below
+  its content and the band would overflow instead of wrapping.
+*/
 .mvp-home__promo-text {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: var(--spacing-50);
   min-width: 0;
+}
+
+/* Figma's `Frame 514` — full column width, link pushed to the right edge. */
+.mvp-home__promo-action {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .mvp-home__promo-title {
@@ -311,9 +401,25 @@
   color: var(--mapped-text-primary-on-color);
 }
 
+/*
+  STATIC ON-COLOUR, matching the title above and `HeaderBg.css`'s reasoning.
+
+  This was `--mapped-text-on-color-caption`, which the DS deliberately FLIPS:
+  `--alias-neutral-100` in light, `--alias-neutral-950` in dark. That mapping is
+  correct for a surface that flips with the theme — but this band's gradient is
+  built from raw `--brand-*-500` tokens and is byte-identical in both modes, so
+  the caption swung to near-black on an unchanged blue and fell to ~3.8:1.
+
+  The title never had the bug because `--mapped-text-primary-on-color` resolves
+  to `--alias-foundations-white` in BOTH blocks. `--mapped-text-on-color-body` is
+  the same static white and is the semantically right member of the on-colour
+  family for body copy, so the subtitle now uses it. Hierarchy is carried by the
+  type ramp — `type-body-caption` 12/400 against the title's 16/600 — not by
+  colour, which is exactly what `HeaderBg` does with everything over its photo.
+*/
 .mvp-home__promo-subtitle {
   margin: 0;
-  color: var(--mapped-text-on-color-caption);
+  color: var(--mapped-text-on-color-body);
 }
 
 .mvp-home__feature-row {

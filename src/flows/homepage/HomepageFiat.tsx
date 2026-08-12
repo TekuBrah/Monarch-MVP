@@ -8,6 +8,7 @@ import {
 } from '@monarch/design-system'
 import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
+import { mediaUrl } from '../../config/media'
 import { recentTransactions } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
 import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insights'
@@ -140,6 +141,38 @@ export function HomepageFiat() {
             which is what the data carries.
           */}
           <div className="mvp-home__promo">
+            {/*
+              The Academy illustration (Gate 3b). Figma's `❖ System message`
+              band leads with it — `Group 284`, 94.08 x 65 at x=0 inside a
+              327-wide content frame — with the text flowing to its right.
+
+              It is a TRANSPARENT CUT-OUT, so `object-fit: contain` (not cover):
+              cropping would clip the artwork, and the leftover box space is
+              meant to stay transparent so the card's gradient shows through.
+              Verified 47.33% fully-transparent pixels before wiring.
+
+              Decorative: the band already carries its own title and subtitle, so
+              `alt=""` keeps it out of the accessibility tree rather than
+              announcing the same thing twice.
+            */}
+            <img
+              className="mvp-home__promo-art"
+              src={mediaUrl('academy')}
+              alt=""
+            />
+            {/*
+              The link STACKS UNDER the copy, inside the text column — it is not
+              a sibling of the artwork (Gate 3c).
+
+              This is Figma's own structure: `Frame 513` is the text column, and
+              the link lives in `Frame 514` INSIDE it, below the subtitle and
+              right-aligned. The MVP had the link as a third flex sibling, which
+              was harmless while there were only two children — but once the
+              illustration landed, `art + text + link` overflowed the 319.2px
+              content box and the text column absorbed the whole shortfall,
+              wrapping both lines. Nesting it is the structural fix; a margin
+              would only have moved the squeeze around.
+            */}
             <div className="mvp-home__promo-text">
               <p className="type-body-m-semibold mvp-home__promo-title">
                 {ACADEMY_PROMO.title}
@@ -147,14 +180,30 @@ export function HomepageFiat() {
               <p className="type-body-caption mvp-home__promo-subtitle">
                 {ACADEMY_PROMO.subtitle}
               </p>
+              {/*
+                `Frame 514`'s equivalent. It exists because `Link` exposes no
+                `className`, so the only way to right-align it without naming a
+                DS class from MVP CSS is an MVP-owned element around it — which
+                is also exactly how Figma models it.
+              */}
+              <div className="mvp-home__promo-action">
+                <Link
+                  label={ACADEMY_PROMO.linkLabel}
+                  size="s"
+                  appearance="inverse"
+                  /*
+                    `iconBefore={null}` ONLY — the leftover half of item A. `Link`
+                    defaults BOTH icon slots to `<Icon name="open_in_new">`, and a
+                    default parameter fires on `undefined`, so omitting `iconBefore`
+                    drew a stray `open_in_new` here. Figma inspects this link at
+                    63x16 WITH its chevron, so `iconAfter` is deliberately untouched.
+                  */
+                  iconBefore={null}
+                  iconAfter={<Icon name="chevron_right" size="xs" />}
+                  onClick={(e) => e.preventDefault()}
+                />
+              </div>
             </div>
-            <Link
-              label={ACADEMY_PROMO.linkLabel}
-              size="s"
-              appearance="inverse"
-              iconAfter={<Icon name="chevron_right" size="xs" />}
-              onClick={(e) => e.preventDefault()}
-            />
           </div>
 
           <div className="mvp-home__feature-row">

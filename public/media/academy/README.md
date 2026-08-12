@@ -1,19 +1,39 @@
-# `public/media/academy/` — Monarch Academy card
+# `public/media/academy/` — Monarch Academy illustration
 
-> **⚠️ NOT WIRED. The directory and the slot exist; no component can consume
-> them yet.** This is a suspected design-system gap, not an oversight here — see
-> "Why nothing renders" below. Dropping a file in this directory today changes
-> nothing on screen.
+> **✅ WIRED as of Gate 3b.** It renders in the `❖ System message` promo band on
+> the Homepage's Accounts tab — `.mvp-home__promo`, which is MVP-owned
+> composition. It was never the three `card/features and education` tiles; that
+> mis-attribution is what made this look like a DS gap for two gates. The DS gap
+> below is real and still open, but it does not block this slot.
 
 | | |
 |---|---|
-| **Aspect ratio** | **not yet decided** — depends on which shape the DS slot takes |
-| **Rendered box** | no image box exists in the component today |
-| **Supply at** | hold off. Two candidate targets measured below |
-| **Format** | PNG or SVG if the slot turns out to be an illustration; JPG if a photo |
+| **Aspect ratio** | box is **94.08 : 65** (≈1.447) from Figma; the artwork itself need not match — see below |
+| **Rendered box** | 28.8% of the band's content width × that ratio (≈91.9 × 63.5 at a 375 frame) |
+| **Supply at** | 2× the box or better. Current asset is 436 × 368 |
+| **Format** | **PNG or lossless WebP with a real alpha channel.** Not JPG, not lossy WebP |
 | **Placeholder** | `placeholder.svg` (218 × 184) |
 
-## Why nothing renders
+## ⚠️ Transparency is a hard requirement, not a preference
+
+The illustration is a **cut-out that sits on the band's gradient**, so the file
+must carry a genuine alpha channel. Two things are checked before wiring, because
+an alpha channel can be present and still fully opaque:
+
+- the PNG's IHDR `colorType` is 6 (RGBA), **and**
+- decoded pixels actually include transparent ones.
+
+The current asset passes both: **47.33% fully transparent, 6.91% partial** (real
+anti-aliased edges), all four corners `rgba(0,0,0,0)`, and only 0.13% near-white
+opaque — so it is not flattened onto white. A lossy WebP export **cannot** carry
+alpha and silently flattens; that is exactly how the previous
+`monarchacademy_img.webp` failed and why it was deleted.
+
+The box uses `object-fit: contain`, never `cover` — cropping would clip the
+artwork, and the surplus box space is meant to stay transparent so the gradient
+shows through.
+
+## The DS gap that is still open (and is not about this slot)
 
 The Monarch Academy section on the Homepage is built from two things, and
 **neither can take an image**:
@@ -40,11 +60,14 @@ the 40 × 40 icon span — but that is forcing a media asset through an icon slo
 which is exactly what CLAUDE.md rule 3 forbids. Not done.
 
 **2. The promo band** (`.mvp-home__promo`) — the gradient "Monarch Academy /
-Master Your Money & Monarch" strip. This one is MVP-local composition, so it
-*could* take an image without touching the DS. It was left alone deliberately:
-adding a media region to it is a **design decision**, not scaffolding, and the
-band is currently a deliberate two-token gradient with a recorded colour
-divergence.
+Master Your Money & Monarch" strip. **This is the real host, and it is where the
+illustration now renders.** MVP-local composition, so it needed no DS change at
+all. Gate 2 established this from Figma (`1266:14402`): the illustration is
+`Group 284`, 94.08 × 65 at x=0, with the text column 224.92 wide at x=102.08
+inside a 327-wide content frame.
+
+So the tile gap above is genuine but irrelevant here — it only matters if those
+three tiles ever need their own imagery.
 
 ## In-DS precedent for the fix
 
@@ -75,18 +98,14 @@ The tile width of 109 is *derived*, not fixed — `.mvp-home__feature-row > *` i
 `flex: 1 1 0` across three tiles in a 343-wide inset, so it changes with the
 frame width and the tile count.
 
-The `placeholder.svg` here is 218 × 184 — 2× the measured tile — purely so the
-file has an honest size. **Treat it as provisional.** If the DS adds a
-`CardGoals`-style full-bleed `image` slot, the real target is closer to
-`109 × <banner height>` and this number should be re-measured, not trusted.
+The `placeholder.svg` here is 218 × 184, sized against the tile back when the
+tile was thought to be the target. It is **the wrong ratio for the real box**
+(1.184 vs 1.447) and is only ever seen if the slot is unset — left as-is rather
+than re-cut, since it exists to be obviously a placeholder.
 
 ---
 
 ## How to use
-
-> **Still not wired.** Follow these steps and nothing appears on screen yet — the
-> DS component has no media slot. The gap is scheduled to close in **DS v1.4.0**;
-> until then this slot is configured but rendered nowhere, on purpose.
 
 1. **Drop the file into this folder** — `public/media/academy/`.
 2. **Edit one line** in [`src/config/media.ts`](../../../src/config/media.ts), in
@@ -96,34 +115,40 @@ file has an honest size. **Treat it as provisional.** If the DS adds a
    academy: '/media/academy/your-file.png',
    ```
 
-3. **Refresh.** Nothing changes visually until `CardFeaturesAndEducation` grows
-   an `image` prop (or an equivalent), at which point wiring it is one prop on
-   one component — `src/config/media.ts` needs no further change.
+3. **Refresh.** The illustration appears in the promo band on the Accounts tab.
 
 **The path is a URL, not a filesystem path.** It is
 `/media/academy/<file>` — **not** `public/media/academy/<file>`. Vite serves
 `public/` from the site root, so the `public/` prefix is not part of the URL and
 including it 404s.
 
-**Accepted formats:** PNG or SVG for illustrations; JPG if it turns out to be a
-photo; WebP works. Transparency is fine and may well be wanted, depending on
-which shape the DS slot takes.
+**Accepted formats:** PNG (or lossless WebP) **with alpha**. See the transparency
+section above — this is the one slot where format choice can silently break the
+design, because a lossy export flattens the cut-out onto a solid background and
+the failure looks like a rectangle rather than an error.
 
 **A wrong path fails silently.** `public/` is copied verbatim and is **not
-verified at build time** — a typo gives a green `tsc` and a green `vite build`.
-There is no visible symptom here today because nothing renders the slot, so this
-path will stay unverified until v1.4.0 wires it. Re-check it then.
+verified at build time** — a typo gives a green `tsc` and a green `vite build`,
+and at runtime the `<img>` simply fails to decode. There is no gradient fallback
+here as there is on the banner: the band's own gradient shows through the empty
+box, so a broken path reads as "the illustration is missing", not as an error.
 
-**Currently set to:** `monarchacademy_img.webp` — 681 × 575, 17.1 KB (lossy VP8).
-Configured, fetched by nothing.
+**Currently set to:** `monarchacademy_img.png` — **436 × 368**, 126 KB, 8-bit
+RGBA (IHDR colourType 6), 47.33% fully transparent. A 2× Figma export.
 
-The superseded `monarchacademy_img.svg` (1.8 MB, a 218 × 184 frame wrapping two
-rasters) was deleted in Gate 1c. Verified equivalent first: Pearson r = 0.9993
-against the WebP when both are flattened onto white.
+Its aspect (1.1848) is **narrower than the 94.08 : 65 box** (1.4474), so
+`object-fit: contain` fits it to height and leaves transparent letterboxing on
+the left and right. That surplus is transparent, so the gradient shows through
+and it reads as intended spacing — but an export at the box ratio would use the
+full width. Worth doing on the next pass; not a defect.
 
-**⚠️ Transparency was lost in the conversion.** The SVG was **47.6% transparent**;
-the WebP is **0%** — lossy VP8 carries no alpha channel, so it has been flattened
-onto white. Nothing renders this slot today so nothing is broken by it, but if
-the DS v1.4.0 slot turns out to want a cut-out illustration over a coloured card,
-this file will show a white rectangle. Re-export with alpha (lossless WebP or
-PNG) at that point.
+### Two predecessors, both deleted
+
+- `monarchacademy_img.svg` (1.8 MB, a 218 × 184 frame wrapping two rasters) —
+  deleted in Gate 1c after verifying the WebP was equivalent (Pearson r = 0.9993
+  on a white matte).
+- `monarchacademy_img.webp` (681 × 575, 17.1 KB, lossy VP8) — deleted in Gate 3b.
+  **Lossy VP8 carries no alpha channel**, so converting the 47.6%-transparent SVG
+  to it flattened the cut-out onto white. It was never rendered, so nothing broke
+  visibly; it was simply unusable for this slot. That is the cautionary case the
+  transparency section above exists for.

@@ -50,7 +50,7 @@ export type MediaSlot = 'profile' | 'banner' | 'academy'
 export const ACTIVE_MEDIA: MediaSource = {
   profile: '/media/profile/user_margaret.webp',
   banner: '/media/banner/imgbg01.webp',
-  academy: '/media/academy/monarchacademy_img.webp',
+  academy: '/media/academy/monarchacademy_img.png',
 }
 
 export interface MediaSlotSpec {
@@ -66,18 +66,23 @@ export interface MediaSlotSpec {
   /**
    * Whether any component can actually render this slot today.
    *
-   * GAP: `academy` is `false` because the DS `CardFeaturesAndEducation` has no
-   * media slot — to be closed in DS v1.4.0; until then `ACTIVE_MEDIA.academy`
-   * is set but deliberately rendered nowhere.
+   * All three slots are now `true`. `academy` flipped in Gate 3b, and the reason
+   * is worth keeping straight, because the DS gap it used to name still exists:
    *
-   * Its whole prop surface is `variant` / `icon` / `title` / `onClick` /
-   * `className`, and its source renders exactly two children (an icon span and
-   * a title span) with no media region. `icon` takes a `ReactNode`, so an
-   * `<img>` *would* render inside the 40-square icon span — that is forcing
-   * media through an icon slot and violates CLAUDE.md rule 3, so it is not
-   * done. `CardGoals.image` ("Full-bleed banner image — swappable slot") is the
-   * in-DS precedent for the shape of the fix. When v1.4.0 lands, wiring this is
-   * one prop on one component; nothing here needs to move.
+   * THE DS GAP IS REAL BUT WAS NEVER WHAT BLOCKED THIS SLOT. `CardFeaturesAndEducation`
+   * still has no media slot — prop surface `variant` / `icon` / `title` /
+   * `onClick` / `className`, source renders exactly two children (an icon span
+   * and a title span), no media region. Pushing an `<img>` through `icon` would
+   * be forcing media through an icon slot (CLAUDE.md rule 3), and it is still
+   * not done. `CardGoals.image` remains the in-DS precedent if that card ever
+   * needs one.
+   *
+   * What changed is the TARGET, not the DS. Figma puts the Academy illustration
+   * in the `❖ System message` band — `.mvp-home__promo`, which is MVP-owned
+   * composition — and NOT in the three `card/features and education` tiles. So
+   * this slot never needed a DS change; it needed the right host. Gate 2 read
+   * that structure out of Figma (`1266:14402`): illustration 94.08 x 65 at x=0,
+   * text column 224.92 wide at x=102.08, inside a 327-wide content frame.
    */
   readonly consumable: boolean
 }
@@ -102,7 +107,7 @@ export const MEDIA_SLOTS: Readonly<Record<MediaSlot, MediaSlotSpec>> = {
     label: 'Monarch Academy card',
     publicDir: 'public/media/academy',
     placeholder: '/media/academy/placeholder.svg',
-    consumable: false,
+    consumable: true,
   },
 }
 
