@@ -44,14 +44,15 @@ export function FinanceOverview() {
             <li key={holding.id} className="mvp-finance__grid-item">
               <CardBalance
                 /*
-                  ⚠️ The badge renders SLATE, not the category tint Figma paints.
-                  `CardBalance` hard-codes `IconObject color="slate"` and exposes
-                  no prop for it — a DS gap of the same class as the `onClick`
-                  one v1.2.0 just closed, reported rather than worked around.
-                  `holding.badgeColor` carries the measured value meanwhile, and
-                  the drill-down hero (which composes IconObject itself) uses it.
+                  The badge tint Figma paints per category, finally reachable.
+                  `CardBalance.iconColor` arrived in DS v1.3.0 and passes straight
+                  through to `IconObject` — the `slate` that every card used to
+                  render is now only this prop's default, not a hard-coded value.
+                  `holding.badgeColor` has carried the measured colour since Flow
+                  7; this is the line that was waiting for it.
                 */
                 icon={<Icon name={holding.icon} size="m" />}
+                iconColor={holding.badgeColor}
                 type={holding.category}
                 name={holding.name}
                 amount={formatMyr(holdingValue(holding, cryptoHoldings))}

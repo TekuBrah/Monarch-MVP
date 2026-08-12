@@ -26,21 +26,15 @@ import type { Holding } from './types'
  * derivable from the other and only the sum survives.)
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * ⚠️ THE BADGE COLOURS ARE CARRIED BUT NOT RENDERED ON THE OVERVIEW.
+ * THE BADGE COLOURS RENDER ON BOTH SCREENS.
  *
  * Figma tints each card's badge by category — teal / green / yellow / orange,
- * all resolving to `--brand-{hue}-400`, all legal `IconObjectColor` values. The
- * shipped `CardBalance` hard-codes `<IconObject color="slate">` and exposes no
- * prop for it, so all nine cards render slate badges today.
+ * all resolving to `--brand-{hue}-400`, all legal `IconObjectColor` values.
  *
- * This is NOT worked around here. Overriding the DS component's internals from
- * MVP CSS would violate the "never style a DS component's internals" rule and
- * would break the next time `CardBalance`'s markup changes; rebuilding the card
- * locally would violate rule 1. It is a DS prop gap of exactly the same class as
- * the `onClick` gap that v1.2.0 just closed, and it is reported as such. The
- * measured values stay in the data so the DS session has them, and so the
- * drill-down hero — which composes `IconObject` directly and therefore CAN
- * honour them — is already correct.
+ * These were carried but unrendered on the overview until DS v1.3.0, which added
+ * `CardBalance.iconColor`. Holding the measured values here through that wait —
+ * rather than deleting them, or forcing the tint from MVP CSS — is what made the
+ * fix a one-prop change when the DS caught up.
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * ON `invested` AND THE LINE LISTS. The file records no cost basis and no

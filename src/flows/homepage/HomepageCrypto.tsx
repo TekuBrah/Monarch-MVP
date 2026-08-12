@@ -1,4 +1,5 @@
-import { ListItem, Logo } from '@monarch/design-system'
+import { LineChart, ListItem, Logo } from '@monarch/design-system'
+import type { ChartHue, TrendDirection } from '@monarch/design-system'
 import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import {
@@ -18,21 +19,35 @@ import { SectionHeader } from './components/SectionHeader'
  *
  * TWO THINGS ARE DELIBERATELY ABSENT, both recorded rather than worked around:
  *
- * C1 — the green sparklines beside the Featured Coin rows. They resolve to raw
- * vector geometry, not a DS component: Figma emits each one as a single
- * flattened `<img src=…svg>` named `graph`, and all three rows point at the
- * SAME asset, which a data-driven chart could not do. That was a Rule-3 gap,
- * raised with G1 (donut) and G3 (trend line) as ONE charting decision.
+ * C1 — CLOSED. The green sparklines beside the Featured Coin rows resolved to
+ * raw vector geometry, not a DS component: Figma emits each one as a single
+ * flattened `<img src=…svg>` named `graph`, and all three rows point at the SAME
+ * asset, which a data-driven chart could not do. That was a Rule-3 gap, raised
+ * with G1 (donut) and G3 (trend line) as ONE charting decision.
  *
- * RESOLVED DS-SIDE in v1.1.0 — `LineChart` now exists and a sparkline is that
- * component with its chrome switched off, sized for `ListItem`'s `miniChart`
- * slot. It is deliberately NOT adopted here: charts land with Flow 7, and this
- * flow is not being reopened for them. The rows still carry token, price and
- * move, so nothing is lost by waiting.
+ * Resolved DS-side in v1.1.0 and adopted here now: a sparkline is `LineChart`
+ * with its chrome switched off, in `ListItem`'s own `miniChart` slot. Nothing is
+ * hand-rolled — an MVP-authored SVG sitting inside a DS card would have been the
+ * rule-3 violation this waited to avoid.
  *
  * A5 — Figma has two `navbar/mobile/section` instances at identical positions,
  * one hidden. Nav is shell-owned chrome here, so a duplicate cannot occur.
  */
+
+/**
+ * Trend direction -> series hue, matching what `TrendIndicator` already paints
+ * for the same direction (up = success/green, down = error/red, flat = subtle).
+ *
+ * Derived, never stored: the hue is a function of the direction the row already
+ * shows, so the line and the triangle cannot disagree — the same reasoning that
+ * put `trendDirection={trendOf(...)}` on these rows rather than a second field.
+ * Flow-local until a second flow needs it (architecture §1.1 rule 3).
+ */
+const TREND_HUE: Record<TrendDirection, ChartHue> = {
+  up: 'green',
+  down: 'red',
+  flat: 'gray',
+}
 export function HomepageCrypto() {
   const navigate = useNavigate()
   const { cryptoWallets, cryptoHoldings } = useAccounts()
@@ -101,10 +116,6 @@ export function HomepageCrypto() {
         <ul className="mvp-home__list">
           {FEATURED_COINS.map((coin) => (
             <li key={coin.id}>
-              {/*
-                `miniChart` is left undefined — see the C1 note above. It is the
-                slot the sparkline would occupy once the DS has a chart.
-              */}
               <ListItem
                 type="crypto"
                 leading={<Logo name={coin.logo} size="m" />}
@@ -113,6 +124,21 @@ export function HomepageCrypto() {
                 amount={formatMyr(coin.priceMyr)}
                 amountInfo={formatTrendPercent(coin.changePct)}
                 trendDirection={trendOf(coin.changePct)}
+                /*
+                  The sparkline. `showArea={false}` because Figma draws a bare
+                  line in this row, not a filled area — and no `summary`, so the
+                  chart renders `aria-hidden`: the row already announces the move
+                  through `TrendIndicator`, and labelling the chart would state
+                  the same fact twice (LineChart's own docstring makes this the
+                  intended sparkline behaviour, not an omission).
+                */
+                miniChart={
+                  <LineChart
+                    points={coin.series}
+                    color={TREND_HUE[trendOf(coin.changePct)]}
+                    showArea={false}
+                  />
+                }
               />
             </li>
           ))}

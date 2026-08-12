@@ -41,7 +41,19 @@ export function SectionHeader({
         <Link
           label={linkLabel}
           size="s"
-          iconAfter={<Icon name="chevron_right" size="xs" />}
+          /*
+            BOTH ICONS SUPPRESSED WITH `null`, NOT BY OMISSION — Figma inspects
+            this link as text-only.
+            `Link` DEFAULTS both slots to `<Icon name="open_in_new">`, and a
+            default parameter only fires on `undefined`. So omitting `iconBefore`
+            rendered an `open_in_new` glyph nobody asked for, and this header used
+            to draw two icons: that one plus the chevron below. `null` is a valid
+            `ReactNode`, is not `undefined`, so it defeats the default and the
+            component's own `{iconBefore && …}` guard renders nothing.
+            No override, no wrapper — the suppression is in Link's public API.
+          */
+          iconBefore={null}
+          iconAfter={null}
           onClick={(e) => {
             e.preventDefault()
             onLinkClick?.()

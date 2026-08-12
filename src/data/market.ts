@@ -15,6 +15,17 @@ import type { Amount, FeaturedCoin } from './types'
  * demonstrably wrong ticker beside it reads as carelessness to exactly the
  * audience this artifact is for. Recorded as a divergence from source.
  */
+/**
+ * Each `series` is AUTHORED MOCK DATA — the file records no price history, and
+ * the sparklines it draws are one flattened vector shared by all three rows
+ * (the C1 note in `HomepageCrypto.tsx`), so no real series was recoverable.
+ *
+ * Authored against the two invariants stated on `FeaturedCoin.series`: the last
+ * point is the quoted price, and `last / first` reproduces `changePct`. Each
+ * carries one interior dip so it reads as a price history rather than a ramp.
+ * Every row here moves UP, so every line rises — see `TREND_HUE` at the render
+ * site for how direction picks the colour.
+ */
 export const FEATURED_COINS: FeaturedCoin[] = [
   {
     id: 'sol',
@@ -23,6 +34,8 @@ export const FEATURED_COINS: FeaturedCoin[] = [
     logo: 'solana',
     priceMyr: 4465,
     changePct: 250.68,
+    // 4465 / 1273 = 3.5075 -> +250.75%, against a stated +250.68%.
+    series: [1273, 1495, 1402, 1888, 2340, 3105, 4465],
   },
   {
     id: 'ltc',
@@ -31,6 +44,8 @@ export const FEATURED_COINS: FeaturedCoin[] = [
     logo: 'litecoin',
     priceMyr: 4129,
     changePct: 225.72,
+    // 4129 / 1267 = 3.2581 -> +225.81%, against a stated +225.72%.
+    series: [1267, 1340, 1288, 1720, 2410, 3180, 4129],
   },
   {
     id: 'matic',
@@ -39,6 +54,8 @@ export const FEATURED_COINS: FeaturedCoin[] = [
     logo: 'polygon',
     priceMyr: 2004,
     changePct: 175.37,
+    // 2004 / 728 = 2.7527 -> +175.27%, against a stated +175.37%.
+    series: [728, 690, 812, 1010, 1288, 1640, 2004],
   },
 ]
 

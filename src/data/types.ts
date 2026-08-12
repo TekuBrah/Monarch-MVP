@@ -155,6 +155,22 @@ export interface FeaturedCoin {
   logo: LogoName
   priceMyr: Amount
   changePct: number
+  /**
+   * Price history for the row's sparkline, oldest first.
+   *
+   * MOCK TODAY, and the shape a real feed will fill — `LineChart` takes a plain
+   * `number[]`, so swapping mock for live prices touches this file and nothing
+   * else. No colour and no geometry here: the hue is derived from the trend
+   * direction at the render site, so the line and the trend triangle cannot
+   * disagree (the same rule `trendDirection` already follows).
+   *
+   * Two invariants the mock holds, so it cannot contradict the row beside it:
+   *   1. `series[series.length - 1] === priceMyr` — the line ends at the quoted
+   *      price.
+   *   2. `last / first` reproduces `changePct` to within whole-MYR rounding, so
+   *      a row reading +250.68% cannot draw a falling line.
+   */
+  series: number[]
 }
 
 // ------------------------------------------------------------ holdings
@@ -208,12 +224,9 @@ interface HoldingBase {
   /**
    * The badge tint Figma paints per category.
    *
-   * ⚠️ NOT CURRENTLY REACHABLE. `CardBalance` hard-codes `IconObject
-   * color="slate"` and exposes no prop for it (checked in DS source at v1.2.0),
-   * so every card renders a slate badge and this field is carried but unused on
-   * the overview. It is kept — not deleted — because the value is measured from
-   * Figma, the drill-down hero does honour it, and deleting it would lose the
-   * only record of what the design asks for. See the note in `holdings.ts`.
+   * Rendered on both screens as of DS v1.3.0: the overview passes it to
+   * `CardBalance.iconColor`, and the drill-down hero composes `IconObject`
+   * directly. Measured from Figma per category, not chosen here.
    */
   badgeColor: IconObjectColor
   /**
