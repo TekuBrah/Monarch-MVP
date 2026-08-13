@@ -81,12 +81,11 @@
   padding-left: var(--spacing-400);
 }
 
-.mvp-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-200);
-}
+/*
+  `.mvp-section-header` MOVED to `src/components/SectionHeader.css` — Gate 6
+  promoted the component to the shared bucket, and it took its stylesheet with
+  it, exactly as `.mvp-coming-soon` did.
+*/
 
 .mvp-home__list {
   display: flex;

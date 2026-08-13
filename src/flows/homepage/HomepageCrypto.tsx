@@ -11,8 +11,8 @@ import {
 } from '../../data/derive'
 import { formatMyr, formatQuantity, formatTrendPercent } from '../../data/format'
 import { FEATURED_COINS } from '../../data/market'
+import { SectionHeader } from '../../components/SectionHeader'
 import { BalanceCard } from './components/BalanceCard'
-import { SectionHeader } from './components/SectionHeader'
 
 /**
  * `Homepage_Crypto` (`1266:14403`) — the Crypto tab's body.

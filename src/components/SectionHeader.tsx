@@ -1,10 +1,11 @@
 import { Label, Link } from '@monarch/design-system'
 import type { IconName } from '@monarch/design-system'
 import { Icon } from '@monarch/design-system'
+import './SectionHeader.css'
 
 /**
  * A section heading row — a `Label` on the left, an optional "See all" `Link`
- * on the right. Used four times across the two Homepage screens.
+ * on the right.
  *
  * This is the SYS-3 / F1 A4 fix. In Figma, Fiat's "Transactions" is a raw
  * `text` node (`0:419`) while every comparable header — Crypto's "My Tokens",
@@ -12,8 +13,22 @@ import { Icon } from '@monarch/design-system'
  * escaped the component. Routing all four through here means the escape cannot
  * happen in code: there is no path that renders a section heading as raw text.
  *
- * Flow-local by design (architecture §1.1 rule 3) — it moves to
- * `src/components/` when a second flow needs it, not before.
+ * PROMOTED TO `src/components/` BY GATE 6, on the same architecture §1.1 rule 3
+ * that moved `ComingSoon` — a flow-local component crosses into the shared
+ * bucket when a SECOND FLOW needs it. Flow 7's `HoldingDetailScreen` was
+ * hand-rolling its list heading as a bare `<Label size="s">`, so it rendered
+ * without `mn-label--subtle` and broke the standing ruling that ALL section
+ * headers bind `text/subtle/default`. The fix is not another prop at another
+ * call site — it is one component that owns the pattern.
+ *
+ * WHICH IS WHY THERE IS NO `tone` PROP. `tone="subtle"` is applied internally
+ * and is not exposed: the moment a call site can choose it, the rule stops being
+ * a rule. Same reasoning for the class list — the wrapper, the `Label` and the
+ * `Link` are this component's business, not its callers'.
+ *
+ * It brought its stylesheet with it (`SectionHeader.css`). `.mvp-section-header`
+ * used to live in `homepage.css`, which would have made every Finance screen
+ * depend on the Homepage's layout CSS to draw a heading.
  */
 export interface SectionHeaderProps {
   label: string

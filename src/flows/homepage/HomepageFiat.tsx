@@ -12,8 +12,8 @@ import { mediaUrl } from '../../config/media'
 import { recentTransactions } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
 import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insights'
+import { SectionHeader } from '../../components/SectionHeader'
 import { BalanceCard } from './components/BalanceCard'
-import { SectionHeader } from './components/SectionHeader'
 
 /**
  * `Homepage_Fiat` (`1266:14402`) — the Accounts tab's body.

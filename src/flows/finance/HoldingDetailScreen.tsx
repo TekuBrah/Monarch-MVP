@@ -5,7 +5,6 @@ import {
   HeaderDefault,
   Icon,
   IconObject,
-  Label,
   ListItem,
   Logo,
   StatusBar,
@@ -13,6 +12,7 @@ import {
 } from '@monarch/design-system'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
+import { SectionHeader } from '../../components/SectionHeader'
 import { holdingValue } from '../../data/derive'
 import { DetailRows } from './components/DetailRows'
 import { HoldingHero } from './components/HoldingHero'
@@ -104,7 +104,19 @@ export function HoldingDetailScreen() {
 
         {fields.list && fields.list.entries.length > 0 && (
           <section className="mvp-finance-detail__section mvp-finance-detail__list-section">
-            <Label label={fields.list.label} size="s" />
+            {/*
+              GATE 6. This was a bare `<Label label={…} size="s" />`, which is
+              the one section heading in the app that escaped the component and
+              therefore rendered without `mn-label--subtle` — text/default/default
+              where the ruling says every section header binds text/subtle/default.
+
+              The fix is the shared component, not a `tone` prop here: the whole
+              point is that the rule is not a per-call-site decision. No
+              `linkLabel` — this heading has no "see all" affordance, and
+              `SectionHeader` already renders correctly without one (HomepageFiat's
+              "Monarch Academy" call site is the proof).
+            */}
+            <SectionHeader label={fields.list.label} />
             <ul className="mvp-finance-detail__list">
               {fields.list.entries.map((entry) => (
                 <li key={entry.id}>

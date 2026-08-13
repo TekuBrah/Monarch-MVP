@@ -44,6 +44,13 @@ Rule 3 is the one that preserves the system: it converts "the MVP diverged" into
 "the DS grew a component," which is both the correct outcome and the better
 case-study story.
 
+**A component owns its stylesheet.** Promoting a component to `src/components/`
+always brings its CSS with it, whether or not the files were previously
+co-located — leaving the rule behind in a flow's stylesheet makes the shared
+component silently dependent on that flow being in the bundle. This is a
+relocation, not new MVP CSS, and does not breach the no-new-CSS constraint.
+Precedents: `ComingSoon` (Flow 7), `SectionHeader` (Gate 6).
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
@@ -189,6 +196,14 @@ Inherited from the design system, and it applies identically here:
   "Inverse" appearance), so comparing against `--mapped-surface-primary-default`
   produced a real-looking mismatch that was entirely an incorrect expectation.
 - **Ground truth is disk and git, never session memory.**
+- **Type-check gate is `npx tsc -b --force`, never bare `tsc -b`** — the
+  incremental cache can report success having checked nothing, which is exactly
+  the case when files move between directories.
+- **Before starting work, check whether a dev server is already listening on the
+  project port.** If one is and it belongs to another session, STOP and report.
+  Never attach to another session's server: two sessions on one working tree can
+  edit each other's files, and measurements taken through a server you do not own
+  are not trustworthy.
 
 ## Git workflow
 

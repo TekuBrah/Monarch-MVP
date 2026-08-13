@@ -1,0 +1,20 @@
+/*
+  SectionHeader — moved out of `flows/homepage/homepage.css` when Gate 6 promoted
+  the component. The rule below is byte-identical to the one that lived there;
+  nothing was added, removed or retuned.
+
+  Same reasoning `ComingSoon.css` records: a shared component owning its own
+  stylesheet is what stops a Finance screen from importing the Homepage's layout
+  CSS to render a section heading. Without this the finance flow would be styled
+  only by whatever else happened to pull `homepage.css` into the bundle.
+
+  Composition only: spacing and alignment. No raw colour, radius, spacing or font
+  value (CLAUDE.md rule 2).
+*/
+
+.mvp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-200);
+}
