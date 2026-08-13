@@ -1,4 +1,4 @@
-import { BottomNavigation, Button, IconObject, Logo } from '@monarch/design-system'
+import { BottomNavigation, Button, Icon, IconObject } from '@monarch/design-system'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '../theme/ThemeProvider'
 import { chromeFor } from './chrome'
@@ -42,7 +42,7 @@ export function AppShell() {
           onClick={() => navigate('/steward')}
         >
           <IconObject color="ai" shape="circle" size="xxl">
-            <Logo name="monarch_logo_style_thick" size="s" />
+            <Icon name="logo_monarch" size="xl" />
           </IconObject>
         </button>
       )}

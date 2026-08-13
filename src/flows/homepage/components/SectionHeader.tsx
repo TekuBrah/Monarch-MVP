@@ -35,12 +35,14 @@ export function SectionHeader({
       <Label
         label={label}
         size="s"
+        tone="subtle"
         iconBefore={icon ? <Icon name={icon} size="s" /> : undefined}
       />
       {linkLabel && (
         <Link
           label={linkLabel}
           size="s"
+          weight="semibold"
           /*
             BOTH ICONS SUPPRESSED WITH `null`, NOT BY OMISSION — Figma inspects
             this link as text-only.
