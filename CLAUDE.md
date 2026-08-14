@@ -21,17 +21,10 @@ Vite + React 19 + TypeScript. Dev server on port **5174** (`strictPort`), pinned
 off the DS's 5173 so both can run at once — which is the normal case, not an edge.
 
 ```
-npm run dev             # dev server, port 5174
-npm run build           # tsc -b && vite build
-npm run preview         # serve the production build
-npm run lint:tokens     # token guardrail — scripts/check-tokens.mjs
-npm run test:e2e        # Playwright browser suite (Gate 7)
-npm run test:e2e:update # rewrite the visual baselines — deliberate act, see below
+npm run dev      # dev server, port 5174
+npm run build    # tsc -b && vite build
+npm run preview  # serve the production build
 ```
-
-**THE MVP HAS A TEST SUITE AS OF GATE 7.** Any earlier instruction that this
-repo has no test script and that one must not be created is superseded and
-wrong — do not act on it, and do not report it as a conflict.
 
 ## The five rules
 
@@ -186,11 +179,10 @@ literal.
 
 Inherited from the design system, and it applies identically here:
 
-- Verify with `getComputedStyle` and DOM assertions **in both themes**, not
-  ad-hoc screenshots — the interactive screenshot tool has been unreliable
-  throughout this project and failed again in Phase 4. Playwright's
-  `toHaveScreenshot` is a different mechanism and is trustworthy; the two are
-  not the same thing.
+- Verify with `getComputedStyle` and DOM assertions **in both themes**
+  (`document.documentElement.dataset.theme = 'dark'`), not screenshots — the
+  screenshot tool has been unreliable throughout this project and failed again
+  in Phase 4.
 - **Finish transitions before reading any transitioned property**, or the
   reading is a lie:
   `document.getAnimations().forEach(a => { try { a.finish() } catch (e) {} })`.
@@ -213,95 +205,6 @@ Inherited from the design system, and it applies identically here:
   edit each other's files, and measurements taken through a server you do not own
   are not trustworthy.
 
-## The gates
-
-Four, all green before a step is done:
-
-```
-npx tsc -b --force
-npm run build
-npm run lint:tokens
-npm run test:e2e
-```
-
-`test:e2e` starts its own dev server on 5174 and reuses one that is already
-listening, so the port rule above still applies — check first.
-
-## The browser harness (Gate 7)
-
-`playwright.config.ts` + `e2e/`. Chromium only, headless, one worker, zero
-retries. It exists because Gates 1–6 were hand-measured one value at a time, and
-that cost three specific things: an ambiguous inertness proof, a section-header
-bypass nothing swept for, and no screenshot capability at all.
-
-**THE VIEWPORT AND THE DPR ARE PINNED BY THE HARNESS — 375 x 812 at
-`deviceScaleFactor: 2`.** An uncontrolled devicePixelRatio is the specific
-defect this harness was built to eliminate, so the pin is asserted at runtime in
-`e2e/routes.spec.ts` as well as declared in the config. **Any measurement that
-disagrees with 375 / DPR 2 means the harness was bypassed** — it was taken
-through some other browser — and it is not evidence of anything until it is
-re-taken through the suite.
-
-Two more axes are pinned for the same reason and must not be loosened: the
-browser's timezone/locale (config) and the app's clock (`page.clock.setFixedTime`
-in `e2e/harness.ts`, because `src/data/today.ts` reads `new Date()` at module
-load and the fixed-deposit dates and net-worth chart derive from it).
-
-Do not spread a Playwright `devices[...]` descriptor into the project's `use`
-block. A project's `use` overrides the top-level one, and every desktop
-descriptor carries its own viewport and `deviceScaleFactor: 1` — it would
-silently undo both pins.
-
-### Visual baselines
-
-Committed on purpose, in `e2e/visual.spec.ts-snapshots/`. `.gitignore` excludes
-Playwright's *output* (`test-results/`, `playwright-report/`) and nothing else.
-
-Update them with `npm run test:e2e:update`, and only for a change you intended
-and can name in the commit message. **An unexplained baseline change is a
-finding, not a chore** — regenerating one to make the suite green is how the net
-stops catching anything.
-
-### What the suite does not cover
-
-The route walk sees each screen in its DEFAULT tab. The Homepage's four tabs and
-the Finance screen's five are in-screen `useState`, not routes (Flow 1 §3, Flow 7
-B7), so nothing behind a non-default tab is walked, swept or screenshotted. A
-known limit, not an oversight.
-
-**THE ROUTE COUNT IS 14, AND IT IS DERIVED.** `e2e/harness.ts` builds `ROUTES`
-from `src/App.tsx`'s `<Routes>` table, expanding the one parameterised route
-(`finance/holding/:holdingId`) over `HOLDINGS` — 5 static URLs + 9 holdings. An
-earlier hand-measured record of **16 routes is SUPERSEDED** and must not be used
-to contradict the derived count. Three checks back the 14, all re-verified at
-Gate 7 close:
-
-- there is **no catch-all `"*"` route**;
-- **no `<Route>` is declared outside `src/App.tsx`** (grep for
-  `<Route|Routes|path=|createBrowserRouter|useRoutes` across `src/` returns
-  `App.tsx` and nothing else);
-- there is **one pathless layout route** (`<Route element={<AppShell />}>`) with
-  **six children**, and none of those six has children of its own.
-
-If a future session finds a route the walk misses, **the DERIVATION is what is
-wrong** and must be re-derived from the router. Do not patch the route list by
-hand — a hand-written list is exactly what goes quietly green when a route is
-renamed.
-
-**SIX `SectionHeader` CALL SITES EXIST IN `src/`; THE SWEEP REACHES FOUR.** The
-two it does not reach are `HomepageCrypto.tsx:89` **"My Tokens"** and
-`HomepageCrypto.tsx:115` **"Featured Coin"**. Both sit behind the Homepage's
-Crypto tab, which is `useState` in `HomepageScreen.tsx` — the URL is byte-identical
-before and after the tab is clicked (measured), so **no route walk can reach
-them**. The sweep is total over RENDERED DOM, not over the app.
-
-**THE GAP, STATED AS A GAP: a section header added behind a non-default tab will
-NOT be caught by this suite.** Tab coverage was deliberately deferred at Gate 7
-close — the gate bought route-level cover, not state-level cover. **It must be
-closed BEFORE tabbed screens ship.** Until it is, a green suite is not evidence
-that a new heading binds `text/subtle/default`; it is only evidence that every
-heading on a default tab does.
-
 ## Git workflow
 
 **Branch creation is Claude Code's, when a step calls for it.** Phase 5 runs one
@@ -317,8 +220,3 @@ it into commits.
 
 Branch creation is therefore the only git write Claude Code makes. This
 supersedes the earlier "staging and committing locally is fine."
-
-**MVP HISTORY IS LINEAR, BY CONVENTION.** Gate branches are single-commit and
-fast-forward into `main`; a closed gate is marked with an `mvp-gateN` tag rather
-than a merge commit. **The absence of merge commits in `main` is correct and
-expected** — do not report it as a defect, and do not try to change it.

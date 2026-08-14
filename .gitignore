@@ -2,12 +2,3 @@ node_modules/
 dist/
 .DS_Store
 *.local
-
-# Playwright (Gate 7). OUTPUT only — diffs, traces and the HTML report are
-# regenerated on every run and are not worth reviewing in a diff.
-#
-# NOTE WHAT IS *NOT* IGNORED: `e2e/*-snapshots/`. The visual baselines are
-# committed on purpose — they are the record of what the app looked like when
-# the gate closed, and an unexplained change to one is a finding.
-test-results/
-playwright-report/
