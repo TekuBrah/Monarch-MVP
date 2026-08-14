@@ -279,10 +279,6 @@
   text-align: right;
 }
 
-.mvp-finance-detail__list-section {
-  gap: var(--spacing-300);
-}
-
 .mvp-finance-detail__list {
   display: flex;
   flex-direction: column;

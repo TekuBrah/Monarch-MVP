@@ -262,6 +262,61 @@ and can name in the commit message. **An unexplained baseline change is a
 finding, not a chore** — regenerating one to make the suite green is how the net
 stops catching anything.
 
+### Proving a CSS deletion is inert (Gate 8)
+
+**A GREEN SUITE ALONE DOES NOT DISTINGUISH "INERT" FROM "BLIND."** A deletion
+that changes nothing and a deletion in a region the suite cannot see produce the
+identical result: 28 baselines, zero diffs. So an inertness claim needs two
+things, and the second is the one that is easy to skip:
+
+1. Run `npm run test:e2e` with an **expected zero diff** on all 28 baselines.
+   Never `test:e2e:update` — there is no intended visual change, so there is
+   nothing to update. **A diff means the inertness claim was wrong**, and the
+   deletion stops there.
+2. Pair it with a **negative control at the same site**: break something that
+   definitely paints on the very element the deletion touched, confirm the
+   visual spec goes red with a real pixel count, then restore and hash-verify
+   byte-identical. That is what proves the zero-diff in step 1 was a
+   measurement rather than a blind spot.
+
+Geometry read through the harness (`getBoundingClientRect`, computed values, in
+both themes, transitions finished) is a useful second instrument, because a
+matching screenshot could in principle hide a compensating change.
+
+**`.mvp-finance-detail__list-section` was deleted this way.** Its sole
+declaration was `gap: var(--spacing-300)`, and every element carrying that class
+also carries `.mvp-finance-detail__section`, which sets the same token. Equal
+specificity, so source order decided it — but both resolved to `12px`, in both
+themes, on all 7 instances. Evidence: 86 passed / 0 baseline diffs, 0 geometric
+delta across 14 element-theme pairs, and a negative control at the same element
+producing a 5,708-pixel diff.
+
+**`gap: var(--spacing-200)` on `.mvp-section-header` was also deleted — after
+the gate's own stop condition was measured to be wrong.** The claim on record
+was that `justify-content: space-between` on a *two-child* row makes gap inert,
+and Gate 8 was told to halt if any instance had a child count other than two,
+because "a one-child header is the case where gap could matter."
+
+**Measurement inverted that rationale.** Of the 10 instances, **8 have ONE
+child** — so the original two-child claim described only 2 of them — but `gap`
+creates space *between* adjacent flex items, so a single flex item has **zero**
+gaps and the declaration cannot paint at all. One child makes the deletion more
+trivially inert, not less. The two-child cases were checked separately and are
+inert too: `scrollWidth === clientWidth` on every instance, with 172–265px of
+slack, so gap is never the binding constraint. The condition was lifted
+deliberately on that evidence, not waived.
+
+Same two-instrument proof as above: 86 passed / 0 baseline diffs on all 28, and
+**0 geometric delta across 20 element-theme pairs** — every rect, container
+height and following-sibling rect byte-identical, with computed `gap` moving
+`8px` → `normal` (the declaration gone, with no consequence). Control B had
+already produced diffs of 2,237 / 671 / 671 / 496 / 480 pixels at that exact
+element, so the region is proven visible.
+
+**THE LESSON IS THE INVERTED STOP CONDITION, NOT THE GAP.** A stop condition is
+only as good as its rationale, and this one would have preserved a dead
+declaration forever. Measure the rationale, not just the threshold.
+
 ### What the suite does not cover
 
 The route walk sees each screen in its DEFAULT tab. The Homepage's four tabs and
@@ -318,7 +373,14 @@ it into commits.
 Branch creation is therefore the only git write Claude Code makes. This
 supersedes the earlier "staging and committing locally is fine."
 
-**MVP HISTORY IS LINEAR, BY CONVENTION.** Gate branches are single-commit and
-fast-forward into `main`; a closed gate is marked with an `mvp-gateN` tag rather
-than a merge commit. **The absence of merge commits in `main` is correct and
-expected** — do not report it as a defect, and do not try to change it.
+**MVP HISTORY IS INTENDED TO BE LINEAR, AND THE TAG IS WHAT MATTERS.** Gate
+branches are meant to be single-commit and to fast-forward into `main`, and a
+closed gate is marked with an `mvp-gateN` tag.
+
+**THE DURABLE CONVENTION IS THE TAG, NOT THE SHAPE OF THE HISTORY.** `main`
+already contains a real merge commit — `b1f7b7f "Merge branch
+'phase/gate7-playwright-harness'"`, from the Gate 7 close — and `mvp-gate7`
+points at the tip regardless. **A merge commit is not a defect**: do not report
+one as a finding, do not rebase or rewrite history to remove one, and do not
+treat the absence of merge commits as something to verify either. Find the gate
+by its tag.
