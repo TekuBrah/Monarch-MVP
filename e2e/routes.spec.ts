@@ -1,14 +1,20 @@
 import { expect, test } from '@playwright/test'
 import {
   ROUTES,
+  TABBED_SCREENS,
   THEMES,
+  WALK,
   assertHarnessIsHonest,
-  gotoRoute,
+  assertTabEnumerationMatchesDom,
+  expectedTabIds,
+  gotoState,
+  stateTitle,
   watchForProblems,
 } from './harness'
 
 /**
- * THE ROUTE WALK — every reachable route, in both themes, clean.
+ * THE WALK — every reachable route, every tab state of every route, in both
+ * themes, clean.
  *
  * "Clean" is three things, and all three are hard failures:
  *   - zero console errors AND zero console warnings (allowlist in harness.ts;
@@ -22,32 +28,81 @@ import {
  * because of it. `deviceScaleFactor: 2` in playwright.config.ts is a claim; the
  * assertion below is the check on the claim. Set it to 1 and this fails, which
  * is exactly the behaviour that makes the pin worth anything.
+ *
+ * GATE 9 added the tab axis. Until then this walk saw each screen in its
+ * DEFAULT tab only, because tabs are `useState` and never reach the URL — so a
+ * console error on the Crypto tab was invisible to a green suite.
  */
 
 test.describe('route walk', () => {
-  test('the derived route list is not empty', () => {
+  test('the derived walk is not empty', () => {
     // A vacuous walk is the failure mode a data-derived list invites: if
     // HOLDINGS ever came back empty, every test below would pass by looping
     // zero times.
     expect(ROUTES.length).toBeGreaterThanOrEqual(6)
     expect(new Set(ROUTES).size).toBe(ROUTES.length)
-    console.log(`route walk covers ${ROUTES.length} route(s):\n  ${ROUTES.join('\n  ')}`)
+
+    // Same floor for the tab axis. Two tabbed screens are on record (the
+    // Homepage and Finance); if the parse ever returns none, the tab coverage
+    // this gate bought would evaporate without a single test failing.
+    expect(
+      TABBED_SCREENS.length,
+      'zero tabbed screens parsed out of the router — the derivation is broken, ' +
+        'and the tab coverage is silently gone',
+    ).toBeGreaterThanOrEqual(2)
+    expect(WALK.length).toBeGreaterThan(ROUTES.length)
+    expect(new Set(WALK.map((s) => `${s.route}#${s.tab?.id ?? ''}`)).size).toBe(WALK.length)
+
+    console.log(
+      `walk covers ${WALK.length} state(s) over ${ROUTES.length} route(s):\n  ` +
+        WALK.map(stateTitle).join('\n  '),
+    )
+    console.log(
+      `tabbed screens (derived from source):\n  ` +
+        TABBED_SCREENS.map(
+          (s) =>
+            `${s.route} <- ${s.source} (${s.constName}, ${s.tabs.length} tabs: ` +
+            `${s.tabs.map((t) => t.id).join(', ')}; default "${s.defaultTabId}")`,
+        ).join('\n  '),
+    )
   })
 
   for (const theme of THEMES) {
-    for (const route of ROUTES) {
-      test(`${route} [${theme}] renders clean`, async ({ page }) => {
+    for (const state of WALK) {
+      test(`${stateTitle(state)} [${theme}] renders clean`, async ({ page }) => {
         const problems = watchForProblems(page)
 
-        await gotoRoute(page, route, theme)
+        await gotoState(page, state, theme)
         await assertHarnessIsHonest(page)
+
+        // The parse-vs-DOM cross-check. Runs on every state, including the
+        // ones with no tabs at all — a tab bar appearing on a screen the parse
+        // thinks has none fails here, which is what keeps a source-text
+        // derivation honest.
+        await assertTabEnumerationMatchesDom(page, state)
 
         // Something must actually have rendered. Without this the checks above
         // would pass on a blank page.
         await expect(page.locator('.mvp-shell__main')).not.toBeEmpty()
 
-        expect(problems.console, `console output on ${route} [${theme}]`).toEqual([])
-        expect(problems.network, `network failures on ${route} [${theme}]`).toEqual([])
+        // On a tab state, the requested tab must be the selected one — proof
+        // that the panel below is the one this test claims to be walking.
+        if (state.tab) {
+          await expect(page.locator('[role="tab"][aria-selected="true"]')).toHaveAttribute(
+            'id',
+            `tab-${state.tab.id}`,
+          )
+          expect(expectedTabIds(state.route)).toContain(state.tab.id)
+        }
+
+        expect(
+          problems.console,
+          `console output on ${stateTitle(state)} [${theme}]`,
+        ).toEqual([])
+        expect(
+          problems.network,
+          `network failures on ${stateTitle(state)} [${theme}]`,
+        ).toEqual([])
       })
     }
   }

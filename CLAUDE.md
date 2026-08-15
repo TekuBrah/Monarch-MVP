@@ -262,6 +262,60 @@ and can name in the commit message. **An unexplained baseline change is a
 finding, not a chore** — regenerating one to make the suite green is how the net
 stops catching anything.
 
+**AN ORDINARY RUN CREATES A MISSING BASELINE. `--update` IS NOT THE ONLY WAY
+IN.** This was measured, not assumed (Gate 9 addendum, control Y2): a tracked
+baseline was deleted from the working tree and `npm run test:e2e` — no
+`--update` anywhere — was run twice.
+
+- Run 1: **1 failed / 128 passed**, reporting `Error: A snapshot doesn't exist
+  at …\steward-light-chromium-win32.png, writing actual.` **And it wrote the
+  file.**
+- Run 2: **129 passed.** Green, on a baseline nobody reviewed.
+
+(The re-created file happened to be byte-identical to the committed one —
+`ABE5883A…C240A` both sides — but that is a fact about this screen, not
+reassurance about the mechanism. Had the app regressed, the regression is what
+would have been written, and it would reproduce byte-identically too.)
+
+**THE CONSEQUENCE: A NEW `toHaveScreenshot` NAME GETS AN UNREVIEWED BASELINE ON
+ITS SECOND ORDINARY RUN.** The failure is announced exactly once and never
+again, so "the suite is green" does not mean "every baseline was reviewed". The
+`test:e2e:update` discipline above is still right, but it guards a door that is
+not the only entrance.
+
+**SO NEW BASELINE FILES MUST BE REVIEWED AT STAGING TIME, BY NAME.** Before
+committing, run `git ls-files --others --exclude-standard --
+e2e/visual.spec.ts-snapshots` and account for every file it lists: each one is
+either a baseline you intended to mint, or a baseline the suite invented and
+will never mention again. This matters most when a change adds
+`toHaveScreenshot` names by the handful — a new tabbed screen, a new route
+batch.
+
+**NAMING (Gate 9).** A default-tab state keeps the unsuffixed Gate 7 name —
+`index-light` is still the Homepage's Accounts tab — and a non-default tab state
+takes the tab id as a suffix: `index-crypto-light`, `finance-budget-dark`. The
+name comes from `stateSlug()` in `e2e/harness.ts`, which builds it from the
+route and, only when a tab had to be clicked, the tab id. That is why `WALK`
+expresses the default state as `tab: null` rather than as the default `TabState`:
+the two are the same screen, but only one of them clicks anything.
+
+**THE EXISTING 28 WERE DELIBERATELY NOT RENAMED,** and the reason is the update
+run itself. `--update-snapshots` regenerates any baseline whose name it cannot
+match, so a rename would have rewritten all 28 — and byte-identity across those
+28 is the ONLY thing bounding an update run. Renaming them would have destroyed
+the single check that says "adding tab coverage did not alter a default-tab
+render."
+
+**`npm run test:e2e:update` HAS BEEN RUN EXACTLY ONCE IN THIS PROJECT'S HISTORY
+— at Gate 9.** It was justified because new baselines were the intended output:
+14 tab states had no baseline to diff against, so there was nothing to regress.
+It was bounded by hashing all 28 pre-existing baselines before the run and
+re-hashing after: **28 re-hashed, 0 changed**, and Playwright reported exactly 14
+"snapshot doesn't exist, writing actual" lines and no updates. The suite was then
+run twice more without `--update` — 129 passed, 0 diffs, both times. Any
+pre-existing baseline changing on an update run is a finding that stops the gate,
+not a result to accept.
+
 ### Proving a CSS deletion is inert (Gate 8)
 
 **A GREEN SUITE ALONE DOES NOT DISTINGUISH "INERT" FROM "BLIND."** A deletion
@@ -317,18 +371,64 @@ element, so the region is proven visible.
 only as good as its rationale, and this one would have preserved a dead
 declaration forever. Measure the rationale, not just the threshold.
 
-### What the suite does not cover
+### Tab coverage (Gate 9)
 
-The route walk sees each screen in its DEFAULT tab. The Homepage's four tabs and
-the Finance screen's five are in-screen `useState`, not routes (Flow 1 §3, Flow 7
-B7), so nothing behind a non-default tab is walked, swept or screenshotted. A
-known limit, not an oversight.
+**THE TAB GAP IS CLOSED.** The walk is no longer route-only: it is every route
+**× every tab state**. The Homepage's four tabs and the Finance screen's five are
+still in-screen `useState` and still never reach the URL (Flow 1 §3, Flow 7 B7) —
+what changed is that the suite now activates them.
+
+**THE WALK IS 21 STATES, AND IT IS DERIVED.** 14 routes + 7 non-default tab
+states (Homepage 4 tabs − 1 default = 3; Finance 5 − 1 = 4). `e2e/harness.ts`
+parses `src/App.tsx` for the router table, resolves each route's element to its
+source file through that file's own import list, and parses a
+`const X: TabItem[] = [...]` out of it — so a renamed tab, a reordered tab or a
+new tabbed screen is picked up without anyone editing the harness. **Do not
+hand-write the tab list**; it has the same failure mode a hand-written route list
+has.
+
+**A SOURCE-TEXT PARSE CANNOT SEE WHAT IT DID NOT THINK TO LOOK FOR, so it is
+checked against the DOM.** `assertTabEnumerationMatchesDom()` runs on every state
+in the route walk — including states on screens the parse believes have no tabs —
+and compares the parsed ids, labels and default selection against the actual
+`[role="tab"]` set. A tab bar nested deeper than the route's own file would fail
+there rather than silently shrinking the suite. That cross-check is what makes it
+safe to build the test list from a parse; Playwright enumerates tests
+synchronously, before a browser exists, so the DOM cannot produce the list — only
+audit it.
+
+**TABS ARE ACTIVATED THROUGH THEIR OWN CONTROL,** never by setting React state or
+writing to the DOM — the same rule that makes `gotoRoute` click the theme toggle
+instead of writing `data-theme`. Settle is detected on `aria-selected` flipping
+to `true`, which `Tab` renders directly off the `selectedId` state being reached,
+so it is the state transition itself rather than a proxy for it; then exactly one
+selected tab, then image decode, then fonts. No timers. Clicking also avoids the
+one animation in `Tabs` — `scrollIntoView({ behavior: 'smooth' })` is on the
+`focusTab` path, i.e. arrow keys, not `onClick`.
+
+**ALL SIX `SectionHeader` CALL SITES ARE NOW SWEPT.** The two that Gate 7 could
+not reach — `HomepageCrypto.tsx` **"My Tokens"** and **"Featured Coin"**, behind
+the Homepage's Crypto tab — are reached by the walk. The sweep totals **24
+`.mvp-section-header` instances** across 21 states × 2 themes, decomposing into 9
+distinct headings: "Transactions", "Smart Insights", "Monarch Academy", "My
+Tokens", "Featured Coin" (2 state/theme pairs each), "Stocks held" (2), and
+"Recent transactions", "Funds held", "Token holdings" (4 each, being on more than
+one holding screen). Four of those 24 are Crypto-tab-only and were invisible
+before this gate.
+
+**WHAT IS STILL NOT COVERED, stated as a gap.** The sweep is total over RENDERED
+DOM, and tab state is now part of what gets rendered — but other in-screen state
+is not. A heading behind a modal, an expanded row or any other `useState` that
+this walk does not toggle is still only seen if that state happens to be open.
+`HoldingDetailScreen`'s two preset modals are the concrete case today.
 
 **THE ROUTE COUNT IS 14, AND IT IS DERIVED.** `e2e/harness.ts` builds `ROUTES`
 from `src/App.tsx`'s `<Routes>` table, expanding the one parameterised route
-(`finance/holding/:holdingId`) over `HOLDINGS` — 5 static URLs + 9 holdings. An
-earlier hand-measured record of **16 routes is SUPERSEDED** and must not be used
-to contradict the derived count. Three checks back the 14, all re-verified at
+(`finance/holding/:holdingId`) over `HOLDINGS` — 5 static URLs + 9 holdings. As
+of Gate 9 that table is **parsed** rather than transcribed, and an unexpandable
+`:param` throws instead of walking a path with a literal colon in it. An earlier
+hand-measured record of **16 routes is SUPERSEDED** and must not be used to
+contradict the derived count. Three checks back the 14, all re-verified at
 Gate 7 close:
 
 - there is **no catch-all `"*"` route**;
@@ -343,19 +443,56 @@ wrong** and must be re-derived from the router. Do not patch the route list by
 hand — a hand-written list is exactly what goes quietly green when a route is
 renamed.
 
-**SIX `SectionHeader` CALL SITES EXIST IN `src/`; THE SWEEP REACHES FOUR.** The
-two it does not reach are `HomepageCrypto.tsx:89` **"My Tokens"** and
-`HomepageCrypto.tsx:115` **"Featured Coin"**. Both sit behind the Homepage's
-Crypto tab, which is `useState` in `HomepageScreen.tsx` — the URL is byte-identical
-before and after the tab is clicked (measured), so **no route walk can reach
-them**. The sweep is total over RENDERED DOM, not over the app.
+**THE TAB COVERAGE IS PROVEN, NOT ASSUMED.** New coverage that never goes red is
+decorative, so **FOUR** controls were run at Gate 9 — three that break a thing
+the suite should catch, and a fourth that breaks the STATE LIST ITSELF. Each was
+restored and hash-verified byte-identical afterwards.
 
-**THE GAP, STATED AS A GAP: a section header added behind a non-default tab will
-NOT be caught by this suite.** Tab coverage was deliberately deferred at Gate 7
-close — the gate bought route-level cover, not state-level cover. **It must be
-closed BEFORE tabbed screens ship.** Until it is, a green suite is not evidence
-that a new heading binds `text/subtle/default`; it is only evidence that every
-heading on a default tab does.
+The first three each broke something on a TAB-ONLY target and confirmed the
+failure lands there:
+
+- `tone="subtle"` removed from `SectionHeader`'s internal `Label` → the sweep
+  failed on **"My Tokens" on `/ [tab:crypto]`**, `rgb(54,60,67)` vs expected
+  `rgb(107,119,134)` light and `rgb(207,213,220)` vs `rgb(134,149,167)` dark.
+- a `console.error` in `HomepageCrypto` → **exactly 2 route-walk tests failed**
+  (`/ [tab:crypto]` in both themes) and the other 41 passed, including `/` on its
+  default tab. The precision is the evidence: only the tab axis could see it.
+- `.mvp-balance-card__change`'s `gap` widened `--spacing-200` → `--spacing-600`
+  — that row renders only when `BalanceCard` gets a `change` prop, which only
+  `HomepageCrypto` passes → the visual spec failed on **`index-crypto-light`
+  (172 pixels)** and **`index-crypto-dark` (115 pixels)**, with all 40 other
+  baselines green.
+
+**THE FOURTH CONTROL TESTED THE ENUMERATION ITSELF,** because the three above all
+PRESUPPOSE it. Every one of them proves the coverage catches things at the states
+the suite visits; none of them checks that the state list is the right list. A
+hand-written list wearing a convincing parse would pass all three. So the
+Homepage's `cards` tab **id** was renamed to `plastic` at its declaration in
+`HomepageScreen.tsx` (the id, not the label).
+
+**The enumeration FOLLOWED the rename with no harness edit.** `npx playwright
+test --list` reported `/ [tab:plastic]` where it had reported `/ [tab:cards]`, in
+both themes, and the totals held — **129 tests, 21 walk states, 4 tabs** — which
+is correct, because the source still declares four tabs and only one id moved.
+The run's own derivation log read `4 tabs: accounts, crypto, plastic, stocks`.
+The route walk and the section-header sweep both stayed green on the renamed id
+(**127 passed**) — correctly, because the DOM really does render `tab-plastic` —
+which is the parse and `assertTabEnumerationMatchesDom` agreeing rather than
+either one being bypassed.
+
+**IT ALSO EXPOSED A COUPLING A FUTURE RENAME WILL HIT: BASELINE FILENAMES ARE
+KEYED TO TAB IDS.** `stateSlug()` builds the name from the tab id, so renaming a
+tab orphans its baselines — the suite went looking for `index-plastic-light` /
+`index-plastic-dark`, found neither, **wrote both automatically** (2 failed), and
+left `index-cards-light` / `index-cards-dark` on disk asserted by nothing. That
+writing behaviour is not specific to tabs and is recorded as a standing property
+of the net under **Visual baselines** above — read it there.
+
+So when a tab id is deliberately renamed: rename its two baseline files to match
+in the same commit, and account for strays with `git ls-files --others
+--exclude-standard -- e2e/visual.spec.ts-snapshots`. In this control the two
+strays were deleted, the id was reverted (`HomepageScreen.tsx` back to
+`A084D933…3272`), and the count returned to 42.
 
 ## Git workflow
 

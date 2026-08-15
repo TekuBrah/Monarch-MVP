@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test'
-import { ROUTES, THEMES, gotoRoute, type Theme } from './harness'
+import {
+  ROUTES,
+  TABBED_SCREENS,
+  THEMES,
+  WALK,
+  finishAnimations,
+  gotoState,
+  stateTitle,
+  type Theme,
+} from './harness'
 
 /**
  * THE SECTION-HEADER INVARIANT — the ruling on record, encoded.
@@ -21,15 +30,20 @@ import { ROUTES, THEMES, gotoRoute, type Theme } from './harness'
  *      because an escaped heading is not a `.mvp-section-header` and so is not
  *      in the set being checked.
  *
- * SCOPE — THE SWEEP IS TOTAL OVER RENDERED DOM, NOT OVER THE APP. Within a page
- * this walk visits, nothing escapes: `Label` is used by no other DS component
- * (the DS's own source has `.mn-label` in Label.tsx/.css/.test.tsx and nowhere
- * else), so every `.mn-label` in the DOM comes from an MVP call site and is
- * either checked or explicitly excepted. But the walk only reaches each screen
- * in its DEFAULT tab, and tabs are in-screen `useState`, not routes. Two
- * SectionHeader call sites therefore sit behind the Homepage's Crypto tab and
- * are NEVER visited: HomepageCrypto.tsx:89 "My Tokens" and :115 "Featured Coin".
- * 6 call sites exist in `src/`; this sweep sees 4 of them.
+ * SCOPE — THE SWEEP IS TOTAL OVER RENDERED DOM, AND AS OF GATE 9 THE WALK
+ * REACHES EVERY TAB STATE. Within a page this walk visits, nothing escapes:
+ * `Label` is used by no other DS component (the DS's own source has `.mn-label`
+ * in Label.tsx/.css/.test.tsx and nowhere else), so every `.mn-label` in the DOM
+ * comes from an MVP call site and is either checked or explicitly excepted.
+ *
+ * Gate 7 walked ROUTES only, and tabs are in-screen `useState` rather than
+ * routes, so two `SectionHeader` call sites behind the Homepage's Crypto tab —
+ * HomepageCrypto.tsx "My Tokens" and "Featured Coin" — were never visited: 6
+ * call sites in `src/`, 4 of them swept. `WALK` adds every non-default tab
+ * state, so all 6 are now reached. The remaining scope limit is narrower and
+ * worth naming: this sweeps rendered DOM, so a heading behind some OTHER piece
+ * of in-screen state (a modal, an expanded row) is still only seen if that
+ * state is open.
  */
 
 /**
@@ -90,25 +104,20 @@ async function probeSubtleToken(page: import('@playwright/test').Page): Promise<
 }
 
 let totalHeaders = 0
+/** Distinct heading texts seen, so the count can be DECOMPOSED, not just quoted. */
+const headingsSeen = new Map<string, Set<string>>()
 
 test.describe('section headers', () => {
   for (const theme of THEMES) {
-    for (const route of ROUTES) {
-      test(`${route} [${theme}] headers bind text/subtle/default`, async ({ page }) => {
-        await gotoRoute(page, route, theme)
+    for (const state of WALK) {
+      test(`${stateTitle(state)} [${theme}] headers bind text/subtle/default`, async ({
+        page,
+      }) => {
+        await gotoState(page, state, theme)
 
         // Transitions must be finished before any transitioned property is
-        // read, or the reading is a lie. The try/catch is load-bearing: an
-        // infinite animation throws on .finish() and would abort the rest.
-        await page.evaluate(() => {
-          document.getAnimations().forEach((a) => {
-            try {
-              a.finish()
-            } catch {
-              /* infinite animations cannot finish; skip, do not abort */
-            }
-          })
-        })
+        // read, or the reading is a lie.
+        await finishAnimations(page)
 
         expect(
           await probeSubtleToken(page),
@@ -132,6 +141,11 @@ test.describe('section headers', () => {
           )
 
         totalHeaders += headers.length
+        for (const header of headers) {
+          const where = headingsSeen.get(header.heading) ?? new Set<string>()
+          where.add(`${stateTitle(state)} [${theme}]`)
+          headingsSeen.set(header.heading, where)
+        }
 
         for (const header of headers) {
           expect(header.hasLabel, `"${header.heading}" renders no DS Label`).toBe(true)
@@ -141,11 +155,11 @@ test.describe('section headers', () => {
           // broke, with the missing class as the corroborating detail.
           expect(
             header.color,
-            `"${header.heading}" on ${route} [${theme}] does not compute to the subtle text colour`,
+            `"${header.heading}" on ${stateTitle(state)} [${theme}] does not compute to the subtle text colour`,
           ).toBe(SUBTLE[theme])
           expect(
             header.isSubtle,
-            `"${header.heading}" on ${route} [${theme}] is missing mn-label--subtle`,
+            `"${header.heading}" on ${stateTitle(state)} [${theme}] is missing mn-label--subtle`,
           ).toBe(true)
         }
 
@@ -168,7 +182,7 @@ test.describe('section headers', () => {
 
         expect(
           bypasses,
-          `${route} [${theme}]: DS Label rendered outside SectionHeader and outside the reviewed exception list.\n` +
+          `${stateTitle(state)} [${theme}]: DS Label rendered outside SectionHeader and outside the reviewed exception list.\n` +
             `Exceptions on record:\n` +
             BYPASS_EXCEPTIONS.map((e) => `  ${e.selector} — ${e.why}`).join('\n') +
             `\nIf one of these is a legitimate new use, add it to BYPASS_EXCEPTIONS with a reason. ` +
@@ -179,17 +193,50 @@ test.describe('section headers', () => {
   }
 
   test.afterAll(() => {
+    const tabStates = WALK.filter((s) => s.tab).length
     console.log(
       `section-header sweep: ${totalHeaders} .mvp-section-header instance(s) checked across ` +
-        `${ROUTES.length} route(s) x ${THEMES.length} theme(s)`,
+        `${WALK.length} walk state(s) (${ROUTES.length} route(s) + ${tabStates} non-default tab ` +
+        `state(s) over ${TABBED_SCREENS.length} tabbed screen(s)) x ${THEMES.length} theme(s)`,
+    )
+    console.log(
+      `distinct headings seen (${headingsSeen.size}):\n  ` +
+        Array.from(headingsSeen.entries())
+          .map(([heading, where]) => `"${heading}" — ${where.size} state/theme pair(s)`)
+          .join('\n  '),
     )
   })
 
   test('the sweep is not vacuous', async ({ page }) => {
     // If no route rendered a header at all, every assertion above would pass by
     // checking nothing. The Homepage is the guaranteed floor.
-    await gotoRoute(page, '/', 'light')
+    await gotoState(page, { route: '/', tab: null }, 'light')
     await expect(page.locator('.mvp-section-header').first()).toBeVisible()
     expect(await page.locator('.mvp-section-header').count()).toBeGreaterThan(0)
+  })
+
+  test('the tab axis is not vacuous', async ({ page }) => {
+    // The whole point of Gate 9: at least one section header must be reachable
+    // ONLY through a tab. If this ever passes by finding zero, the new coverage
+    // is decorative and the two Crypto-tab call sites are unswept again.
+    const homeTabs = TABBED_SCREENS.find((s) => s.route === '/')
+    expect(homeTabs, 'the Homepage no longer parses as a tabbed screen').toBeTruthy()
+
+    await gotoState(page, { route: '/', tab: null }, 'light')
+    const onDefault = await page.locator('.mvp-section-header').count()
+
+    const crypto = homeTabs!.tabs.find((t) => t.id !== homeTabs!.defaultTabId)!
+    await gotoState(page, { route: '/', tab: crypto }, 'light')
+    const onTab = await page.locator('.mvp-section-header').count()
+
+    expect(
+      onTab,
+      `no .mvp-section-header renders on the Homepage's "${crypto.id}" tab — either the ` +
+        `tab did not activate, or the headings moved and this check is now vacuous`,
+    ).toBeGreaterThan(0)
+    console.log(
+      `tab axis: Homepage default tab renders ${onDefault} header(s); ` +
+        `"${crypto.id}" tab renders ${onTab}`,
+    )
   })
 })
