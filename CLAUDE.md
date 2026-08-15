@@ -262,7 +262,9 @@ and can name in the commit message. **An unexplained baseline change is a
 finding, not a chore** — regenerating one to make the suite green is how the net
 stops catching anything.
 
-**AN ORDINARY RUN CREATES A MISSING BASELINE. `--update` IS NOT THE ONLY WAY
+#### The hole this used to have — measured, and why the guard exists
+
+**AN ORDINARY RUN CREATED A MISSING BASELINE. `--update` WAS NOT THE ONLY WAY
 IN.** This was measured, not assumed (Gate 9 addendum, control Y2): a tracked
 baseline was deleted from the working tree and `npm run test:e2e` — no
 `--update` anywhere — was run twice.
@@ -277,19 +279,138 @@ baseline was deleted from the working tree and `npm run test:e2e` — no
 reassurance about the mechanism. Had the app regressed, the regression is what
 would have been written, and it would reproduce byte-identically too.)
 
-**THE CONSEQUENCE: A NEW `toHaveScreenshot` NAME GETS AN UNREVIEWED BASELINE ON
-ITS SECOND ORDINARY RUN.** The failure is announced exactly once and never
-again, so "the suite is green" does not mean "every baseline was reviewed". The
-`test:e2e:update` discipline above is still right, but it guards a door that is
-not the only entrance.
+**THE CONSEQUENCE WAS: A NEW `toHaveScreenshot` NAME GOT AN UNREVIEWED BASELINE
+ON ITS SECOND ORDINARY RUN.** The failure was announced exactly once and never
+again, so "the suite is green" did not mean "every baseline was reviewed".
+Gate 10 replaced the instruction that guarded this with a mechanism. **The
+measurement above is kept because it is the reason the mechanism exists** — do
+not delete it on the grounds that it no longer describes the behaviour.
 
-**SO NEW BASELINE FILES MUST BE REVIEWED AT STAGING TIME, BY NAME.** Before
-committing, run `git ls-files --others --exclude-standard --
-e2e/visual.spec.ts-snapshots` and account for every file it lists: each one is
-either a baseline you intended to mint, or a baseline the suite invented and
-will never mention again. This matters most when a change adds
-`toHaveScreenshot` names by the handful — a new tabbed screen, a new route
-batch.
+#### The mechanism (Gate 10) — two parts, because one door was not enough
+
+**PART 1 — `updateSnapshots: 'none'` in `playwright.config.ts`.** Playwright's
+default is `'missing'`, which is the hole in as many words: `npx playwright test
+--help` says *"Running tests without the flag defaults to `missing`"*. With
+`'none'`, **an ordinary run never writes a snapshot** — a missing baseline is a
+hard failure on every run until a human deals with it. Writing a baseline
+becomes a deliberate named act rather than a side effect of running the suite.
+
+**THE `-u` OVERRIDE IS MEASURED, NOT ASSUMED (Gate 10a).** Gate 10 *asserted*
+that `npm run test:e2e:update` still works because the command-line flag beats
+the config value, but its own prompt forbade running that command, so the claim
+shipped untested — and if it were wrong, Flow 8 could not mint a baseline at
+all. It was then run, once, deliberately: `steward-light-chromium-win32.png`
+(`ABE5883A…C240A`) was deleted and `npm run test:e2e:update` was run.
+
+- Playwright printed exactly **one** `A snapshot doesn't exist at
+  …\steward-light-chromium-win32.png, writing actual.` — the `, writing actual.`
+  that `updateSnapshots: 'none'` suppresses on an ordinary run is back, so **the
+  flag does override the config**.
+- The file existed again (`Test-Path` → `True`) and re-hashed to
+  `ABE5883A…C240A` — **byte-identical**.
+- **`-u` REWROTE ONLY THE MISSING FILE, NOT THE SET.** This is the operationally
+  useful half and it is a direct read, not an inference from hashes being equal:
+  all 42 files were re-hashed (0 differed) *and* `LastWriteTime` was read on all
+  42 — only `steward-light` carried a timestamp from the update run; the other
+  41 kept theirs, some from the previous day. So **Flow 8 can safely run
+  `test:e2e:update` with existing baselines present**: names that already match
+  are not touched.
+- `npm run test:e2e` with no flag afterwards: **131 passed**.
+
+The one wrinkle worth knowing: on that run the guard's *tracked-but-missing*
+test failed (`1 failed / 130 passed`). That is correct, not a false positive —
+`baselines.spec.ts` sorts first, so at the moment it ran the tracked file really
+was absent; the visual spec wrote it later in the same run. Minting genuinely
+NEW baselines does not hit this, because a new name is not tracked yet.
+
+**PART 2 — the baseline guard, `e2e/baselines.spec.ts` (3 tests).** Part 1 stops
+new strays being *written*; it cannot see a baseline file that is **already on
+disk**, because Playwright only ever looks up the names its tests ask for. Its
+first two tests compare two lists of filenames — every file under an
+`e2e/**/*-snapshots/` directory on disk, and every file `git ls-files` tracks
+there — and fail naming each offender and what to do with it:
+
+- **untracked-on-disk** → `git add` it if you minted and reviewed it, delete it
+  if it is a stray;
+- **tracked-but-missing** → `git checkout --` it to restore the *reviewed* bytes,
+  or `git rm` it if the baseline is genuinely retired.
+
+It reads no image, writes nothing, and takes no browser, so it cannot depend on
+run order. The snapshot directories are **discovered from both sides**, not
+transcribed — a second spec file that starts minting screenshots is covered the
+day it appears.
+
+**PROVEN BY THREE CONTROLS at Gate 10, each restored and hash-verified after:**
+
+| Control | Result |
+|---|---|
+| (a) delete a tracked baseline (`steward-light`, `ABE5883A…C240A`), run twice with no `--update` | Run 1 **2 failed / 129 passed** and **did not write the file**; run 2 **2 failed / 129 passed** — where Gate 9 measured 129 passed, green |
+| (b) an untracked stray (`index-plastic-light-chromium-win32.png`, a copy) | **1 failed / 130 passed**, the guard naming that exact file |
+| (c) clean tree, all 42 baselines tracked and present | **131 passed** — the guard does not fire on a correct tree |
+
+Control (a) is the load-bearing one: the run-1 message was `A snapshot doesn't
+exist at …\steward-light-chromium-win32.png.` with **no `, writing actual.`**,
+and `Test-Path` confirmed the file was still absent afterwards.
+
+**THE WINDOWS-ONLY BASELINE CASE IS COVERED — by Part 1, not by the guard.**
+Every baseline is suffixed `-chromium-win32`, so on macOS or Linux every name
+resolves to a file that does not exist. That used to write a fresh unreviewed
+set and pass on the next run; under `updateSnapshots: 'none'` it is now 42 hard
+failures instead. This is the *same code path* control (a) exercised — a missing
+file for the name being asked for — so it is proven by the same measurement, not
+by a separate one. The guard proper would stay green there, because disk and git
+still agree; Part 1 is what catches it.
+
+#### The third arm (Gate 10a) — the orphan
+
+**A BASELINE THAT IS BOTH TRACKED AND PRESENT PASSED BOTH TESTS ABOVE, EVEN WITH
+NO TEST ASKING FOR IT.** Gate 10 recorded that correctly as still open. It is
+closed by a third test, `every baseline on disk is a name the suite asks for`,
+which brings a THIRD list: the names the suite actually requests.
+
+**IT IS DERIVED, AND FROM THE SAME SOURCE `visual.spec.ts` USES.** `WALK`,
+`THEMES` and `stateSlug` are **imported** from `harness.ts` — not
+re-implemented, and harness.ts is not touched — giving 21 walk states × 2 themes
+= **42** names, which is exactly the file count on disk. Anything on disk and
+outside that set is named as an orphan, with `git rm` as the fix and the warning
+that re-running the suite (or `test:e2e:update`) will never clear it, because
+nothing asks for the name. It deliberately does **not** fail on
+expected-but-absent: that already fails at the tracked-but-missing test and
+again at the visual test itself.
+
+**THE FILENAME IS RESOLVED BY PLAYWRIGHT, NOT ASSEMBLED — and that distinction
+was forced by a measurement.** The first attempt read the `-chromium-win32`
+decoration by resolving a probe named `__baseline_guard_probe__.png` and
+stripping the parts it supplied. **The probe came back as
+`-baseline-guard-probe--chromium-win32.png`**: Playwright SANITISES the
+screenshot name, and the underscores had been rewritten. Today's slugs are all
+`[a-z0-9-]`, so a hand-assembled name would have been right by luck and wrong
+the day a slug carried a character Playwright rewrites. The arm now calls
+`testInfo.snapshotPath(name, { kind: 'screenshot' })` — documented as returning
+the very path `toHaveScreenshot(name)` expects — and uses its basename, so
+sanitisation, project name and platform suffix all come from Playwright. A
+collision check (42 names must stay 42 distinct filenames) covers sanitisation
+being many-to-one.
+
+Like the other two it reads no image, writes nothing, takes no browser and needs
+no dev server, so it cannot depend on run order.
+
+**PROVEN BY TWO CONTROLS at Gate 10a:**
+
+| Control | Result |
+|---|---|
+| (a) a plausible orphan (`index-plastic-light-chromium-win32.png`, a copy) **`git add`-ed** so it is tracked AND present | **1 failed / 131 passed** — ONLY the third arm fired; the other two stayed green, which is what proves it catches something they cannot |
+| (b) clean tree, 42 baselines, all tracked and all expected | **132 passed** — it does not fire on a correct tree |
+
+Control (a) is the load-bearing one: `git status` showed the file staged as `A`
+before the run, i.e. invisible to both older tests by construction. It was then
+`git reset`, deleted, and the index re-verified empty.
+
+**WHAT STILL NEEDS A HUMAN.** One thing:
+
+- **The CONTENT of a baseline.** Nothing here reviews pixels. A deliberate
+  `test:e2e:update` still writes what the app currently renders, and the
+  discipline at the top of this section is what governs that.
 
 **NAMING (Gate 9).** A default-tab state keeps the unsuffixed Gate 7 name —
 `index-light` is still the Homepage's Accounts tab — and a non-default tab state

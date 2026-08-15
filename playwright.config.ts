@@ -32,6 +32,28 @@ export default defineConfig({
 
   reporter: [['list']],
 
+  // GATE 10 — THE SILENT-BASELINE HOLE, CLOSED AT THE SOURCE.
+  //
+  // Playwright's default is `'missing'`: a `toHaveScreenshot` name with no
+  // baseline on disk is WRITTEN, announced as a failure exactly once, and green
+  // on every run after that. Gate 9 measured it — a tracked baseline was deleted
+  // and the suite run twice with no `--update` anywhere: run 1 failed and wrote
+  // the file, run 2 reported 129 passed. `npx playwright test --help` states the
+  // default in as many words: "Running tests without the flag defaults to
+  // 'missing'".
+  //
+  // `'none'` means no snapshot is ever written by an ordinary run, so a missing
+  // baseline fails EVERY run until a human deals with it. `npm run
+  // test:e2e:update` still works — the `-u` flag on the command line overrides
+  // this — which is the correct split: writing a baseline becomes a deliberate,
+  // named act rather than a side effect of running the suite.
+  //
+  // This also closes the same hole on a non-Windows machine: every baseline
+  // here is suffixed `-chromium-win32`, so elsewhere every name resolves to a
+  // file that does not exist. That used to write a fresh, unreviewed set and
+  // pass; it now fails 42 times.
+  updateSnapshots: 'none',
+
   use: {
     baseURL: 'http://localhost:5174',
 
