@@ -2,6 +2,7 @@ node_modules/
 dist/
 .DS_Store
 *.local
+.claude/*HANDOFF*.md
 
 # Playwright (Gate 7). OUTPUT only — diffs, traces and the HTML report are
 # regenerated on every run and are not worth reviewing in a diff.
