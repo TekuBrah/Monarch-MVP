@@ -36,3 +36,30 @@ body {
   font-family: var(--font-family-primary);
   -webkit-font-smoothing: antialiased;
 }
+
+
+/*
+  THE CONTENT COLUMN.
+
+  `--mvp-gutter` is the single source of truth for the horizontal content
+  edge. Every site that establishes that edge derives from it rather than
+  writing a spacing token directly, so the column has one place to change and
+  one place to cap.
+
+  It resolves through a DS token, never a literal — `--spacing-400` is
+  declared exactly once, at `:root` in the DS globals, so the indirection
+  cannot pick up a different value in a theme block or a media query.
+
+  `.mvp-column` serves the padding-pair mechanism. The other three mechanisms
+  in this app consume the property directly at the site, because a `margin`
+  box and a fixed `left`/`right` inset cannot be expressed as padding without
+  changing which box owns the edge.
+*/
+:root {
+  --mvp-gutter: var(--spacing-400);
+}
+
+.mvp-column {
+  padding-right: var(--mvp-gutter);
+  padding-left: var(--mvp-gutter);
+}

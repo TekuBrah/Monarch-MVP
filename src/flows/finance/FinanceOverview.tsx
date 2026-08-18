@@ -38,7 +38,7 @@ export function FinanceOverview() {
         change={netWorthChange(netWorthSeries)}
       />
 
-      <section className="mvp-finance__section">
+      <section className="mvp-finance__section mvp-column">
         <ul className="mvp-finance__grid">
           {holdings.map((holding) => (
             <li key={holding.id} className="mvp-finance__grid-item">

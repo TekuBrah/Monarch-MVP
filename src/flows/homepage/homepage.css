@@ -47,7 +47,7 @@
 }
 
 .mvp-home__tabs {
-  padding: var(--spacing-400);
+  padding: var(--mvp-gutter);
   padding-bottom: var(--spacing-200);
 }
 
@@ -73,14 +73,6 @@
   gap: var(--spacing-300);
 }
 
-/* Sections whose content is inset from the screen edge. The Smart Insights
-   carousel is deliberately NOT one of these — see A12 below. */
-.mvp-home__section--inset,
-.mvp-home__section-inset {
-  padding-right: var(--spacing-400);
-  padding-left: var(--spacing-400);
-}
-
 /*
   `.mvp-section-header` MOVED to `src/components/SectionHeader.css` — Gate 6
   promoted the component to the shared bucket, and it took its stylesheet with
@@ -102,7 +94,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-300);
-  margin: 0 var(--spacing-400);
+  margin: 0 var(--mvp-gutter);
   padding: var(--spacing-400);
   border-radius: var(--brand-scale-300);
   background: var(--mapped-surface-elevation-default);
@@ -203,7 +195,7 @@
 .mvp-home__carousel {
   display: flex;
   gap: var(--spacing-200);
-  padding: 0 var(--spacing-400) var(--spacing-100);
+  padding: 0 var(--mvp-gutter) var(--spacing-100);
   overflow-x: auto;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;

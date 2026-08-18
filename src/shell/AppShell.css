@@ -54,7 +54,7 @@
 */
 .mvp-shell__fab {
   position: fixed;
-  right: var(--spacing-400);
+  right: var(--mvp-gutter);
   bottom: var(--brand-scale-1500);
   z-index: 3;
   display: flex;
@@ -74,6 +74,6 @@
 .mvp-shell__theme-switch {
   position: fixed;
   bottom: var(--brand-scale-1500);
-  left: var(--spacing-400);
+  left: var(--mvp-gutter);
   z-index: 3;
 }

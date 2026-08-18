@@ -58,6 +58,98 @@ component silently dependent on that flow being in the bundle. This is a
 relocation, not new MVP CSS, and does not breach the no-new-CSS constraint.
 Precedents: `ComingSoon` (Flow 7), `SectionHeader` (Gate 6).
 
+## The content column (Gate 12)
+
+**`--mvp-gutter` IS THE SINGLE SOURCE OF TRUTH FOR THE HORIZONTAL CONTENT
+EDGE.** It is declared once, in `src/index.css`:
+
+```css
+:root { --mvp-gutter: var(--spacing-400); }
+```
+
+A new site that establishes a content edge **derives from `--mvp-gutter`, not
+from a spacing token directly**. Writing `var(--spacing-400)` at a new gutter
+site is the thing this convention exists to stop: it was re-declared
+independently at every site before this gate, which is why the parked
+frame-max-width decision had no single object to cap.
+
+`--spacing-400` is still correct for a component's OWN interior padding — a
+card's inset is not the content column, and conflating the two is how the
+column stops meaning anything. The test is whether the declaration positions
+the element against the SCREEN edge or pads content inside an already-placed
+box.
+
+**WHY THE INDIRECTION IS SAFE, AND WHAT WOULD BREAK IT.** A custom property
+that references another custom property is substituted where it is DECLARED,
+not where it is used — the hazard that killed a DS gradient mechanism that had
+been approved on paper. Here that baking is harmless *and load-bearing*: it is
+what makes the migration inert. But it holds only while `--spacing-400` never
+varies by scope. It is declared exactly once, at bare `:root` in the DS
+`globals.css`, resolving to `--brand-scale-400` which is likewise declared once
+at bare `:root` — neither sits in `[data-theme="dark"]`, a media query or a
+container query. **If a future DS release scopes `--spacing-400`, this
+indirection freezes at the `:root` value and silently ignores the override.**
+Re-check that before trusting the column across a DS upgrade.
+
+### Four mechanisms, one value
+
+The app establishes a horizontal edge four different ways, and the convention
+serves each differently. This is not untidiness to be normalised away — the
+mechanism is forced by what the element is.
+
+| Mechanism | Served by | Why |
+|---|---|---|
+| `padding-left`/`padding-right` pair | **`.mvp-column`** | Exact match: same two properties, same box. The class is applied in markup. |
+| `padding` shorthand | the property, at the site | The shorthand also carries vertical values; splitting it to adopt the class would add declarations and a cascade dependency for no gain. |
+| `margin` shorthand | the property, at the site | Same reason. `margin: 0 var(--mvp-gutter)` is doing two jobs; a `margin-right`/`margin-left` class can only do one, and `margin: 0` alongside it would win on source order and collapse the gutter. |
+| `left`/`right` on fixed chrome | the property, at the site | **A fixed inset cannot be expressed as padding at all.** Padding insets content within a box; `left`/`right` positions the box itself against the viewport. There is no class that could serve this without changing which box owns the edge. |
+
+**`.mvp-column--outset` WAS PROPOSED AND DELIBERATELY NOT SHIPPED.** It would
+have served the `margin` sites, and it had **zero** adopters that met the bar:
+every margin site uses the shorthand, so adoption would have meant splitting it
+into longhands purely to justify the class. An unadopted class is a claim the
+migration did not support. If a future site genuinely writes
+`margin-left`/`margin-right` as longhands, add it then.
+
+### Two standing exclusions — do not "finish the job"
+
+- **`.mvp-coming-soon` is NOT on the column.** Its inset is `--spacing-600`
+  (24px), not the gutter, and it is a centred placeholder — `text-align:
+  center` with the description capped at `max-width: 75%` — rather than a
+  content column. It renders on `/transfer`, `/more`, `/steward` and two
+  Homepage tabs. **Migrating it to the gutter changes pixels on five screens.**
+- **`.mvp-shell__nav` is deliberately full-bleed** (`left: 0; right: 0`), so the
+  BottomNavigation pill self-centres. Giving it the gutter is fix 3b and belongs
+  with `barWidth='fill'`; on its own it is inert, because a hug-width pill
+  centred in a 343px content box lands exactly where it already sits.
+
+Both were measured, not assumed. They are the control group that proves the
+migration was inert rather than globally shifted: they did not move either.
+
+### `.mvp-column--bleed` is deferred, on purpose
+
+The full-bleed scroller — the Smart Insights carousel — spans the viewport and
+carries the gutter as padding. It wants a `--bleed` variant, and that variant's
+reason for existing is `scroll-padding-left`: without it, `scroll-snap-align:
+start` aligns the first card to the scrollport edge and **eats the declared
+inset**, which is a real defect, visible at rest, not only after scrolling.
+
+That is fix 5, and it CHANGES PIXELS. Declaring the class in this gate would
+have shipped dead CSS whose only consumer arrives later. It lands in Gate 3
+together with its adoption and its fix, so the class and the behaviour it
+exists for arrive in one reviewable change. The carousel's gutter VALUE is
+already migrated; only the scroll behaviour is outstanding.
+
+### What this gate proved
+
+The convention's deciding test was that migration is **visually inert**, and it
+was measured two independent ways rather than asserted: a computed-value census
+over every census site in both themes (element box, content box and every
+horizontal property — zero deltas, including on the renamed nodes matched by
+DOM position rather than by selector), and **all 42 baselines byte-identical by
+SHA-256** with the suite green at `threshold: 0`. That test was not runnable
+before Gate 1 closed the per-pixel tolerance.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

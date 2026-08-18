@@ -86,7 +86,7 @@ export function HoldingDetailScreen() {
 
         {/* Idiom one — the wrapping tile row. `content2` is left off on all of
             them, exactly as Figma's four instances do. */}
-        <section className="mvp-finance-detail__section">
+        <section className="mvp-finance-detail__section mvp-column">
           <div className="mvp-finance-detail__tiles">
             {fields.tiles.map((tile) => (
               <CardDataDisplay key={tile.info} info={tile.info} content={tile.content} />
@@ -97,13 +97,13 @@ export function HoldingDetailScreen() {
         {/* Idiom two — the label/value rows. Rendered only where the type has
             any: `rows` and `list` are alternatives, not a pair. */}
         {fields.rows.length > 0 && (
-          <section className="mvp-finance-detail__section">
+          <section className="mvp-finance-detail__section mvp-column">
             <DetailRows rows={fields.rows} />
           </section>
         )}
 
         {fields.list && fields.list.entries.length > 0 && (
-          <section className="mvp-finance-detail__section mvp-finance-detail__list-section">
+          <section className="mvp-finance-detail__section mvp-column mvp-finance-detail__list-section">
             {/*
               GATE 6. This was a bare `<Label label={…} size="s" />`, which is
               the one section heading in the app that escaped the component and

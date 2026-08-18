@@ -45,7 +45,7 @@ export function HomepageFiat() {
         onSend={() => navigate('/transfer')}
       />
 
-      <section className="mvp-home__section mvp-home__section--inset">
+      <section className="mvp-home__section mvp-column">
         {/* SYS-3 / A4: a Label, where Figma left a raw text node. */}
         <SectionHeader label="Transactions" linkLabel="See all" />
         <ul className="mvp-home__list">
@@ -66,7 +66,7 @@ export function HomepageFiat() {
       </section>
 
       <section className="mvp-home__section">
-        <div className="mvp-home__section-inset">
+        <div className="mvp-column">
           <SectionHeader
             label="Smart Insights"
             icon="icon_aiinsights"
@@ -124,7 +124,7 @@ export function HomepageFiat() {
       </section>
 
       <section className="mvp-home__section">
-        <div className="mvp-home__section-inset">
+        <div className="mvp-column">
           {/*
             A8, recorded and LEFT: Figma hides this section's "See all" link
             while every sibling section shows one, and the disposition is
@@ -134,7 +134,7 @@ export function HomepageFiat() {
           <SectionHeader label="Monarch Academy" icon="icon_monarchacademy" />
         </div>
 
-        <div className="mvp-home__section-inset mvp-home__promo-stack">
+        <div className="mvp-column mvp-home__promo-stack">
           {/*
             A6 FIXED. Figma's Section placement renders a literal `{title}`
             here; the main component it instances renders "Monarch Academy",

@@ -85,7 +85,7 @@ export function HomepageCrypto() {
         onSend={() => navigate('/transfer')}
       />
 
-      <section className="mvp-home__section mvp-home__section--inset">
+      <section className="mvp-home__section mvp-column">
         <SectionHeader label="My Tokens" linkLabel="See all" />
         <ul className="mvp-home__list">
           {shown.map((holding) => (
@@ -111,7 +111,7 @@ export function HomepageCrypto() {
         </ul>
       </section>
 
-      <section className="mvp-home__section mvp-home__section--inset">
+      <section className="mvp-home__section mvp-column">
         <SectionHeader label="Featured Coin" linkLabel="See all" />
         <ul className="mvp-home__list">
           {FEATURED_COINS.map((coin) => (
