@@ -77,9 +77,33 @@ export default defineConfig({
 
   expect: {
     toHaveScreenshot: {
-      // Strict. A single changed pixel is a finding, not noise — if a real
-      // change lands, the baseline is updated deliberately with
-      // `npm run test:e2e:update`, never loosened here.
+      // STRICT — AND `threshold` IS THE LOAD-BEARING THIRD SETTING.
+      //
+      // The two maxDiff* settings alone do NOT mean "a single changed pixel is
+      // a finding", which is what this comment used to claim. They bound HOW
+      // MANY pixels may be counted as different; they do not decide WHAT counts
+      // as different. That is `threshold`'s job, and Playwright's default is
+      // 0.2 — pixelmatch only counts a pixel once its YIQ delta exceeds
+      // `35215 * threshold * threshold`, i.e. 1408.6 at the default. See
+      // playwright-core/lib/coreBundle.js:6659 (the maxDelta formula) and :7551
+      // (`threshold: options.threshold ?? 0.2`). Any colour shift under that bar
+      // was invisible to this suite, however many pixels carried it.
+      //
+      // MEASURED, NOT THEORISED. With `threshold` unset, 20 of the 42 committed
+      // baselines were stale against what the dev server actually rendered —
+      // the entire DS v1.5.0 dark token shift — and the suite reported 132
+      // passed. Ground truth: the committed `index-dark` baseline holds the
+      // balance-card switch label at rgb(3,88,204) (--alias-primary-600, the
+      // v1.4.0 mapping) where the live render paints rgb(4,110,255)
+      // (--alias-primary-500, the v1.5.0 mapping).
+      //
+      // WHAT THE THREE SETTINGS NOW GUARANTEE TOGETHER: a pixel counts as
+      // different if ANY channel differs by any amount (threshold), and zero
+      // such pixels are tolerated (maxDiffPixels / maxDiffPixelRatio). A real
+      // change is re-minted deliberately with `npm run test:e2e:update`, never
+      // absorbed here — and none of the three may be loosened to make a red
+      // suite green.
+      threshold: 0,
       maxDiffPixels: 0,
       maxDiffPixelRatio: 0,
       // CSS-pixel output keeps the baselines at 375px wide rather than 750px.

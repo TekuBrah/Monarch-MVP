@@ -72,14 +72,45 @@ no multi-path probe, no fallback search.
 
 ### `tsc` and Vite resolve the specifier differently in local-alias mode
 
-- **Vite** → DS **source** (`../Design system test/src/index.ts`)
-- **TypeScript** → the pinned **`v1.0.0` dist types** in
+- **Vite** → DS **source**, served as `/@fs/D:/Claude/Design system test/src/index.ts`
+- **TypeScript** → the **pinned dist types** in
   `node_modules/@monarch/design-system/dist/index.d.ts`
 
-Proven with `tsc --traceResolution`; there is no `paths` mapping. They agree
-today because both are v1.0.0. They stop agreeing the moment DS source changes a
-**type**: the MVP then compiles against stale types while rendering new source.
-Harmless for CSS/token changes. If this ever bites, the fix is a `paths` entry in
+Both re-verified at the content-column Gate 1: `tsc --traceResolution` reports
+`Package ID '…/dist/index.d.ts@1.5.0'`, and the dev server serves
+`/@fs/…/Design system test/src/index.ts` — no `paths` mapping exists in either
+tsconfig, and no served module references `node_modules/@monarch` at all.
+
+**THEY BOTH READ v1.5.0 TODAY. STATE THE MECHANISM, NOT THE NUMBER** — an
+earlier revision of this file recorded "both are v1.0.0", which was two releases
+stale by the time anyone read it. The number rots; the mechanism does not:
+
+- Vite reads the DS **working tree**, whatever is checked out in
+  `../Design system test` right now. No install, no rebuild.
+- `tsc` reads **`node_modules`**, whatever `package.json` pins and `npm` has
+  actually materialised.
+
+So the two agree only while **the pin matches the DS checkout**, and either side
+can drift alone: `git checkout` in the DS moves Vite and not `tsc`; editing the
+pin moves `tsc` and not Vite. **Check the pin against the DS's `HEAD` rather than
+trusting this paragraph's version number.**
+
+While they disagree, the MVP compiles against stale types and renders new source.
+Harmless for CSS/token changes; a **type** change is what bites. Gate 1 hit
+exactly that: `barWidth` and `sizing` rendered correctly through the alias while
+`tsc` could not see them, because the dist was still v1.4.0.
+
+**`npm install` SILENTLY NO-OPS ON A GIT-TAG RE-PIN.** Measured twice at Gate 1:
+editing the tag in `package.json` and running `npm install` reported "up to date"
+in 2s and 875ms and changed nothing, because the lockfile entry still carried an
+explicit `resolved` commit SHA and npm considered the tree satisfying. It updated
+the lock's *spec* line but not its *resolution* line — a half-updated lock that
+must not be committed. The fix that worked was naming the package explicitly:
+`npm install @monarch/design-system@github:TekuBrah/Monarch-Design-System#vX.Y.Z`,
+which reported "changed 1 package". **Never trust npm's output here — verify by
+grepping `node_modules/.../dist` for something only the new version contains.**
+
+If the split ever needs closing, the fix is a `paths` entry in
 `tsconfig.app.json` pointing at DS source — decide deliberately, don't add it
 reflexively, since it also means typechecking unbuilt source.
 
@@ -134,6 +165,40 @@ deliberately bogus family. **`document.fonts.check()` returns a misleading
 `true` either way and must not be used** — the honest signals are
 `document.fonts.size` and the three-way width comparison.
 
+### The visual net had a per-pixel tolerance — CLOSED at content-column Gate 1
+
+**WHAT THE INSTRUMENT CLAIMED.** `playwright.config.ts` set `maxDiffPixels: 0`
+and `maxDiffPixelRatio: 0` under the comment *"A single changed pixel is a
+finding, not noise."*
+
+**WHAT IT ACTUALLY DID.** Those two settings bound how many pixels may be counted
+as different. They do not decide **what counts as different** — `threshold` does,
+and it was never set, so Playwright's default of **0.2** applied. pixelmatch only
+counts a pixel once its YIQ delta exceeds `35215 * threshold * threshold`, i.e.
+**1408.6** at the default (`playwright-core/lib/coreBundle.js:6659` for the
+formula, `:7551` for `threshold: options.threshold ?? 0.2`). Any colour shift
+under that bar was invisible, on any number of pixels.
+
+**WHAT IT COST.** The whole DS v1.5.0 dark token shift. **20 of the 42 committed
+baselines were stale against what the dev server rendered, and the suite reported
+132 passed.** Ground truth at the time: the committed `index-dark` baseline held
+the balance-card switch label at `rgb(3,88,204)` (`--alias-primary-600`, the
+v1.4.0 mapping) where the live render painted `rgb(4,110,255)`
+(`--alias-primary-500`, the v1.5.0 mapping).
+
+**WHAT PROVES IT IS NOW TRUE.** `threshold: 0` is set explicitly. With it, the
+same unchanged tree that reported 132 passed reported **20 failed / 112 passed**,
+and the failing set was exactly the 20 dark baselines — **zero light**, and
+`steward-dark` correctly clean because `/steward` is the one walked route that is
+both `nav: 'suppressed'` and a `ComingSoon` body, so it paints no changed token.
+Attribution was then proven exhaustively rather than sampled: every differing
+pixel on all 20 was shown to fall inside an element binding a declaration that
+changed between DS v1.4.0 and v1.5.0 — **100% coverage, 0 orphan pixels**.
+
+**THE RULE THIS LEAVES.** Three settings, not two, and none of them may be
+loosened to make a red suite green. If a baseline diff is real, re-mint it
+deliberately; if it is not, the change that caused it is the bug.
+
 ### `react-router-dom` security advisories — reviewed, not applicable
 
 `npm install` reports **2 high-severity findings: "React Router: RSC Mode CSRF
@@ -168,10 +233,26 @@ be confused with "the page reloaded". Both DS edits were reverted byte-identical
 viewport the shell simply fills the window.
 
 This is unbuilt on purpose, not an oversight. A phone-width frame wants roughly
-**430px**, and the `--brand-scale` ramp tops out at **96px** — so there is no
-token for it. Writing a raw `430px` would violate rule 2, and curve-fitting it
-out of `calc()` on unrelated scale steps is explicitly banned by the DS's
-token-gap protocol (that pattern was rejected there once already).
+**430px**, and **there is no token for it** — but not for the reason this file
+used to give. An earlier revision claimed the `--brand-scale` ramp "tops out at
+**96px**". It does not. Re-read from the DS's `globals.css` at the content-column
+Gate 1, the ramp runs to **512px**:
+
+```
+--brand-scale-1500:  96px      <- what was mistaken for the ceiling
+--brand-scale-1600: 128px
+--brand-scale-1700: 256px
+--brand-scale-1800: 512px      <- the actual ceiling
+```
+
+**THE CONCLUSION SURVIVES, THE REASON DID NOT.** 430 is not above the ramp; it
+falls **between steps 1700 and 1800**, and `430px` appears nowhere in the DS
+(grep: zero matches). So there is still no token, and writing a raw `430px` would
+still violate rule 2 — but anyone re-deriving this from the old "96px" claim would
+have concluded the ramp was an order of magnitude too small and designed around a
+gap that is not there. Curve-fitting it out of `calc()` on unrelated scale steps
+remains explicitly banned by the DS's token-gap protocol (that pattern was
+rejected there once already).
 
 **This needs a DS token decision, not an MVP literal.** It belongs with the
 roadmap's parked **motion/elevation token layer** item — the same class of gap,
