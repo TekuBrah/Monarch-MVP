@@ -210,6 +210,7 @@ export function HomepageFiat() {
             {FEATURE_CARDS.map((card) => (
               <CardFeaturesAndEducation
                 key={card.id}
+                sizing="fill"
                 variant={card.variant}
                 title={card.title}
                 icon={<Icon name={card.icon} size="m" />}

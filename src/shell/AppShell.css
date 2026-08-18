@@ -34,6 +34,22 @@
   padding-bottom: var(--brand-scale-1600);
 }
 
+/*
+  THE NAV IS A COLUMN SITE, and it takes the gutter through `.mvp-column` in
+  AppShell.tsx rather than a padding pair here — the class IS that pair, on
+  this same box, so the mechanism matches exactly (Gate 12's adoption bar).
+
+  `left: 0; right: 0` STAYS. The element is deliberately still full-bleed;
+  what changed is that its CONTENT is now inset. Padding and the fixed insets
+  do different jobs here and neither replaces the other.
+
+  THE PADDING IS INERT WITHOUT `barWidth='fill'` AND MUST NEVER SHIP ALONE.
+  A hug-width bar centres itself, so a 336px pill lands at 19.5px from the
+  viewport whether it centres in a 375px box or in a 343px content box —
+  measured, both themes. The padding only does work once the bar can stretch
+  to the column; the prop is what makes it stretch. Half of this fix looks
+  finished and changes nothing.
+*/
 .mvp-shell__nav {
   position: fixed;
   right: 0;

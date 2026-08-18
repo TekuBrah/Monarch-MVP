@@ -48,9 +48,10 @@ export function AppShell() {
       )}
 
       {chrome.nav === 'present' && (
-        <div className="mvp-shell__nav">
+        <div className="mvp-shell__nav mvp-column">
           <BottomNavigation
             items={items}
+            barWidth="fill"
             onSelect={(id) => {
               const target = NAV_ITEMS.find((n) => n.id === id)
               if (target) navigate(target.path)

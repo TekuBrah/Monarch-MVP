@@ -419,9 +419,6 @@
   gap: var(--spacing-200);
 }
 
-.mvp-home__feature-row > * {
-  flex: 1 1 0;
-}
 
 /*
   `.mvp-coming-soon` MOVED to `src/components/ComingSoon.css` — Flow 7 promoted

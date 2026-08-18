@@ -118,10 +118,13 @@ migration did not support. If a future site genuinely writes
   center` with the description capped at `max-width: 75%` — rather than a
   content column. It renders on `/transfer`, `/more`, `/steward` and two
   Homepage tabs. **Migrating it to the gutter changes pixels on five screens.**
-- **`.mvp-shell__nav` is deliberately full-bleed** (`left: 0; right: 0`), so the
-  BottomNavigation pill self-centres. Giving it the gutter is fix 3b and belongs
-  with `barWidth='fill'`; on its own it is inert, because a hug-width pill
-  centred in a 343px content box lands exactly where it already sits.
+- **`.mvp-shell__nav` WAS excluded here and is now a column site (Gate 13).**
+  It was excluded from the Gate 12 migration because it was a FIX, not a
+  rename: at that point it had no gutter at all (`left: 0; right: 0`, zero
+  padding), so giving it one was a pixel change and Gate 12 was required to be
+  inert. It took the gutter in Gate 13 via `.mvp-column` in `AppShell.tsx`,
+  together with `barWidth='fill'` — see the half-fix note below. The element is
+  still deliberately full-bleed; what changed is that its CONTENT is inset.
 
 Both were measured, not assumed. They are the control group that proves the
 migration was inert rather than globally shifted: they did not move either.
@@ -149,6 +152,116 @@ horizontal property — zero deltas, including on the renamed nodes matched by
 DOM position rather than by selector), and **all 42 baselines byte-identical by
 SHA-256** with the suite green at `threshold: 0`. That test was not runnable
 before Gate 1 closed the per-pixel tolerance.
+
+## The v1.5.0 component props (Gate 13)
+
+### Both fixes are half-inert, and the halves must never be split
+
+**THIS IS THE NOTE THAT STOPS A FUTURE SESSION SHIPPING DEAD CODE.** Each fix
+has a half that changes nothing on its own and a half that does the work. Ship
+the inert half alone and the change looks finished while doing nothing.
+
+| Fix | Inert half | Effective half |
+|---|---|---|
+| **3b — nav width** | the gutter on `.mvp-shell__nav` | `barWidth='fill'` on `BottomNavigation` |
+| **3c — tiles** | `sizing='fill'` at the pinned 375px | nothing, at 375px — see below |
+
+**WHY THE NAV GUTTER IS INERT ALONE, measured not assumed.** A hug-width bar
+centres itself in whatever box it is given. The bar is `4 items x 64 + 3 gaps x
+16 + 2 x 16 padding = 336`, and it centred at `(375 - 336) / 2 = 19.5` from each
+viewport edge. Add the gutter and it centres at `(343 - 336) / 2 = 3.5` inside a
+343px content box — which is `3.5 + 16 = 19.5` from the viewport. The same
+number. This was then confirmed by reverting `barWidth` alone and re-running:
+`/more` came back **byte-identical** to its baseline, 0 differing pixels.
+
+Only `barWidth='fill'` moves anything: `align-self` goes `auto` -> `stretch`,
+the bar becomes the full 343px content width at a 16px inset, and the items
+divide it — `(343 - 32 padding - 48 gaps) / 4 = 65.75` each, up from a fixed 64.
+Item flex goes `0 1 auto` -> `1 1 0px`, which is the DS rule scoped inside the
+fill modifier.
+
+### The tile row cannot be verified at 375px
+
+`sizing='fill'` on `CardFeaturesAndEducation` is REAL and it is INVISIBLE here.
+Three tiles at their 109px cap plus two 8px gaps come to `3 x 109 + 2 x 8 = 343
+= 375 - 32` — they already fill the content column exactly, by arithmetic
+coincidence of this viewport. So the prop lands on the same three integers and
+the visual suite cannot see it.
+
+**PIXELS ARE THE WRONG INSTRUMENT FOR THIS PROP; DECLARATIONS ARE THE RIGHT
+ONE.** What proves it took effect is that `mn-card-features--fill` is applied to
+each tile and each tile's computed `max-width` moves `109px` -> `none`. The
+rendered widths staying at 109 is the PREDICTION, not a failure. **A second
+viewport is the only instrument that can see this** — that is what the 390px
+gate is for.
+
+### The MVP's flex override was removed, on measurement
+
+`.mvp-home__feature-row > * { flex: 1 1 0 }` is gone. Once `sizing='fill'` is in
+use the DS supplies `flex: 1 1 0` itself, and the MVP rule was an
+equal-specificity override sitting on top of a prop whose whole purpose is to
+let the DS own the geometry — invisible while the values agree, and a silent
+mask over any future DS change.
+
+Removal was PROVEN inert before it was kept: with the rule and without it, each
+tile's computed `flex-grow`, `flex-shrink`, `flex-basis`, `max-width` and
+rendered width were identical in both themes. Had they differed, the rule would
+have stayed and the difference would have been a DS finding — the DS not
+supplying what the prop claims — rather than something to paper over here.
+
+### Two rasterisation artifacts, and they are NOT the same thing
+
+Both are +/-1 per channel and both became visible only when Gate 1 set
+`threshold: 0`. They are logged separately because measurement says they are
+different: **one is on a gradient and deterministic; the other is on antialiased
+edges and is not.**
+
+**1. THE FAB RE-DITHERS WHEN THE NAV REPAINTS — deterministic, attributed.**
+Widening the bar changes 806 pixels inside `.mvp-shell__fab`, at a maximum
+channel delta of exactly 1 (histogram: `{1: 806}`), identically in both themes.
+The FAB does not move — its box is byte-identical before and after. It is
+`IconObject color="ai"`, whose `.mn-icon-object--ai` carries
+`linear-gradient(132.61deg, ...)`; it and the nav are `position: fixed` siblings
+sharing a composited layer whose size changed, so the gradient re-rasterises.
+It is inseparable from fix 3b: the bar cannot widen without it. Attribution was
+complete — every differing pixel fell inside `(bar + 28px shadow extent) U (FAB
+box)`, with **zero pixels anywhere else**, and reverting `barWidth` alone
+returned a byte-identical render.
+
+**2. A PRE-EXISTING +/-1 FLAKE, NOT CAUSED BY THIS GATE.** Across four full-suite
+runs on identical code, a handful of pixels moved between runs — 26 px on the
+`.mvp-shell__theme-switch` Button (box `[16, 690, 60.5, 716]`) and 2 px on a
+selected `.mn-tab` whose box starts at the fractional x **104.9**. Neither is
+gradient-rendered (`background-image: none` on both); these are antialiased
+borders, corners and glyphs at subpixel origins. **The same instability
+reproduces on a clean tree at `mvp-gate12` with none of this gate's changes
+applied** — there on `/finance/holding/*` dark screens, which have neither nav
+nor FAB. So Gate 1 EXPOSED this; it did not create it. At `threshold: 0.2` a
++/-1 delta was absorbed as noise.
+
+**WHAT IS AND IS NOT KNOWN ABOUT THE FLAKE.** Known: it exists at HEAD
+independently of this gate; across all four full runs the FAILING SET was
+identical every time, so it perturbs pixels inside already-failing baselines
+rather than flipping a pass to a fail; and `toHaveScreenshot` re-screenshots
+until two consecutive captures agree before comparing, which absorbs it in
+practice. **NOT known: any incidence rate. None was measured, and none should be
+inferred from the numbers above.** Characterising it properly belongs to a later
+harness gate.
+
+**THE HYPOTHESIS THAT THEY SHARE A ROOT CAUSE WAS TESTED AND CONTRADICTED.** If
+both artifacts sat on gradient-rendered elements they would likely be one
+finding. They do not: the FAB is a `linear-gradient`, while both flake sites
+report `background-image: none` and are antialiased edges. Same +/-1 magnitude,
+different mechanism, different determinism.
+
+### Open question for the design system
+
+`IconObject color="ai"` paints a CSS `linear-gradient` on a `position: fixed`
+element. Its rasterisation is not stable against a sibling fixed element
+repainting — a size change in the shared composited layer shifts the gradient by
++/-1 per channel. Worth asking whether the "ai" treatment should be rendered in a
+way that is stable under sibling repaints. Logged from the MVP side; not a
+defect this repo can fix, and not blocking.
 
 ## Known conditions of this setup
 
