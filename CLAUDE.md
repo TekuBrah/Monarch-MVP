@@ -58,6 +58,51 @@ component silently dependent on that flow being in the bundle. This is a
 relocation, not new MVP CSS, and does not breach the no-new-CSS constraint.
 Precedents: `ComingSoon` (Flow 7), `SectionHeader` (Gate 6).
 
+## Scrims and `--gradient-surface` — a rule, not a navbar anecdote
+
+**ANY SCRIM THIS APP PAINTS MUST OVERRIDE `--gradient-surface`, UNLESS THE
+ELEMENT GENUINELY SITS ON THE PAGE SURFACE.** This is general. The navbar is
+simply the first component to surface it, and the next one will hit it too.
+
+The DS ships two scrim tokens, `--mapped-gradient-subtle` and
+`--mapped-gradient-default`. Both fade into `--gradient-surface`, which the DS
+seeds to `--mapped-surface-page`. **That seed is correct for the DS showcase,
+which sits on the page surface, and wrong for most MVP screens, which do
+not** — `.mvp-home` and `.mvp-finance` both paint
+`--mapped-surface-subtlest-default`. Fading to the page colour over a
+subtlest-surface screen leaves a visible step where the scrim's solid end
+meets the surface: measured Δ6/channel light, Δ19/channel dark.
+
+So the rule for a new scrim anywhere in this app:
+
+1. Find what is ACTUALLY painted behind the element, by measurement — not by
+   reading which container it is nested in. A screen div can extend past the
+   viewport and cover the page background for the scrim's whole height, which
+   is exactly what happens under the navbar (`.mvp-home` runs to y=943
+   against an 812 viewport).
+2. Set `--gradient-surface` on the scrim element to that surface.
+3. Consume `var(--mapped-gradient-subtle)` (or `-default`) as the background.
+
+**`--mapped-gradient-*` CANNOT BE OVERRIDDEN AT AN ANCESTOR.** DS v1.5.0
+declares the pair on `*`, so every element recomputes its own and an ancestor
+override does not inherit down. Verified in the browser, both themes: an
+ancestor override of `--mapped-gradient-subtle` does NOT reach the child, and
+an ancestor override of `--gradient-surface` DOES. `--gradient-surface` is the
+supported seam; overriding it is using the DS as designed, not working around
+it.
+
+**The token dark-flips unaided,** because `--mapped-surface-page` and
+`--mapped-surface-subtlest-default` both flip. A scrim therefore needs no
+dark-theme design spec of its own.
+
+### Open question for the design system
+
+Should `Gradient/subtle` seed the PAGE surface at all, or should the DS seed
+the surface a component is placed on? Today every consumer whose screens sit
+off the page surface must override, which makes the default the exception
+rather than the rule. Logged from the MVP side for a future DS gate; do not
+act on it from this repo.
+
 ## The content column (Gate 12)
 
 **`--mvp-gutter` IS THE SINGLE SOURCE OF TRUTH FOR THE HORIZONTAL CONTENT
@@ -262,6 +307,73 @@ repainting — a size change in the shared composited layer shifts the gradient 
 +/-1 per channel. Worth asking whether the "ai" treatment should be rendered in a
 way that is stable under sibling repaints. Logged from the MVP side; not a
 defect this repo can fix, and not blocking.
+
+## The nav scrim and the carousel inset (Gate 14)
+
+### The scrim: which element was actually opaque
+
+`.mvp-shell__nav` was an opaque band that guillotined content scrolling
+beneath it. It now paints `var(--mapped-gradient-subtle)` with
+`--gradient-surface` overridden to `--mapped-surface-subtlest-default` — see
+the scrim rule above for why the override is mandatory rather than a taste
+call.
+
+**THE DS COMPONENT WAS MEASURED, NOT ASSUMED, AND IT PAINTS NOTHING.**
+`.mn-bottom-nav` has no `background` declaration at all
+(`BottomNavigation.css:1-10`), and its own comment at `:8` records that
+Figma's gradient overlay is deliberately omitted. Confirmed three further
+ways: computed `rgba(0, 0, 0, 0)` in the MVP in both themes; the same in the
+DS showcase independently of the MVP container; and a controlled experiment
+that nulled each background in turn — `.mvp-shell__nav` moved ~3,800 band
+pixels, `.mn-bottom-nav` moved **0** in light. That last one doubles as the
+noise floor: nulling an already-transparent background is a no-op, so its 3
+dark pixels bound the measurement error and prove the pill's 3 dark pixels
+are noise too.
+
+**THE DS OMISSION IS AN ABSENCE, NOT A DEFECT.** The scrim belongs to the
+consumer because only the consumer knows which surface its screens sit on.
+Do not file it as a DS bug; the open question above is the useful version.
+
+**THE PILL STAYS OPAQUE.** `.mn-bottom-nav__bar` keeps its own
+`--mapped-surface-page` background. Only the section band fades. If a future
+change makes the pill translucent, the nav stops reading as a floating
+control.
+
+### `.mvp-column--bleed`: why the scroll half is inseparable
+
+A full-bleed box still owns the content column — it just carries it as
+padding rather than as an outer edge. `.mvp-column--bleed` is that variant,
+and it is `padding-right` + `padding-left` + **`scroll-padding-left`**.
+
+**THE PADDING ALONE IS DECLARED BUT NEVER PAINTED.** On a scroll container
+whose children carry `scroll-snap-align: start`, the snapport defaults to the
+scrollport, so a snapped child aligns to the padding-box edge and eats the
+inset. Measured on the Smart Insights carousel before the fix: `scrollLeft`
+settled at 16 with the first card at viewport **x=0**, and forcing
+`scrollLeft = 0` re-snapped it straight back to 16. After: `scrollLeft` 0,
+first card at **x=16**, and forcing 0 holds. `scroll-padding-left` insets the
+snapport so the declared gutter survives a snap.
+
+**A `padding` SHORTHAND ON THE ADOPTING ELEMENT WOULD SILENTLY UNDO IT.** The
+class supplies longhands; a shorthand on the element is equal specificity and
+later in source order, so it wins and collapses the gutter. The carousel
+therefore keeps only `padding-bottom` of its own.
+
+That is why the class was deferred out of Gate 12 rather than declared early:
+its reason for existing is the scroll half, and the scroll half changes
+pixels. Declaring it in an inert gate would have shipped dead CSS.
+
+### The four layout fixes are closed. What is still open.
+
+Fixes 3b, 3c (Gate 13) and 4, 5 (this gate) are all landed. Two things
+deliberately remain:
+
+- **The quick-action tile row is still unverifiable at 375px.** `sizing='fill'`
+  is real but invisible here, because three 109px tiles plus two 8px gaps
+  already fill the 343px column exactly. Only a second viewport can see it.
+- **The frame max-width is still deferred.** No token backs ~430px; it falls
+  between `--brand-scale-1700` (256px) and `-1800` (512px). Capping the frame
+  also re-anchors the fixed chrome, which is its own measurable consequence.
 
 ## Known conditions of this setup
 

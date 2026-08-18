@@ -195,7 +195,10 @@
 .mvp-home__carousel {
   display: flex;
   gap: var(--spacing-200);
-  padding: 0 var(--mvp-gutter) var(--spacing-100);
+  /* Horizontal inset + scroll-padding come from `.mvp-column--bleed`; only
+     the vertical value is this element's own. A `padding` SHORTHAND here would
+     override the class's longhands on source order and collapse the gutter. */
+  padding-bottom: var(--spacing-100);
   overflow-x: auto;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;

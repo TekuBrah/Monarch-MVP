@@ -63,3 +63,22 @@ body {
   padding-right: var(--mvp-gutter);
   padding-left: var(--mvp-gutter);
 }
+
+/*
+  THE FULL-BLEED VARIANT. A box that spans the viewport still owns the
+  column — it just carries it as padding rather than as an outer edge.
+
+  THE SCROLL HALF IS NOT SEPARABLE FROM THE PADDING HALF. On a scroll
+  container with `scroll-snap-align: start` children, the snapport defaults
+  to the scrollport, so a snapped child aligns to the PADDING-BOX edge and
+  the declared inset is consumed — measured on the Smart Insights carousel:
+  `scrollLeft` settled at 16 with the first card at viewport x=0, and forcing
+  `scrollLeft = 0` re-snapped it straight back. `scroll-padding-left` insets
+  the snapport so the padding survives a snap. Ship the padding without it
+  and the gutter is declared but never painted.
+*/
+.mvp-column--bleed {
+  padding-right: var(--mvp-gutter);
+  padding-left: var(--mvp-gutter);
+  scroll-padding-left: var(--mvp-gutter);
+}

@@ -88,7 +88,7 @@ export function HomepageFiat() {
           there was anything to scroll.
         */}
         <div
-          className="mvp-home__carousel"
+          className="mvp-home__carousel mvp-column--bleed"
           role="region"
           aria-label="Smart Insights"
           tabIndex={0}

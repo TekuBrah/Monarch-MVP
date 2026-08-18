@@ -57,9 +57,29 @@
   left: 0;
   z-index: 2;
   padding-bottom: env(safe-area-inset-bottom);
-  /* BottomNavigation sets no background of its own — the pill floats and the
-     page colour shows through, per its own CSS comment. */
-  background: var(--mapped-surface-page);
+
+  /*
+    THE SCRIM. This band was an OPAQUE fill, which guillotined content
+    scrolling beneath it. It is now the DS scrim: solid at the bottom edge,
+    fading to transparent upward, so content dissolves under the bar.
+
+    MEASURED, NOT ASSUMED: the occlusion was this element and only this
+    element. `.mn-bottom-nav` paints nothing — no background declaration, and
+    nulling it changed 0 band pixels in light. The DS omits the overlay
+    deliberately (BottomNavigation.css:8) and that omission is why the scrim
+    belongs here. THE PILL STAYS OPAQUE; only this section band fades.
+
+    WHY --gradient-surface IS OVERRIDDEN. `--mapped-gradient-subtle` fades
+    into `--gradient-surface`, which the DS seeds to `--mapped-surface-page`.
+    That is right for the DS showcase, which sits on the page surface. These
+    screens do not: `.mvp-home` runs to y=943, past the 812 viewport, so what
+    is painted behind this band for its whole height is the SCREEN surface,
+    `--mapped-surface-subtlest-default`. Fading to the page colour instead
+    would leave a step at the bottom edge — measured Δ6/channel light,
+    Δ19/channel dark. Overriding is the DS-supported seam, not a workaround.
+  */
+  --gradient-surface: var(--mapped-surface-subtlest-default);
+  background: var(--mapped-gradient-subtle);
 }
 
 /*
