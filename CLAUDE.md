@@ -477,6 +477,89 @@ Not `Monarch-Design-System`. That name exists only as the GitHub remote. The
 alias in `vite.config.ts` hardcodes the real local name, by explicit decision —
 no multi-path probe, no fallback search.
 
+### Two resolution paths, and the one command that exercises the second
+
+**THE SAME SPECIFIER RESOLVES TO DIFFERENT FILES DEPENDING ON WHETHER A
+FOLDER EXISTS.** `vite.config.ts` sets
+`DS_LOCAL = !process.env.MONARCH_DS_FROM_PACKAGE && fs.existsSync(DS_SRC)`,
+evaluated once at config load. `defineConfig` is given a plain object — there
+is no `mode`/`command` branch, and the condition is not about dev vs build.
+
+| | `@monarch/design-system` | `…/styles.css` |
+|---|---|---|
+| **alias active** (folder present) | `../Design system test/src` | `…/src/styles/package.css` |
+| **package path** (folder absent, or override set) | `dist/index.js` via `exports` | `dist/index.css` via `exports` |
+
+Those are the only two specifiers the MVP uses to reach the DS, and both have
+an `exports` entry, so neither is a local-only build. Verified at Gate 16.
+
+**WHY THE ALIAS EXISTS AT ALL — do not "simplify" it away.** Editing a token
+in the DS and watching this app hot-reload IS the DS iteration loop. Resolving
+to the built package would mean a DS rebuild plus a reinstall per change.
+Speed here is the whole reason the two-repo split is workable.
+
+**THE COST: THE LOCAL BUILD IS NOT THE SHIPPED BUILD.** Proven by sourcemap,
+twice. A default `npm run build` draws **169 of 210** sources from the DS
+working tree and **zero** from `node_modules/@monarch`. On Vercel the sibling
+folder does not exist, so production compiles the pinned `dist` instead.
+
+**SO EXERCISE THE PRODUCTION PATH BEFORE TRUSTING A DEPLOY:**
+
+```
+npm run build:package
+```
+
+That forces `MONARCH_DS_FROM_PACKAGE=1`, which flips the alias off even though
+the folder is present. Measured at Gate 16: **0** sources from the working
+tree, and the DS arriving as one pre-bundled `dist/index.js`. With the
+variable unset, `npm run dev` and `npm run build` are byte-for-byte the
+behaviour they always had.
+
+**THE TWO BUILDS EMIT THE SAME CSS IN A DIFFERENT ORDER, AND THAT IS FINE —
+BUT ONLY BECAUSE IT WAS MEASURED.** The emitted stylesheets are the same size
+(158,397 bytes), carry the same 589 classes and the same 541 custom
+properties, and hold every v1.5.0 and scrim marker in equal counts — but they
+are NOT byte-identical, because rule order differs: source mode follows
+`package.css`'s hand-maintained `@import` list, dist mode follows the DS lib
+build's import graph. Order decides ties between equal-specificity rules, so
+it could have changed rendering. It does not: **all 42 walk states render
+byte-identically across the two builds**, compared through `vite preview` on
+both outputs under the harness pins. Re-run that comparison if the DS ever
+restructures its CSS entry points.
+
+### The linkage guard — `npm run lint:linkage`
+
+`scripts/check-ds-linkage.mjs` fails when the four things that must agree do
+not. It exists because none of these states announces itself, and each has
+happened here:
+
+| Failure id | What it means | What to do |
+|---|---|---|
+| `pin-vs-installed` | the manifest pins one version, `node_modules` holds another — the `npm install` no-op | re-install BY NAME (below), then verify the dist |
+| `ds-worktree-vs-pin` | the DS checkout is at a different tag than the pin — **this is what you are actually rendering**, since Vite compiles the working tree | `git checkout <pin>` in the DS, or re-pin deliberately |
+| `lock-resolved-vs-pin` | the lock's spec moved but its `resolved` SHA did not — a half-updated lock | re-install by name; never commit the half-updated state |
+| `lock-spec-vs-pin` / `lock-version-vs-pin` | the lock disagrees with the manifest | re-install by name |
+
+The re-install that actually works, because plain `npm install` has reported
+"up to date" and changed nothing twice:
+
+```
+npm install @monarch/design-system@github:TekuBrah/Monarch-Design-System#v1.5.0
+```
+
+**IT DOES NOT FAIL WHEN THE DS FOLDER IS ABSENT.** That is the normal CI
+state, not an error: the working-tree checks are reported as skipped and the
+manifest/lockfile/`node_modules` checks still run. A guard that fails in CI
+gets disabled, which is worse than no guard. Both halves were proven by
+construction at Gate 16 — absent folder alone passes; absent folder plus a
+genuine version drift still fails.
+
+**WIRED AS A `pre` HOOK ON BOTH SUITE SCRIPTS**, `pretest:e2e` and
+`pretest:e2e:update`, as well as standalone. The historical failure was not a
+red suite — it was a GREEN one, run against a linkage nobody had checked, with
+20 stale baselines. Blocking the suite is the point; blocking a re-mint
+doubly so.
+
 ### `tsc` and Vite resolve the specifier differently in local-alias mode
 
 - **Vite** → DS **source**, served as `/@fs/D:/Claude/Design system test/src/index.ts`
@@ -709,8 +792,13 @@ Four, all green before a step is done:
 npx tsc -b --force
 npm run build
 npm run lint:tokens
+npm run lint:linkage
 npm run test:e2e
 ```
+
+`lint:linkage` also runs automatically before `test:e2e` and
+`test:e2e:update`. Before a deploy, add `npm run build:package` — it is the
+only command that compiles what production compiles.
 
 `test:e2e` starts its own dev server on 5174 and reuses one that is already
 listening, so the port rule above still applies — check first.

@@ -13,8 +13,22 @@ import svgr from 'vite-plugin-svgr'
 // Locally the sibling exists -> alias to DS *source* -> instant HMR on token edits.
 // In CI it does not -> falls through to the pinned git dependency in package.json.
 // One specifier, two modes.
+//
+// WHY THE ALIAS EXISTS AT ALL: editing a token in the DS and watching this app
+// hot-reload is the whole DS iteration loop. Resolving to the built package
+// would mean a DS rebuild + reinstall per change. Do not "simplify" this away.
+//
+// MONARCH_DS_FROM_PACKAGE FORCES THE PACKAGE PATH even when the sibling folder
+// is present. It exists because the two paths resolve the SAME specifier to
+// DIFFERENT FILES — src/styles/package.css (a hand-maintained @import list) vs
+// dist/index.css (a build artifact) — and without the override no local command
+// exercises the one production takes, so a dist-only breakage is invisible
+// until deploy. `npm run build:package` is that command.
+//
+// DEFAULT BEHAVIOUR IS UNCHANGED: with the variable unset this is exactly the
+// expression it was, so `npm run dev` and `npm run build` are untouched.
 const DS_SRC = path.resolve(__dirname, '../Design system test/src')
-const DS_LOCAL = fs.existsSync(DS_SRC)
+const DS_LOCAL = !process.env.MONARCH_DS_FROM_PACKAGE && fs.existsSync(DS_SRC)
 
 export default defineConfig({
   // svgr is required because the DS barrel re-exports Icon, whose icons.ts

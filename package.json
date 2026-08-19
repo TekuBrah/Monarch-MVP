@@ -6,8 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:package": "tsc -b && node scripts/build-from-package.mjs",
     "preview": "vite preview",
     "lint:tokens": "node scripts/check-tokens.mjs",
+    "lint:linkage": "node scripts/check-ds-linkage.mjs",
+    "pretest:e2e": "npm run lint:linkage",
+    "pretest:e2e:update": "npm run lint:linkage",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots"
   },
