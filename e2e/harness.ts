@@ -18,6 +18,64 @@ import { HOLDINGS } from '../src/data/holdings'
 export const THEMES = ['light', 'dark'] as const
 export type Theme = (typeof THEMES)[number]
 
+/**
+ * THE VIEWPORT AXIS — a peer of THEMES, deliberately NOT folded into WALK.
+ *
+ * Folding the viewport into `WALK` was the obvious-looking design and it is
+ * the wrong one: `WALK` is consumed by `routes.spec.ts` and
+ * `section-headers.spec.ts` too, and neither has anything to say about width.
+ * They would have doubled along with it, taking the suite from 174 tests to
+ * 264 to learn nothing. As a peer axis, only `visual.spec.ts` iterates it.
+ *
+ * ONE PLAYWRIGHT PROJECT, NOT TWO. A second project would have been the other
+ * obvious design, and it decorates the baseline filename with the project name
+ * for free. It also breaks the baseline guard: a spec with no project filter
+ * runs ONCE PER PROJECT, so `baselines.spec.ts` would run twice, each run
+ * deriving only its own project's names and seeing the other project's files
+ * as orphans. Both runs fail. With one project that failure mode cannot arise.
+ *
+ * HEIGHT IS HELD CONSTANT AT 812 ON PURPOSE. This gate adds a WIDTH, and a
+ * baseline difference has to be attributable to the one thing that changed.
+ * 430x932 is the real device size, but varying both axes at once would make
+ * every diff ambiguous. Height was separately measured to leave the scrim
+ * runway invariant (D=89, alpha 65.2% at 812/844/932/1024).
+ *
+ * WHY 430 AND NOT 390. Figma authors this app exclusively at 375 — there is no
+ * 390 frame anywhere in the file — and the width axis has exactly two regimes,
+ * because the DS ships exactly one breakpoint at 768. Every width from 376 to
+ * 767 therefore exercises the same facts, so 390 buys nothing 430 does not.
+ *
+ * 430 wins on two counts that 390 cannot match:
+ *
+ *   1. It is the PROPOSED FRAME WIDTH, so when the frame cap lands there is
+ *      already a baseline at exactly the width where the cap engages.
+ *   2. It KEEPS THE CAROUSEL OVERFLOWING. Measured: the Smart Insights
+ *      scroller has scrollWidth 543 against clientWidth 375/390/430, but at
+ *      768 it is 768 against 768 — it fits, the snap goes inert, and
+ *      `scroll-padding-left` is never exercised. A viewport at or above 768
+ *      would SILENTLY STOP COVERING Gate 14's fix, which is the opposite of
+ *      what adding coverage is for.
+ *
+ * Fix 3c is also invisible at 375 and visible here: three tiles cap at 109px
+ * and already fill the 343px column exactly, which is an arithmetic accident
+ * of 375. At 430 they render 127.33/127.34/127.33.
+ */
+export const VIEWPORTS = [
+  { width: 375, height: 812 },
+  { width: 430, height: 812 },
+] as const
+export type Viewport = (typeof VIEWPORTS)[number]
+
+/**
+ * The viewport every NON-visual spec runs at, and the one `playwright.config`
+ * declares. Exported so the config and the honesty guard read the SAME object
+ * rather than two literals that agree today.
+ */
+export const DEFAULT_VIEWPORT = VIEWPORTS[0]
+
+/** Pinned DPR. The guard exists mostly to catch this being silently lost. */
+export const DEVICE_SCALE_FACTOR = 2
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SOURCE DERIVATION
    ═══════════════════════════════════════════════════════════════════════════
@@ -313,13 +371,20 @@ export const WALK: WalkState[] = ROUTES.flatMap((route) => {
  * `/finance/holding/wallet-marg` -> `finance-holding-wallet-marg`
  * `/` + Crypto tab               -> `index-crypto`
  *
- * THE DEFAULT STATE KEEPS ITS GATE 7 NAME. Renaming the existing 28 would
- * regenerate them on the update run, which would destroy the byte-identity
- * check that is the only thing bounding that run.
+ * THE VIEWPORT IS PART OF THE NAME (Gate A). `index` + 375 -> `index-375`,
+ * and with a tab, `index-crypto-375`. It is appended LAST so the Gate 9 state
+ * name survives intact as a prefix.
+ *
+ * A BASELINE FILENAME IS SELF-DESCRIBING BY DESIGN. Reading
+ * `index-crypto-430-dark-chromium-win32.png` tells you the route, the tab, the
+ * width, the theme, the browser and the platform without opening a config. The
+ * alternative — a width encoded only in a Playwright project name — pushes that
+ * knowledge into a file the reader has to go and find.
  */
-export function stateSlug(state: WalkState): string {
+export function stateSlug(state: WalkState, viewport: Viewport): string {
   const base = state.route === '/' ? 'index' : state.route.replace(/^\//, '').replace(/\//g, '-')
-  return state.tab ? `${base}-${state.tab.id}` : base
+  const withTab = state.tab ? `${base}-${state.tab.id}` : base
+  return `${withTab}-${viewport.width}`
 }
 
 /** Human-readable title for a walk state, used in test names. */
@@ -421,8 +486,24 @@ export function watchForProblems(page: Page): PageProblems {
  * the viewport or the DPR was overridden somewhere between the config and the
  * browser. Asserted per route rather than once, because `deviceScaleFactor` is
  * a context property and a spec that opens its own context can lose it.
+ *
+ * PARAMETERISED AT GATE A, AND STILL AN EXACT EQUALITY. The width was a
+ * hardcoded 375, which made it the first hard blocker on a second viewport.
+ * IT WAS NOT SOFTENED TO A RANGE OR A TOLERANCE, and it must never be: the
+ * whole reason it is an exact literal is that a range would have accepted the
+ * uncontrolled devicePixelRatio this guard was built to catch.
+ *
+ * THE EXPECTED WIDTH COMES FROM THE SAME OBJECT THAT SET THE VIEWPORT.
+ * `visual.spec.ts` passes `viewport.width` from the very `viewport` it hands
+ * to `test.use()`, in one closure — so the assertion and the setting cannot
+ * disagree without someone editing one and not the other IN THE SAME
+ * EXPRESSION. Callers that do not set a viewport get `DEFAULT_VIEWPORT.width`,
+ * which is the same object `playwright.config.ts` imports for `use.viewport`.
  */
-export async function assertHarnessIsHonest(page: Page): Promise<void> {
+export async function assertHarnessIsHonest(
+  page: Page,
+  expectedWidth: number = DEFAULT_VIEWPORT.width,
+): Promise<void> {
   const actual = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     dpr: window.devicePixelRatio,
@@ -430,7 +511,7 @@ export async function assertHarnessIsHonest(page: Page): Promise<void> {
   expect(
     actual,
     'harness guard: viewport/DPR were not applied — every measurement in this run is untrustworthy',
-  ).toEqual({ clientWidth: 375, dpr: 2 })
+  ).toEqual({ clientWidth: expectedWidth, dpr: DEVICE_SCALE_FACTOR })
 }
 
 /**

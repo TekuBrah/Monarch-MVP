@@ -611,6 +611,177 @@ Recorded at the time of the fix: Playwright **1.62.1**, bundled Chromium
   and **stop your own server at close** — that second half is what breaks the
   chain, and skipping it is how the next gate inherits one.
 
+## The second viewport (Gate A)
+
+**THE SUITE NOW CAPTURES EVERY BASELINE AT TWO WIDTHS, 375 AND 430**, both at
+height 812. `VIEWPORTS` in `e2e/harness.ts` is the list, and it is a PEER OF
+`THEMES`, not a member of `WALK`.
+
+### Why the viewport is a peer axis and not part of `WALK`
+
+**FOLDING IT INTO `WALK` IS THE OBVIOUS DESIGN AND IT IS THE WRONG ONE.**
+Someone will propose it, because `WALK` is already the list of things the suite
+visits and a viewport looks like one more dimension of that. The problem is
+that `WALK` has three consumers, and two of them have nothing to say about
+width: `routes.spec.ts` (43 tests) and `section-headers.spec.ts` (44) would
+have doubled along with `visual.spec.ts`. Measured on the derivation: the suite
+would go to **264 tests** instead of **174**, and the extra 90 would re-assert
+console cleanliness and header token bindings at a width that cannot change
+either.
+
+As a peer axis only `visual.spec.ts` iterates it. Confirmed on disk after the
+change: `routes.spec.ts` 43 and `section-headers.spec.ts` 44, both unchanged,
+with `visual.spec.ts` going 42 -> 84.
+
+### ONE Playwright project. Not two.
+
+A second project is the other obvious design, and it looks free: Playwright
+decorates the baseline filename with the project name, so the two sets would
+not collide without anyone writing naming code.
+
+**IT BREAKS THE BASELINE GUARD, AND THE MECHANISM IS MEASURED.** A spec with no
+project filter runs ONCE PER PROJECT — verified by running a two-project config
+over a probe spec — and `testInfo.snapshotPath` resolves only the RUNNING
+project's decoration: `index-light-chromium-win32.png` under project
+`chromium`, `index-light-chromium-430-win32.png` under project `chromium-430`.
+So `baselines.spec.ts` would run twice, each run deriving 42 expected names
+against 84 files on disk, and each would report the other project's 42 as
+orphans. Both runs fail, 84 orphan reports, on a correct tree.
+
+With one project that failure mode cannot arise, which is why it needed no fix
+and no proof beyond not choosing it.
+
+### The naming scheme
+
+`stateSlug(state, viewport)` appends the width LAST, so the Gate 9 state name
+survives intact as a prefix:
+
+```
+index-375-light-chromium-win32.png
+index-crypto-430-dark-chromium-win32.png
+finance-holding-wallet-marg-375-light-chromium-win32.png
+```
+
+**A BASELINE FILENAME IS SELF-DESCRIBING BY DESIGN.** Route, tab, width, theme,
+browser and platform are all readable without opening a config file. That is
+the concrete advantage over encoding the width in a Playwright project name,
+where the reader has to go and find out what `chromium-430` was configured to
+mean.
+
+### The honesty guard is parameterised and MUST NOT become a range
+
+`assertHarnessIsHonest(page, expectedWidth)` took a hardcoded 375 and was the
+first hard blocker on a second viewport, because it runs on every walk state.
+
+**IT WAS NOT SOFTENED TO A RANGE OR A TOLERANCE, AND IT NEVER MAY BE.** The
+reason it is an exact equality is that a range would have accepted the
+uncontrolled `devicePixelRatio` the guard exists to catch — the same trap as
+`threshold: 0.2` looking like a tolerance while actually being a blindfold.
+
+**THE EXPECTED WIDTH COMES FROM THE SAME OBJECT THAT SET THE VIEWPORT**, which
+is what makes drift impossible rather than merely unlikely:
+
+- `visual.spec.ts` holds one `viewport` per describe block and passes it BOTH
+  to `test.use({ viewport })` and to `assertHarnessIsHonest(page, 
+  viewport.width)`. One variable, one closure — there is no second literal that
+  could fall out of step.
+- Callers that set no viewport default to `DEFAULT_VIEWPORT.width`, and
+  `playwright.config.ts` **imports** `DEFAULT_VIEWPORT` and
+  `DEVICE_SCALE_FACTOR` from `e2e/harness.ts` for its own `use` block. The
+  config no longer spells `375` or `2` at all.
+
+That import is the load-bearing half. Without it the config and the guard would
+hold two literals that agree today, which is the shape of every drift this
+project has been bitten by.
+
+### Why 430, and why NOT a viewport at or above 768
+
+Figma authors this app **exclusively at 375** — MCP-verified, there is no 390
+frame anywhere in the file — and the DS ships **exactly one breakpoint**,
+`@media (min-width: 768px)`. So the width axis has two regimes and every width
+from 376 to 767 exercises the same facts. 390 buys nothing 430 does not.
+
+430 wins on two counts 390 cannot match:
+
+1. **It is the proposed frame width.** When the frame cap lands there is
+   already a baseline at exactly the width where the cap engages.
+2. **It keeps the carousel overflowing.** Measured: the Smart Insights
+   scroller is scrollWidth 543 against clientWidth 375 / 390 / 430 — but at
+   768 it is **768 against 768**. It fits, the snap goes inert, and
+   `scroll-padding-left` is never exercised. **A viewport at or above 768 would
+   SILENTLY STOP COVERING Gate 14's fix**, which is the opposite of what
+   adding coverage is for.
+
+430 also makes fix 3c visible for the first time. At 375 three tiles cap at
+109px and already fill the 343px column exactly — an arithmetic accident of
+that viewport — so `sizing='fill'` lands on the same three integers. At 430
+they render 127.33 / 127.34 / 127.33.
+
+### Minting new baselines is a TWO-PARTY act, by design
+
+**THE BASELINE GUARD CANNOT GO GREEN ON A RENAME OR AN ADDITION UNTIL A HUMAN
+STAGES IT.** Arms 1 and 2 compare the snapshot directory against the GIT INDEX,
+so with 42 files renamed and 42 added but nothing staged, arm 1 sees 84
+untracked and arm 2 sees 42 tracked-but-missing. The suite reports **2 failed /
+172 passed** and that is CORRECT, not a defect.
+
+This is the first gate to add baseline FILES since the guard existed — Gate 13
+re-minted 22, but those were modifications to already-tracked paths, so both
+lists still agreed. Do not read the 2 failures as a regression, and do not
+"fix" them by relaxing the guard: "a baseline git does not track is a baseline
+nobody reviewed" is the whole point, and the review is the human's.
+
+### What it costs — measured, over ten clean runs
+
+| | before Gate A | after |
+|---|---|---|
+| visual baselines | 42 | **84** |
+| suite tests | 132 | **174** |
+| suite wall-clock | 236 s | **350 s mean** (range 320-395) |
+
+**THE MARGINAL COST OF A BASELINE IS 2.7 s, NOT THE 1.9 s THE ARCHAEOLOGY
+PROJECTED.** Derived rather than transcribed: (350 - 236) / 42 = 2.71 s per
+added baseline. The archaeology timed `visual.spec.ts` alone at 1.93 s per
+baseline at 375 only. The gap is not measurement error — **a 430-wide full-page
+screenshot is a bigger image**, so it costs more to capture, encode and compare
+than a 375 one. Use 2.7 s when costing a future viewport, and expect it to rise
+again with width.
+
+The five-run standard inherited from Gate 17 therefore costs **~29 minutes**,
+still inside the hour. A THIRD baseline viewport would take the suite to 216
+tests and the standard past 37 minutes — and per the carousel measurement above
+it would have to sit below 768 to be worth having, where it would re-measure a
+regime 430 already covers. If the frame cap needs proving above 430, do it with
+computed-value assertions at one wide viewport, not with 42 more screenshots.
+
+### One unattributed outlier, recorded because it was not explained
+
+**ELEVEN RUNS OF THE 174-TEST SUITE WERE MADE AT THIS GATE. TEN WERE
+IDENTICAL** — 172 passed / 2 failed (the unstaged-baseline arms), zero pixel
+diffs, zero timeouts, 320-395 s. **ONE WAS NOT: 846 s and 5 failed**, i.e.
+three failures beyond the two guard arms. It was the first run of the first
+batch and it has not recurred in ten subsequent runs.
+
+**ITS EVIDENCE WAS DESTROYED BY THE INSTRUMENT, WHICH IS THE REAL LESSON.**
+The probe kept only greps of each run and discarded the output, and its
+failing-name grep matched `baselines|visual` only — so three failures in
+`routes.spec.ts` or `section-headers.spec.ts` were counted but never named. A
+probe that discards the artifact cannot characterise what it caught. Keep the
+full log per run.
+
+**ONE HYPOTHESIS WAS TESTED AND REFUTED — do not re-run it.** Vite's dependency
+cache was rebuilt at 23:48 during that window, and `routes.spec.ts` fails on any
+response >= 400 with only `/favicon.ico` allowlisted — so a Vite `504 Outdated
+Optimize Dep` mid-run looked like a clean explanation. Deleting
+`node_modules/.vite` and re-running reproduced NOTHING: 331 s, 2 failed, zero
+error signatures, and Vite rebuilt the whole cache in **4 seconds**. Far too
+fast to cost 500 s. The cold-cache story is wrong.
+
+What remains likely is host contention rather than anything in this repo — 846 s
+against a 350 s mean is a 2.4x slowdown across the whole run, which is the shape
+of the machine being busy, not of a rendering defect. **Stated as unresolved
+rather than closed.** If it recurs, the full logs will now exist to name it.
+
 ## The token guardrail's `@media` allowance (Gate 18)
 
 **A RAW PX IS LEGITIMATE INSIDE A MEDIA CONDITION, AND NOWHERE ELSE ON THE

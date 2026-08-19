@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type TestInfo } from '@playwright/test'
-import { THEMES, WALK, stateSlug } from './harness'
+import { THEMES, VIEWPORTS, WALK, stateSlug } from './harness'
 
 /**
  * THE BASELINE GUARD — Gate 10.
@@ -140,7 +140,7 @@ const VISUAL_SNAPSHOT_DIR = `e2e/${VISUAL_SPEC}-snapshots`
  * naming logic, which is how a guard quietly starts auditing a name nobody
  * uses. So the join is checked against the source text rather than trusted.
  */
-const NAME_EXPRESSION = 'toHaveScreenshot(`${stateSlug(state)}-${theme}.png`'
+const NAME_EXPRESSION = 'toHaveScreenshot(`${stateSlug(state, viewport)}-${theme}.png`'
 
 function assertNamingMatchesVisualSpec(): void {
   const specPath = resolve(E2E_DIR, VISUAL_SPEC)
@@ -244,10 +244,12 @@ test.describe('baseline guard', () => {
     assertNamingMatchesVisualSpec()
 
     const expected = new Set<string>()
-    for (const theme of THEMES) {
-      for (const state of WALK) {
-        const screenshotName = `${stateSlug(state)}-${theme}.png`
-        expected.add(`${VISUAL_SNAPSHOT_DIR}/${expectedFileName(testInfo, screenshotName)}`)
+    for (const viewport of VIEWPORTS) {
+      for (const theme of THEMES) {
+        for (const state of WALK) {
+          const screenshotName = `${stateSlug(state, viewport)}-${theme}.png`
+          expected.add(`${VISUAL_SNAPSHOT_DIR}/${expectedFileName(testInfo, screenshotName)}`)
+        }
       }
     }
 
@@ -256,10 +258,11 @@ test.describe('baseline guard', () => {
     // orphan. Cheap to rule out, and impossible to notice if it ever happened.
     expect(
       expected.size,
-      `baseline guard: ${WALK.length} walk state(s) x ${THEMES.length} theme(s) collapsed to ` +
-        `${expected.size} distinct filename(s). Two states share a baseline file, so one of ` +
-        'them is asserting nothing. Fix the naming in e2e/harness.ts.',
-    ).toBe(WALK.length * THEMES.length)
+      `baseline guard: ${WALK.length} walk state(s) x ${VIEWPORTS.length} viewport(s) x ` +
+        `${THEMES.length} theme(s) collapsed to ${expected.size} distinct filename(s). Two ` +
+        'states share a baseline file, so one of them is asserting nothing. Fix the naming ' +
+        'in e2e/harness.ts.',
+    ).toBe(WALK.length * VIEWPORTS.length * THEMES.length)
 
     const onDisk = baselinesOnDisk()
 
@@ -289,7 +292,8 @@ test.describe('baseline guard', () => {
         orphans.map((p) => `    ${p}`).join('\n') +
         '\n\n' +
         `The suite asks for exactly ${expected.size} names, built from ${WALK.length} walk ` +
-        `state(s) x ${THEMES.length} theme(s) by e2e/${VISUAL_SPEC}. A file outside that set ` +
+        `state(s) x ${VIEWPORTS.length} viewport(s) x ${THEMES.length} theme(s) by ` +
+        `e2e/${VISUAL_SPEC}. A file outside that set ` +
         'is asserting nothing: it is never compared against anything, it can never fail, and ' +
         'it will still be sitting there a year from now looking like coverage.\n\n' +
         'This is what a renamed tab, a renamed route or a deleted screen leaves behind — ' +

@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { DEFAULT_VIEWPORT, DEVICE_SCALE_FACTOR } from './e2e/harness'
 
 /**
  * Gate 7 — the browser test harness.
@@ -60,8 +61,12 @@ export default defineConfig({
     // 375 x 812 is the frame every Figma screen is drawn at, and the width the
     // MVP's CSS is authored against. DPR 2 is NOT optional and NOT cosmetic —
     // see note 1 above.
-    viewport: { width: 375, height: 812 },
-    deviceScaleFactor: 2,
+    // IMPORTED, NOT REPEATED. `e2e/harness.ts` owns these two values, and the
+    // honesty guard asserts against the same objects — so the declared
+    // viewport and the asserted viewport cannot drift apart. Writing `375`
+    // here again would recreate exactly the hole Gate A closed.
+    viewport: { width: DEFAULT_VIEWPORT.width, height: DEFAULT_VIEWPORT.height },
+    deviceScaleFactor: DEVICE_SCALE_FACTOR,
     isMobile: false,
     hasTouch: true,
 

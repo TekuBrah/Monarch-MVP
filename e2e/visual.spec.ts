@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test'
-import { THEMES, WALK, assertHarnessIsHonest, gotoState, stateSlug, stateTitle } from './harness'
+import {
+  THEMES,
+  VIEWPORTS,
+  WALK,
+  assertHarnessIsHonest,
+  gotoState,
+  stateSlug,
+  stateTitle,
+} from './harness'
 
 /**
  * VISUAL BASELINES — one full-page screenshot per walk state per theme.
@@ -52,16 +60,25 @@ import { THEMES, WALK, assertHarnessIsHonest, gotoState, stateSlug, stateTitle }
  */
 
 test.describe('visual baselines', () => {
-  for (const theme of THEMES) {
-    for (const state of WALK) {
-      test(`${stateTitle(state)} [${theme}]`, async ({ page }) => {
-        await gotoState(page, state, theme)
-        await assertHarnessIsHonest(page)
+  for (const viewport of VIEWPORTS) {
+    test.describe(`${viewport.width}px`, () => {
+      // THE VIEWPORT AND THE ASSERTION SHARE ONE OBJECT. `test.use` below and
+      // `assertHarnessIsHonest(page, viewport.width)` inside the test both read
+      // this same `viewport`, so there is no second literal to fall out of step.
+      test.use({ viewport: { width: viewport.width, height: viewport.height } })
 
-        await expect(page).toHaveScreenshot(`${stateSlug(state)}-${theme}.png`, {
-          fullPage: true,
-        })
-      })
-    }
+      for (const theme of THEMES) {
+        for (const state of WALK) {
+          test(`${stateTitle(state)} [${viewport.width}] [${theme}]`, async ({ page }) => {
+            await gotoState(page, state, theme)
+            await assertHarnessIsHonest(page, viewport.width)
+
+            await expect(page).toHaveScreenshot(`${stateSlug(state, viewport)}-${theme}.png`, {
+              fullPage: true,
+            })
+          })
+        }
+      }
+    })
   }
 })
