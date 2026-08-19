@@ -595,10 +595,111 @@ Recorded at the time of the fix: Playwright **1.62.1**, bundled Chromium
 - **The JS bundle is 5.75 MB** (3.78 MB gzipped), driven by the DS
   `dist/index.js` at 5.59 MB — most likely the 101 icons bundled rather than
   tree-shaken. Worth a DS-side look; not an MVP fix.
-- **`npm run dev` leaves orphaned Vite servers.** Two were found at consecutive
-  gate pre-flights (DS on 5173 at Gate 4, MVP on 5174 at Gate 16), both
-  outliving the npm wrapper with a bare `cmd.exe` shim as parent. The pre-flight
-  port check is what catches them; keep doing it.
+- **`npm run dev` leaves orphaned Vite servers — THREE of the last four gate
+  pre-flights.** DS on 5173 at Gate 4; MVP on 5174 at Gate 16; MVP on 5174 at
+  the second-viewport archaeology (pid 22200, started **17:49:03, 46 seconds
+  after** the reflog's `checkout: moving from main to
+  phase/gate17-harness-flake`). That last one is traceable rather than
+  mysterious: it was **Gate 17's own dev server outliving Gate 17**. This is
+  not bad luck, it is what a gate does by default.
+
+  **THE MECHANISM, AND WHY IT DECIDES THE CHECK.** The npm wrapper exits and the
+  `vite` child SURVIVES, re-parented onto a bare `cmd.exe` shim. Nothing in the
+  process tree then links it back to the session that started it — walking its
+  parents finds a stub, or a pid that is already gone. **So a PORT check catches
+  these and a process-tree check does not.** Check 5173 and 5174 at pre-flight,
+  and **stop your own server at close** — that second half is what breaks the
+  chain, and skipping it is how the next gate inherits one.
+
+## The token guardrail's `@media` allowance (Gate 18)
+
+**A RAW PX IS LEGITIMATE INSIDE A MEDIA CONDITION, AND NOWHERE ELSE ON THE
+LINE.** `scripts/check-tokens.mjs`'s `raw-px` rule permits a literal in the one
+place CSS leaves no alternative: **custom properties are INVALID in a media
+condition.** `@media (min-width: var(--brand-scale-1800))` does not work in any
+browser, so a breakpoint has to be written as a literal.
+
+**DO NOT "FIX" THAT ALLOWANCE AWAY.** Deleting it would make the linter fail on
+the first breakpoint this app ships, and a linter that blocks correct CSS gets
+disabled rather than corrected. The allowance is right; only its SCOPE was wrong.
+
+### What passes and what does not
+
+The allowance is now MATCH-scoped: a `px` is allowed if it sits between `@media`
+and the `{` that opens its block. Past that brace it is a declaration and gets
+no allowance.
+
+```css
+/* ALLOWED - the literal is in the condition, where no token can go */
+@media (min-width: 768px) {
+  .frame { max-width: var(--brand-scale-1800); }
+}
+
+/* FLAGGED - 430px is a declaration, and it is flagged whether or not it
+   shares a line with the @media that contains it */
+@media (min-width: 768px) { .frame { max-width: 430px; } }
+```
+
+So the frame max-width, when it comes, still needs a real token or an explicit
+`token-exempt: <reason>` marker. **It cannot be smuggled in by putting it on the
+same line as a breakpoint**, which is exactly what it could have done before
+this gate.
+
+### The bug was the scope, and it had no victims yet
+
+The allowance was LINE-scoped — `allowLine: (line) => /@media/.test(line)` — so
+it skipped every rule-match on any physical line containing the text `@media`.
+A single-line media query therefore carried a raw declaration through **with no
+`token-exempt` marker and no report**, while the identical declaration written
+on its own line was flagged.
+
+There were **zero `@media` declarations anywhere in `src/`** when this was
+closed, so nothing regressed: the real-tree lint output was **byte-identical**
+before and after — 39 files, PASS, zero violations, zero exemptions — and all
+42 baselines were unchanged by SHA-256 and by git independently.
+
+**PROVEN BY FIXTURE AGAINST THE REAL SCRIPT, NOT BY READING THE REGEX.** Both
+the old and the new script were run over one byte-identical seven-case fixture
+in a scratchpad. Only two cases moved, and both moved from escaped to flagged:
+
+| case | old | new |
+|---|---|---|
+| A - multi-line `@media`, px in the condition | allowed | allowed |
+| **B - single-line `@media { ... 430px ... }`** | **ESCAPED** | **flagged 6:45** |
+| C - px with no media query | flagged 8:17 | flagged 8:17 |
+| D - `@media` only inside a comment | flagged 10:17 | flagged 10:17 |
+| E - single-line `@media`, condition only | allowed | allowed |
+| **F - px in BOTH condition and declaration** | **ESCAPED** | **flagged 16:45** |
+| G - case B plus `token-exempt:` | exempt | exempt |
+
+Case F is the one that proves the SCOPE rather than the outcome: on
+`@media (min-width: 900px) { .f { max-width: 430px; } }` the reported column is
+**45**, which is the `430px` at index 44 — past the brace at index 26 — while
+the condition's `900px` at column 20 is not reported at all. One line, one
+allowed literal, one flagged literal.
+
+### No other rule carries this shape — enumerated, not assumed
+
+`allowLine` existed in exactly one rule and one call site, and it is now gone
+entirely. The other three rules were checked for the same bug and do not have
+it:
+
+| rule | allowance | scope |
+|---|---|---|
+| `raw-hex-color` | none | - |
+| `raw-color-function` | none | - |
+| `raw-px` | `0px`, and the media condition | **match** |
+| `raw-font` | `var()` / `inherit` / `unset` / `initial` / `revert` | match |
+
+**`token-exempt` BEHAVIOUR IS UNCHANGED AND MUST STAY THAT WAY.** It is read
+from the **raw** line (comment-stripping would erase it) and it suppresses
+**every** rule on that line, not just `raw-px`. The fix did not touch it, and
+fixture case G confirms it still fires on a line the fix newly flags.
+
+One thing deliberately NOT widened: the allowance covers `@media` only.
+`@container` and `@supports` conditions have the same CSS limitation and would
+be flagged today. Neither appears in `src/`; widen it when one actually does,
+with a fixture, rather than pre-emptively.
 
 ## Known conditions of this setup
 

@@ -29,6 +29,31 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', '.vite', 'coverage'])
  */
 const EXEMPT = /token-exempt:\s*(.+)/
 
+/**
+ * Is `index` inside a media QUERY CONDITION on this line?
+ *
+ * The condition is the part between `@media` and the `{` that opens its
+ * block. With no `{` on the line the condition runs to the end of the line,
+ * which is the ordinary multi-line spelling. ANYTHING PAST THAT BRACE IS A
+ * DECLARATION BLOCK and gets no allowance — that is the whole point.
+ *
+ * The brace is searched for FROM the `@media`, not from the start of the
+ * line, so a nested `@media` inside an already-open rule still resolves its
+ * own condition rather than reading the outer rule's brace.
+ *
+ * The line is expected to be COMMENT-STRIPPED, so `@media` written inside a
+ * comment cannot open a condition.
+ */
+function inMediaCondition(line, index) {
+  const AT = '@media'
+  for (let at = line.indexOf(AT); at !== -1; at = line.indexOf(AT, at + AT.length)) {
+    const brace = line.indexOf('{', at)
+    const end = brace === -1 ? line.length : brace
+    if (index >= at && index < end) return true
+  }
+  return false
+}
+
 const RULES = [
   {
     id: 'raw-hex-color',
@@ -45,11 +70,22 @@ const RULES = [
     id: 'raw-px',
     re: /(?<![\w-])(\d*\.?\d+)px\b/g,
     hint: 'use var(--spacing-*) / var(--brand-scale-*)',
-    // 0px is dimensionless in effect — no token expresses "nothing".
-    allow: (m) => parseFloat(m[1]) === 0,
-    // CSS custom properties are INVALID inside @media conditions. This is a
-    // hard CSS limitation, not a style preference, so breakpoints must pass.
-    allowLine: (line) => /@media/.test(line),
+    // TWO allowances, and both are MATCH-scoped:
+    //
+    //   - 0px is dimensionless in effect — no token expresses "nothing".
+    //   - a raw px inside a MEDIA CONDITION is unavoidable. CSS custom
+    //     properties are INVALID in a media condition — a hard CSS
+    //     limitation, not a style preference — so a breakpoint cannot be
+    //     written with a token and must be allowed to be a literal.
+    //
+    // THE MEDIA ALLOWANCE WAS LINE-SCOPED UNTIL GATE 18, and that exempted
+    // the whole physical line rather than the condition on it. A single-line
+    // `@media (min-width: 768px) { .x { max-width: 430px } }` therefore slid
+    // a raw DECLARATION through with no `token-exempt` marker and no report,
+    // while the identical declaration written on its own line was flagged.
+    // The frame max-width would have been its first user. Proven by fixture,
+    // not by reading the regex — see CLAUDE.md.
+    allow: (m, line) => parseFloat(m[1]) === 0 || inMediaCondition(line, m.index),
   },
   {
     id: 'raw-font',
@@ -114,11 +150,13 @@ for (const file of files) {
       return
     }
     for (const rule of RULES) {
-      if (rule.allowLine && rule.allowLine(line)) continue
       rule.re.lastIndex = 0
       let m
       while ((m = rule.re.exec(line)) !== null) {
-        if (rule.allow && rule.allow(m)) continue
+        // `line` is passed so an allowance can be position-aware. It is the
+        // COMMENT-STRIPPED line, which is what makes `@media` in a comment
+        // unable to grant anything.
+        if (rule.allow && rule.allow(m, line)) continue
         violations.push({
           loc: `${rel}:${i + 1}:${m.index + 1}`,
           id: rule.id,
