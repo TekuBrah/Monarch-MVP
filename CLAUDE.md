@@ -322,14 +322,10 @@ applied** — there on `/finance/holding/*` dark screens, which have neither nav
 nor FAB. So Gate 1 EXPOSED this; it did not create it. At `threshold: 0.2` a
 +/-1 delta was absorbed as noise.
 
-**WHAT IS AND IS NOT KNOWN ABOUT THE FLAKE.** Known: it exists at HEAD
-independently of this gate; across all four full runs the FAILING SET was
-identical every time, so it perturbs pixels inside already-failing baselines
-rather than flipping a pass to a fail; and `toHaveScreenshot` re-screenshots
-until two consecutive captures agree before comparing, which absorbs it in
-practice. **NOT known: any incidence rate. None was measured, and none should be
-inferred from the numbers above.** Characterising it properly belongs to a later
-harness gate.
+**MEASURED AND CLOSED AT GATE 17 — see "The raster flake" below.** The rate is
+**22.5% of browser processes** on the worst state, the cause is Chromium's
+partial raster, and the fix is one launch flag. The paragraph that used to sit
+here said no rate had been measured; that is no longer true.
 
 **THE HYPOTHESIS THAT THEY SHARE A ROOT CAUSE WAS TESTED AND CONTRADICTED.** If
 both artifacts sat on gradient-rendered elements they would likely be one
@@ -464,6 +460,145 @@ Should `navbar/mobile/section` specify a taller scrim region than the 92px
 nav band — or should the scrim be a separate layer in the file too, as it now
 is in code? As drawn, the gradient cannot achieve its evident intent at the
 size it is given. Logged from the MVP side; do not act on it from this repo.
+
+## The raster flake — measured and closed (Gate 17)
+
+**THE CAUSE IS CHROMIUM'S PARTIAL RASTER, AND THE FIX IS ONE LAUNCH FLAG.**
+`playwright.config.ts` passes `--disable-partial-raster` in `use.launchOptions`.
+
+Partial raster re-rasterises only the invalidated region of a tile and reuses
+the rest. Whether a given repaint takes the partial or the full path depends on
+invalidation history, and that varies BETWEEN BROWSER PROCESSES. An antialiased
+edge rastered by the two paths rounds to different coverage — which is exactly
+a +/-1 per channel difference on identical geometry.
+
+It also explains the shape of the thing. The theme toggle click invalidates the
+Button's colours, which is what gives partial raster something to do — so the
+flake appeared on DARK states (reached by clicking) and never on the light
+control, which needs no click. The `.mn-btn` border is antialiased
+(`border-radius: var(--brand-scale-200)`) and its right edge sits at the
+fractional x **60.5**, which is where AA rounding is visible.
+
+### The measurement, and why the method mattered
+
+**A FRESH BROWSER PROCESS PER SAMPLE IS THE WHOLE EXPERIMENT.** The first probe
+reused one browser across 20 iterations and reproduced NOTHING — 0 of 20. The
+render is stable WITHIN a process and bimodal ACROSS processes, so any probe
+that reuses a browser measures the wrong thing and reports a clean bill of
+health. Re-running with `chromium.launch()` per iteration reproduced it
+immediately.
+
+**THE HONEST METRIC IS THE POPULATION SPLIT, NOT "DIFFERS FROM THE FIRST
+CAPTURE".** The render is bimodal: two hashes, always the same two. Measuring
+each sample against sample #0 makes the rate depend on which population sample
+#0 landed in, which is how a first pass here produced 22.5% / 30% / 60% for
+configurations that were barely different. Count instead how many samples match
+the COMMITTED BASELINE — that is the rate the suite actually experiences.
+
+**RATES, n=40 fresh processes each, `/finance/holding/fd` dark:**
+
+| configuration | render populations | mismatching the baseline |
+|---|---|---|
+| default | 2 | **22.5%** |
+| + finish all animations | 2 | 30.0% |
+| + inject `transition: none` at capture | 2 | 60.0% |
+| `--disable-gpu` | 2 | 17.5% |
+| **`--disable-partial-raster`** | **1** | **0%** (40/40) |
+
+After the fix, all four probed states report a single render population and
+20/20 matching their committed baseline.
+
+**PROBE AND SUITE ARE DIFFERENT INSTRUMENTS AND THEIR NUMBERS MUST NOT BE
+POOLED.** `toHaveScreenshot` re-screenshots until two consecutive captures
+agree before comparing; a single-shot probe does not. The retry gives no
+protection here — the render is stable within a process, so both captures agree
+with each other and with the wrong population. That is why the flake reached the
+suite at all.
+
+### Hypotheses that were REFUTED — do not re-investigate these
+
+These cost the most to test and are the most tempting to try again:
+
+- **Unsettled transitions.** Both flake sites carry one (`Button.css:12`,
+  `Tab.css:13`, both `0.12s`), and 20 of 20 samples had transitions in flight at
+  capture, so the correlation looked compelling. But explicitly calling
+  `getAnimations().forEach(a => a.finish())` before capture did NOT eliminate it
+  (still 2 populations), and injecting `transition: none !important` at capture
+  made it **worse** (60%). Transitions supply the invalidation; they are not the
+  nondeterminism.
+- **Fractional box geometry.** The box was identical in both populations —
+  `[16, 690, 60.5, 716]`, width 44.5, to four decimal places. The fractional
+  edge is WHERE the difference shows, not WHY it happens.
+- **Font rasterisation.** Same font, same size, same weight, `document.fonts`
+  loaded with 9 faces in both populations, and the differing pixels sit on the
+  border and corner arc rather than on glyph strokes. Adding
+  `--disable-lcd-text` INTRODUCED a second population of its own, alone and
+  combined with `--disable-gpu` — **more flags is not safer**.
+
+### Why the fix lives in the harness
+
+It changes how the app is MEASURED, never how it renders for a user. No app CSS
+was touched, no geometry moved, and **no tolerance was widened** — `threshold`,
+`maxDiffPixels` and `maxDiffPixelRatio` all remain 0, which is the whole point
+of the Gate 1 work and is not negotiable. Nudging the 60.5 edge to 61 would have
+been a design change wearing a test fix's clothes.
+
+### The fix has three costs. Write them down before trusting it.
+
+**1 · THE BASELINES ARE NOW MINTED UNDER A RASTERISATION NO USER'S BROWSER
+USES.** `--disable-partial-raster` is a browser launch flag, so it pins the
+raster path for the HARNESS only. Nothing about the app changed, and nothing
+about what a real browser paints changed. But the reference PNGs are now the
+full-raster rendering, and a real browser using partial raster will differ from
+them by a few pixels on antialiased edges.
+
+That is acceptable — **a reference render is a reference, not a claim about
+production** — but it must be written down, because the failure mode is a
+future session opening a baseline next to a real browser, finding a ~6px
+discrepancy, and concluding something regressed. It did not. Compare baselines
+against the harness, never against a hand-driven browser.
+
+**2 · TWO BASELINES WERE RE-MINTED, AND THEY ARE NOW A TRIPWIRE.**
+`finance-holding-fd-light` and `finance-holding-main-light` were **stable
+before the fix** — measured, 40/40 matching their baselines across fresh
+processes — and the flag shifted them by 6 px each at delta 1, on the
+theme-switch button's antialiased bottom edge (bbox `{21, 52, 714, 715}`).
+Proven by control through the shipped path, not by correlation: with the flag
+reverted those two tests PASS, with it re-applied they FAIL with exactly that
+delta, repeatably.
+
+Because they were re-minted UNDER the flag, they now fail deterministically if
+the flag ever stops taking effect. That is a loud canary, and a better one than
+the flake it replaced.
+
+**3 · THE FLAG CAN BE SILENTLY DROPPED BY A CHROMIUM UPGRADE.** Two different
+durability questions, with different answers:
+
+- **The Playwright side is type-checked.** It is passed as
+  `use.launchOptions.args` in `playwright.config.ts`, and that file IS covered
+  by `tsconfig.e2e.json`, which `npx tsc -b --force` builds. A Playwright API
+  rename would fail gate 1. (Do not check this with `tsconfig.node.json` — that
+  project includes only `vite.config.ts`.)
+- **The Chromium side is not.** Command-line switches are not a stable API, and
+  Chromium IGNORES UNKNOWN SWITCHES SILENTLY. Playwright bundles its own
+  Chromium, so a Playwright upgrade is also a Chromium upgrade. If
+  `--disable-partial-raster` is removed upstream, nothing errors.
+
+What would surface it: the two re-minted baselines above start failing on every
+run, and the +/-1 flake returns at ~22.5% on the dark states. Both signatures
+are documented here, so the symptom is diagnosable rather than mysterious.
+Recorded at the time of the fix: Playwright **1.62.1**, bundled Chromium
+**151.0.7922.34** (revision 1234).
+
+### Logged, not acted on
+
+- **The JS bundle is 5.75 MB** (3.78 MB gzipped), driven by the DS
+  `dist/index.js` at 5.59 MB — most likely the 101 icons bundled rather than
+  tree-shaken. Worth a DS-side look; not an MVP fix.
+- **`npm run dev` leaves orphaned Vite servers.** Two were found at consecutive
+  gate pre-flights (DS on 5173 at Gate 4, MVP on 5174 at Gate 16), both
+  outliving the npm wrapper with a bare `cmd.exe` shim as parent. The pre-flight
+  port check is what catches them; keep doing it.
 
 ## Known conditions of this setup
 

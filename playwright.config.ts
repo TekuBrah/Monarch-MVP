@@ -72,6 +72,39 @@ export default defineConfig({
     timezoneId: 'Asia/Kuala_Lumpur',
     locale: 'en-GB',
 
+    // THE RASTER PATH IS PINNED, AND THIS IS THE THIRD AXIS THAT HAD TO BE.
+    //
+    // Chromium's PARTIAL RASTER re-rasterises only the invalidated region of a
+    // tile and reuses the rest. Whether any given repaint takes the partial or
+    // the full path depends on invalidation history, and that varies BETWEEN
+    // BROWSER PROCESSES. An antialiased edge re-rastered by the two paths can
+    // round to different coverage — hence a +/-1 per channel difference on the
+    // same geometry.
+    //
+    // MEASURED AT GATE 17, n=40 fresh browser processes per configuration,
+    // on `/finance/holding/fd` dark:
+    //   default                      2 render populations, 22.5% mismatch
+    //   + finish all animations      2 populations, 30.0%   <- H1 REFUTED
+    //   + inject transition:none     2 populations, 60.0%   <- made it WORSE
+    //   --disable-gpu                2 populations, 17.5%
+    //   --disable-partial-raster     1 population, 40/40, matching the
+    //                                committed baseline exactly
+    //
+    // The layout was identical in both populations — box [16,690,60.5,716] to
+    // four decimals, same fonts, same text — so this was never a layout, font
+    // or transition problem. Only the raster differed.
+    //
+    // DO NOT ADD `--disable-lcd-text` HERE. It was tested and it INTRODUCES a
+    // second population of its own (bimodal at n=40, both alone and combined
+    // with --disable-gpu). More flags is not safer.
+    //
+    // This changes how the app is MEASURED, never how it renders for a user;
+    // no app CSS was touched and no tolerance was widened. `threshold`,
+    // `maxDiffPixels` and `maxDiffPixelRatio` all remain 0.
+    launchOptions: {
+      args: ['--disable-partial-raster'],
+    },
+
     trace: 'retain-on-failure',
   },
 
