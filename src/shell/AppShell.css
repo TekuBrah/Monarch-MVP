@@ -77,7 +77,44 @@
     `--mapped-surface-subtlest-default`. Fading to the page colour instead
     would leave a step at the bottom edge — measured Δ6/channel light,
     Δ19/channel dark. Overriding is the DS-supported seam, not a workaround.
+
+    THE FADE ITSELF MOVED OUT of this element, to `.mvp-shell__scrim` below.
+    This box paints nothing now. It is 99px tall and the pill occupies 64 of
+    those, so a gradient confined to it reached only ~9% opacity by the time
+    content met the pill — a hard cut, not a dissolve. The box could not
+    simply be grown: it has been geometry-invariant since Gate 13 and its
+    size decides hit-testing.
   */
+}
+
+/*
+  THE SCRIM LAYER. A separate box purely so the fade has runway, sitting
+  BEHIND the nav (z-index 1 against the nav's 2) and taking no pointer
+  events, so nothing about interaction or layout changes.
+
+  HEIGHT IS DERIVED, NOT PICKED. For `linear-gradient(0deg, S 0%, transparent
+  100%)` of height H anchored to the viewport bottom, the alpha accumulated by
+  the pill's top edge is `(H - 90) / H`. Measured against that algebra, both
+  themes: 99px -> 9%, 128px -> 30%, 256px -> 65%, 512px -> 83% (dark tracked
+  the prediction to within a percentage point). 256px is also the smallest
+  ramp step exceeding the worst-case content contrast behind the band
+  (max |S - B| = 249 light, 236 dark), so two independent derivations land on
+  the same step. `--brand-scale-1800` (512px) would start the fade above the
+  screen's midpoint; `-1600` (128px) only reaches 30%.
+
+  FIGMA DIVERGENCE, DELIBERATE. `navbar/mobile/section` is 92px with the pill
+  at y=5, i.e. 5px of runway — LESS than the 10px this app had. The file's own
+  geometry cannot produce the dissolve its gradient implies, so matching it
+  more faithfully would make the effect worse. Logged as a DS-side question.
+*/
+.mvp-shell__scrim {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: var(--brand-scale-1700);
+  pointer-events: none;
   --gradient-surface: var(--mapped-surface-subtlest-default);
   background: var(--mapped-gradient-subtle);
 }

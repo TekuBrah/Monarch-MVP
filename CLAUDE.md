@@ -95,6 +95,44 @@ it.
 `--mapped-surface-subtlest-default` both flip. A scrim therefore needs no
 dark-theme design spec of its own.
 
+### A scrim needs RUNWAY, and the runway is the part that gets forgotten
+
+**A GRADIENT CONFINED TO THE ELEMENT IT DECORATES USUALLY CANNOT DISSOLVE
+ANYTHING.** `--mapped-gradient-subtle` ramps from opaque to transparent across
+the WHOLE height of the box that carries it. If that box is short, or if most
+of it is covered by something opaque, the alpha reached at the point where
+content actually disappears is tiny, and the result reads as a hard cut even
+though the gradient is provably correct.
+
+The arithmetic, which generalises to any scrim over any occluder: for
+`linear-gradient(0deg, S 0%, transparent 100%)` of height H anchored to the
+bottom, the alpha accumulated at a point D above the bottom is `(H - D) / H`.
+Put the occluder's top edge in for D and that is how faded content is at the
+moment it disappears.
+
+The navbar is the worked example. Its band is 99px and the pill covers 64 of
+them, so D = 90 and a scrim confined to the band reached **~9%** — content was
+91% visible when it met the pill. Measured against the algebra in both themes:
+99px -> 9%, 128px -> 30%, 256px -> 65%, 512px -> 83%, with dark tracking the
+prediction to within a percentage point.
+
+**SO THE SCRIM IS ITS OWN LAYER, NOT A BACKGROUND ON THE THING IT FADES.**
+Sizing the decorated element to suit the gradient would change hit-testing and
+layout; a separate `position: fixed` layer with `pointer-events: none`, one
+z-index below, changes neither. Verified: hit-testing inside the layer returns
+the content beneath it, not the layer.
+
+**THE NEW FAILURE MODE IS A SEAM AT THE LAYER'S TOP EDGE, AND IT MUST BE
+MEASURED WITH A CONTROL.** Sample a column across that edge with and without
+the layer: the row-to-row step is natural content variation and will be large,
+so the number that matters is the DIFFERENCE between the two. For the navbar
+scrim that difference is **0 per channel** in both themes (step 245 light /
+231 dark, identical either way). A gradient whose top stop is `transparent`
+reaches alpha 0 continuously and so has no hard edge at any height — which is
+also why "make the layer tall enough that its top edge is imperceptible" is
+not a usable sizing criterion. It is satisfied at every height. Size the layer
+by the alpha it must reach at the occluder, not by its own top edge.
+
 ### Open question for the design system
 
 Should `Gradient/subtle` seed the PAGE surface at all, or should the DS seed
@@ -374,6 +412,58 @@ deliberately remain:
 - **The frame max-width is still deferred.** No token backs ~430px; it falls
   between `--brand-scale-1700` (256px) and `-1800` (512px). Capping the frame
   also re-anchors the fixed chrome, which is its own measurable consequence.
+
+## The scrim runway (Gate 15)
+
+`.mvp-shell__scrim` is a `position: fixed` layer, full width, anchored to the
+bottom, `height: var(--brand-scale-1700)` (256px), `z-index: 1` against the
+nav's 2, `pointer-events: none`. It carries the scrim; `.mvp-shell__nav`
+now paints nothing at all.
+
+**WHY THE NAV STOPPED PAINTING IT.** Gate 14 put the gradient on the nav
+itself, which was correct in colour and wrong in geometry: the band is 99px,
+the pill covers 64 of them, and the fade only reached ~9% before content hit
+the pill. Gate 14's paint proof did not catch this because it sampled the
+band at x=6, in the left margin — where the pill's 24px shadow reaches and no
+content ever passes. **That sample could not distinguish a working scrim from
+an opaque band painted in the surface colour, and it was reported as proof.**
+The lesson is in the scrim rule above: sample where content actually is.
+
+**WHY 256px AND NOT A ROUND NUMBER.** Derived twice, independently, landing on
+the same ramp step. By alpha: `(H - 90) / H` gives 65% at the pill's top edge,
+against 30% at `--brand-scale-1600` and 83% at `-1800` (which would start the
+fade above the screen's midpoint). By contrast: the worst-case content behind
+the band measures max |S - B| = 249 light / 236 dark, and 256 is the smallest
+ramp step exceeding both. It is a real token, so no `token-exempt` is needed.
+
+**THE BOX OF `.mvp-shell__nav` IS UNCHANGED AND MUST STAY THAT WAY.** It has
+been `[0, 713, 375, 812]` since Gate 13, along with the bar `[16, 723, 359,
+787]`, the home indicator and the 65.75px items. Growing it to give the
+gradient room would have changed hit-testing; that is the whole reason the
+scrim is a separate layer.
+
+**THE 128px BOTTOM RESERVE ON `.mvp-shell__main` IS NOT PART OF THIS.** It
+holds the lowest content 52.9px clear of the band at rest, which is why the
+resting state shows no fade — there is nothing behind the band to dissolve.
+That is deliberate (Flow 1 C2: without it the last row sits under the nav with
+nowhere to scroll) and changing it carries a reachability risk. It is a
+separate concern and it is not what made the band read as opaque.
+
+### Figma divergence, deliberate
+
+`navbar/mobile/section` is 92px tall with `Navbar/mobile` at y=5 — **5px** of
+runway, LESS than the 10px this app had before the fix. The file's own
+geometry cannot produce the dissolve its own gradient implies, so matching it
+more faithfully would make the effect worse, not better. The gradient's SHAPE
+is honoured exactly (`0deg`, opaque at the bottom stop, transparent at the
+top); only the height it is given diverges.
+
+### Open question for the design system
+
+Should `navbar/mobile/section` specify a taller scrim region than the 92px
+nav band — or should the scrim be a separate layer in the file too, as it now
+is in code? As drawn, the gradient cannot achieve its evident intent at the
+size it is given. Logged from the MVP side; do not act on it from this repo.
 
 ## Known conditions of this setup
 

@@ -47,6 +47,13 @@ export function AppShell() {
         </button>
       )}
 
+      {/*
+        The scrim and the nav are one decision: the scrim exists only to give
+        the nav's fade runway, so it appears exactly where the nav does and
+        never on a screen whose chrome is suppressed.
+      */}
+      {chrome.nav === 'present' && <div className="mvp-shell__scrim" aria-hidden="true" />}
+
       {chrome.nav === 'present' && (
         <div className="mvp-shell__nav mvp-column">
           <BottomNavigation
