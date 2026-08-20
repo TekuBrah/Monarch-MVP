@@ -399,12 +399,9 @@ pixels. Declaring it in an inert gate would have shipped dead CSS.
 
 ### The four layout fixes are closed. What is still open.
 
-Fixes 3b, 3c (Gate 13) and 4, 5 (this gate) are all landed. Two things
-deliberately remain:
+Fixes 3b, 3c (Gate 13) and 4, 5 (this gate) are all landed. One thing
+deliberately remains:
 
-- **The quick-action tile row is still unverifiable at 375px.** `sizing='fill'`
-  is real but invisible here, because three 109px tiles plus two 8px gaps
-  already fill the 343px column exactly. Only a second viewport can see it.
 - **The frame max-width is still deferred.** No token backs ~430px; it falls
   between `--brand-scale-1700` (256px) and `-1800` (512px). Capping the frame
   also re-anchors the fixed chrome, which is its own measurable consequence.
@@ -1181,6 +1178,18 @@ Inherited from the design system, and it applies identically here:
   .mn-btn--primary` deliberately re-maps to the on-color treatment (Figma's
   "Inverse" appearance), so comparing against `--mapped-surface-primary-default`
   produced a real-looking mismatch that was entirely an incorrect expectation.
+- **Chromium lays out in 1/64 px LayoutUnits, so a width tolerance is expressed
+  against 1/64 and never against a round decimal.** A flex row DISTRIBUTES the
+  remainder across its children, so an individual child differs from the ideal
+  derived width by at most one quantum while the sum stays exact. Measured at
+  Gate B: three tiles across a 382px span resolved to 8149/8149/8150 units —
+  spread exactly 0.015625, total exactly 382.
+- **A spec that asserts both a declaration and a geometry derived from that
+  declaration cannot be negative-controlled in one pass.** Reverting the change
+  fails the DECLARATION assertion first and the geometry assertion is never
+  reached, so the half that matters goes unproven. The control must disable the
+  earlier assertion to reach the later one. Gate B's first control was
+  inconclusive for exactly this reason; the isolated one was the deciding test.
 - **Ground truth is disk and git, never session memory.**
 - **Type-check gate is `npx tsc -b --force`, never bare `tsc -b`** — the
   incremental cache can report success having checked nothing, which is exactly
