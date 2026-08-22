@@ -103,7 +103,7 @@ export function HoldingDetailScreen() {
         )}
 
         {fields.list && fields.list.entries.length > 0 && (
-          <section className="mvp-finance-detail__section mvp-column mvp-finance-detail__list-section">
+          <section className="mvp-finance-detail__section mvp-column">
             {/*
               GATE 6. This was a bare `<Label label={…} size="s" />`, which is
               the one section heading in the app that escaped the component and

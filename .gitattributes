@@ -1,0 +1,44 @@
+# .gitattributes — Gate 25
+#
+# WHY THIS EXISTS. The repo carried a mixed LF/CRLF state and `core.autocrlf`
+# is `true` both locally and globally, so line endings are rewritten on
+# checkout and any RECORDED line-ending state goes stale the moment someone
+# clones. `text=auto` moves that decision from a per-machine git config into
+# the repo, where it is reviewable.
+#
+# THIS FILE WAS MEASURED BEFORE IT WAS WRITTEN, not reasoned about.
+# `git ls-files --eol` reported the index as 80 `i/lf`, 95 `i/-text` and 3
+# `i/none` — and, decisively, **ZERO files stored with CRLF in the index**.
+# So `text=auto` renormalises nothing: it codifies the state the repo is
+# already in rather than changing it. That is the entire reason it was safe to
+# declare broadly.
+#
+# `git add --renormalize` WAS DELIBERATELY NOT RUN. Adding this file changes
+# how git treats FUTURE checkouts; renormalising rewrites the working tree NOW.
+# Doing both at once would put a whole-tree line-ending rewrite in the same
+# commit as ordinary code changes, where no reviewer could separate them.
+
+* text=auto
+
+# ---------------------------------------------------------------- binaries
+#
+# THE 95 BINARIES ARE DECLARED EXPLICITLY, AND THIS IS THE LOAD-BEARING HALF
+# OF THE FILE. 93 of them are PNGs and 92 of those are the visual regression
+# baselines — the entire net this project's correctness rests on. A `text`
+# rule that ever caught them would rewrite bytes inside a compressed stream
+# and corrupt every one, silently, on the next checkout.
+#
+# Git already infers all 95 correctly (`i/-text` above), so these lines change
+# nothing today. They exist so that a future broadening of the `text` rule
+# cannot reach them by accident. `binary` is the built-in macro for
+# `-diff -merge -text`.
+#
+# Census at Gate 25 — the only binary extensions tracked in this repo:
+#   *.png   93   (92 e2e baselines + public/media/academy/monarchacademy_img.png)
+#   *.webp   2   (public/media)
+# `*.svg` (4 files) is deliberately NOT here: SVG is XML, i.e. genuinely text,
+# and forcing `binary` on it would lose diffs for no benefit. It is left to
+# `text=auto`.
+
+*.png  binary
+*.webp binary

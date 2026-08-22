@@ -306,36 +306,61 @@
   padding: var(--spacing-200);
   border-radius: var(--brand-scale-200);
   /*
-    ⚠️ CONTRAST EXEMPTION — RECORDED, DELIBERATELY NOT FIXED HERE (Gate 3d).
+    ⚠️ CONTRAST EXEMPTION — RECORDED, DELIBERATELY NOT FIXED HERE.
 
-    Every text element on this band fails WCAG AA (4.5:1). Measured against the
-    ACTUAL gradient colour under each element — not against the stops, which is
-    the mistake that produced a wrong reading once already — at 375x812, both
-    themes (the band is theme-invariant, so the numbers are identical in each):
+    Gate 3d recorded it; GATE 25 RE-MEASURED IT AND RULED ON WHERE THE FIX
+    LIVES. The numbers below are Gate 25's and SUPERSEDE Gate 3d's. Gate 3d
+    sampled a centre point and a corner; Gate 25 sweeps EVERY background pixel
+    under each text box, so it finds the true extremum rather than a sample.
 
-      Explore link   2.88:1 centre / 2.69:1 far corner   <- WORST POINT
-      subtitle       3.35:1 centre / 2.78:1 far corner
-      title          3.51:1 centre / 2.89:1 far corner
+    METHOD, because a colour read the wrong way is not evidence: animations
+    finished first, then the glyphs hidden with `visibility: hidden` — which
+    preserves layout exactly — so the screenshot under each box is PURE
+    BACKGROUND rather than a mix of background and antialiased glyph. WCAG 2.x
+    ratio (L1 + 0.05) / (L2 + 0.05) on linearised sRGB. 375x812 at DPR 2.
 
-    Against the stops for reference: 4.49:1 on --brand-blue-500 rgb(4,110,255),
-    2.61:1 on --brand-teal-500 rgb(0,172,229). Nothing reaches 4.5:1 anywhere.
+      link       2.64:1   16px/400   <- WORST POINT (Gate 3d carried 2.69)
+      subtitle   2.73:1   12px/400
+      title      2.83:1   16px/600
+
+    The band is theme-invariant — every number above is identical in light and
+    dark, because both stops are raw --brand-* values that do not flip.
 
     NONE OF IT QUALIFIES AS WCAG LARGE TEXT, so the 3:1 allowance does not
-    apply: the title is 16px/600 and bold needs >=18.66px; subtitle and link are
-    12px and 14px.
+    apply: large-scale needs >=24px, or >=18.66px at weight >=700. Gate 3d
+    recorded the link as 14px; measured, it is 16px/400.
 
-    THIS PREDATES THIS PASS. The white title and link have always been on this
-    gradient. Gate 3c only made the subtitle theme-invariant — it had been
-    flipping to near-black in dark via --mapped-text-on-color-caption, which
-    happened to measure 5.73:1 there but rendered a white title above a
-    near-black subtitle on one band. Accidental, and it read as broken.
+    NO SHIPPED TOKEN CAN FIX THIS FROM THE FOREGROUND SIDE — ENUMERATED, NOT
+    ASSUMED. All 54 --mapped-text-* tokens the DS ships were measured against
+    every band pixel: 0 of 54 clear 4.5:1, in either theme. The arithmetic says
+    why. The band spans L=0.183 (blue end) to L=0.352 (teal end), and clearing
+    AA against BOTH ends requires a foreground of L <= 0.00184 — while the
+    darkest shipped text token (#0d0f11, L=0.00468) reaches only 4.27:1, and a
+    LIGHTER foreground would need L >= 1.000, which white already is and still
+    fails at 2.61:1. The token family is not the defect; the SURFACE is.
 
-    THE REMEDY IS A FIGMA-SIDE SURFACE CHANGE, not a code one: darker stops
-    (brand-blue-600/700 class), or the legibility scrim HeaderBg.css already
-    uses and justifies as "contrast math, not palette". Correcting it in MVP CSS
-    would make the build diverge from the file, which is the exact failure this
-    pass exists to prevent. So: no scrim, no altered gradient, no token-exempt
-    override here. Recorded and handed back to design.
+    Against the stops for reference: 4.49:1 on --brand-blue-500 rgb(4,110,255)
+    — so the DS's own on-colour contract misses AA by 0.01 even on its intended
+    SOLID surface — and 2.61:1 on --brand-teal-500 rgb(0,172,229).
+
+    THIS PREDATES EVERY PASS THAT TOUCHED IT. The white title and link have
+    always been on this gradient. Gate 3c only made the subtitle
+    theme-invariant — it had been flipping to near-black in dark via
+    --mapped-text-on-color-caption, which happened to measure 5.73:1 there but
+    rendered a white title above a near-black subtitle on one band.
+
+    THE REMEDY IS A SURFACE CHANGE AND IT BELONGS TO THE DS (v1.6.0), NOT TO
+    THIS REPO — rule 3. Gate 25 measured the candidates so that decision is one
+    step and not a research task. White text, worst point over the whole ramp:
+
+      blue-500 -> teal-500   2.61:1  fail   <- shipped today
+      blue-600 -> teal-600   3.95:1  fail
+      blue-600 -> teal-700   6.34:1  PASS   <- minimal change on the ramp
+      blue-700 -> teal-700   6.36:1  PASS
+      blue-700 -> teal-800   9.37:1  PASS
+
+    So: no scrim, no altered gradient, no token-exempt override HERE.
+    Recorded and handed to the DS.
   */
   background-image: linear-gradient(
     141deg,

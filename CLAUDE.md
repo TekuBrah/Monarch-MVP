@@ -1171,6 +1171,195 @@ baselines byte-identical by SHA-256** and the suite at **194 passed / 0
 failed** — the predicted result, since a header, a static text file and a
 `netlify.toml` comment cannot reach a rendered pixel.
 
+## Cleanup — contrast, dead code, line endings (Gate 25)
+
+Four items off the logged-not-fixed list. **Exactly one had user consequence**
+and it turned out to be a DS gap rather than an MVP defect; the rest is hygiene.
+**No pixel moved: all 92 baselines byte-identical, suite 194 passed / 0 failed.**
+
+### The promo band fails AA, and NO SHIPPED TOKEN CAN FIX IT
+
+**THE 2.69:1 FIGURE THAT WAS CARRIED FOR SEVERAL GATES IS SUPERSEDED. THE
+MEASURED WORST IS 2.64:1.** Gate 3d sampled a centre point and a corner; this
+gate sweeps EVERY background pixel under each text box, which is what finds the
+true extremum. Both numbers describe the same defect — the point is that a
+sample is not a bound, and the stale one must not be quoted again.
+
+The band is the Monarch Academy promo on `HomepageFiat`, i.e. the DEFAULT
+`accounts` tab of `/`. It is the only place it renders.
+
+**METHOD, because a colour read the wrong way is not evidence.** Animations
+finished first (`getAnimations().forEach(a => a.finish())`), then the glyphs
+hidden with `visibility: hidden` — which preserves layout exactly — so the
+sampled screenshot under each box is PURE BACKGROUND rather than a blend of
+background and antialiased glyph. WCAG 2.x, `(L1 + 0.05) / (L2 + 0.05)` on
+linearised sRGB. 375x812 at DPR 2, both themes.
+
+| element | fg | size/weight | large-scale? | needs | **worst measured** |
+|---|---|---|---|---|---|
+| link | `#ffffff` | 16px/400 | no | 4.5:1 | **2.64:1** |
+| subtitle | `#ffffff` | 12px/400 | no | 4.5:1 | **2.73:1** |
+| title | `#ffffff` | 16px/600 | no | 4.5:1 | **2.83:1** |
+
+Nothing qualifies as WCAG large-scale, so the 3:1 allowance does not apply:
+that needs >=24px, or >=18.66px at weight >=700. **Gate 3d recorded the link as
+14px; measured, it is 16px/400.**
+
+**THE BAND IS THEME-INVARIANT AND THAT IS WHY BOTH THEMES REPORT IDENTICAL
+NUMBERS.** Both gradient stops are raw `--brand-*` values, which do not flip.
+
+The chain, identical in both themes:
+
+```
+background  .mvp-home__promo
+  linear-gradient(141deg, var(--brand-blue-500) 20%, var(--brand-teal-500) 97%)
+    --brand-blue-500 -> #046eff   (raw brand token — there is NO --mapped-* hop)
+    --brand-teal-500 -> #00ace5
+foreground  title    -> --mapped-text-primary-on-color -> --alias-foundations-white -> #ffffff
+            subtitle -> --mapped-text-on-color-body    -> --alias-foundations-white -> #ffffff
+            link     -> Link appearance="inverse"                                   -> #ffffff
+```
+
+#### The ruling: the surface is the defect, so the fix is the DS's
+
+**THE MVP DID NOT PICK THE WRONG TOKEN, AND THIS WAS ENUMERATED RATHER THAN
+ARGUED.** All 54 `--mapped-text-*` tokens the DS ships were measured against
+every band pixel: **0 of 54 clear 4.5:1**, in either theme.
+
+**THE ARITHMETIC SAYS WHY, AND IT GENERALISES.** The band spans L=0.183 at the
+blue end to L=0.352 at the teal end. Clearing AA against BOTH ends requires a
+foreground of **L <= 0.00184**. The darkest shipped text token (`#0d0f11`,
+L=0.00468) reaches only 4.27:1 — it misses. And a LIGHTER foreground would need
+**L >= 1.000**, which white already is, and white still fails at 2.61:1. So no
+member of the family can work, and no future member could either without being
+essentially pure black.
+
+That makes it Case B: **the DS cannot do what this screen needs, so work stopped
+here.** No MVP-local value was invented, no `token-exempt` added, no hex nudged.
+
+**A SIDE-FINDING THAT BELONGS IN THE SAME DS ITEM: white on `--brand-blue-500`
+alone measures 4.49:1** — the DS's own on-colour contract misses AA by 0.01 even
+on its intended SOLID surface, before any gradient is involved.
+
+**THE CANDIDATE SURFACES ARE MEASURED so the v1.6.0 decision is one step and not
+a research task.** White text, worst point over the whole interpolated ramp:
+
+| gradient | worst | |
+|---|---|---|
+| `blue-500 -> teal-500` | 2.61:1 | fail — shipped today |
+| `blue-600 -> teal-600` | 3.95:1 | fail |
+| **`blue-600 -> teal-700`** | **6.34:1** | **PASS — minimal change on the existing ramp** |
+| `blue-700 -> teal-700` | 6.36:1 | PASS |
+| `blue-700 -> teal-800` | 9.37:1 | PASS |
+
+Logged for **DS v1.6.0**, alongside the dark-mode error tokens, the logo assets
+and `G11`/`G12`. Do not act on it from this repo.
+
+### Two dead class names, deleted — and the search that justified it
+
+`.mvp-finance-detail__list-section` and `.mvp-finance__row-group` were both
+Flow 7 leftovers. **THE CLAIM THAT THEY WERE DEAD WAS VERIFIED BEFORE ANYTHING
+WAS DELETED, and the DS leg is the one that could have made it wrong** — a class
+with no rule in the MVP but a rule in the DS package is NOT dead.
+
+| location | `list-section` | `row-group` |
+|---|---|---|
+| MVP `src/` CSS rule | **0** | **0** |
+| MVP `src/` markup | 1 (`HoldingDetailScreen.tsx:106`) | 1 (`DetailRows.tsx:32`) |
+| `e2e/` specs | 0 | 0 |
+| DS package `dist/` (shipped CSS) | **0** | **0** |
+| DS working-tree `src/` | **0** | **0** |
+
+Searched on the PARTIAL string (`list-section`, `row-group`) rather than the
+full class name, so a BEM-style rule built by concatenation would still have
+been caught, and both TSX files were confirmed to use static `className`
+literals only — no template strings, no `clsx`.
+
+**THE `<div>` IN `DetailRows` STAYS; ONLY ITS CLASS ATTRIBUTE GOES.** It groups
+the `Divider` with the row and carries the React `key`. Removing the element
+would change the DOM; removing a class that styles nothing cannot.
+
+#### One orphan found in the reverse direction — REPORTED, NOT DELETED
+
+The same sweep run backwards — every class selector in the MVP's own CSS
+checked against all MVP TSX/TS — found **1 of 74** with no usage:
+
+- **`.mvp-finance__hero-category`** (`src/flows/finance/finance.css:210`), whose
+  sole declaration is `color: var(--mapped-text-on-color-caption)`. Its sibling
+  `.mvp-finance__hero-names` IS used, so this is a rule that outlived its
+  markup — the INVERSE of the two above, which were markup that outlived their
+  rules. Out of scope for this gate by instruction; it is a one-line deletion
+  whenever someone wants it.
+
+### `.gitattributes` — and the measurement that made it safe
+
+`core.autocrlf` is `true` both locally and globally, so line endings were being
+decided per-machine and any recorded line-ending state went stale on clone.
+
+**THE FILE WAS MEASURED BEFORE IT WAS WRITTEN.** `git ls-files --eol` reported
+the index as 80 `i/lf`, 95 `i/-text`, 3 `i/none` — and decisively **ZERO files
+stored with CRLF in the index**. So `* text=auto` renormalises nothing; it
+codifies the state the repo is already in. That is the whole reason it was safe
+to declare broadly, and it is the check to re-run before ever widening it.
+
+**THE 95 BINARIES ARE DECLARED EXPLICITLY AND THAT IS THE LOAD-BEARING HALF.**
+93 PNGs (92 baselines + `monarchacademy_img.png`) and 2 WebPs. A `text` rule
+that ever caught the baselines would rewrite bytes inside a compressed stream
+and corrupt the entire visual net, silently, on the next checkout. Git already
+infers all 95 as `-text`, so the lines change nothing today — they exist so a
+future broadening cannot reach them by accident.
+
+**`*.svg` IS DELIBERATELY NOT DECLARED BINARY.** SVG is XML, i.e. genuinely
+text; forcing `binary` would lose diffs for no benefit. The 4 tracked SVGs are
+left to `text=auto`.
+
+**`git add --renormalize` WAS DELIBERATELY NOT RUN.** Adding the file changes
+how git treats FUTURE checkouts; renormalising rewrites the working tree NOW.
+Doing both in one commit would bury a whole-tree line-ending rewrite alongside
+ordinary code changes where no reviewer could separate them. If it is ever
+wanted, it is its own gate with its own diff.
+
+**VERIFIED AFTER WRITING:** all 95 tracked binaries SHA-256-identical (manifest
+digest `7549567...458742` before and after), `git status --porcelain` listing
+`.gitattributes` as the only addition and no unrelated file as modified.
+
+### The asset census — REPORT ONLY, nothing re-exported
+
+"Asset re-exports" had no definition on the cleanup list. It means: an asset
+shipped far larger than it is ever displayed — the same defect class as the DS
+logos. Measured through the browser at both viewports, animations finished:
+
+| asset | format | natural | rendered @430 | needs @DPR2 | on disk |
+|---|---|---|---|---|---|
+| `banner/imgbg01.webp` | WebP VP8 | 3515x843 | 430x90 | 860x180 | 67,326 B |
+| `academy/monarchacademy_img.png` | PNG | 436x368 | 110.02x76 | 221x152 | **128,696 B** |
+| `profile/user_margaret.webp` | WebP VP8 | 200x200 | 32x32 | 64x64 | 1,832 B |
+
+The banner's oversupply is already documented and already explained in
+`public/media/banner/README.md`: the extra resolution is EMPTY — downscaling to
+1125 wide and re-upscaling reproduces the native file at r=0.9991, so nothing
+beyond 1125 is real detail. **The academy PNG is the interesting unaddressed
+case**: it is the largest WIRED asset in the repo, it is lossless PNG carrying
+illustrative artwork, and it is rendered at 221x152 device pixels.
+
+**THE BIGGER FINDING IS NOT AN IMAGE AT ALL — IT IS WHAT `public/` PUBLISHES.**
+Vite copies `public/` verbatim, so everything in it deploys:
+
+- **`public/` totals 1,001,541 bytes, and 799,701 of that — 79.8% — is content
+  the app never requests.** That is the 782,951-byte `imgbg01.svg` plus three
+  developer `README.md` files (16,750 B).
+- `imgbg01.svg` is a base64 raster wrapped in SVG, **kept unwired ON PURPOSE**
+  (its README says so: retained so the two can be compared after a corrected
+  Figma export). It is not an oversight — but it and the three READMEs are
+  confirmed present in `dist/media/`, i.e. served from the CDN.
+- Practical bandwidth draw is ~0 because nothing links to them and `robots.txt`
+  now disallows crawling, so this is a deploy-hygiene note rather than a repeat
+  of the Gate 24 credit problem.
+
+**NOTHING WAS CHANGED.** Re-exporting an image changes bytes, bytes change
+baselines, and this gate was required to predict its baseline set in advance.
+Keep the re-export separate.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

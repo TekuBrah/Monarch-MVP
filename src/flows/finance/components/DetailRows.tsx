@@ -29,7 +29,7 @@ export function DetailRows({ rows }: { rows: DetailRow[] }) {
   return (
     <dl className="mvp-finance__rows">
       {rows.map((row, index) => (
-        <div key={row.label} className="mvp-finance__row-group">
+        <div key={row.label}>
           {index > 0 && <Divider weight={1} />}
           <div className="mvp-finance__row">
             <dt className="type-body-sm mvp-finance__row-label">{row.label}</dt>
