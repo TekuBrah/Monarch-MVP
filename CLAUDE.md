@@ -15,6 +15,18 @@ The locked plan — phases, steps, and decisions D1–D8 — lives in
 `MONARCH-BUILD-ROADMAP.md` at the root of the design-system repo. Read it before
 any work that references a phase or step number.
 
+**A `G`-NUMBER IS MEANINGLESS WITHOUT NAMING ITS DOCUMENT.** Two files at this
+repo's root both number their entries `G1`, `G2`, `G3`, and they mean entirely
+different things: `MONARCH-MVP-DS-GAP-REGISTER.md` G1 is the **bottom-anchored
+sheet**, G2 the **iOS action sheet**, G3 **`CardBalance`'s hard-coded badge
+tint**, while `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` G1 is the **donut/pie
+chart**, G2 the **chat message bubble**, G3 the **line/area trend chart**. The
+ranges differ too — the register runs G1–G10, the inventory G1–G3 — so a
+G-number can also be valid in one file and absent from the other. **This
+ambiguity has already produced a phantom "G11", which exists in neither file**
+(grep: zero matches in both). Always write "gap-register G1" or "inventory G1";
+never a bare G-number.
+
 ## Stack
 
 Vite + React 19 + TypeScript. Dev server on port **5174** (`strictPort`), pinned
@@ -1606,6 +1618,89 @@ in the same commit, and account for strays with `git ls-files --others
 --exclude-standard -- e2e/visual.spec.ts-snapshots`. In this control the two
 strays were deleted, the id was reverted (`HomepageScreen.tsx` back to
 `A084D933…3272`), and the count returned to 42.
+
+### The overlay axis (Gate α)
+
+**AN OVERLAY IS AN ENUMERATED ADDITION TO `WALK`, NOT AN AXIS.** The viewport
+became a first-class axis at Gate A because every state genuinely exists at
+every viewport — the cross product is TOTAL and every cell of it is reachable.
+Overlay is the opposite case, and the difference is not stylistic: **most states
+have no overlay, and the ones that do have SPECIFIC ones.** `WALK × OVERLAYS`
+would multiply 21 states by every overlay in the app and produce a large set of
+cells that cannot be reached — a control that is not on the screen cannot be
+clicked — and that should never be rendered. Every one of them would then have
+to be excluded by hand, which is the enumeration below with the sign flipped and
+a great deal more machinery around it.
+
+So an overlay state is **written down one at a time** in `OVERLAY_STATES`,
+naming the route, the tab and the control that opens it. **If you find yourself
+writing a nested loop over overlays, you have taken the wrong turn.**
+
+**THE WALK IS 23 STATES: 14 routes + 7 non-default tab states + 2 enumerated
+overlay states.** Both overlay states are `HoldingDetailScreen`'s preset modals
+on `/finance/holding/fd`, and that route is not a convenience — the fixed
+deposit is the ONLY holding type whose `holdingFields` entry returns
+`actions: { reminder: true, statement: true }`.
+
+**OPENED THROUGH ITS OWN CONTROL, never by setting state** — the discipline
+`gotoRoute` already follows for the theme and `activateTab` for tabs.
+`openOverlay()` asserts the control exists and carries its declared label,
+asserts no dialog is open yet, clicks, then settles on exactly one
+`[role="dialog"][aria-modal="true"]` carrying the declared accessible name. That
+last assertion is not decorative: the two controls sit in the same bar and
+differ only by `mn-btn--primary` / `mn-btn--secondary`, so a swapped selector
+would open a real dialog and settle cleanly.
+
+**`assertOverlayMatchesState` ASSERTS BOTH DIRECTIONS,** and the second is the
+one that earns its keep: an overlay state must have exactly its declared dialog
+open, and **the 21 non-overlay states must have none**. A modal left open by an
+earlier interaction, or one the app opens on mount, is invisible to every other
+assertion in the suite and would appear in a baseline as though it belonged.
+
+**THE `routes.spec.ts` UNIQUENESS KEY IS `route#tab#overlay`.** It was
+`route#tab`, which collapses all three `/finance/holding/fd` states into one and
+fails the uniqueness check on a CORRECT walk. Latent until a second state
+existed on a route already walked.
+
+#### Correction: arm 2 goes red on a RENAME, not on a mint
+
+**THE BLANKET CLAIM THAT "ARMS 1 AND 2 CANNOT GO GREEN AFTER A MINT" IS WRONG.**
+Arm 1 (untracked-on-disk) reddens whenever new baselines are unstaged. Arm 2
+(tracked-but-missing) reddens only when a tracked baseline is **renamed or
+deleted** — a mint alone leaves every tracked file present, so arm 2 stays
+GREEN.
+
+Gate A had two red arms because it RENAMED 42 baselines and added 42; its
+recorded numbers are correct for that gate and are not what generalises. Gate α
+renamed none — the overlay slug is inserted before the width, so all 84 existing
+names survive intact as prefixes — and reported **1 failed / 191 passed**, the
+one failure being arm 1 naming exactly the 8 unstaged files. Predict the arms
+from what the gate does to NAMES, not from the fact that it minted.
+
+#### The undimmed strip below the fold — ARTIFACT, but not for the reason it looks
+
+All 8 new baselines show the region from y=812 to y=883 **undimmed** while the
+rest of the page sits under the scrim. `Blanket` is `position: fixed; inset: 0`
+so it is 812 tall, `fullPage` captures the whole 883, and the capture stitches
+the two.
+
+**THE OBVIOUS DEFENCE — "the page is scroll-locked, so nobody can ever see it" —
+IS FALSE, AND IT WAS MEASURED.** With the modal open, `<html>` and `<body>` both
+compute `overflow: visible` / `position: static`, **identical to the closed
+state**; `window.scrollTo(0, 200)` moves `scrollY` 0 → **71** (the full 883−812
+range), and a real `mouse.wheel` gesture reproduces it. The background scrolls
+behind an open modal.
+
+**IT IS AN ARTIFACT ANYWAY, because a fixed scrim follows the VIEWPORT.** After
+scrolling, the blanket's rect is still `[0, 0, 375, 812]` and the old fold has
+moved up to viewport y=741 — hit-testing 10px below it returns `div.mn-blanket`,
+as does the viewport bottom. The strip is reachable, and it is covered when it
+is reached. **Checked in BOTH themes; every number above is identical in each.**
+
+So the baselines record no defect and must not be re-minted for this. What the
+same measurement did surface, separately and minor, is that the DS's `Blanket`
+does not lock background scroll — logged from the MVP side for the gap register,
+not acted on from this repo.
 
 ## Git workflow
 

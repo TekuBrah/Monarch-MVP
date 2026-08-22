@@ -339,6 +339,57 @@ export function expectedTabIds(route: string): string[] {
   return TABBED_SCREENS.find((s) => s.route === route)?.tabs.map((t) => t.id) ?? []
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   OVERLAYS
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * AN OVERLAY IS NOT AN AXIS. It is an explicit, enumerated addition to `WALK`.
+ *
+ * The viewport became a first-class axis at Gate A because every state
+ * genuinely exists at every viewport — the cross product is TOTAL, and every
+ * cell of it is reachable. Overlays are the opposite case, and the distinction
+ * is not stylistic:
+ *
+ *   - MOST STATES HAVE NO OVERLAY. 21 of the 23 states below open nothing.
+ *   - THE ONES THAT DO HAVE *SPECIFIC* OVERLAYS. "Set Maturity Reminder" exists
+ *     on the fixed deposit and nowhere else: `holdingFields` returns
+ *     `actions: NO_ACTIONS` for five of the nine holding types, and
+ *     `HoldingDetailScreen` does not render the bottom action bar at all when
+ *     both flags are false.
+ *
+ * So `WALK x OVERLAYS` would multiply 21 states by every overlay in the app and
+ * produce a large set of cells that CANNOT BE REACHED — a control that is not
+ * on the screen cannot be clicked — and that should never be rendered. Every
+ * one of them would then have to be excluded by hand, which is the list below
+ * with the sign flipped and a great deal more machinery around it.
+ *
+ * THE TEST FOR A FUTURE SESSION: if you find yourself writing a nested loop
+ * over overlays, you have taken the wrong turn. Write the state down.
+ */
+export interface OverlayState {
+  /** Slug component and test-name suffix. Unique within its route + tab. */
+  id: string
+  /**
+   * CSS selector for the control that OPENS it.
+   *
+   * AN OVERLAY IS OPENED THROUGH ITS OWN CONTROL, never by setting React state
+   * and never by writing to the DOM — the same discipline that makes
+   * `gotoRoute` click the theme toggle instead of writing `data-theme`, and
+   * `activateTab` click the tab instead of poking `selectedId`. `openModal`
+   * lives in `useState` inside `HoldingDetailScreen`; a test that poked it
+   * would be verifying a state the app may not think it is in.
+   */
+  control: string
+  /** The label that control must carry. Asserted BEFORE the click. */
+  controlLabel: string
+  /**
+   * The dialog's accessible name. Asserted AFTER it opens, which is what makes
+   * this a check that the RIGHT overlay opened rather than merely that one did.
+   */
+  title: string
+}
+
 export interface WalkState {
   route: string
   /**
@@ -346,7 +397,64 @@ export interface WalkState {
    * Non-null = a tab that must be activated through its own control first.
    */
   tab: TabState | null
+  /**
+   * `null` = nothing overlaid. Non-null = an overlay that must be opened
+   * through its own control once the route (and tab) have settled.
+   *
+   * Spelled as an explicit `null` on the 21 states that have none, for the same
+   * reason `tab` is: a state that opens nothing should SAY that it opens
+   * nothing, so every construction site is forced to have considered it.
+   */
+  overlay: OverlayState | null
 }
+
+/**
+ * THE TWO OVERLAY STATES, WRITTEN DOWN ONE AT A TIME.
+ *
+ * Both live on `/finance/holding/fd`, and that is not a convenience: the fixed
+ * deposit is the ONLY holding type whose `holdingFields` entry returns
+ * `actions: { reminder: true, statement: true }`. `bank`/`joint` return
+ * `{ reminder: false, statement: true }` and the remaining five return
+ * `NO_ACTIONS`, so the reminder control exists on exactly one route.
+ *
+ * WHY THESE MODALS AND NOT SOMETHING NEWER. They are ALREADY BUILT (Flow 7 B9),
+ * so the axis is proven against something that exists and its correctness does
+ * not depend on any future flow existing. The beneficiary of a mechanism and
+ * the test case for it are deliberately different things here.
+ *
+ * CHROME STAYS PRESENT AND OCCLUDED, and on this route family it is thinner
+ * than it looks. `chromeFor('/finance/holding/...')` is `nav: 'suppressed',
+ * fab: false`, so `.mvp-shell__nav`, `.mvp-shell__fab` and `.mvp-shell__scrim`
+ * are NOT RENDERED here — measured, overlay open and closed alike. What IS
+ * present is `.mvp-shell__theme-switch` at z-index 3, plus the screen's own
+ * bottom action bar. `Blanket` is `position: fixed; inset: 0` at z-index 100
+ * with the card at 101, so both are occluded WITHOUT ANYTHING IN THE CHROME
+ * MODEL CHANGING: hit-testing the centre of each returns `div.mn-blanket` with
+ * the overlay open and the element itself with it closed, at both viewports in
+ * both themes.
+ */
+export const OVERLAY_STATES: WalkState[] = [
+  {
+    route: '/finance/holding/fd',
+    tab: null,
+    overlay: {
+      id: 'reminder',
+      control: '.mvp-finance-detail__actions .mn-btn--primary',
+      controlLabel: 'Set Maturity Reminder',
+      title: 'Set Maturity Reminder',
+    },
+  },
+  {
+    route: '/finance/holding/fd',
+    tab: null,
+    overlay: {
+      id: 'statement',
+      control: '.mvp-finance-detail__actions .mn-btn--secondary',
+      controlLabel: 'Download Statement',
+      title: 'Download Statement',
+    },
+  },
+]
 
 /**
  * THE FULL WALK — every route, plus every NON-DEFAULT tab state of every route.
@@ -356,24 +464,35 @@ export interface WalkState {
  * committed at Gate 7: `stateSlug` gives it the unsuffixed name it already had,
  * and nothing clicks a control on the run that produces it.
  */
-export const WALK: WalkState[] = ROUTES.flatMap((route) => {
-  const screen = TABBED_SCREENS.find((s) => s.route === route)
-  const nonDefault = (screen?.tabs ?? []).filter((t) => t.id !== screen?.defaultTabId)
-  return [
-    { route, tab: null } as WalkState,
-    ...nonDefault.map((tab): WalkState => ({ route, tab })),
-  ]
-})
+export const WALK: WalkState[] = [
+  ...ROUTES.flatMap((route): WalkState[] => {
+    const screen = TABBED_SCREENS.find((s) => s.route === route)
+    const nonDefault = (screen?.tabs ?? []).filter((t) => t.id !== screen?.defaultTabId)
+    return [
+      { route, tab: null, overlay: null },
+      ...nonDefault.map((tab): WalkState => ({ route, tab, overlay: null })),
+    ]
+  }),
+  // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
+  // an enumerated entry rather than an axis. 21 route/tab states + 2 = 23.
+  ...OVERLAY_STATES,
+]
 
 /**
  * Baseline / test name for a walk state.
  *
  * `/finance/holding/wallet-marg` -> `finance-holding-wallet-marg`
  * `/` + Crypto tab               -> `index-crypto`
+ * `/finance/holding/fd` + the reminder overlay
+ *                                -> `finance-holding-fd-reminder`
  *
  * THE VIEWPORT IS PART OF THE NAME (Gate A). `index` + 375 -> `index-375`,
  * and with a tab, `index-crypto-375`. It is appended LAST so the Gate 9 state
  * name survives intact as a prefix.
+ *
+ * THE OVERLAY GOES BETWEEN THE TAB AND THE WIDTH, for the same reason: it
+ * leaves every name minted before this gate untouched as a prefix, so the 84
+ * committed baselines keep the filenames they already had.
  *
  * A BASELINE FILENAME IS SELF-DESCRIBING BY DESIGN. Reading
  * `index-crypto-430-dark-chromium-win32.png` tells you the route, the tab, the
@@ -384,12 +503,16 @@ export const WALK: WalkState[] = ROUTES.flatMap((route) => {
 export function stateSlug(state: WalkState, viewport: Viewport): string {
   const base = state.route === '/' ? 'index' : state.route.replace(/^\//, '').replace(/\//g, '-')
   const withTab = state.tab ? `${base}-${state.tab.id}` : base
-  return `${withTab}-${viewport.width}`
+  const withOverlay = state.overlay ? `${withTab}-${state.overlay.id}` : withTab
+  return `${withOverlay}-${viewport.width}`
 }
 
 /** Human-readable title for a walk state, used in test names. */
 export function stateTitle(state: WalkState): string {
-  return state.tab ? `${state.route} [tab:${state.tab.id}]` : state.route
+  const parts = [state.route]
+  if (state.tab) parts.push(`[tab:${state.tab.id}]`)
+  if (state.overlay) parts.push(`[overlay:${state.overlay.id}]`)
+  return parts.join(' ')
 }
 
 /**
@@ -655,15 +778,119 @@ export async function activateTab(page: Page, tab: TabState): Promise<void> {
 }
 
 /**
- * `gotoRoute` plus the tab activation, for a state out of `WALK`.
+ * Open an overlay THROUGH ITS OWN CONTROL, and wait for it to settle.
  *
- * A `tab: null` state is byte-for-byte the Gate 7 path: navigate, set theme,
- * done. Nothing is clicked, so the 28 committed baselines are produced by the
- * same sequence that produced them.
+ * Deliberately the same shape as `activateTab` rather than a parallel
+ * mechanism: assert the control is there and is the one named, assert the state
+ * is NEW, click, then wait on a signal React renders straight off the state
+ * being reached.
+ *
+ * SETTLE DETECTION, signal by signal:
+ *
+ *  1. NO DIALOG BEFORE THE CLICK. `Modal` returns `null` when `isOpen` is
+ *     false, so an already-present dialog means this walk state is not the new
+ *     state it claims to be — the overlay-open case of `activateTab`'s
+ *     "already selected" guard.
+ *  2. `[role="dialog"][aria-modal="true"]` present, and EXACTLY ONE of them.
+ *     `Modal` renders its portal only from `isOpen`, so the node existing IS
+ *     the proof React committed, not a proxy for it. Two would mean a second
+ *     overlay was left open by an earlier step.
+ *  3. THE ACCESSIBLE NAME MATCHES. This is the assertion that distinguishes
+ *     "an overlay opened" from "the RIGHT overlay opened", and it is not
+ *     decorative here: the two controls sit in the same bar and differ only by
+ *     `mn-btn--primary` / `mn-btn--secondary`, so a swapped selector would open
+ *     a real dialog and settle cleanly.
+ *  4. Every `<img>` complete, and fonts still loaded — same reasoning as
+ *     `activateTab`. `Modal` mounts fresh content into a portal.
+ *
+ * `Blanket` and `Modal` carry no CSS transition or animation of their own
+ * (measured: `Blanket.css` is four declarations, `Modal.css` none), so there is
+ * nothing here to fast-forward and no timer is waited on.
+ */
+export async function openOverlay(page: Page, overlay: OverlayState): Promise<void> {
+  const control = page.locator(overlay.control)
+
+  await expect(
+    page.locator('[role="dialog"]'),
+    `an overlay is already open before "${overlay.id}" was requested — this walk state is ` +
+      `not the new state it claims to be`,
+  ).toHaveCount(0)
+  await expect(control, `no control matching "${overlay.control}" on this screen`).toHaveCount(1)
+  await expect(
+    control,
+    `"${overlay.control}" does not carry its declared label — the selector is opening ` +
+      `something other than the control this state names`,
+  ).toHaveText(overlay.controlLabel)
+
+  await control.click()
+
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]')
+  await expect(
+    dialog,
+    `clicking "${overlay.controlLabel}" did not open exactly one modal dialog`,
+  ).toHaveCount(1)
+  await expect(
+    dialog,
+    `the dialog that opened is not "${overlay.title}" — the control selector reaches a ` +
+      `different overlay than this state declares`,
+  ).toHaveAccessibleName(overlay.title)
+
+  await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
+  await page.waitForFunction(() => document.fonts.status === 'loaded')
+}
+
+/**
+ * THE CHECK ON THE DECLARATION, in the same style as
+ * `assertTabEnumerationMatchesDom`.
+ *
+ * `OVERLAY_STATES` is hand-enumerated by ruling, so nothing derives it and
+ * nothing can catch it drifting — except the DOM. Stated against the WALK
+ * STATE and in BOTH directions, exactly as the tab-selection check is: a state
+ * that declares an overlay must have exactly that one open, and a state that
+ * declares none must have NOTHING open.
+ *
+ * The second direction is the one that earns its keep. A modal left open by an
+ * earlier interaction, or one the app opens by itself on mount, would be
+ * invisible to every other assertion in the suite and would quietly appear in a
+ * baseline as though it belonged there.
+ */
+export async function assertOverlayMatchesState(page: Page, state: WalkState): Promise<void> {
+  const dialogs = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role="dialog"]')).map((el) => ({
+      ariaModal: el.getAttribute('aria-modal'),
+      title: el.querySelector('.mn-modal__title')?.textContent ?? '(no title)',
+    })),
+  )
+
+  expect(
+    dialogs,
+    state.overlay
+      ? `${stateTitle(state)}: exactly one modal dialog must be open, titled ` +
+          `"${state.overlay.title}"`
+      : `${stateTitle(state)}: this state declares NO overlay, so no [role="dialog"] may be ` +
+          `open. Something opened one — an earlier interaction that did not dismiss, or the ` +
+          `app opening it on mount. Either way this state's baseline would record it.`,
+  ).toEqual(
+    state.overlay ? [{ ariaModal: 'true', title: state.overlay.title }] : [],
+  )
+}
+
+/**
+ * `gotoRoute` plus the tab activation and the overlay, for a state out of
+ * `WALK`.
+ *
+ * A `tab: null, overlay: null` state is byte-for-byte the Gate 7 path:
+ * navigate, set theme, done. Nothing is clicked, so the baselines minted before
+ * those axes existed are produced by the same sequence that produced them.
+ *
+ * ORDER IS NOT ARBITRARY. The overlay is opened LAST because its control is
+ * rendered by the screen — and on a tabbed screen, by the panel the tab
+ * selects. Opening before the tab settles would click into the outgoing panel.
  */
 export async function gotoState(page: Page, state: WalkState, theme: Theme): Promise<void> {
   await gotoRoute(page, state.route, theme)
   if (state.tab) await activateTab(page, state.tab)
+  if (state.overlay) await openOverlay(page, state.overlay)
 }
 
 /**

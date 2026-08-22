@@ -5,6 +5,7 @@ import {
   THEMES,
   WALK,
   assertHarnessIsHonest,
+  assertOverlayMatchesState,
   assertTabEnumerationMatchesDom,
   expectedTabIds,
   gotoState,
@@ -51,7 +52,13 @@ test.describe('route walk', () => {
         'and the tab coverage is silently gone',
     ).toBeGreaterThanOrEqual(2)
     expect(WALK.length).toBeGreaterThan(ROUTES.length)
-    expect(new Set(WALK.map((s) => `${s.route}#${s.tab?.id ?? ''}`)).size).toBe(WALK.length)
+    // THE OVERLAY IS PART OF A STATE'S IDENTITY, so it is part of this key.
+    // Gate alpha's two overlay states sit on a route that is already walked with
+    // `tab: null`; without the overlay term all three would collapse to one key
+    // and this uniqueness check would fail on a correct walk.
+    expect(
+      new Set(WALK.map((s) => `${s.route}#${s.tab?.id ?? ''}#${s.overlay?.id ?? ''}`)).size,
+    ).toBe(WALK.length)
 
     console.log(
       `walk covers ${WALK.length} state(s) over ${ROUTES.length} route(s):\n  ` +
@@ -80,6 +87,11 @@ test.describe('route walk', () => {
         // thinks has none fails here, which is what keeps a source-text
         // derivation honest.
         await assertTabEnumerationMatchesDom(page, state)
+
+        // The same cross-check for the overlay axis, in both directions: the
+        // declared overlay is open, or — on the 21 states that declare none —
+        // nothing is.
+        await assertOverlayMatchesState(page, state)
 
         // Something must actually have rendered. Without this the checks above
         // would pass on a blank page.

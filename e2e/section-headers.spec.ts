@@ -40,10 +40,27 @@ import {
  * routes, so two `SectionHeader` call sites behind the Homepage's Crypto tab —
  * HomepageCrypto.tsx "My Tokens" and "Featured Coin" — were never visited: 6
  * call sites in `src/`, 4 of them swept. `WALK` adds every non-default tab
- * state, so all 6 are now reached. The remaining scope limit is narrower and
- * worth naming: this sweeps rendered DOM, so a heading behind some OTHER piece
- * of in-screen state (a modal, an expanded row) is still only seen if that
- * state is open.
+ * state, so all 6 are now reached.
+ *
+ * GATE alpha ADDED THE OVERLAY AXIS, AND IT BUYS THE POSITIVE HALF NOTHING YET
+ * — say so rather than claim the gap closed. `WALK` now visits the two
+ * `HoldingDetailScreen` preset modals, so a heading inside an open modal WOULD
+ * be swept. Measured, neither modal renders one: `ReminderModal` is a `Radio`
+ * group and `StatementModal` a `Select`, and the fixed deposit's own screen
+ * has no `.mvp-section-header` at all (`holdingFields` returns no `list` for
+ * that type). The instance count below is therefore UNCHANGED by the two new
+ * states, which is the prediction and not a failure.
+ *
+ * What the axis does buy here is the BYPASS half. An open modal is new
+ * rendered DOM, and it was measured to add ZERO `.mn-label` outside
+ * `SectionHeader` — no DS component other than the MVP's own call sites
+ * renders one, `Radio` and `Select` included. That is now asserted on every
+ * run rather than having been checked once.
+ *
+ * The remaining scope limit is narrower still, and worth naming: this sweeps
+ * rendered DOM, so a heading behind in-screen state the walk does not open —
+ * an expanded row, a menu, a modal not enumerated in `OVERLAY_STATES` — is
+ * still only seen if that state happens to be open.
  */
 
 /**
@@ -194,10 +211,12 @@ test.describe('section headers', () => {
 
   test.afterAll(() => {
     const tabStates = WALK.filter((s) => s.tab).length
+    const overlayStates = WALK.filter((s) => s.overlay).length
     console.log(
       `section-header sweep: ${totalHeaders} .mvp-section-header instance(s) checked across ` +
         `${WALK.length} walk state(s) (${ROUTES.length} route(s) + ${tabStates} non-default tab ` +
-        `state(s) over ${TABBED_SCREENS.length} tabbed screen(s)) x ${THEMES.length} theme(s)`,
+        `state(s) over ${TABBED_SCREENS.length} tabbed screen(s) + ${overlayStates} overlay ` +
+        `state(s)) x ${THEMES.length} theme(s)`,
     )
     console.log(
       `distinct headings seen (${headingsSeen.size}):\n  ` +
@@ -210,7 +229,7 @@ test.describe('section headers', () => {
   test('the sweep is not vacuous', async ({ page }) => {
     // If no route rendered a header at all, every assertion above would pass by
     // checking nothing. The Homepage is the guaranteed floor.
-    await gotoState(page, { route: '/', tab: null }, 'light')
+    await gotoState(page, { route: '/', tab: null, overlay: null }, 'light')
     await expect(page.locator('.mvp-section-header').first()).toBeVisible()
     expect(await page.locator('.mvp-section-header').count()).toBeGreaterThan(0)
   })
@@ -222,11 +241,11 @@ test.describe('section headers', () => {
     const homeTabs = TABBED_SCREENS.find((s) => s.route === '/')
     expect(homeTabs, 'the Homepage no longer parses as a tabbed screen').toBeTruthy()
 
-    await gotoState(page, { route: '/', tab: null }, 'light')
+    await gotoState(page, { route: '/', tab: null, overlay: null }, 'light')
     const onDefault = await page.locator('.mvp-section-header').count()
 
     const crypto = homeTabs!.tabs.find((t) => t.id !== homeTabs!.defaultTabId)!
-    await gotoState(page, { route: '/', tab: crypto }, 'light')
+    await gotoState(page, { route: '/', tab: crypto, overlay: null }, 'light')
     const onTab = await page.locator('.mvp-section-header').count()
 
     expect(
