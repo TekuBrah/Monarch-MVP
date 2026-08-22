@@ -1,0 +1,49 @@
+# Gate 22 — Netlify deploy configuration.
+#
+# Every value here was derived from this repo rather than assumed. Netlify was
+# chosen deliberately over Vercel: Netlify Database is on the Free plan, and
+# Vercel's Hobby plan restricts use to non-commercial personal projects.
+
+[build]
+  # `npm run build:package` = `tsc -b && node scripts/build-from-package.mjs`,
+  # which spawns `vite build` with MONARCH_DS_FROM_PACKAGE=1.
+  #
+  # WHY NOT PLAIN `npm run build`. `vite.config.ts` aliases
+  # `@monarch/design-system` to the sibling DS *source* whenever
+  # `../Design system test/src` exists. On Netlify it does not, so plain
+  # `npm run build` would take the package path *by accident* — correct today,
+  # and silently dependent on a folder's absence. `build:package` forces the
+  # package path explicitly, so the deploy compiles what the gates measured
+  # rather than what the environment happened to leave out.
+  command = "npm run build:package"
+
+  # MEASURED, NOT ASSUMED. `vite.config.ts` declares no `build.outDir` and
+  # `scripts/build-from-package.mjs` passes no `--outDir` (it only forwards
+  # arguments it is given, and the npm script gives it none), so Vite's default
+  # applies. Confirmed empirically: `dist/` was deleted, `npm run build:package`
+  # was run, and `dist/` reappeared carrying index.html + assets/ + media/,
+  # with Vite's own log lines prefixed `dist/`.
+  publish = "dist"
+
+[build.environment]
+  # PINNED SO THE BUILD DOES NOT DRIFT WITH NETLIFY'S DEFAULT IMAGE.
+  # Local toolchain at Gate 22: Node v24.17.0, npm 11.13.0. The major is what
+  # is pinned; the patch floats so security updates still land.
+  NODE_VERSION = "24"
+
+# THE SPA REWRITE IS NOT OPTIONAL HERE, AND IT IS NOT BOILERPLATE.
+#
+# `src/main.tsx` mounts <BrowserRouter>, so every route is a real path, not a
+# hash. `src/App.tsx` declares `finance/holding/:holdingId`, and the harness
+# walks 9 concrete expansions of it — `/finance/holding/fd` is a URL a user can
+# bookmark. `vite.config.ts` sets no `base`, so the built index.html references
+# `/assets/…` absolutely and the app assumes the domain root.
+#
+# Without this rule, a direct link or a refresh on any non-root path asks
+# Netlify's CDN for a file that does not exist and gets a 404 — the root URL
+# would work and every deep link would not. Status 200 (not 301/302) so the
+# URL the router reads is the one the user asked for.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

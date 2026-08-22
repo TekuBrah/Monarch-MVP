@@ -916,7 +916,7 @@ Speed here is the whole reason the two-repo split is workable.
 
 **THE COST: THE LOCAL BUILD IS NOT THE SHIPPED BUILD.** Proven by sourcemap,
 twice. A default `npm run build` draws **169 of 210** sources from the DS
-working tree and **zero** from `node_modules/@monarch`. On Vercel the sibling
+working tree and **zero** from `node_modules/@monarch`. On Netlify the sibling
 folder does not exist, so production compiles the pinned `dist` instead.
 
 **SO EXERCISE THE PRODUCTION PATH BEFORE TRUSTING A DEPLOY:**
@@ -933,15 +933,104 @@ behaviour they always had.
 
 **THE TWO BUILDS EMIT THE SAME CSS IN A DIFFERENT ORDER, AND THAT IS FINE —
 BUT ONLY BECAUSE IT WAS MEASURED.** The emitted stylesheets are the same size
-(158,397 bytes), carry the same 589 classes and the same 541 custom
-properties, and hold every v1.5.0 and scrim marker in equal counts — but they
-are NOT byte-identical, because rule order differs: source mode follows
-`package.css`'s hand-maintained `@import` list, dist mode follows the DS lib
-build's import graph. Order decides ties between equal-specificity rules, so
-it could have changed rendering. It does not: **all 42 walk states render
-byte-identically across the two builds**, compared through `vite preview` on
-both outputs under the harness pins. Re-run that comparison if the DS ever
-restructures its CSS entry points.
+(158,397 bytes) and decompose into the same **849 rule fragments as a
+multiset**, every census identical across the two: 541 custom properties
+declared, 1,774 `var()` references over 319 distinct, 1,643 class-selector
+occurrences over 595 distinct, 11 at-rules. They are NOT byte-identical,
+because rule ORDER differs: source mode follows `package.css`'s
+hand-maintained `@import` list, dist mode follows the DS lib build's import
+graph. First divergence at byte 44,403, where one build emits
+`.mn-breadcrumbs` and the other `.mn-avatar`. Order decides ties between
+equal-specificity rules, so it could have changed rendering.
+
+**THE JS DIFFERS BY 35 BYTES, AND THAT IS ATTRIBUTED RATHER THAN WAVED
+THROUGH.** 5,745,663 against 5,745,628. The first divergence is at byte
+**386**, inside Vite's own module-preload polyfill preamble — before any app
+or DS code — and it is a minifier identifier rename, `function i(l)` ->
+`function v(l)`. The distinct short-identifier count is **2712 in both**.
+That is what a different module graph feeding Rollup's name allocator looks
+like: 169 DS source modules on one side, one pre-bundled `dist/index.js` on
+the other.
+
+**NEITHER DIFFERENCE REACHES A PIXEL — MEASURED AT 92 BASELINES, WHICH
+SUPERSEDES GATE 16'S 42.** Gate 16 compared 42 walk states at ONE viewport,
+before Gate A added 430 and before Gates 20–21 added states, so the 430 half
+had never been checked against the package build at all. At Gate 22 each
+build was served through `vite preview` and run against the committed
+baselines: **192 passed, 0 pixel diffs, both times**, at `threshold: 0` /
+`maxDiffPixels: 0`, across both viewports, both themes, and both overlay
+states.
+
+**THAT IS STRICTLY STRONGER THAN COMPARING THE TWO BUILDS TO EACH OTHER.**
+The baselines were minted from the DEV SERVER, so matching them proves all
+three renders identical — dev-versus-production inertness is proven, not
+merely the two production paths against one another.
+
+**NO RIG WAS INVENTED, AND THE NEXT SESSION SHOULD NOT INVENT ONE EITHER.**
+`scripts/build-from-package.mjs` forwards `--outDir`, so the two builds go to
+`dist-default/` and `dist-package/` (both gitignored since Gate 22), and
+`playwright.config.ts` sets `reuseExistingServer: !process.env.CI` — so
+`npm run test:e2e` ATTACHES to a `vite preview --port 5174` that is already
+listening instead of starting a dev server. Re-run that comparison if the DS
+ever restructures its CSS entry points.
+
+### The deploy — Netlify, and the `prepare` hazard (Gate 22)
+
+**THE HOST IS NETLIFY, AND THE CHOICE WAS DELIBERATE.** Netlify Database is
+included on the Free plan, and Vercel's Hobby plan restricts users to
+non-commercial personal use. `netlify.toml` at the repo root holds four
+things, each derived rather than assumed:
+
+| key | value | why |
+|---|---|---|
+| `command` | `npm run build:package` | forces the pinned-package path |
+| `publish` | `dist` | measured — `dist/` was deleted, the build run, and `dist/` reappeared; no `build.outDir` in `vite.config.ts` and no `--outDir` in the script |
+| `[[redirects]]` | `/*` -> `/index.html`, status 200 | the SPA rewrite |
+| `NODE_VERSION` | `24` | local at Gate 22 was Node 24.17.0, npm 11.13.0 |
+
+**`build:package` RATHER THAN `build`, AND THE DIFFERENCE IS NOT COSMETIC.**
+Plain `npm run build` would take the package path on the host *by accident* —
+correct only for as long as the sibling DS folder happens to be absent. The
+override forces it, so the deploy compiles what the gates measured rather
+than what the environment left out.
+
+**THE SPA REWRITE IS NOT OPTIONAL AND NOT BOILERPLATE.** `src/main.tsx`
+mounts `<BrowserRouter>`, `src/App.tsx` declares
+`finance/holding/:holdingId`, and `vite.config.ts` sets no `base` — so the
+built `index.html` references `/assets/…` absolutely and every route is a
+real path. Without the rule, the root URL works and EVERY DEEP LINK 404s:
+any bookmark of `/finance/holding/fd`, and any refresh on a non-root path,
+asks the CDN for a file that does not exist. Status 200, not 301/302, so the
+URL the router reads is the one the user asked for.
+
+**THE DS DOES NOT COMMIT `dist`, SO npm BUILDS IT DURING INSTALL — AND THAT
+IS THE HAZARD.** `git ls-files dist` in the DS returns zero files, and its
+`package.json` carries `"prepare": "npm run build:lib"`. npm therefore clones
+the DS, installs ITS devDependencies, and runs the lib build before packing.
+Two consequences for any build environment:
+
+- it **must install devDependencies** (vite, typescript and tsc are all
+  devDeps here, and the DS needs its own to build at all);
+- it **must never run with `--ignore-scripts`**, which would install a DS
+  with no `dist` at all.
+
+**THE FAILURE MODE IS A MODULE-RESOLUTION ERROR AT BUILD TIME, NOT AN
+INSTALL ERROR.** The install reports success and the build then fails on a
+specifier it cannot resolve — it reads like a code bug and is not one. Same
+shape as the missing-svgr-transform trap above: a clean earlier step proves
+nothing about the later one.
+
+**A `git+ssh` RESOLVED URL IS NOT EVIDENCE THAT CREDENTIALS ARE REQUIRED.**
+`package-lock.json` records `resolved` as
+`git+ssh://git@github.com/TekuBrah/Monarch-Design-System.git#<sha>`, which
+looks like a hard blocker for a credential-less CI. It is not: the repo is
+PUBLIC and npm falls back to HTTPS. Measured at Gate 22, not reasoned —
+`package.json` and `package-lock.json` were copied to a scratch directory and
+`npm ci` run with `GIT_SSH_COMMAND="exit 1"`, `GIT_TERMINAL_PROMPT=0`, and
+both global and system git config pointed at nonexistent files. Result: **117
+packages added, exit 0**, with the DS at 1.5.0 and a complete `dist/`. Re-run
+that probe rather than reasoning from the lockfile if the DS is ever made
+private.
 
 ### The linkage guard — `npm run lint:linkage`
 

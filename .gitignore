@@ -12,3 +12,9 @@ dist/
 # the gate closed, and an unexplained change to one is a finding.
 test-results/
 playwright-report/
+
+# Gate 22. The cross-build render comparison (Gate 16's method) builds the
+# same tree twice into two out dirs so the two DS resolution paths can be
+# rendered side by side. They are build OUTPUT, like dist/ above.
+dist-package/
+dist-default/

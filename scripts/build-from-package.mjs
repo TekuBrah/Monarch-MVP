@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Production-path build — the one command that compiles what Vercel compiles.
+ * Production-path build — the one command that compiles what Netlify compiles.
  *
  * `vite.config.ts` aliases `@monarch/design-system` to the sibling DS *source*
  * whenever `../Design system test/src` exists, which is every local machine and
