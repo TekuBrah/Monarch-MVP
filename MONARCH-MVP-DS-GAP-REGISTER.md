@@ -54,7 +54,9 @@ from Figma. Nothing in the demand map is inferred from the flow inventory.
 
 ## 2. The register
 
-Ten entries. Tags are exactly as defined in the sweep brief.
+Twelve entries. Tags are exactly as defined in the sweep brief. **G11 and G12
+were added after the original sweep** — they come from MVP gates (α and D), not
+from Flows 8–12, which is why their `Flows` cell is `—`.
 
 | # | Component | Demand | Tag | Flows | Evidence |
 |---|---|---|---|---|---|
@@ -68,6 +70,8 @@ Ten entries. Tags are exactly as defined in the sweep brief.
 | **G8** | `Modal` | Reuse as a sheet needs the header and its ✕ suppressible. | `prop-gap` | 8, 9 | `Modal/Modal.tsx:109` renders `<div className="mn-modal__header">` **unconditionally**, and `:119` hard-codes the close `IconButton`. Compounds G1 |
 | **G9** | `Chips` | *(latent — met for these flows)* The leading glyph is fixed. | `prop-gap` | — | `Chips/Chips.tsx:15` — `<Icon name="done" size="s" />` always renders. Harmless for F9's `success`/"Linked" demand; a `removed` chip would still show a checkmark |
 | **G10** | `FilterChip` | *(latent — not triggered)* Both-icons padding. | `token-gap` | — | `FilterChip.css` FAIL-LOUD literal `padding-left: 10px` when `iconLeft` **and** `iconRight` are set — 10px is off the `--brand-scale` ramp. F8's chips carry no icons |
+| **G11** | `Blanket` | **Background scroll lock under an open modal.** The DS `Blanket` does not lock it, so the page behind a modal scrolls. | `prop-gap` | — | *Register `G11` — the flow inventory's `G`-numbers are a different series and run only G1–G3; this is the register's.* Measured at Gate α on `/finance/holding/fd`, both themes, numbers identical in each: `overflow` and `position` on `<html>` and `<body>` compute the same open and closed, and `window.scrollY` moves **0 → 71** under both a scripted `window.scrollTo(0, 200)` and a real `mouse.wheel` gesture. **Not a rendering defect** — the fixed scrim follows the viewport, so hit-testing 10px below the old fold returns `div.mn-blanket` once it is scrolled into view — but scroll-locking is standard modal behaviour and its absence is an accessibility concern. **DS-side; not fixable from the MVP.** Candidate for a single `Blanket` fix in one DS release alongside **G12** and the logo-asset work |
+| **G12** | `Blanket` | **Frame awareness.** `Blanket.css` is `position: fixed; inset: 0`, so above the MVP's 430px frame cap it dims the FULL VIEWPORT rather than the capped frame. | `prop-gap` | — | *Register `G12`, same series as G11 and unrelated to the flow inventory's `G1`–`G3`.* Newly visible as of **Gate D**, which capped the app at 430 and centred it; invisible before, because the frame filled the window. **The modal CARD is unaffected**: at 375 wide centred on a 1280 viewport it lands at 452.5, inside the frame's 425–855. So this is the SCRIM overreaching and nothing else. Whether it should is a **design call, not a defect ruling** — the same both-halves shape as G5/G6 in §5. **DS-side; not fixable from the MVP**, and `inset: 0` on a fixed element cannot be bounded by a consumer without a seam the DS chooses to expose. Candidate for a single `Blanket` fix in one DS release alongside **G11** and the logo-asset work |
 
 ### `not-a-gap` — verified met, so these are never re-checked
 
@@ -100,7 +104,7 @@ Ten entries. Tags are exactly as defined in the sweep brief.
 | **Flow 10** | **G4**, G6 | G4 is visible on the Budget tab's three cards; G6 on the add-budget modal |
 | **Flow 11** | **G5**, **G7**, G6 | All three are single-screen, low-severity |
 | **Flow 12** | G6 | One field caption |
-| **Not blocking** | G3, G9, G10 | G3 already ships (slate badges render today); G9/G10 are latent and untriggered |
+| **Not blocking** | G3, G9, G10, G11, G12 | G3 already ships (slate badges render today); G9/G10 are latent and untriggered; G11/G12 are `Blanket` items from MVP gates, outside Flows 8–12 entirely |
 
 **The critical path is G1.** It blocks the two earliest flows, it is the
 largest single item, and G8 is a strict prerequisite of solving it by extending
@@ -236,7 +240,8 @@ belong here so the DS session has one document.
 ## Summary
 
 - **28 of 28 screens read.** **40 DS components read in source**, `.tsx` and `.css`.
-- **10 register entries**: 2 `component-gap`, 7 `prop-gap`, 1 `token-gap`.
+- **12 register entries**: 2 `component-gap`, 9 `prop-gap`, 1 `token-gap`.
+  (G11 and G12 were added at MVP Gates α and D, after the original sweep.)
 - **6 foreign-variable families → `figma-defect`.** The DS is correct on every
   one, and already documents two of them in comments.
 - **8 `shape-mismatch` items** needing a design call, not code.

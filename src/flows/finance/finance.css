@@ -314,12 +314,19 @@
   gap: var(--spacing-300);
 }
 
-/* The toast sits above the action bar, clear of both it and the nav pill. */
+/*
+  The toast sits above the action bar, clear of both it and the nav pill.
+
+  FIXED, SO IT CARRIES THE FRAME INSET (Gate D). Its sibling
+  `.mvp-finance-detail__actions` does NOT and must not: that bar is `sticky`,
+  resolves against its scroll container, and follows the capped frame for
+  free. Adding the inset there would double-count it.
+*/
 .mvp-finance-detail__toast {
   position: fixed;
-  right: var(--mvp-gutter);
+  right: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
   bottom: var(--spacing-1400);
-  left: var(--mvp-gutter);
+  left: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
   display: flex;
   justify-content: center;
 }

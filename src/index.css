@@ -55,8 +55,43 @@ body {
   box and a fixed `left`/`right` inset cannot be expressed as padding without
   changing which box owns the edge.
 */
+/*
+  THE FRAME CAP (Gate D).
+
+  `--mvp-frame-max` is the phone-frame width. `--mvp-frame-inset` is the
+  empty space it leaves on ONE side, and it is the single mechanism every
+  piece of fixed chrome uses to follow the frame.
+
+  IT IS DERIVED FROM `100%`, NEVER `100vw`, AND THAT IS THE WHOLE POINT.
+  `100vw` INCLUDES the classic scrollbar gutter; the initial containing
+  block — which is what a percentage resolves against for a `position:
+  fixed` element — does NOT. Measured on the live deploy in real Windows
+  Chrome: `innerWidth - documentElement.clientWidth` = 15, so on that window
+  `100vw` is 667.8 where `100%` is 652.8, and a `100vw`-derived inset centres
+  the chrome 7.5px off. On every desktop visitor. Forever.
+
+  HEADLESS CHROMIUM REPORTS A ZERO-WIDTH SCROLLBAR AT EVERY WIDTH, so
+  `innerWidth === clientWidth` there and the two spellings are
+  INDISTINGUISHABLE to the visual harness — every screenshot compares green
+  either way. That is why `check-tokens.mjs` bans the unit at source rather
+  than a test asserting against it.
+
+  `max()` RATHER THAN `clamp()`. The only bound needed is a floor: below the
+  cap `(100% - 430px) / 2` is negative and must read as zero, so nothing
+  moves at 375 or 430. `clamp()` would demand an upper bound that does not
+  exist — the inset grows without limit as the window widens, which is
+  correct.
+
+  THE FIVE FIXED ELEMENTS DO NOT INHERIT THE SHELL'S CAP. They take the
+  viewport as their containing block, which is the entire reason this gate
+  exists. `.mvp-finance-detail__actions` is deliberately NOT among them: it
+  is `sticky`, resolves against its scroll container, and follows a capped
+  frame for free.
+*/
 :root {
   --mvp-gutter: var(--spacing-400);
+  --mvp-frame-max: 430px; /* token-exempt: phone-frame width. 430 has no backing token — it falls between --brand-scale-1700 (256px) and -1800 (512px); curve-fitting it out of calc() on unrelated ramp steps is banned by the DS token-gap protocol. */
+  --mvp-frame-inset: max(0px, (100% - var(--mvp-frame-max)) / 2);
 }
 
 .mvp-column {

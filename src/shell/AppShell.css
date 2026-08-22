@@ -1,12 +1,16 @@
 /*
   Mobile layout frame (roadmap D1: React DOM, mobile-first).
 
-  Token-only, per CLAUDE.md rule 2. Note there is deliberately NO desktop
-  max-width and no media query: every candidate value for a phone-width frame
-  (e.g. 430px) is off the --brand-scale ramp, which tops out at 96px, and
-  inventing one would need either a new DS token or a documented exemption.
-  Flagged for a decision rather than fabricated. Today the shell simply fills
-  the viewport, which is correct mobile-first behaviour.
+  Token-only, per CLAUDE.md rule 2. THE DESKTOP CAP SHIPPED AT GATE D: the
+  shell caps at `--mvp-frame-max` and centres, and above that width the
+  surrounding area is plain page background — no device frame, no shadow, no
+  surrounding treatment. 430 has no backing token, so it carries the
+  linter's documented `token-exempt` marker at its declaration in index.css
+  rather than being fabricated out of calc() on unrelated ramp steps.
+
+  THE CAP ALONE IS HALF THE FIX. Everything below that is `position: fixed`
+  takes the VIEWPORT as its containing block, not this box, so it does not
+  follow the cap by inheritance and each one has to be inset explicitly.
 
   Chrome layering follows the Figma structure rather than approximating it: on
   both Homepage screens the FAB and the navbar are SIBLINGS of the scroll frame,
@@ -17,6 +21,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  max-width: var(--mvp-frame-max);
+  margin-right: auto;
+  margin-left: auto;
   /* dvh, not vh — vh ignores mobile browser chrome and the nav sits offscreen. */
   min-height: 100dvh;
   background: var(--mapped-surface-page);
@@ -52,9 +59,9 @@
 */
 .mvp-shell__nav {
   position: fixed;
-  right: 0;
+  right: var(--mvp-frame-inset);
   bottom: 0;
-  left: 0;
+  left: var(--mvp-frame-inset);
   z-index: 2;
   padding-bottom: env(safe-area-inset-bottom);
 
@@ -109,9 +116,9 @@
 */
 .mvp-shell__scrim {
   position: fixed;
-  right: 0;
+  right: var(--mvp-frame-inset);
   bottom: 0;
-  left: 0;
+  left: var(--mvp-frame-inset);
   z-index: 1;
   height: var(--brand-scale-1700);
   pointer-events: none;
@@ -127,7 +134,7 @@
 */
 .mvp-shell__fab {
   position: fixed;
-  right: var(--mvp-gutter);
+  right: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
   bottom: var(--brand-scale-1500);
   z-index: 3;
   display: flex;
@@ -147,6 +154,6 @@
 .mvp-shell__theme-switch {
   position: fixed;
   bottom: var(--brand-scale-1500);
-  left: var(--mvp-gutter);
+  left: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
   z-index: 3;
 }

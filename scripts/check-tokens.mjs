@@ -88,6 +88,44 @@ const RULES = [
     allow: (m, line) => parseFloat(m[1]) === 0 || inMediaCondition(line, m.index),
   },
   {
+    // ── GUARD B (Gate D) — THE VIEWPORT-WIDTH UNIT IS BANNED AT SOURCE. ──
+    //
+    // WHY A LINTER RULE AND NOT A TEST. `100vw` INCLUDES the classic scrollbar
+    // gutter; the initial containing block — what a percentage resolves
+    // against for a `position: fixed` element — does NOT. Measured on the live
+    // deploy in real Windows Chrome, `innerWidth - documentElement.clientWidth`
+    // is 15, so `100vw` reads 667.8 where `100%` reads 652.8, and a
+    // `100vw`-derived inset centres the fixed chrome 7.5px off — on every
+    // desktop visitor, forever.
+    //
+    // HEADLESS CHROMIUM REPORTS A ZERO-WIDTH SCROLLBAR AT EVERY WIDTH. In
+    // headless `innerWidth === clientWidth`, so a `100vw` implementation and a
+    // `100%` implementation are INDISTINGUISHABLE to the browser harness:
+    // every computed-geometry assertion and every screenshot compares green
+    // either way. The defect is invisible to the instrument that would
+    // otherwise catch it, which is precisely why the ban lives here — in the
+    // one check that reads source text rather than a rendered page.
+    //
+    // THE BAN IS BLANKET RATHER THAN SCOPED TO FIXED CHROME, DELIBERATELY. A
+    // line-based check cannot know whether the rule it is looking at carries
+    // `position: fixed`; deciding that would mean parsing blocks, and a check
+    // that is fragile about WHERE it applies fails open on the very case it
+    // exists for. `src/` contained ZERO `vw` units when this shipped, so the
+    // blanket form costs nothing, and a genuinely justified one takes the same
+    // `token-exempt: <reason>` marker every other deliberate exception here
+    // takes. That is the EXISTING escape hatch, not a new one.
+    //
+    // The dynamic variants are included because they share the mechanism: all
+    // of them measure the viewport, and the initial containing block is not
+    // the viewport when a classic scrollbar is present.
+    id: 'viewport-width-unit',
+    re: /(?<![\w-])(?:\d*\.?\d+)(?:vw|svw|lvw|dvw)\b/g,
+    hint:
+      'use 100% — vw includes the scrollbar gutter and the initial containing ' +
+      'block does not, so a vw-derived inset mis-centres fixed chrome by half ' +
+      'the scrollbar width, invisibly to a headless harness',
+  },
+  {
     id: 'raw-font',
     re: /(?:font-family|fontFamily|(?<![\w-])font)\s*:\s*([^;\n}]+)/g,
     hint: 'use var(--font-family-primary) or a .type-* class',

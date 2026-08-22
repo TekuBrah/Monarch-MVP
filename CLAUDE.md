@@ -876,10 +876,122 @@ from the **raw** line (comment-stripping would erase it) and it suppresses
 **every** rule on that line, not just `raw-px`. The fix did not touch it, and
 fixture case G confirms it still fires on a line the fix newly flags.
 
+**`token-exempt` IS LINE-SCOPED, AND GATE D WALKED INTO IT.** The marker must
+sit on the SAME physical line as the literal — the script reads it from
+`rawLines[i]` and skips that line. Gate D's first attempt put the comment on
+the line ABOVE `--mvp-frame-max: 430px` and the linter **correctly still
+failed**, reporting the exemption in force at one line and the violation at the
+next. That is the Gate 18 scoping working exactly as intended, not a bug. Move
+the marker onto the declaration; **do not widen an allowance to get around
+it.**
+
 One thing deliberately NOT widened: the allowance covers `@media` only.
 `@container` and `@supports` conditions have the same CSS limitation and would
 be flagged today. Neither appears in `src/`; widen it when one actually does,
 with a fixture, rather than pre-emptively.
+
+## The frame cap (Gate D)
+
+**THE APP CAPS AT 430px, CENTRED, PLAIN.** Above the cap the surrounding area
+is page background — no device frame, no shadow, no surrounding treatment. Two
+custom properties in `src/index.css` carry it:
+
+```css
+--mvp-frame-max: 430px;   /* token-exempt — no DS token backs 430 */
+--mvp-frame-inset: max(0px, (100% - var(--mvp-frame-max)) / 2);
+```
+
+`.mvp-shell` caps by ordinary `max-width` plus auto margins. **THE FIVE
+`position: fixed` ELEMENTS DO NOT INHERIT THAT**, because they take the
+VIEWPORT as their containing block rather than the shell — which is the entire
+reason this gate existed. Each takes the inset explicitly: as
+`var(--mvp-frame-inset)` where the inset was `0` (nav, scrim), and as
+`calc(var(--mvp-gutter) + var(--mvp-frame-inset))` where a gutter already
+existed (FAB, theme switch, toast). One property, one mechanism, five sites.
+
+**`max()` NOT `clamp()`, and the reason is that only a FLOOR is needed.** Below
+the cap `(100% - 430px) / 2` is negative and must read as zero, so nothing
+moves at 375 or 430. Above it the inset correctly grows without limit as the
+window widens, so there is no upper bound to supply and `clamp()` would have
+demanded one.
+
+### Never `100vw` on fixed chrome — understand this, do not merely obey it
+
+**`100vw` INCLUDES THE CLASSIC SCROLLBAR GUTTER. THE INITIAL CONTAINING BLOCK
+DOES NOT** — and the ICB is what a percentage resolves against for a
+`position: fixed` element. The two are not synonyms for "the width of the
+window", and on any desktop browser painting a classic scrollbar they differ.
+
+Measured on the live Netlify deploy in real Windows Chrome:
+
+| | value |
+|---|---|
+| `innerWidth - document.documentElement.clientWidth` | **15** |
+| `.mvp-shell` `getBoundingClientRect().width` | **652.8** |
+
+So on that window `100vw` is 667.8 where `100%` is 652.8, and an inset derived
+from `100vw` centres the chrome **7.5px off — on every desktop visitor,
+forever**.
+
+**HEADLESS CHROMIUM REPORTS A ZERO-WIDTH SCROLLBAR AT EVERY WIDTH.** In
+headless `innerWidth === clientWidth`, so a `100vw` implementation and a `100%`
+implementation are INDISTINGUISHABLE to the entire visual harness — every
+screenshot compares green either way, and so does every computed-geometry
+assertion. **No screenshot can catch this**, which is why the ban lives in the
+linter rather than in a spec.
+
+At Gate D `src/` contained **zero `vw` units and zero `vh`**. The only viewport
+unit in the app is `100dvh` on `.mvp-shell`.
+
+### Two guards, and neither alone is sufficient
+
+- **Guard A — `e2e/frame-cap.spec.ts`**, 2 tests at 1280x812, no baseline. Cap
+  and gutter are read from the computed custom properties and the frame edges
+  derived from `clientWidth`; nothing on the right-hand side of a comparison is
+  transcribed. It also asserts that `position: fixed` SURVIVES, that each
+  element lies within the viewport, and that the FAB is hit-testable via
+  `elementFromPoint` — because the three fatal mechanisms below leave
+  horizontal geometry correct while un-fixing the element. **It refuses to run
+  below the cap**, so it cannot pass for the degenerate reason that the inset
+  clamped to zero.
+- **Guard B — the `viewport-width-unit` rule in `scripts/check-tokens.mjs`.**
+  Banned BLANKET rather than scoped to fixed chrome, deliberately: a line-based
+  check cannot know whether the rule it is reading carries `position: fixed`,
+  and a check that is fragile about WHERE it applies fails open on the very
+  case it exists for. A justified future `vw` takes the same
+  `token-exempt: <reason>` marker as any other exception.
+
+**THEY CHECK DIFFERENT THINGS AND NEITHER SUBSUMES THE OTHER.** Guard A cannot
+catch a `100vw` implementation — in headless it satisfies every assertion
+exactly. Guard B cannot tell whether the inset actually REACHES the five
+elements — it only reads source text. The defect and the delivery are checked
+by different instruments because no single instrument sees both.
+
+### Three mechanisms are fatal, measured — do not reach for them
+
+`transform`, `contain: layout paint` and `filter` each align the chrome to the
+frame and then **un-fix it**. Each establishes a containing block, so the tops
+relocate to the bottom of the document, the nav sits **171-185px below the
+viewport at rest**, and `elementFromPoint` on the FAB returns `null`. **This
+happens even at 430, where the horizontal geometry is otherwise unchanged, so a
+width-only inspection would ship it.** `container-type: inline-size` does
+nothing at all.
+
+### `.mvp-finance-detail__actions` is `sticky` and needs no inset
+
+It resolves against its scroll container and therefore follows a capped frame
+for free. Gate D added a spec assertion that it stays `sticky`, specifically so
+a later session cannot "finish the job" by converting it — adding the frame
+inset there would double-count and pull it inward by 425px at 1280.
+
+### Baseline impact was zero, and was re-derived through the package build
+
+Not by runtime injection — Gate 16's whole finding is that the local build is
+not the shipped build. At 375 the cap does not bind and the inset clamps to
+`max(0px, -27.5px)` = 0; at 430 it binds exactly and the inset is
+`max(0px, 0px)` = 0. **All 92 baselines byte-identical by SHA-256**, with the
+suite at **194 passed / 0 failed**. The cap was also confirmed present in the
+shipped `dist/assets/*.css`, where `grep -c 100vw` returns **0**.
 
 ## Known conditions of this setup
 
@@ -1222,16 +1334,17 @@ be confused with "the page reloaded". Both DS edits were reverted byte-identical
 
 ## Open — needs a decision, deliberately not built
 
-### Desktop max-width for the mobile frame
+### Desktop max-width for the mobile frame — CLOSED at Gate D
 
-`AppShell.css` has **no desktop max-width and no media query**. On a wide
-viewport the shell simply fills the window.
+**IT SHIPPED, AT 430px, CENTRED, PLAIN.** See "The frame cap (Gate D)" above
+for the mechanism, the two guards and the three fatal mechanisms. What follows
+is kept because the DERIVATION is still the reason 430 carries a
+`token-exempt` marker rather than a token.
 
-This is unbuilt on purpose, not an oversight. A phone-width frame wants roughly
-**430px**, and **there is no token for it** — but not for the reason this file
-used to give. An earlier revision claimed the `--brand-scale` ramp "tops out at
-**96px**". It does not. Re-read from the DS's `globals.css` at the content-column
-Gate 1, the ramp runs to **512px**:
+There is still **no token for 430**, and not for the reason this file once
+gave. An earlier revision claimed the `--brand-scale` ramp "tops out at
+**96px**". It does not. Re-read from the DS's `globals.css` at the
+content-column Gate 1, the ramp runs to **512px**:
 
 ```
 --brand-scale-1500:  96px      <- what was mistaken for the ceiling
@@ -1242,21 +1355,18 @@ Gate 1, the ramp runs to **512px**:
 
 **THE CONCLUSION SURVIVES, THE REASON DID NOT.** 430 is not above the ramp; it
 falls **between steps 1700 and 1800**, and `430px` appears nowhere in the DS
-(grep: zero matches). So there is still no token, and writing a raw `430px` would
-still violate rule 2 — but anyone re-deriving this from the old "96px" claim would
-have concluded the ramp was an order of magnitude too small and designed around a
-gap that is not there. Curve-fitting it out of `calc()` on unrelated scale steps
-remains explicitly banned by the DS's token-gap protocol (that pattern was
-rejected there once already).
+(grep: zero matches). Anyone re-deriving this from the old "96px" claim would
+have concluded the ramp was an order of magnitude too small and designed around
+a gap that is not there. Curve-fitting it out of `calc()` on unrelated scale
+steps remains explicitly banned by the DS's token-gap protocol (that pattern
+was rejected there once already).
 
-**This needs a DS token decision, not an MVP literal.** It belongs with the
-roadmap's parked **motion/elevation token layer** item — the same class of gap,
-where real design values have no backing token (`0.12s` transitions, z-index,
-some opacity values). Resolve them together.
-
-If it is ever built here as an interim measure, it must use the guardrail's
-`token-exempt: <reason>` escape hatch so it stays visible, never a silent
-literal.
+**A DS TOKEN DECISION IS STILL OPEN, and it is now the only open half.** It
+belongs with the roadmap's parked **motion/elevation token layer** item — the
+same class of gap, where real design values have no backing token (`0.12s`
+transitions, z-index, some opacity values). Resolve them together. Until then
+the literal stays visible through the guardrail's `token-exempt: <reason>`
+escape hatch, which is exactly what that hatch is for.
 
 ## Verification discipline
 
