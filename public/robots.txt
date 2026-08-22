@@ -1,0 +1,17 @@
+# TEMPORARY — Gate 24. Remove when the DS logo assets are fixed and the case
+# study is ready to share. See CLAUDE.md, "Deploy hygiene (Gate 24)".
+#
+# THIS FILE PROTECTS BANDWIDTH, NOT RANKING. It asks well-behaved crawlers not
+# to FETCH. The indexing half of the job is `X-Robots-Tag: noindex`, set as a
+# header in netlify.toml — that one governs whether a crawler that fetches
+# anyway is allowed to INDEX what it got.
+#
+# WHY IT MATTERS HERE. Netlify Free is 300 credits/month, bandwidth costs
+# 20 credits/GB (~15 GB), and the budget is shared with deploys, compute and
+# requests. The shipped JS is 5.75 MB (7.28 MB total) — roughly 2,500 uncached
+# visits before the cap is reached, at which point EVERY project on the team is
+# paused and visitors get "Site not available". No throttling, and credits
+# cannot be bought on Free. A crawler re-fetching that bundle is a real draw
+# against a cap with a hard failure mode.
+User-agent: *
+Disallow: /

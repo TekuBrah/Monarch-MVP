@@ -47,3 +47,64 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# ---------------------------------------------------------------------------
+# Gate 24 — deploy hygiene.
+# ---------------------------------------------------------------------------
+
+# THE SPA REWRITE ABOVE IS WHY `robots.txt` HAD TO BE A REAL FILE, AND WHY IT
+# WORKS. Before this gate, `GET /robots.txt` returned **200 with the app's
+# HTML** — measured on the live deploy, `Content-Type: text/html`, 750 bytes —
+# because the `/*` rule caught it. Most crawlers read that as "no robots.txt"
+# and proceed to fetch the 5.75 MB bundle.
+#
+# `public/robots.txt` fixes it because Netlify serves a file that EXISTS in the
+# publish directory BEFORE it applies a non-forced rewrite. That precedence is
+# the whole mechanism, and it has one hazard: appending `!` to the redirect
+# status (`200!`, a FORCED rewrite) inverts it, and `robots.txt` would silently
+# start serving HTML again with nothing failing. Do not force that rule.
+
+# X-Robots-Tag GOVERNS INDEXING; robots.txt GOVERNS FETCHING. They are not
+# redundant, and neither replaces the other:
+#
+#   - a crawler that OBEYS robots.txt never fetches, so it never sees this
+#     header — the header is for the ones that fetch anyway;
+#   - a page blocked by robots.txt can still be INDEXED from inbound links
+#     alone (the crawler indexes the URL without the content), and the only
+#     thing that suppresses that is a noindex directive on a response the
+#     crawler actually received.
+#
+# TEMPORARY, same as robots.txt — remove both together when the DS logo assets
+# are fixed and the case study is ready to share.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+# FRAMING IS DELIBERATELY LEFT OPEN — Gate 24, Phase 2. THIS IS A DECISION,
+# NOT AN OVERSIGHT, and the absence of a policy here is the implementation of
+# it.
+#
+# Teku intends a DS showcase page with an MVP tab that IFRAMES this deployed
+# app inside a phone bezel, which requires this origin to permit framing.
+# Measured on the live deploy at Gate 24: the response carries no
+# `X-Frame-Options` and no `Content-Security-Policy`, so framing is permitted
+# today BY DEFAULT rather than by decision. This comment is what converts it
+# into a decision.
+#
+# DO NOT ADD `frame-ancestors` YET. The showcase origin does not exist, so any
+# policy written now would be written against a guessed domain — and the
+# failure mode is silent and badly timed: the iframe renders blank in the
+# browser the day the showcase is demoed, with the block visible only in the
+# console.
+#
+# WHEN THE SHOWCASE ORIGIN EXISTS, the correct change is exactly one header:
+#
+#   [[headers]]
+#     for = "/*"
+#     [headers.values]
+#       Content-Security-Policy = "frame-ancestors 'self' https://<showcase-origin>"
+#
+# `frame-ancestors` and not `X-Frame-Options`, because the latter has no
+# portable allow-list form — `ALLOW-FROM` was never implemented in Chromium and
+# is dead. Add it only once the origin is known and can be typed literally.

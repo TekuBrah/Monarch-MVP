@@ -993,6 +993,184 @@ not the shipped build. At 375 the cap does not bind and the inset clamps to
 suite at **194 passed / 0 failed**. The cap was also confirmed present in the
 shipped `dist/assets/*.css`, where `grep -c 100vw` returns **0**.
 
+## Deploy hygiene (Gate 24)
+
+Three consequences of the app being live at `https://monarchmvp.netlify.app`.
+The Netlify mechanics themselves — build command, publish dir, the SPA rewrite,
+the `prepare` hazard — are under "The deploy" in Known conditions below; this
+section is what sits on top of them.
+
+### The constraint that drives the crawler work
+
+**NETLIFY FREE HAS A HARD FAILURE MODE, NOT A THROTTLE.** 300 credits/month,
+bandwidth at 20 credits/GB (~15 GB), shared with deploys, compute and requests.
+When credits run out **every project on the team is paused** and visitors get
+"Site not available". Credits cannot be bought on Free.
+
+The shipped JS is **5.75 MB** (7.28 MB total) — roughly **2,500 uncached
+visits** to the cap. A crawler re-fetching that bundle is a real draw against
+it, which is why this is a bandwidth measure rather than an SEO one.
+
+### Two crawler mechanisms, and they do different jobs
+
+**NEITHER REPLACES THE OTHER, AND THE DISTINCTION IS FETCH vs INDEX.**
+
+| mechanism | where | governs |
+|---|---|---|
+| `robots.txt`, `Disallow: /` | `public/robots.txt` | **fetching** — the bandwidth half |
+| `X-Robots-Tag: noindex, nofollow` | `netlify.toml` `[[headers]]` | **indexing** — for crawlers that fetch anyway |
+
+A crawler that OBEYS `robots.txt` never fetches, so it never sees the header —
+the header exists for the ones that do not. Conversely a URL blocked by
+`robots.txt` can still be INDEXED from inbound links alone, content unseen, and
+only a `noindex` on a response the crawler actually received suppresses that.
+
+**BOTH ARE TEMPORARY** — until the DS logo assets are fixed and the case study
+is ready to share. The intent is recorded in a comment in each file so a later
+session removing them is not guessing.
+
+**`public/` IS THE VERBATIM-COPY DIRECTORY, CONFIRMED RATHER THAN ASSUMED.**
+`vite.config.ts` declares no `publicDir`, so Vite's default applies; measured
+through `npm run build:package`, `robots.txt` lands at `dist/robots.txt`
+byte-identical to the source (`9d695f5f…36e846` both sides), alongside the
+`media/` tree.
+
+#### The SPA rewrite is why this had to be a real file — and why it works
+
+**BEFORE THIS GATE, `GET /robots.txt` RETURNED 200 WITH THE APP'S HTML.**
+Measured on the live deploy: `Content-Type: text/html; charset=UTF-8`, 750
+bytes, the `index.html` shell. The `/*` -> `/index.html` rule caught it. Most
+crawlers read that as "no robots.txt" and proceed to fetch the bundle.
+
+`public/robots.txt` fixes it because **Netlify serves a file that EXISTS in the
+publish directory BEFORE it applies a non-forced rewrite**. That precedence is
+the entire mechanism, and it has one hazard: appending `!` to the redirect
+status (`200!`, a FORCED rewrite) inverts it, and `robots.txt` would silently
+start serving HTML again with nothing failing. **Do not force that rule.**
+
+**THE DEFINITIVE CHECK IS POST-DEPLOY, NOT LOCAL.** `vite preview` serves the
+static file directly and never evaluates `netlify.toml`, so a green local check
+does not exercise the precedence at all. Re-fetch
+`https://monarchmvp.netlify.app/robots.txt` after the next deploy and confirm
+`Content-Type: text/plain`.
+
+### Framing is deliberately left OPEN — the decision is the absence of a policy
+
+Teku intends a DS showcase page with an MVP tab that **iframes this deployed
+app** inside a phone bezel. That requires this origin to permit framing.
+
+**MEASURED ON THE LIVE DEPLOY AT GATE 24: no `X-Frame-Options`, no
+`Content-Security-Policy`, therefore no `frame-ancestors`.** Framing is
+permitted today BY DEFAULT rather than by decision. The comment in
+`netlify.toml` is what converts it into a decision; nothing was implemented.
+
+**DO NOT ADD `frame-ancestors` UNTIL THE SHOWCASE ORIGIN EXISTS.** A policy
+written against a guessed domain breaks the thing it is meant to enable, and
+the failure mode is silent and badly timed — a blank iframe on the day the
+showcase is demoed, with the block visible only in the console.
+
+**WHEN THE ORIGIN EXISTS, the change is exactly one header:**
+
+```toml
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://<showcase-origin>"
+```
+
+`frame-ancestors` and not `X-Frame-Options`: the latter has no portable
+allow-list form, because `ALLOW-FROM` was never implemented in Chromium.
+
+### The PWA manifest is BLOCKED on icon artwork, and nothing was shipped
+
+**THE APP IS NOT INSTALLABLE TODAY AND THIS GATE DID NOT CHANGE THAT.**
+`index.html`'s viewport comment cites roadmap D1's "PWA-installable" as
+*intent*; there is no manifest, no `<link rel="icon">` and no
+`apple-touch-icon`. Phase 3 stopped at the census, deliberately — **icon
+artwork is Teku's decision and this gate did not generate any.**
+
+**THE CENSUS, stated exactly.** `git ls-files` matching
+`icon|logo|favicon|apple-touch|manifest|robots` returned **zero** before this
+gate. `public/` holds only `media/{academy,banner,profile}` — photographic and
+illustrative content, no app icon and no favicon. The DS has two brand marks in
+`Assets/logo/brand/`, and they are clean vector rather than the base64 bloat
+that afflicts the company and crypto sets (measured: brand **1,999 bytes / 0
+files containing base64**, against company 2.58 MB / 18 files and crypto
+2.76 MB / 10 — which is the ~5.3 MB logged DS-side):
+
+| file | viewBox | fill | why it is not an app icon |
+|---|---|---|---|
+| `Monarch logo, Style = Thick.svg` | 24x14 | `#046eff` | **not square** |
+| `Monarch logo, Style = Thin.svg` | 24x24 | `#046eff` | square, but transparent ground and no maskable safe zone |
+
+Both are single-colour marks on transparent, in the DS repo. Rasterising either
+into an app icon requires an opaque plate, padding and a safe-zone decision —
+that is artwork, not a build step.
+
+**WHAT IS NEEDED, so the next session is one step and not a research task:**
+
+| file | size | notes |
+|---|---|---|
+| `icon-192.png` | 192x192 | manifest `purpose: "any"` |
+| `icon-512.png` | 512x512 | manifest `purpose: "any"` |
+| `icon-maskable-512.png` | 512x512 | `purpose: "maskable"` — mark inside the central 80%-diameter safe circle, i.e. >=10% padding a side, on an opaque plate |
+| `apple-touch-icon.png` | **180x180** | **opaque — iOS does not honour alpha and renders transparent pixels black.** Square, no rounded corners; iOS applies its own mask |
+
+192 and 512 are the Chromium installability floor. 180 is the safe single size
+for every current iPhone and iPad.
+
+**THE iOS TAGS ARE THE HALF THAT MATTERS MOST HERE**, because the QR-scanning
+audience is overwhelmingly on iPhones, and Safari uses the `apple-touch-icon`
+link rather than the manifest's `icons` array for Add to Home Screen. Current
+guidance splits: MDN marks `apple-mobile-web-app-capable` deprecated in favour
+of the standard `mobile-web-app-capable`, while removing it has been reported to
+break iOS splash screens. **Ship both spellings plus the manifest's
+`display: "standalone"`**, rather than choosing between them:
+
+```html
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+```
+
+**THE COLOURS ARE ALREADY DERIVED — do not re-invent them.** Both traced to
+their brand values in the DS `globals.css`, not picked:
+
+| manifest member | value | derivation |
+|---|---|---|
+| `theme_color` | `#046eff` | `--mapped-surface-primary-default` (`:430`) -> `--alias-primary-500` (`:198`) -> `--brand-blue-500` (`:23`). Cross-checks against the brand logo's own fill. |
+| `background_color` | `#ffffff` | `--mapped-surface-page` (`:437`) -> `--alias-foundations-white` (`:272`) -> `--brand-white` (`:97`) |
+
+**THE LIGHT VALUE IS THE RIGHT ONE, AND IT IS NOT A COIN TOSS.** A manifest
+carries ONE `background_color`, used for the splash screen before any CSS or JS
+runs. `ThemeProvider` initialises to `'light'` unconditionally — it reads no
+stored preference and no `prefers-color-scheme` — so the app's first paint is
+always the light page surface. The dark counterpart exists
+(`--mapped-surface-page` -> `--alias-foundations-black` -> `#000000`, `:631`)
+and is not what the splash should use.
+
+#### The guardrail sees `index.html` but NOT the manifest
+
+**A LANDMINE FOR WHOEVER SHIPS THIS.** `scripts/check-tokens.mjs` collects
+`SCAN_DIRS = ['src']` plus `SCAN_FILES = ['index.html']`, and its rules apply
+to `.html` as much as to `.css`. Two consequences pointing opposite ways:
+
+- **`<meta name="theme-color" content="#046eff">` WILL BE FLAGGED** by
+  `raw-hex-color` and needs a same-line `token-exempt: <reason>` marker — and
+  per Gate 18 the marker must sit on the SAME physical line as the literal.
+- **`public/manifest.webmanifest` WILL NOT BE SCANNED AT ALL**, because
+  `public/` is in neither list. Its hex values escape the guardrail silently, so
+  they must be derived by hand from the table above and re-checked against the
+  DS by hand across a DS upgrade. Nothing will tell you they drifted.
+
+### What this gate did not touch
+
+`index.html` is unchanged, `src/` is unchanged, and no spec was added. **All 92
+baselines byte-identical by SHA-256** and the suite at **194 passed / 0
+failed** — the predicted result, since a header, a static text file and a
+`netlify.toml` comment cannot reach a rendered pixel.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
