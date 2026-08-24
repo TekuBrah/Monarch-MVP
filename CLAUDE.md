@@ -1360,6 +1360,206 @@ Vite copies `public/` verbatim, so everything in it deploys:
 baselines, and this gate was required to predict its baseline set in advance.
 Keep the re-export separate.
 
+## The DS v1.6.0 re-pin (Gate 26)
+
+The pin moved `v1.5.0` (`4a82572b`) -> `v1.6.0` (`92091572411f`). A token
+release: 11 changed declarations, 3 in `:root` (light error text, `--alias-error`
+500/600/700 -> 600/700/800) and 8 in `[data-theme="dark"]` (3 error text
+600/500/400 -> 500/400/300, and 5 `on-color` neutral-950/800/700 ->
+neutral-100/200/300). **26 of 92 baselines were re-minted**, and the suite runs
+194 passed / 0 failed on the minted set.
+
+**ONLY 2 OF THE 11 TOKENS HAVE ANY CONSUMER AT ALL** —
+`--mapped-text-error-default` and `--mapped-text-on-color-caption`. The other six
+(`-error-default-hover`, `-error-default-press`, `-on-color-placeholder`,
+`-on-color-label`, `-label-hover`, `-label-pressed`) have **zero rules** in the
+entire loaded stylesheet set, MVP and DS alike. They are declared and never read.
+`Chips` renders **0 instances across all 92 states**, so all six `--subtle`
+changes are inert here; `Badge` renders 36 times but only as
+`mn-badge--dot mn-badge--important` inside the DS `HeaderBg` notify dot, bound to
+`--mapped-surface-error-default`, a SURFACE token v1.6.0 did not touch.
+
+### The runtime-composed token is a blind spot, and TWO instruments share it
+
+**THIS IS THE ITEM THAT COST THE GATE ITS PREDICTION. READ IT BEFORE PREDICTING A
+TOKEN RELEASE AGAIN.**
+
+Gate 26 predicted 22 changed baselines and got **26**. The four misses were
+`index-{375,430}-{light,dark}` — the Homepage's DEFAULT accounts tab — and they
+were caused by a token the gate had correctly identified as changing, reaching an
+element through a path neither instrument could see.
+
+The mechanism, concretely, in three files:
+
+| step | file | what it holds |
+|---|---|---|
+| 1 | `src/data/insights.ts:43` | `titleToken: 'mapped-text-error-default'` — a token name as a plain string, **with no leading `--`** |
+| 2 | `src/flows/homepage/HomepageFiat.tsx:102` | composes the `var()` at runtime from a template literal (below) |
+| 3 | DS `Card/CardSmartInsights.tsx:27` | `style={titleColor ? { color: titleColor } : undefined}` — applies it as an **inline style** |
+
+Step 2 in full, since it is the join that defeats both instruments:
+
+```jsx
+titleColor={insight.titleToken ? `var(--${insight.titleToken})` : undefined}
+```
+
+Verified live: the rendered element carries
+`style="color: var(--mapped-text-error-default);"`.
+
+**A USAGE GREP AND A CSSOM RULE CENSUS ARE NOT INDEPENDENT INSTRUMENTS AGAINST
+THIS.** They look independent — one reads source text, the other reads the
+browser's own stylesheet objects — and they fail together, for two different
+reasons that happen to coincide:
+
+- `grep -rn -- "--mapped-text-error" src/` misses step 1, because the string in
+  the data file **does not contain `--`**. The `--` only exists after step 2
+  concatenates it.
+- A CSSOM walk over `document.styleSheets` misses step 3, because an inline
+  `style` attribute is **not a `CSSStyleRule`** and appears in no stylesheet.
+
+So two passes agreeing that a token has no consumer is worth much less than it
+looks. This gate's pair reported 5 consumers of `--mapped-text-error-default`;
+there were 6, and the sixth was the only one rendering on the default Homepage
+tab.
+
+**THE CHEAP ADDITION IS A SWEEP OF `[style]` ATTRIBUTES FOR `var(--`.** In the
+PAGE, not in source — the attribute is written by React at render time:
+
+```js
+Array.from(document.querySelectorAll('[style]'))
+  .filter((el) => (el.getAttribute('style') || '').includes('var(--'))
+  .map((el) => ({ cls: el.className, style: el.getAttribute('style') }))
+```
+
+Run it per walk state alongside the CSSOM census. It is a third instrument with a
+genuinely different failure mode, and it would have turned this gate's prediction
+from 22 into 26 before the suite ran.
+
+**THE SOURCE-SIDE HALF IS ALREADY BOUNDED, so this does not need re-deriving.**
+`titleToken` is the ONLY runtime-composed token mechanism in `src/` — swept and
+confirmed — and it has exactly **3 entries**: `brand-cyan-500`,
+`mapped-text-default-default`, and `mapped-text-error-default`. A future token
+release need only check those three names against its diff. If a fourth
+`*Token`-style prop ever appears, it belongs in that list.
+
+**THE 375/430 ASYMMETRY IS WHAT LOCATED IT, and it is a reusable diagnostic
+shape.** The diff was 14 px at 375 and 437 px at 430 — the same element, wildly
+different counts. That is the signature of a box clipped by the viewport edge:
+`.mn-card-smart-insights__title` on the second carousel card starts at x=370, so
+5 columns show at 375 and 60 at 430. **A large 375/430 ratio on one baseline pair
+means a right-edge clip, not two different defects.**
+
+### `--mapped-text-on-color-caption` — the pre-v1.6.0 dark pass was ACCIDENTAL
+
+**DO NOT LOG THIS AS A v1.6.0 REGRESSION AND DO NOT REVERT THE PIN OVER IT.** The
+DS change is correct. What it did was remove an accident that had been masking an
+MVP-side surface defect, and that masking is what a future reader will mistake
+for the good state.
+
+Two MVP surfaces consume the token, and **both are theme-invariant coloured
+bands** — measured by sampling every pixel under the text with the glyphs hidden
+(`visibility: hidden`, which preserves layout exactly), animations finished
+first:
+
+| consumer | surface, measured | v1.5.0 light / dark | v1.6.0 both |
+|---|---|---|---|
+| `.mvp-finance__hero-footnote` | finance hero, cyan `rgb(21,179,231)` | 1.97 / **7.58** | **1.97** |
+| `.mn-line-chart--chrome-onColor .mn-line-chart__axis-label` | net-worth chart, blue `rgb(85,157,255)` | 2.04 / **6.14** | **2.04** |
+
+The v1.5.0 dark values passed AA only because the token flipped to
+`--alias-neutral-950` (near-black `#0d0f11`) — **on a band that does not flip**.
+That is precisely the bug v1.6.0 fixed: on-colour text must not swing with the
+theme when the colour it sits on cannot. The light column, always `#e7eaed`, was
+**already failing at 1.97 and 2.04 before this release** and nobody had flagged
+it. v1.6.0 did not create the failure; it made dark tell the same truth light was
+already telling.
+
+**SO THE DEFECT IS THE SURFACE, AND THE FIX IS DS-SIDE — the same shape as the
+promo band above.** Near-white text on a mid-cyan or mid-blue band cannot reach
+4.5:1, exactly as Gate 25 showed for `blue-500 -> teal-500`. Neither consumer
+qualifies as WCAG large-scale. Log it with the promo band; do not invent an
+MVP-local value and do not re-map the token here — rule 3.
+
+**IT ALSO VINDICATES THE GATE 3c WORKAROUND AND ARGUABLY OBSOLETES IT.**
+`homepage.css:426` records moving the promo subtitle OFF this token because it
+"swung to near-black on an unchanged blue". That flip is now gone. The comment is
+still correct history but **no longer describes current DS behaviour** — do not
+read it as such. Reverting the workaround would change pixels and was out of
+scope here.
+
+**THE ERROR-TEXT CHANGE IMPROVES EVERY CONSUMER AND STILL MISSES AA IN DARK.**
+Measured against the surfaces actually painted behind each:
+
+| consumer | surface | v1.5.0 | v1.6.0 |
+|---|---|---|---|
+| `.mn-trend--down .mn-trend__label` | page `#f9f9f9` / `#131313` | 4.64 / 2.16 | **8.16** / **3.81** |
+| `.mn-card-smart-insights__title` | card `#ffffff` / `#262626` | 4.88 / 1.76 | **8.59** / **3.10** |
+
+Light now clears AA comfortably. Dark improves but does not reach 4.5:1, and the
+insight title is `type-body-m-semibold` — 16px at weight 600, which is **not**
+WCAG large-scale (that needs >=24px, or >=18.66px at >=700). Carry both dark
+numbers into the DS conversation alongside the on-colour item.
+
+### `CardBalance` cannot fill its track, and the cap binds only at 430
+
+Measured on `/finance`, animations finished. The rendered class is
+`mn-card-balance`; the DS declares `width: 161px; min-width: 128px;
+max-width: 172px` and exposes **no fill or sizing prop**.
+
+| | 375 | 430 |
+|---|---|---|
+| `.mvp-finance__grid` width | 343 | 398 |
+| `.mvp-finance__grid-item` width | 167.5 | **195** |
+| card `offsetWidth` | 167.5 | **172** |
+| leftover in the track | 0 | **23px** |
+
+At 430 the card is **pinned at the DS's `max-width` ceiling** and 23px collects
+in every one of the 9 tracks. That closes the diagnosis as a **DS gap**, not an
+MVP layout bug — there is no prop to pass.
+
+**THE CAP DOES NOT BIND AT 375, WHICH IS WHY THIS WAS INVISIBLE UNTIL THE SECOND
+VIEWPORT EXISTED.** At 375 the item is 167.5 and the card fills it exactly. Same
+shape as the Gate 13 `sizing='fill'` finding — a real geometry fact that one
+viewport cannot see, and part of what 430 was added for. Note the chain is FLEX
+despite the name: `.mvp-finance__grid` and `.mvp-finance__grid-item` both compute
+`display: flex`, `grid-template-columns: none`.
+
+### The DS logo base64 is 92.7% of the MVP's JS bundle
+
+Measured in this repo's own `dist/` after `npm run build`:
+
+| | |
+|---|---|
+| `data:image/png;base64` payloads in `dist/assets/*.js` | **33** |
+| base64 TEXT bytes carried | **5,326,968** |
+| JS bundle on disk | **5,744,735** |
+| **base64 share of the JS** | **92.7%** |
+| decoded weight | ~3,995,226 |
+| `dist/` total | 7,276,768 |
+
+**33 PAYLOADS COME FROM 28 SOURCE FILES, AND BOTH NUMBERS ARE RIGHT.** The DS's
+`Assets/logo` holds 28 SVGs containing base64 — 18 company, 10 crypto, **0 of 2
+brand** — and five of them embed **two** images each: `Jayagrocer`, `netflix`,
+`stellar`, `tether`, `uniswap`. Counting files gives 28; counting payloads gives
+33. `logos.ts` pulls all three directories with
+`import.meta.glob(..., { eager: true })` and re-exports from the barrel, so
+nothing tree-shakes.
+
+The 34th occurrence in `dist/` is `media/banner/imgbg01.svg` (782,384 base64
+bytes) — the deliberately-unwired asset Gate 25 recorded, not part of the bundle.
+
+**SO THE ASSET WORK IS A ~93% CUT OF THE JS, NOT A NICE-TO-HAVE.** It is DS-side
+and was not acted on here.
+
+### What this gate changed
+
+`src/` is untouched, no spec was added, and `index.html` is unchanged. The
+working tree is the pin (`package.json`, `package-lock.json`) plus 26 re-minted
+baselines — all modifications to already-tracked paths, **zero added and zero
+deleted**, which is why all three arms of `baselines.spec.ts` stayed green
+throughout. Per the Gate α correction, a pure re-mint with no rename reddens
+neither arm 1 nor arm 2.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
@@ -1673,18 +1873,47 @@ changed between DS v1.4.0 and v1.5.0 — **100% coverage, 0 orphan pixels**.
 loosened to make a red suite green. If a baseline diff is real, re-mint it
 deliberately; if it is not, the change that caused it is the bug.
 
-### `react-router-dom` security advisories — reviewed, not applicable
+### npm audit — what it actually reports (re-measured at Gate 26)
 
-`npm install` reports **2 high-severity findings: "React Router: RSC Mode CSRF
-Bypass Allows Action Execution Before 400 Response."**
+**`npm audit` REPORTS ONE HIGH-SEVERITY FINDING, AND IT IS NOT REACT ROUTER.**
+Measured at Gate 26, on the tree pinned to DS v1.6.0:
 
-**This was assessed and deliberately accepted.** The MVP is a client-only SPA
-with no React Server Components, so the vulnerable path does not exist here.
-`npm audit fix` offers only `--force`, which is a breaking change for a risk
-that does not apply.
+```
+nanoid  <3.3.18
+Severity: high
+nanoid: custom generators can loop indefinitely when size is zero
+  https://github.com/advisories/GHSA-2v37-7h3g-55p8
+fix available via `npm audit fix`
+```
 
-Do not re-litigate this at every install, and do not run `npm audit fix --force`.
-Revisit only if the MVP ever adopts RSC or a framework that enables it.
+`npm install` prints `1 high severity vulnerability` on the same tree.
+
+**THIS SUPERSEDES THE PARAGRAPH THAT USED TO SIT HERE, WHICH IS WRONG IN EVERY
+PARTICULAR NOW.** It recorded **2** high-severity findings, named them as *"React
+Router: RSC Mode CSRF Bypass Allows Action Execution Before 400 Response"*, and
+warned that the only remedy offered was `npm audit fix --force`. None of that
+matches what the tool reports today: the count is 1, the package is `nanoid`
+(a transitive dependency, not `react-router-dom`), and the offered fix is a
+**plain `npm audit fix`** with no `--force` and no breaking-change warning. Do
+not quote the old numbers, and do not go looking for the React Router advisories
+— they no longer appear.
+
+**NOTHING WAS RUN.** Gate 26 measured this and deliberately did not fix it: the
+gate's scope was a token re-pin, and a dependency bump is its own change with its
+own baseline risk. `npm audit fix` on `nanoid` is a live option for whoever wants
+it — unlike the old entry, there is no standing reason here not to.
+
+**THE REASONING THAT SURVIVES, because it is about the app and not the advisory
+database:** the MVP is a client-only SPA with **no React Server Components**, so
+any RSC-mode advisory against `react-router-dom` does not describe a path that
+exists here. That assessment stands and would apply again if such an advisory
+returns. Revisit only if the MVP ever adopts RSC or a framework that enables it.
+
+**AND THE GENERAL LESSON: AN AUDIT PARAGRAPH ROTS FASTER THAN ALMOST ANYTHING
+ELSE IN THIS FILE.** Advisories are withdrawn, re-scored and re-attributed
+upstream, and the dependency tree moves under a DS re-pin. Re-run `npm audit`
+rather than trusting this section's specifics; what is durable is the RSC
+reasoning above, not the counts.
 
 ### Propagation status — both mechanisms confirmed live
 
