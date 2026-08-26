@@ -1860,7 +1860,7 @@ the balance-card switch label at `rgb(3,88,204)` (`--alias-primary-600`, the
 v1.4.0 mapping) where the live render painted `rgb(4,110,255)`
 (`--alias-primary-500`, the v1.5.0 mapping).
 
-**WHAT PROVES IT IS NOW TRUE.** `threshold: 0` is set explicitly. With it, the
+**WHAT PROVES THE `threshold` HALF WAS FIXED.** `threshold: 0` is set explicitly. With it, the
 same unchanged tree that reported 132 passed reported **20 failed / 112 passed**,
 and the failing set was exactly the 20 dark baselines — **zero light**, and
 `steward-dark` correctly clean because `/steward` is the one walked route that is
@@ -1872,6 +1872,22 @@ changed between DS v1.4.0 and v1.5.0 — **100% coverage, 0 orphan pixels**.
 **THE RULE THIS LEAVES.** Three settings, not two, and none of them may be
 loosened to make a red suite green. If a baseline diff is real, re-mint it
 deliberately; if it is not, the change that caused it is the bug.
+
+**AND THE CORRECTION THIS SECTION NEEDED — READ IT BEFORE QUOTING THE RULE
+ABOVE.** This section used to end by asserting that the three settings together
+mean a pixel counts as different if any channel differs by any amount. **THAT IS
+FALSE, and it was false when it was written.** It holds only among the pixels the
+comparator COUNTS, and Playwright discards every pixel its antialiasing heuristic
+flags before the count — see "The comparator's antialiasing blind spot" under
+Visual baselines. Gate 1 fixed a real hole and it fixed ONE OF TWO. The second
+one cost twelve baselines and a whole release, and it is closed by
+`expectExactPixels`, not by any setting here.
+
+**THE GENERAL LESSON, WHICH IS THE DURABLE PART: A CONFIG SETTING NAMED AFTER A
+GUARANTEE IS NOT THE GUARANTEE.** Both holes had the same shape — a comment
+describing what the author believed the settings meant, never checked against the
+library that implements them. Both were found by reading `node_modules`. Read the
+implementation before writing down what an instrument proves.
 
 ### npm audit — what it actually reports (re-measured at Gate 26)
 
@@ -2060,6 +2076,228 @@ Update them with `npm run test:e2e:update`, and only for a change you intended
 and can name in the commit message. **An unexplained baseline change is a
 finding, not a chore** — regenerating one to make the suite green is how the net
 stops catching anything.
+
+#### The comparator's antialiasing blind spot — MEASURED AND CLOSED (Gate 30)
+
+**PLAYWRIGHT'S SCREENSHOT COMPARATOR CANNOT SEE THIN FEATURES, AT ANY SETTING
+THIS CONFIG EXPOSES.** Borders, dividers, focus rings, hairlines, underlines and
+1px separators were outside the net entirely. This is not a tuning question and
+it was never fixable by `threshold`.
+
+**THE MECHANISM, from the installed playwright-core 1.62.1.** Playwright calls
+pixelmatch **without passing `includeAA`**:
+
+```
+coreBundle.js:7550   count = pixelmatch(expected.data, actual.data, diff.data,
+                       w, h, { threshold: options.threshold ?? 0.2 })
+                       ^ the ONLY option forwarded
+coreBundle.js:6623   includeAA: false,          <- so the default applies
+coreBundle.js:6666   if (Math.abs(delta) > maxDelta) {
+                       if (!options.includeAA && (antialiased(img1, ...) ||
+                                                  antialiased(img2, ...))) {
+                         // painted yellow in the diff, and NOT counted
+                       } else { diff2++ }
+                     }
+```
+
+**THE DISCARD RUNS AFTER THE `threshold` TEST AND BEFORE THE COUNT.** So a pixel
+the heuristic flags never reaches `threshold`, `maxDiffPixels` or
+`maxDiffPixelRatio`. Setting all three to zero — which content-column Gate 1 did,
+and which was a real improvement — cannot reach a pixel that is never counted.
+
+**AND THERE IS NO SUPPORTED WAY IN.** `getComparator(mimeType)` (`:7501`) is a
+hard mimeType switch with no registry, and `options.comparator` accepts only
+`"pixelmatch"` or `"ssim-cie94"` and throws on anything else (`:7552`). The
+comparison cannot be swapped in place, which is why the repair is a second check
+rather than a replacement.
+
+**EVERY LINE NUMBER ABOVE IS TRUE OF `playwright-core` / `@playwright/test`
+1.62.1, AND NOTHING PINS IT.** `package.json` declares exactly one Playwright
+entry — `"@playwright/test": "^1.62.1"` — and `playwright` / `playwright-core`
+arrive transitively, all three resolving to **1.62.1** today. The caret means an
+ordinary `npm install` can move the minor version and these offsets go stale
+silently — the same durability shape as the `--disable-partial-raster` flag
+recorded at Gate 17.
+**On any Playwright upgrade, re-read `:7550` and confirm the options object still
+forwards `threshold` and nothing else.** If a future release passes `includeAA`,
+or exposes it through config, the second check becomes redundant rather than
+load-bearing and this whole subsection needs re-deriving. Nothing will tell you;
+the exact check would simply go on quietly agreeing with a comparator that had
+started doing its job.
+
+**REPLACING `toHaveScreenshot` OUTRIGHT BUYS NOTHING, AND THE REASON IS A
+MEASUREMENT, NOT A PREFERENCE.** The obvious objection to a second check is that
+`toHaveScreenshot` earns its keep by retrying the capture until two consecutive
+captures agree, and that a bare exact matcher would forfeit that. **It does not
+work that way on the passing path.** In the loop at `coreBundle.js:22224-22247`,
+iteration 1 sets `expectation = options.expected` and a match breaks out with
+`isFirstIteration` still true, returning at `:22251` — **exactly ONE capture, no
+stabilisation at all.** The retry-until-two-agree path engages only AFTER a
+mismatch. So the green path costs one capture either way, and
+`page._expectScreenshot` with `expected: undefined` would cost a MINIMUM of two,
+because with no expected the first iteration can never break. A replacement is
+equal cost and worse durability — while also forfeiting the diff artifact, the
+`updateSnapshots: 'none'` missing-baseline failure and the `-u` write path.
+
+##### MAGNITUDE IS NOT THE DISCRIMINATOR. THINNESS IS.
+
+Two controls, both re-run at Gate 30 against the same comparator Playwright uses.
+They are the pair to quote, because between them they rule out the intuitive
+reading — "big changes get caught, small ones slip through" — which is backwards:
+
+| control | what really differs | pixelmatch counted | verdict |
+|---|---|---|---|
+| **1px button ring recoloured**, `/finance/holding/fd` light, 375 | **773 px, max 51 per channel** | **0** | **PASS — GREEN** |
+| same, DARK | **774 px, max 251 per channel** | **1** | FAIL, by ONE pixel |
+| **20x20 solid block, ONE channel +1** | 400 px, max 1 per channel | 400 | FAIL |
+
+**READ THE SECOND ROW BEFORE CONCLUDING THE NET MOSTLY WORKED.** A change of
+**251 per channel** — very nearly a full inversion — across 774 pixels was
+**99.9% invisible**. It failed only because `maxDiffPixels: 0` and exactly one
+stray pixel escaped the heuristic. Had that pixel been classified as
+antialiasing too, the whole thing would have gone green. The eight dark states
+the old comparator "caught" were caught by a margin of one pixel out of 774.
+
+Why the heuristic behaves this way is in `antialiased()` (`:6684`): it flags a
+pixel with **at most two** neighbours identical to itself that has both a darker
+and a brighter neighbour. A 1px line between two fills is exactly that. A solid
+block is not — its interior pixels have eight identical neighbours — which is why
+the trivial 20x20 case fails and the real one passes.
+
+**THE SPLIT ACROSS THE WHOLE SUITE: 16 OF 24 REAL REGRESSIONS WERE INVISIBLE.**
+Run against all 96 states, the injected border produced 24 failures. The old
+comparator saw **8** — every one of them a `/finance/holding/fd` DARK state, and
+each by the one-pixel margin above. The other **16 were caught only by the exact
+check**: every LIGHT `fd` state at both viewports, and `/` and `/ [tab:crypto]` in
+**both** themes at both viewports. Two thirds of a real design-system regression
+passed a suite whose whole job is to catch it.
+
+##### WHAT IT COST: TWELVE BASELINES AND A WHOLE RELEASE
+
+Twelve committed baselines recorded a button border the app had stopped drawing,
+and **the suite reported green for an entire release**. The binding is
+`Button.css:83`: DS v1.7.0 moved the primary fill one step deeper
+(`--mapped-surface-primary-default` -> `--alias-primary-600`, `#0358cc`) and left
+`--btn-border` on `--mapped-border-primary-default` (`--alias-primary-500`,
+`#046eff`). v1.8.0 rebound the border to the same token as the fill.
+
+**GATE 29 REPAIRED THE TWELVE WITH `--update-snapshots=all`, AND ONLY THAT FORM
+COULD HAVE.** This is recorded here because **`CLAUDE.md` has no Gate 27 and no
+Gate 29 section at all** — the repair happened and was never written down, so a
+reader looking for it finds nothing. The bare `--update-snapshots` could not have
+done it: its preset is `changed`, which passes the baseline in as `expected` and
+routes the decision through the comparator, so on twelve baselines the comparator
+called green it would have rewritten **nothing** and printed a **clean run** — the
+worst possible combination, a command that reports success while repairing
+nothing. Only `=all` skips the comparator and decides by `Buffer.compare`. See
+"`test:e2e:update` COULD NOT REPAIR THIS CLASS OF STALENESS" below for the source
+lines. **Nothing prevented a recurrence until Gate 30.**
+
+##### THE REPAIR — `expectExactPixels`, and what it does NOT cover
+
+`e2e/exact-pixels.ts`. `visual.spec.ts` now runs **two checks per state**:
+`toHaveScreenshot` first (coarse regression, with Playwright's diff artifacts),
+then a `Buffer.compare` of a second capture against the committed baseline.
+
+**IT COVERS** any difference between the committed baseline and the live render,
+at any magnitude, on any pixel, thin features included.
+
+**IT DOES NOT COVER:**
+
+- **The CONTENT of a baseline.** Nothing here reviews pixels. A deliberate
+  `test:e2e:update` still writes what the app currently renders, and the
+  discipline at the top of this section is still what governs that.
+- **States the walk does not visit.** This is a stricter comparison of the same
+  24 states, not more states. The in-screen state gap recorded under Tab coverage
+  is unchanged.
+- **PNG encoding.** The predicate is `Buffer.compare`, so two byte streams that
+  decoded to identical pixels would be reported as different. That is deliberate:
+  it is the same predicate `--update-snapshots=all` uses to decide whether to
+  rewrite, so the check and the repair command agree by construction.
+- **Anything during an update run.** The check stands aside when
+  `updateSnapshots !== 'none'`, because under `all` the baseline on disk IS the
+  capture Playwright just wrote and asserting against it would deadlock the
+  repair command.
+
+**THE COST IS ONE EXTRA CAPTURE PER STATE, AND IT WAS MEASURED, NOT ESTIMATED —
+see "What the exact check costs" below.**
+
+**THE CAPTURE OPTIONS ARE ONE OBJECT, NOT TWO LITERALS.**
+`SCREENSHOT_CAPTURE_OPTIONS` in `e2e/exact-pixels.ts` is spread into
+`expect.toHaveScreenshot` by `playwright.config.ts` and passed to
+`page.screenshot()` by the check itself. `fullPage` cannot live there —
+Playwright lists it in `NonConfigProperties` and refuses to read it from config —
+so `visual.spec.ts` declares `SHOT` once and hands it to both calls. Same reason
+as the Gate A `DEFAULT_VIEWPORT` import: two captures compared byte-for-byte must
+be taken the same way, and two literals that agree today is the shape of every
+drift this project has been bitten by.
+
+**THE THIRD ARM OF THE BASELINE GUARD NOW PINS THE WIRING.**
+`baselines.spec.ts`'s `NAME_EXPRESSIONS` asserts three exact source lines: how the
+name is built, that `toHaveScreenshot` consumes it, and that `expectExactPixels`
+consumes the same name with the same options. **An unwired check is worse than no
+check** — the suite stays green and looks like it is covering something.
+
+##### `test:e2e:update` COULD NOT REPAIR THIS CLASS OF STALENESS
+
+**AND THAT IS WHY THE SCRIPT CHANGED.** It was `playwright test
+--update-snapshots`, and the bare flag's preset is `changed`
+(`playwright/lib/program.js:226` — `choices: ["all","changed","missing","none"],
+preset: "changed"`). Under `changed`, `toHaveScreenshot` passes the baseline in as
+`expected` and **routes through the comparator**: if the comparator says green,
+nothing is written. So the obvious command gave a clean run and unrepaired files —
+the worst possible combination.
+
+Under `all`, `expectScreenshotOptions.expected` is set to `undefined`
+(`expect.js:12646`), **no comparator runs at all**, and the write is decided by
+`compareBuffersOrStrings` — i.e. `Buffer.compare` (`:12649-12653`). That is the
+only mode that can rewrite a baseline the comparator calls green.
+
+The script is now `playwright test --update-snapshots=all`. **Verified that the
+value is validated rather than ignored**: `--update-snapshots=alll` is rejected
+with `Allowed choices are all, changed, missing, none`.
+
+##### WHAT THE EXACT CHECK COSTS — measured against controls, not wall clock
+
+**NOT DISTINGUISHABLE FROM ZERO, BOUNDED AT ROUGHLY ±0.05 s PER TEST.** Three full
+runs: the clean tree before the change at 376 s, then 353 s and 357 s after.
+
+**WALL CLOCK ALONE SAYS THE SUITE GOT FASTER, WHICH IS NONSENSE, AND THAT IS THE
+METHOD LESSON.** The two specs this gate did not touch are the controls:
+
+| spec | before | after (1) | after (2) | mean s/test |
+|---|---|---|---|---|
+| `visual` — touched | 1.960 | 1.800 | 1.839 | |
+| `routes` — untouched | 1.746 | 1.675 | 1.679 | |
+| `section-headers` — untouched | 1.776 | 1.702 | 1.698 | |
+
+Both controls moved ~4% too, so the machine — not the change — accounts for the
+drop. Scaling `visual` by the controls' ratio predicts 1.874-1.885; it measured
+**1.839**, i.e. ~40 ms BELOW expectation, which is impossible for added work. The
+honest reading is that the added capture is under the noise floor of this
+instrument. **It is a settled-page CDP capture plus a PNG encode, against a ~1.8 s
+per-test cost dominated by navigation, theme toggle, font load and image decode** —
+which is why doubling the captures does not come close to doubling the run.
+
+##### THE STANDING COST: A ONE-BYTE SHIFT NOW REDDENS UP TO 96 TESTS
+
+**READ THIS FIRST IF THE SUITE HAS JUST GONE MASSIVELY RED AFTER AN UPGRADE.**
+The exact check compares bytes, so anything that shifts a single byte of any
+baseline fails it — where the old comparator absorbed the same shift silently on
+thin features. **A Playwright upgrade is also a Chromium upgrade** (Playwright
+bundles its own, and the one declared entry is a caret range, `^1.62.1`), so a
+rasteriser or PNG-encoder change arriving that way can redden **up to all 96**
+visual tests at once, having previously reddened none.
+
+**THAT IS THE INSTRUMENT WORKING, NOT A DEFECT — but diagnose before repairing.**
+If `toHaveScreenshot` is green across the board and only the exact check is red,
+the difference is confined to thin features and the cause is almost always the
+toolchain rather than the app. Confirm the Chromium version moved, then re-mint
+deliberately with `npm run test:e2e:update` — which now maps to
+`--update-snapshots=all`, the only form that can rewrite a baseline the comparator
+calls green — and name the upgrade in the commit message. **Do not loosen
+`threshold`, `maxDiffPixels` or `maxDiffPixelRatio`**; none of them can affect
+this check, and the version this happened at belongs in the record.
 
 #### The hole this used to have — measured, and why the guard exists
 

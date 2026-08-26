@@ -133,27 +133,46 @@ const VISUAL_SPEC = 'visual.spec.ts'
 const VISUAL_SNAPSHOT_DIR = `e2e/${VISUAL_SPEC}-snapshots`
 
 /**
- * The exact expression `visual.spec.ts` hands to `toHaveScreenshot`.
+ * The exact expressions `visual.spec.ts` builds and consumes its name with.
  *
  * `stateSlug` is imported, so the SLUG cannot drift. What is left is the join —
  * slug, theme, extension — and reproducing that below would be re-implementing
  * naming logic, which is how a guard quietly starts auditing a name nobody
  * uses. So the join is checked against the source text rather than trusted.
+ *
+ * GATE 30 ADDED THE SECOND AND THIRD ENTRIES, AND THEY DO A DIFFERENT JOB FROM
+ * THE FIRST. The first says the NAME is what this test derives. The other two
+ * say both checks consume that same name with that same options object — so
+ * this arm also fails if the exact check is deleted, renamed, or quietly handed
+ * a different name or different capture options. An unwired check is worse than
+ * no check: the suite stays green and looks like it is covering something.
  */
-const NAME_EXPRESSION = 'toHaveScreenshot(`${stateSlug(state, viewport)}-${theme}.png`'
+const NAME_EXPRESSIONS = [
+  'const screenshotName = `${stateSlug(state, viewport)}-${theme}.png`',
+  'await expect(page).toHaveScreenshot(screenshotName, SHOT)',
+  'await expectExactPixels(page, testInfo, screenshotName, SHOT)',
+]
 
 function assertNamingMatchesVisualSpec(): void {
   const specPath = resolve(E2E_DIR, VISUAL_SPEC)
   const source = readFileSync(specPath, 'utf8')
 
+  const missing = NAME_EXPRESSIONS.filter((expression) => !source.includes(expression))
+
   expect(
-    source.includes(NAME_EXPRESSION),
-    `baseline guard: e2e/${VISUAL_SPEC} no longer builds its screenshot name as\n` +
-      `    ${NAME_EXPRESSION}\n` +
-      'so the expected-name set this test derives is no longer the set the suite asks ' +
-      'for. Re-derive it here to match the spec — do NOT relax this check, and do not ' +
-      'hand-write the names.',
-  ).toBe(true)
+    missing,
+    `baseline guard: e2e/${VISUAL_SPEC} no longer contains these exact expression(s):\n\n` +
+      missing.map((e) => `    ${e}`).join('\n') +
+      '\n\n' +
+      'The first line is how the screenshot NAME is built, and the expected-name set this ' +
+      'test derives is only the set the suite asks for while that line stands. The other ' +
+      'two are the two checks that consume it — `toHaveScreenshot` for a coarse regression ' +
+      'with a diff artifact, and `expectExactPixels` for the thin features the pixelmatch ' +
+      'comparator discards as antialiasing (see e2e/exact-pixels.ts). BOTH must be wired to ' +
+      'the SAME name and the SAME options object.\n\n' +
+      'Re-derive this list to match the spec — do NOT relax this check, do not hand-write ' +
+      'the names, and do not drop the exact check to make it pass.',
+  ).toEqual([])
 }
 
 /**

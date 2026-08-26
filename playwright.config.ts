@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test'
+import { SCREENSHOT_CAPTURE_OPTIONS } from './e2e/exact-pixels'
 import { DEFAULT_VIEWPORT, DEVICE_SCALE_FACTOR } from './e2e/harness'
 
 /**
@@ -135,21 +136,40 @@ export default defineConfig({
       // v1.4.0 mapping) where the live render paints rgb(4,110,255)
       // (--alias-primary-500, the v1.5.0 mapping).
       //
-      // WHAT THE THREE SETTINGS NOW GUARANTEE TOGETHER: a pixel counts as
-      // different if ANY channel differs by any amount (threshold), and zero
-      // such pixels are tolerated (maxDiffPixels / maxDiffPixelRatio). A real
-      // change is re-minted deliberately with `npm run test:e2e:update`, never
-      // absorbed here — and none of the three may be loosened to make a red
-      // suite green.
+      // WHAT THE THREE SETTINGS GUARANTEE TOGETHER — AND WHERE THAT GUARANTEE
+      // STOPS. Among the pixels the comparator COUNTS, one counts as different
+      // if any channel differs by any amount (threshold), and zero such pixels
+      // are tolerated (maxDiffPixels / maxDiffPixelRatio).
+      //
+      // THAT QUALIFIER IS LOAD-BEARING, AND AN EARLIER REVISION OF THIS COMMENT
+      // OMITTED IT. It claimed flatly that "a pixel counts as different if ANY
+      // channel differs by any amount", and that is FALSE. Playwright calls
+      // pixelmatch WITHOUT `includeAA` (coreBundle.js:7550 forwards `threshold`
+      // and nothing else; :6623 defaults `includeAA: false`), so at :6666 every
+      // pixel the antialiasing heuristic flags is discarded AFTER the threshold
+      // test and BEFORE the count. None of the three settings below can reach a
+      // pixel that is never counted.
+      //
+      // WHAT THAT COST: twelve committed baselines recorded a button border the
+      // app had stopped drawing, and the suite reported green for an entire
+      // release. MAGNITUDE IS NOT THE DISCRIMINATOR, THINNESS IS — a 1px ring
+      // changing by up to 51 per channel across ~773 px passed, while a 20x20
+      // solid block shifted by ONE unit on ONE channel fails.
+      //
+      // THE HOLE IS CLOSED BY `expectExactPixels` (e2e/exact-pixels.ts), not by
+      // anything here — there is no supported way to reach `includeAA`. These
+      // three stay at zero: they are still the right settings for the coarse
+      // check, and none of them may be loosened to make a red suite green.
       threshold: 0,
       maxDiffPixels: 0,
       maxDiffPixelRatio: 0,
-      // CSS-pixel output keeps the baselines at 375px wide rather than 750px.
-      // DPR still governs how the page is rasterised before the downscale, so
-      // a DPR change still shows up as a diff — this only controls file size.
-      scale: 'css',
-      animations: 'disabled',
-      caret: 'hide',
+      // THE CAPTURE SETTINGS ARE IMPORTED, NOT REPEATED — same reason as the
+      // viewport above. `expectExactPixels` passes this very object to
+      // `page.screenshot()`, so the baseline capture and the exact-check capture
+      // cannot be taken under different settings. `scale: 'css'` keeps the
+      // baselines 375px wide rather than 750px; DPR still governs how the page
+      // is rasterised before the downscale, so a DPR change still shows up.
+      ...SCREENSHOT_CAPTURE_OPTIONS,
     },
   },
 

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { type ExactPixelOptions, expectExactPixels } from './exact-pixels'
 import {
   THEMES,
   VIEWPORTS,
@@ -57,7 +58,29 @@ import {
  * content in the app. A `mask` list is deliberately absent rather than empty:
  * masking is how a baseline quietly stops covering the thing it names.
  * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * TWO CHECKS PER STATE, NOT ONE (Gate 30). `toHaveScreenshot` runs first and
+ * catches a coarse regression with a diff artifact; `expectExactPixels` then
+ * asserts the bytes. THE SECOND ONE IS NOT REDUNDANT — Playwright calls
+ * pixelmatch without `includeAA`, so every pixel its antialiasing heuristic
+ * flags is discarded before `threshold`, `maxDiffPixels` and `maxDiffPixelRatio`
+ * are consulted. Thin features — borders, dividers, focus rings, hairlines, 1px
+ * separators — are outside the comparator's net at every setting the config
+ * exposes. See e2e/exact-pixels.ts for the source lines and CLAUDE.md for the
+ * twelve baselines it cost.
  */
+
+/**
+ * THE CAPTURE OPTIONS THAT CANNOT COME FROM CONFIG.
+ *
+ * `fullPage` is in Playwright's `NonConfigProperties`, so it has to be written
+ * at the call site. It is declared ONCE here and handed to BOTH checks, because
+ * two captures compared byte-for-byte must be taken the same way — a `fullPage`
+ * that disagreed between them would fail all 96 states for a reason that has
+ * nothing to do with the app. Every other capture setting lives in
+ * `SCREENSHOT_CAPTURE_OPTIONS`, which playwright.config.ts imports.
+ */
+const SHOT: ExactPixelOptions = { fullPage: true }
 
 test.describe('visual baselines', () => {
   for (const viewport of VIEWPORTS) {
@@ -69,13 +92,17 @@ test.describe('visual baselines', () => {
 
       for (const theme of THEMES) {
         for (const state of WALK) {
-          test(`${stateTitle(state)} [${viewport.width}] [${theme}]`, async ({ page }) => {
+          test(`${stateTitle(state)} [${viewport.width}] [${theme}]`, async ({ page }, testInfo) => {
             await gotoState(page, state, theme)
             await assertHarnessIsHonest(page, viewport.width)
 
-            await expect(page).toHaveScreenshot(`${stateSlug(state, viewport)}-${theme}.png`, {
-              fullPage: true,
-            })
+            // ONE NAME, TWO CHECKS. Both read this variable, so they cannot end
+            // up comparing against different files. `baselines.spec.ts` pins all
+            // three of these lines as source text, so the third arm of the
+            // baseline guard fails if the exact check is ever unwired.
+            const screenshotName = `${stateSlug(state, viewport)}-${theme}.png`
+            await expect(page).toHaveScreenshot(screenshotName, SHOT)
+            await expectExactPixels(page, testInfo, screenshotName, SHOT)
           })
         }
       }

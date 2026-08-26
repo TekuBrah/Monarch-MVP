@@ -13,7 +13,7 @@
     "pretest:e2e": "npm run lint:linkage",
     "pretest:e2e:update": "npm run lint:linkage",
     "test:e2e": "playwright test",
-    "test:e2e:update": "playwright test --update-snapshots"
+    "test:e2e:update": "playwright test --update-snapshots=all"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",

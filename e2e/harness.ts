@@ -550,7 +550,8 @@ export const WALK: WalkState[] = [
     ]
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
-  // an enumerated entry rather than an axis. 21 route/tab states + 2 = 23.
+  // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
+  // each, from ROUTES) + 7 non-default tab states + 3 OVERLAY_STATES = 24.
   ...OVERLAY_STATES,
 ]
 
