@@ -306,66 +306,53 @@
   padding: var(--spacing-200);
   border-radius: var(--brand-scale-200);
   /*
-    ⚠️ CONTRAST EXEMPTION — RECORDED, DELIBERATELY NOT FIXED HERE.
+    CONTRAST — FIXED AT GATE 29, BY THE DS, THROUGH THE MAPPED LAYER.
 
-    Gate 3d recorded it; GATE 25 RE-MEASURED IT AND RULED ON WHERE THE FIX
-    LIVES. The numbers below are Gate 25's and SUPERSEDE Gate 3d's. Gate 3d
-    sampled a centre point and a corner; Gate 25 sweeps EVERY background pixel
-    under each text box, so it finds the true extremum rather than a sample.
+    THIS RULE WAS THE STANDING CONTRAST EXEMPTION IN THIS FILE. Gate 3d
+    recorded it, Gate 25 re-measured it and ruled that the defect was the
+    SURFACE and therefore the DS's to fix — rule 3 — and handed over the
+    measured candidate ramps. DS v1.9.0 is that fix arriving: it splits
+    Gradient/primary into two ENDPOINT COLOUR tokens carrying no angle and no
+    stop position, so a consumer can take the brand colours through the mapped
+    layer while keeping its own composition.
 
-    METHOD, because a colour read the wrong way is not evidence: animations
-    finished first, then the glyphs hidden with `visibility: hidden` — which
-    preserves layout exactly — so the screenshot under each box is PURE
-    BACKGROUND rather than a mix of background and antialiased glyph. WCAG 2.x
-    ratio (L1 + 0.05) / (L2 + 0.05) on linearised sRGB. 375x812 at DPR 2.
+    So the composition below is UNCHANGED — still 141deg, still 20% and 97%,
+    which are this band's Figma geometry and belong to the consumer. Only the
+    two colours moved, and they moved UP a layer rather than sideways:
 
-      link       2.64:1   16px/400   <- WORST POINT (Gate 3d carried 2.69)
-      subtitle   2.73:1   12px/400
-      title      2.83:1   16px/600
+      var(--brand-blue-500)  ->  var(--mapped-gradient-primary-from)
+                                   -> --mapped-surface-primary-default
+                                   -> --alias-primary-600 -> --brand-blue-600  #0358cc
+      var(--brand-teal-500)  ->  var(--mapped-gradient-primary-to)
+                                   -> --mapped-surface-information-default
+                                   -> --alias-information-700 -> --brand-teal-700 #006789
 
-    The band is theme-invariant — every number above is identical in light and
-    dark, because both stops are raw --brand-* values that do not flip.
+    STILL THEME-INVARIANT, AND NOW BY BINDING RATHER THAN BY ACCIDENT. Both
+    endpoints resolve through --mapped-surface-* tokens whose light and dark
+    declarations are identical, and the DS emits the pair on `*` rather than
+    :root so it stays correct wherever data-theme is set. Previously the band
+    was theme-invariant only because raw --brand-* values cannot flip.
 
-    NONE OF IT QUALIFIES AS WCAG LARGE TEXT, so the 3:1 allowance does not
-    apply: large-scale needs >=24px, or >=18.66px at weight >=700. Gate 3d
-    recorded the link as 14px; measured, it is 16px/400.
+    WHAT IT MEASURES NOW. White #ffffff swept at 10,000 steps over the ramp,
+    WCAG 2.x (L1 + 0.05) / (L2 + 0.05) on linearised sRGB:
 
-    NO SHIPPED TOKEN CAN FIX THIS FROM THE FOREGROUND SIDE — ENUMERATED, NOT
-    ASSUMED. All 54 --mapped-text-* tokens the DS ships were measured against
-    every band pixel: 0 of 54 clear 4.5:1, in either theme. The arithmetic says
-    why. The band spans L=0.183 (blue end) to L=0.352 (teal end), and clearing
-    AA against BOTH ends requires a foreground of L <= 0.00184 — while the
-    darkest shipped text token (#0d0f11, L=0.00468) reaches only 4.27:1, and a
-    LIGHTER foreground would need L >= 1.000, which white already is and still
-    fails at 2.61:1. The token family is not the defect; the SURFACE is.
+      before   blue-500 -> teal-500   worst 2.61:1   at the 97% (teal) end
+      after    blue-600 -> teal-700   worst 6.34:1   at t=0.967, i.e. just
+                                                     short of the 97% end
 
-    Against the stops for reference: 4.49:1 on --brand-blue-500 rgb(4,110,255)
-    — so the DS's own on-colour contract misses AA by 0.01 even on its intended
-    SOLID surface — and 2.61:1 on --brand-teal-500 rgb(0,172,229).
+    The minimum is INTERIOR rather than at an endpoint (6.42 blue, 6.36 teal)
+    because channel-linear interpolation puts a small luminance bump there.
+    All three text roles now clear AA 4.5:1 — link 16px/400, subtitle 12px/400,
+    title 16px/600 — none of which qualifies as WCAG large-scale (that needs
+    >=24px, or >=18.66px at weight >=700), so 4.5:1 is the right bar and it is
+    met with margin.
 
-    THIS PREDATES EVERY PASS THAT TOUCHED IT. The white title and link have
-    always been on this gradient. Gate 3c only made the subtitle
-    theme-invariant — it had been flipping to near-black in dark via
-    --mapped-text-on-color-caption, which happened to measure 5.73:1 there but
-    rendered a white title above a near-black subtitle on one band.
-
-    THE REMEDY IS A SURFACE CHANGE AND IT BELONGS TO THE DS (v1.6.0), NOT TO
-    THIS REPO — rule 3. Gate 25 measured the candidates so that decision is one
-    step and not a research task. White text, worst point over the whole ramp:
-
-      blue-500 -> teal-500   2.61:1  fail   <- shipped today
-      blue-600 -> teal-600   3.95:1  fail
-      blue-600 -> teal-700   6.34:1  PASS   <- minimal change on the ramp
-      blue-700 -> teal-700   6.36:1  PASS
-      blue-700 -> teal-800   9.37:1  PASS
-
-    So: no scrim, no altered gradient, no token-exempt override HERE.
-    Recorded and handed to the DS.
+    NOTHING HERE IS EXEMPT ANY MORE: no scrim, no token-exempt, no literal.
   */
   background-image: linear-gradient(
     141deg,
-    var(--brand-blue-500) 20%,
-    var(--brand-teal-500) 97%
+    var(--mapped-gradient-primary-from) 20%,
+    var(--mapped-gradient-primary-to) 97%
   );
 }
 
