@@ -388,6 +388,47 @@ export interface OverlayState {
    * this a check that the RIGHT overlay opened rather than merely that one did.
    */
   title: string
+  /**
+   * OPTIONAL SECOND CLICK, and the state it leaves behind.
+   *
+   * Some surfaces are reachable only THROUGH a dialog rather than IN one. The
+   * success toast is the case that forced this: ToastMobile is rendered by
+   * HoldingDetailScreen only once a preset modal's footer button has fired
+   * onConfirm, and that same handler calls onClose — so the dialog is GONE by
+   * the time the toast exists. A state that stopped at the open dialog could
+   * never reach it.
+   *
+   * WHY AN EXTRA STEP ON AN OVERLAY STATE RATHER THAN A NEW AXIS: the same
+   * argument that made an overlay an enumerated entry instead of a cross
+   * product. A confirm control exists on exactly the states that declare a
+   * preset modal; no other screen has anything "confirm" could mean, so a
+   * confirm axis would be almost entirely holes.
+   *
+   * THE SETTLE TARGET IS ASSERTED, NOT ASSUMED. Without settlesOn this would
+   * click a button and screenshot whatever happened to be on screen, which is
+   * how a silently-broken flow earns a baseline that looks fine.
+   */
+  confirm?: {
+    /** CSS selector for the control that CONFIRMS. Clicked, never simulated. */
+    control: string
+    /** The label that control must carry. Asserted BEFORE the click. */
+    controlLabel: string
+    /**
+     * What must remain once the dialog has closed. Asserted present EXACTLY
+     * once AND the dialog asserted gone — both, because "the toast appeared"
+     * and "the modal left" are different failures.
+     */
+    settlesOn: string
+    /**
+     * TEXT that surface must carry, so the RIGHT toast is caught.
+     *
+     * Text and not an accessible name, and that is measured rather than
+     * stylistic: ToastMobile renders role="status" aria-live="polite" with NO
+     * aria-label, so its accessible name computes EMPTY and toHaveAccessibleName
+     * would pass against any toast at all — including the wrong one.
+     */
+    settlesText: string
+  }
 }
 
 export interface WalkState {
@@ -409,7 +450,7 @@ export interface WalkState {
 }
 
 /**
- * THE TWO OVERLAY STATES, WRITTEN DOWN ONE AT A TIME.
+ * THE THREE OVERLAY STATES, WRITTEN DOWN ONE AT A TIME.
  *
  * Both live on `/finance/holding/fd`, and that is not a convenience: the fixed
  * deposit is the ONLY holding type whose `holdingFields` entry returns
@@ -452,6 +493,41 @@ export const OVERLAY_STATES: WalkState[] = [
       control: '.mvp-finance-detail__actions .mn-btn--secondary',
       controlLabel: 'Download Statement',
       title: 'Download Statement',
+    },
+  },
+  // THE SUCCESS TOAST — reached THROUGH the reminder modal, not inside it.
+  //
+  // It opens the SAME control as the 'reminder' state above and then confirms,
+  // which is why its id is the thing that distinguishes them rather than its
+  // selector. ToastMobile was a real user-facing surface with ZERO baseline
+  // coverage: no walk state clicked a modal's footer, so nothing in the suite
+  // had ever rendered it.
+  //
+  // NO PRODUCT CHANGE WAS NEEDED. Both preset modals already call onConfirm and
+  // then onClose, so confirming leaves the toast alone on screen with the
+  // dialog gone — measured, not assumed: [role="dialog"] count is 0 afterwards.
+  //
+  // STABLE TO SCREENSHOT, measured in the DS: ToastMobile.css declares no
+  // transition, no animation and no @keyframes, and ToastMobile.tsx starts no
+  // timer, so the toast neither fades in nor auto-dismisses. There is nothing
+  // here to fast-forward and no timer to wait out.
+  //
+  // '1 week before' is REMINDER_PRESETS[0], which ReminderModal seeds into
+  // useState, so confirming without touching the radios is the default path.
+  {
+    route: '/finance/holding/fd',
+    tab: null,
+    overlay: {
+      id: 'toast',
+      control: '.mvp-finance-detail__actions .mn-btn--primary',
+      controlLabel: 'Set Maturity Reminder',
+      title: 'Set Maturity Reminder',
+      confirm: {
+        control: '.mn-modal__footer .mn-btn--primary',
+        controlLabel: 'Set reminder',
+        settlesOn: '.mvp-finance-detail__toast .mn-toast-mobile',
+        settlesText: 'Reminder set for 1 week before maturity.',
+      },
     },
   },
 ]
@@ -837,6 +913,47 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
 
   await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
   await page.waitForFunction(() => document.fonts.status === 'loaded')
+
+  if (!overlay.confirm) return
+
+  // THE CONFIRM STEP. Same discipline as the open: the control is asserted to
+  // exist and to carry its declared label BEFORE it is clicked, so a selector
+  // that drifts onto a different button fails loudly rather than confirming
+  // something else. The modal footer holds exactly one primary button.
+  const confirm = page.locator(overlay.confirm.control)
+  await expect(
+    confirm,
+    `no confirm control matching "${overlay.confirm.control}" inside the "${overlay.id}" dialog`,
+  ).toHaveCount(1)
+  await expect(
+    confirm,
+    `"${overlay.confirm.control}" does not carry its declared label — the selector is ` +
+      `reaching a different control than this state names`,
+  ).toHaveText(overlay.confirm.controlLabel)
+
+  await confirm.click()
+
+  // BOTH HALVES ARE ASSERTED, because "the toast appeared" and "the modal left"
+  // are different failures and either one alone would still take a screenshot.
+  await expect(
+    page.locator('[role="dialog"]'),
+    `confirming "${overlay.confirm.controlLabel}" left a dialog open — this state's ` +
+      `baseline would record the modal on top of the surface it exists to capture`,
+  ).toHaveCount(0)
+
+  const settled = page.locator(overlay.confirm.settlesOn)
+  await expect(
+    settled,
+    `confirming "${overlay.confirm.controlLabel}" did not leave exactly one ` +
+      `"${overlay.confirm.settlesOn}" on screen`,
+  ).toHaveCount(1)
+  await expect(
+    settled,
+    `the surface that settled is not the one "${overlay.id}" declares`,
+  ).toHaveText(overlay.confirm.settlesText)
+
+  await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
+  await page.waitForFunction(() => document.fonts.status === 'loaded')
 }
 
 /**
@@ -862,17 +979,38 @@ export async function assertOverlayMatchesState(page: Page, state: WalkState): P
     })),
   )
 
+  // A CONFIRMED OVERLAY ENDS WITH NO DIALOG. Its dialog is the ROUTE to the
+  // surface rather than the surface itself — confirming closes it — so those
+  // states expect the same empty list a no-overlay state does, and the surface
+  // that must be there instead is asserted separately below.
+  const expectsDialog = Boolean(state.overlay && !state.overlay.confirm)
+
   expect(
     dialogs,
-    state.overlay
+    expectsDialog
       ? `${stateTitle(state)}: exactly one modal dialog must be open, titled ` +
-          `"${state.overlay.title}"`
-      : `${stateTitle(state)}: this state declares NO overlay, so no [role="dialog"] may be ` +
-          `open. Something opened one — an earlier interaction that did not dismiss, or the ` +
-          `app opening it on mount. Either way this state's baseline would record it.`,
+          `"${state.overlay!.title}"`
+      : state.overlay
+        ? `${stateTitle(state)}: this state confirms its dialog away, so no [role="dialog"] ` +
+            `may remain. One is still open, so the confirm step did not close it and this ` +
+            `state's baseline would record the modal instead of the surface.`
+        : `${stateTitle(state)}: this state declares NO overlay, so no [role="dialog"] may be ` +
+            `open. Something opened one — an earlier interaction that did not dismiss, or the ` +
+            `app opening it on mount. Either way this state's baseline would record it.`,
   ).toEqual(
-    state.overlay ? [{ ariaModal: 'true', title: state.overlay.title }] : [],
+    expectsDialog ? [{ ariaModal: 'true', title: state.overlay!.title }] : [],
   )
+
+  // THE SECOND DIRECTION FOR A CONFIRMED STATE. Without it, a confirm that
+  // silently produced nothing would satisfy the empty-dialog check above and
+  // mint a baseline of a bare screen.
+  if (state.overlay?.confirm) {
+    await expect(
+      page.locator(state.overlay.confirm.settlesOn),
+      `${stateTitle(state)}: the surface this state exists to capture ` +
+        `("${state.overlay.confirm.settlesOn}") is not present exactly once`,
+    ).toHaveCount(1)
+  }
 }
 
 /**
