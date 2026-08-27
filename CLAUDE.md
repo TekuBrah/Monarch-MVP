@@ -1560,6 +1560,361 @@ deleted**, which is why all three arms of `baselines.spec.ts` stayed green
 throughout. Per the Gate α correction, a pure re-mint with no rename reddens
 neither arm 1 nor arm 2.
 
+## The DS v1.10.0 re-pin and the teal rebind (Gate 31)
+
+The pin moved `v1.9.0` (`76a8230314e4`) -> `v1.10.0` (`0cafb111ebde`). **The
+re-pin moved ZERO pixels**; all 52 re-minted baselines belong to the teal
+rebind, which is a separate, intentional change made in the same gate. Keep the
+two apart when reading the diff — one commit, two findings.
+
+### The re-pin: the whole CSS delta is eight rules, and none of them render here
+
+**THE SHIPPED-CSS DIFF IS THE INSTRUMENT, NOT THE CHANGELOG.** `dist/index.css`
+was copied before and after the install and diffed rule-by-rule (split on `}`):
+147,679 -> 147,883 bytes, **8 rules changed, all Checkbox and Radio, all in
+`:hover` / `:active`**. Zero token declarations moved. Zero resting-state rules
+moved.
+
+Two kinds of change, and only one is a value change:
+
+- **Scope.** All 8 selectors gained `:not(.mn-checkbox--invalid)` /
+  `:not(.mn-radio--invalid)`, so the invalid variant keeps its own border under
+  hover and active.
+- **Value.** Exactly one: `.mn-checkbox:hover … .mn-checkbox__box:not(--marked)`
+  border-color `--mapped-border-disabled-default` ->
+  `--mapped-border-subtlest-default`. **CHECKBOX ONLY** — Radio's hover already
+  carried `--mapped-border-subtlest-default` in v1.9.0.
+
+**SO THE CARRIED DESCRIPTION "Checkbox/Radio hover borders" IS HALF RIGHT.**
+Radio's selectors changed scope but not colour. Do not go looking for a Radio
+border-colour change; there isn't one.
+
+**NEITHER CAN REACH A BASELINE HERE, AND THE WALK PROVES IT RATHER THAN THE
+ARGUMENT.** `Checkbox` is imported nowhere in `src/`. `Radio` is imported once,
+`src/flows/finance/components/PresetModals.tsx:68`, reachable only through the
+two Gate α overlay states — and the walk never hovers it, because `openOverlay`
+clicks the actions-bar Button and leaves the pointer there. The full suite ran
+**202 passed / 0 failed** against baselines minted under v1.9.0. Confirmed
+independently in this gate's diff artifacts: on
+`finance-holding-fd-reminder-375-dark`, the Radio group inside the open modal is
+**unchanged** while the hero card behind it is the only changed region.
+
+`npx tsc -b --force` was clean, so v1.10.0's showcase-only type derivation
+surfaces nothing in MVP code.
+
+#### The install had to be by name, and it was
+
+The DS is a **git dependency** (`github:TekuBrah/Monarch-Design-System#v1.10.0`),
+so the standing rule under "Known conditions" applies in full: a bare
+`npm install` can no-op because the lock's explicit `resolved` SHA already
+satisfies the tree. Running
+
+```
+npm install @monarch/design-system@github:TekuBrah/Monarch-Design-System#v1.10.0
+```
+
+reported **"changed 1 package"** — not a no-op. Verified from the package's own
+`node_modules/@monarch/design-system/package.json` (`1.10.0`), not from the
+lockfile alone; `lint:linkage` then reported all four sources agreeing.
+
+### `lint:linkage` WAS RED ON A CLEAN TREE AT THE START OF THIS GATE
+
+**READ THIS BEFORE TREATING A RED PRE-FLIGHT AS A BLOCKER.** `git status` was
+empty and `tsc` / `lint:tokens` were green, but `lint:linkage` failed
+`ds-worktree-vs-pin`: the sibling DS checkout had been left at `v1.10.0` by the
+preceding DS session while this repo still pinned `v1.9.0`.
+
+**THAT IS THE GUARD DOING ITS JOB, AND IT HAS A CONSEQUENCE PEOPLE WILL MISS:
+the alias was ACTIVE, so Vite was already compiling v1.10.0.** A "before-state"
+suite run at that moment would have measured the AFTER state and reported it as
+the before.
+
+**THE HONEST BEFORE-STATE CAME FROM THE PACKAGE PATH, NOT FROM TOUCHING THE DS
+REPO.** `node_modules` genuinely held 1.9.0, so a dev server started with
+`MONARCH_DS_FROM_PACKAGE=1` renders true v1.9.0 with the alias off. The
+resolution path was **positively verified** rather than assumed — the served
+modules referenced `/node_modules/.vite/deps/@monarch_design-system.js` and
+`/node_modules/@monarch/design-system/dist/index.css`, with no
+`/@fs/…/Design system test/` anywhere. `npx playwright test` attached to it
+(Gate 22's `reuseExistingServer` precedent) and reported **202 passed**.
+
+That deliberately bypassed `pretest:e2e`, which is the only way to run the suite
+while the linkage guard is legitimately red. Do it only to establish a control,
+and say so when you do.
+
+### The teal rebind: two call sites, thirteen walk states — SUPERSEDED for the net-worth card, see item 3 below
+
+**READ THIS SECTION AS HISTORY FOR `.mvp-finance__networth`.** It documents the
+binding item 2 shipped and the reasoning behind it; item 3, immediately below,
+reverted that card to a different pair on a design ruling. `.mvp-finance__hero`
+was untouched by item 3 and everything in this section still describes it
+exactly. Do not read the "both sites took the same pair" line below as still
+true — it was true for the few hours between items 2 and 3 and is recorded
+because the reasoning that produced it (parity with the shipped primary
+gradient) is why item 3 had to argue against it explicitly rather than just
+pick a different colour.
+
+**"TWO SITES" IS NOT "TWO STATES", AND THE FACTOR IS 26.** The two rules sit on
+components that render across most of the finance flow:
+
+| rule | renders on | states |
+|---|---|---|
+| `.mvp-finance__networth` | `/finance` — `NetWorthCard` is inside `FinanceOverview`, i.e. the default `overview` tab only; the other four finance tabs are `ComingSoon` | 1 |
+| `.mvp-finance__hero` | every holding-detail route — `HoldingDetailScreen` renders `HoldingHero` unconditionally — plus the three extra `fd` states | 12 |
+
+13 states x 2 viewports x 2 themes = **52 baselines**, which is exactly what the
+suite reported (52 failed / 150 passed) and exactly what was re-minted.
+
+**BOTH SITES TOOK THE SAME TOKEN PAIR, AND THE NET-WORTH CARD CHANGED HUE.** It
+was `brand-blue-400 -> brand-blue-300` and is now the same teal endpoints as the
+hero. That is the settled ruling — parity with the shipped primary gradient's
+teal end — not an oversight, and it is the one user-visible consequence of this
+gate worth naming out loud.
+
+**THE COMPOSITION DID NOT MOVE; ONLY THE COLOURS DID** — the precedent the promo
+band set at Gate 29. Each card keeps its own Figma angle and stops (109deg and
+127deg, both 0%/100%). Do not normalise the two angles to match; they are
+consumer geometry.
+
+#### The token name carries `-default-`
+
+**THERE IS NO `--mapped-surface-information-pressed`.** The shipped name is
+**`--mapped-surface-information-default-pressed`**, and a grep for the bare form
+against v1.10.0's dist matches nothing. Both chains:
+
+```
+--mapped-surface-information-default          -> --alias-information-700 -> --brand-teal-700  #006789
+--mapped-surface-information-default-pressed  -> --alias-information-900 -> --brand-teal-900  #00222e
+```
+
+**THERE IS ALSO NO `--mapped-gradient-information-*` PAIR** to copy the promo
+band's mechanism exactly. The DS ships only `--mapped-gradient-primary-from` /
+`-to` (plus the two scrims), so these two rules consume the surface tokens
+directly. If the DS ever adds an information gradient pair, these are its
+adopters.
+
+#### Theme-invariant by binding — and the mechanism is not the one carried
+
+The carried claim was that the tokens are "emitted once on `*` with no dark
+override". **They are not.** Both are declared **twice** — once at `:root` and
+once at `[data-theme=dark]` — with **identical values**, and their alias hops
+(`--alias-information-700/900`) are declared once at bare `:root`. Same outcome,
+different mechanism; the outcome was confirmed in this app's rendered output
+rather than cited from the DS: every figure below is **identical in light and
+dark**, at both viewports, at both sites.
+
+#### Rendered contrast — measured in the browser, and the instrument is biased UP
+
+**ARITHMETIC ACROSS A GRADIENT IS NOT A BOUND ON WHAT IS PAINTED**, so these
+come from decoding a real Chromium screenshot. Method: `gotoRoute` +
+`finishAnimations`, then **every descendant of the card** hidden with
+`visibility: hidden` (which preserves layout exactly) so the sampled pixels are
+the painted gradient and nothing else — glyphs, icons, divider and chart all
+gone — then `page.screenshot({ clip, scale: 'device' })` at DPR 2, decoded
+in-page via `createImageBitmap` + `OffscreenCanvas.getImageData`. WCAG 2.x,
+`(L1 + 0.05) / (L2 + 0.05)` on linearised sRGB, over every pixel inside the
+rounded rect.
+
+| site | computed | rendered @375 | rendered @430 |
+|---|---|---|---|
+| `.mvp-finance__networth` before, blue-400 -> blue-300 | 2.4323 | 2.4323 | 2.4323 |
+| `.mvp-finance__hero` before, teal-500 -> teal-400 | 2.1857 | 2.1869 | 2.1857 |
+| **`.mvp-finance__networth` after, teal-700 -> teal-900** | **6.3611** | **6.4495** | **6.3721** |
+| **`.mvp-finance__hero` after, teal-700 -> teal-900** | **6.3611** | **6.4495** | **6.4495** |
+
+**QUOTE 6.3611. THE RENDERED FIGURE IS THE OPTIMISTIC ONE, AND THE REASON IS THE
+INSTRUMENT RATHER THAN THE RASTERISER.** The sampler insets 2px (x DPR) from the
+card edge and excludes the border-radius corners, so the exact teal-700 endpoint
+pixel is never sampled; the nearest pixel it reaches is already one step down
+the ramp — `rgb(0,102,136)` against the endpoint's `rgb(0,103,137)`. Contrast
+against white rises monotonically as the ramp darkens, so the inset can only
+push the measured worst UP. The two agree to within 1.4%.
+
+**THIS ALSO CONTRADICTS THE CARRIED DS-SIDE RENDERED FIGURE OF 6.3025, AND THAT
+IS EXPECTED.** A rendered extremum depends on the box, the angle and the
+sampling rule; it does not transfer between repos. Re-measure rather than cite.
+
+**EVERY TEXT ROLE ON BOTH CARDS NOW CLEARS AA 4.5:1**, worst **6.2832** (the
+rightmost chart axis label at 430). None qualifies as WCAG large-scale — that
+needs >=24px, or >=18.66px at weight >=700 — so 4.5:1 is the right bar and it is
+met with margin everywhere.
+
+**THIS CLOSES THE GATE 26 ON-COLOUR FINDING FROM THE SURFACE SIDE.**
+`.mvp-finance__hero-footnote` on `--mapped-text-on-color-caption` measured
+**1.83** rendered before and **6.65** after, with the token itself untouched —
+exactly what rule 3 predicted: the defect was the SURFACE, so the fix was to
+change what the text sits on. The net-worth chart's
+`.mn-line-chart--chrome-onColor .mn-line-chart__axis-label`, the other consumer
+named at Gate 26, went **2.04 -> 6.28** the same way. **The DS-side item can be
+closed for these two consumers**; the token's own contract is unchanged.
+
+#### What the comparator saw, and what was confirmed by eye
+
+52 failed / 150 passed, with **nothing failing outside the 13 states** — `/`,
+`/more`, `/steward`, `/transfer` and all four non-default finance tabs stayed
+green, so nothing leaked. Diff artifacts were opened rather than trusted from
+the pixel count: on `finance-holding-fd-375-light`, `finance-375-light` and
+`finance-holding-fd-reminder-375-dark`, **the changed region is exactly the card
+rectangle and nothing else on the screen moved.**
+
+Re-minted with `npm run test:e2e:update`, which maps to `--update-snapshots=all`
+— the only form that decides by `Buffer.compare` rather than routing through the
+comparator. **Bounded by hashing all 96 baselines before and after: exactly 52
+changed, 44 byte-identical, 96 total, zero added and zero deleted.** All three
+arms of `baselines.spec.ts` therefore stayed green throughout, per the Gate α
+correction.
+
+#### One flake, on the re-mint run only, attributed and not reproduced
+
+The re-mint run reported **2 failed / 200 passed** — both
+`section-headers.spec.ts` "not vacuous" guards, both failing at `harness.ts:796`
+where `gotoRoute` asserts `data-theme` is `''` in light and found the attribute
+**absent** (`null`). Neither writes a baseline, and all 52 files were still
+regenerated.
+
+**IT IS A MOUNT-TIMING RACE IN THE HARNESS, EXPOSED BY LOAD, NOT SOMETHING THIS
+GATE CAUSED** — two CSS colour endpoints and a package pin cannot change when
+React sets an attribute. The signature is the Gate A outlier's: that run took
+**10.9 minutes** against 6.8-7.0 for every other run in this gate. Over 100
+other light states passed the identical assertion in the same run, and the two
+subsequent clean runs were **202 passed / 0 failed** each. Recorded rather than
+closed: if it recurs off-load, `gotoRoute`'s light-theme assertion is where to
+look.
+
+### Item 3 — the net-worth card reverted to blue-to-teal, on a design ruling
+
+The information binding above shipped, passed AA with margin, and was reverted
+within the same gate. `.mvp-finance__networth` now reads:
+
+```css
+background-image: linear-gradient(
+  109deg,
+  var(--alias-primary-700) 0%,
+  var(--brand-teal-600) 100%
+);
+```
+
+`--alias-primary-700` -> `--brand-blue-700` `#024299` at 0%; `--brand-teal-600`
+`#008ab7` at 100%. Composition unchanged — still 109deg, still 0%/100%, this
+card's Figma geometry through all three states of this rule (D10 raw brand ->
+item 2 information pair -> item 3 this pair). `.mvp-finance__hero` was
+explicitly not touched and keeps the item-2 information-pair teal binding.
+
+**WHY THE PASSING BINDING WAS REVERTED: THE INFORMATION PAIR IS A COMPLIANCE
+PAIR, NOT A DISPLAY PAIR.** `--mapped-surface-information-default` /
+`-default-pressed` is a resting/pressed interaction couple, not two ends of a
+gradient meant to be looked at. Used as a gradient it runs teal-700 into
+near-black teal-900 (`#00222e`), which reads as a dark slab rather than the
+brand's blue-to-teal sweep — and it collided visually with the hero card
+directly beneath it on the same screen, two adjacent cards flattened onto the
+same dark ramp. **Contrast was never the objection; AA compliance is not
+sufficient justification for a token pair that looks wrong**, and Teku ruled
+display over compliance here, explicitly declining to hold the gate for the AA
+misses this reintroduces (see below).
+
+**WHY teal-600 SPECIFICALLY CANNOT BE REACHED THROUGH THE MAPPED-SURFACE
+TIER, WHICH IS WHY THE COMPLIANCE PAIR COULDN'T EXPRESS THIS LOOK EITHER.**
+`--mapped-surface-information-*` ships exactly three members — `-default`
+(700), `-default-hover` (800), `-default-pressed` (900) — so 700 is the
+LIGHTEST teal that tier offers. `--alias-information-600` does exist and does
+resolve to `var(--brand-teal-600)` (verified in v1.10.0's dist), but it is
+bound at the mapped tier only to border/icon/text roles, never to a surface. So
+this exact look was unreachable from the surface tier regardless of which pair
+was chosen there; `--brand-teal-600` (equivalently `--alias-information-600`,
+byte-identical) is the correct place to reach for it, matching the raw-`--brand-*`
+precedent already in this file (`.mvp-finance__header-bg`,
+`.mvp-home__header-bg`).
+
+**MEASURED — real Chromium screenshot, same method as item 2**: all
+descendants `visibility: hidden`, animations finished, DPR 2, sampled inside
+the rounded rect. Worst point is the teal-600 (100%) endpoint in every case,
+identical light/dark:
+
+| | computed | rendered @375 | rendered @430 |
+|---|---|---|---|
+| whole card vs white | **3.9480** | 3.9480 | 3.9470 |
+
+**Unlike item 2, rendered and computed agree almost exactly here — 0.0000 to
+0.0010 apart — and that is geometry, not a change of instrument.** The sampler
+still insets 2px x DPR and still excludes the radius corners; item 2's worst
+point sat in a corner (t=0, top-left) where that inset under-reads, while this
+pair's worst point sits at t=1 along the bottom-right straight edge, which the
+inset still reaches. The "rendered reads high" caveat from item 2 is specific
+to a corner-seated worst point and does not generalise to this pair.
+
+**THREE TEXT ROLES ON THIS CARD NO LONGER CLEAR AA 4.5:1, AND THAT IS ACCEPTED
+RATHER THAN MISSED**, per Teku's ruling on the number below (`#008ab7` vs
+white computes to 3.9480, under the 4.5 floor, at the bottom-right endpoint —
+the figure Teku supplied and this measurement confirms exactly):
+
+| role | fg | @375 | @430 | |
+|---|---|---|---|---|
+| `.mvp-finance__networth-label` | `#ffffff` | 7.2725 | 7.5394 | pass |
+| `.mvp-finance__networth-amount` | `#ffffff` | 4.5371 | 4.4305 | **fails @430** |
+| axis label 1 (leftmost) | `#e7eaed` | 6.2433 | 6.4001 | pass |
+| axis label 2 | `#e7eaed` | 5.3292 | 5.3899 | pass |
+| axis label 3 | `#e7eaed` | 4.5526 | 4.6044 | pass |
+| axis label 4 | `#e7eaed` | 3.9344 | 3.9344 | **fails, both widths** |
+| axis label 5 (rightmost) | `#e7eaed` | 3.3817 | 3.3817 | **fails, both widths** |
+
+None qualifies as WCAG large-scale. The axis labels sit on
+`--mapped-text-on-color-caption` (`#e7eaed`, not white), which is why their
+figures run ~0.68 worse than the endpoint-vs-white number: `#008ab7` is 3.9480
+against white but only 3.2693 against `#e7eaed`, so the rightmost label's
+ceiling is set by the teal-600 endpoint itself and cannot be raised without
+darkening that endpoint — which is the slab problem again. **Do not
+re-open this as a fresh AA finding and do not quietly re-bind the rule to chase
+the number; the trade was made deliberately and Teku declined to hold the gate
+on it.**
+
+**Theme-invariant, confirmed rendered, by the pre-item-2 mechanism**: raw
+`--brand-*` values cannot flip, and `--alias-primary-700` is declared once at
+bare `:root`. Every figure above is identical light/dark, at both viewports.
+
+**Isolation, measured not assumed.** The suite reported exactly **4 failed /
+198 passed** — `/finance` at both viewports, both themes, and nothing else.
+Note this is **1 walk state, not the 26 baselines a flat multiply against item
+2's 13-state, two-site count would suggest**: `NetWorthCard` renders in exactly
+one place, `FinanceOverview`, which is `/finance`'s default `overview` tab —
+confirmed by grep, one import site. The diff artifact
+(`finance-375-light-diff.png`) was opened, not inferred from the pixel count:
+the changed region is exactly the card rectangle, nothing else on the screen
+moved, and — critically — **no `finance-holding-*` baseline appears among the
+4 failures**, which is the direct proof that `.mvp-finance__hero` was not
+touched.
+
+Re-minted with `npm run test:e2e:update`. **Hashed all 96 baselines before and
+after: exactly 4 changed, 92 byte-identical, 96 total, zero added, zero
+deleted.** All four changed files are `finance-{375,430}-{light,dark}`.
+
+**Two consecutive clean full runs: 202 passed / 0 failed each** (6.4m, then
+the second logged in the gates table below).
+
+### Final measured state, both cards, at Gate 31 close
+
+| card | binding | worst vs white, computed | AA status |
+|---|---|---|---|
+| `.mvp-finance__hero` | `--mapped-surface-information-default` -> `-default-pressed` (teal-700 -> teal-900) | 6.3611 | passes, every role, margin |
+| `.mvp-finance__networth` | `--alias-primary-700` -> `--brand-teal-600` (blue-700 -> teal-600) | **3.9480** | **fails on 3 of 7 text roles — accepted per Teku's ruling** |
+
+The two cards **no longer share a binding**, which is a deliberate, visible
+asymmetry: the hero optimises for compliance, the net-worth card for display
+match to Figma's blue-to-teal intent. Do not "fix" this by re-unifying them —
+that was tried (item 2) and reverted (item 3) in this same gate.
+
+### The MVP does not version itself, and that is the convention
+
+**DO NOT BUMP `package.json`'s `version` HERE.** It reads `"0.0.0"` and has read
+`"0.0.0"` since the initial scaffold (`bd94e4d`). `git log -p -- package.json`
+shows the line **added once and never modified** across every commit that has
+touched the manifest since — including five DS re-pins (v1.5.0, v1.6.0, v1.7.0,
+v1.8.0, v1.9.0) and Gate 30. It is the Vite scaffold default.
+
+**THE MVP'S ACTUAL VERSIONING MECHANISM IS THE `mvp-gateN` GIT TAG**, which is
+Teku's to create. Bumping the manifest would break the pattern rather than
+follow it, and would invent a version number nothing consumes — this package is
+never published and nothing resolves it.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

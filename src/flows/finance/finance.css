@@ -76,15 +76,103 @@
 /* --------------------------------------------------------- net worth card */
 
 /*
-  D10 / the `#0caaff` precedent. Figma paints this card with a 109.36deg ramp
-  whose stops have NO backing token: the nearest steps on the DS ramp are
-  brand-blue-400 and brand-blue-300, and those are what is used.
+  BLUE -> TEAL, ON A DESIGN RULING, AND IT DOES NOT CLEAR AA. READ BOTH HALVES.
 
-  DIVERGENCE RECORDED, NOT HIDDEN, and deliberately NOT written as a literal
-  with a `token-exempt` marker — the gradient tier was checked first and holds
-  only two white scrim tokens (`--mapped-gradient-subtle` / `-default`), which
-  are a different kind of object entirely and cover neither hero card. Figma
-  catches up to the ramp later; the app does not grow a raw hex in the meantime.
+  HISTORY, in three steps rather than two — the middle one shipped for less than
+  a day and is the reason this note is long:
+
+    1. D10 / the `#0caaff` precedent. Figma paints this card with a 109.36deg
+       ramp whose stops have NO backing token, so the nearest DS steps
+       (brand-blue-400 -> brand-blue-300) were used and the divergence recorded.
+       White worst 2.4323 computed, 2.4323 rendered. Failed AA everywhere.
+    2. Gate 31 item 2 bound it to the information pair
+       (--mapped-surface-information-default -> -default-pressed, i.e.
+       teal-700 -> teal-900). White worst 6.3611 computed, 6.4495 rendered @375
+       and 6.3721 @430. Cleared AA on every text role, worst 6.2832.
+    3. Gate 31 item 3 — THIS — replaced that with primary-700 -> teal-600 on
+       Teku's design ruling.
+
+  WHY STEP 2 WAS REVERTED EVEN THOUGH IT PASSED: THE INFORMATION PAIR IS A
+  COMPLIANCE PAIR, NOT A DISPLAY PAIR. `-default` and `-default-pressed` are a
+  resting/pressed INTERACTION couple; they were never drawn as the two ends of a
+  display gradient. Used as one they run teal-700 -> teal-900, i.e. mid-teal
+  into near-black (#00222e), which reads as a dark slab rather than as the
+  brand's blue-to-teal sweep, and it collided with the hero card directly below
+  it on the same flow — two adjacent cards on the same ramp. Contrast was never
+  the complaint; the complaint was that it looked wrong, and a token pair
+  satisfying a number is not thereby the right pair.
+
+  THE COMPOSITION STILL DID NOT MOVE. Still 109deg, still 0% and 100% — this
+  card's Figma geometry, unchanged through all three steps. Only the colours:
+
+    var(--alias-primary-700)  -> --brand-blue-700  #024299   at 0%
+    var(--brand-teal-600)                          #008ab7   at 100%
+
+  A NOTE ON THE TOKEN TIERS, AND ON WHAT IS ACTUALLY UNAVAILABLE — the first
+  draft of this note got it wrong, so it is stated precisely.
+
+  THE MAPPED-SURFACE TIER HAS NO TEAL-600 STEP. `--mapped-surface-information-*`
+  ships exactly three members — `-default` (700), `-default-hover` (800) and
+  `-default-pressed` (900). `--alias-information-600` IS bound at the mapped
+  tier, but only to BORDER, ICON and TEXT roles, never to a surface. So this
+  endpoint cannot be reached through the mapped-surface layer at all, and step
+  2's slab is the direct consequence: 700 is the LIGHTEST teal the surface tier
+  offers, which forces the other end down to 900.
+
+  `--alias-information-600` DOES exist, at the alias tier, and resolves to
+  `var(--brand-teal-600)` — the identical value written below. Either spelling
+  renders byte-identically; the raw brand token is what Teku specified, and it
+  matches the precedent already in this file (`.mvp-finance__header-bg` and
+  `.mvp-home__header-bg` both compose from raw `--brand-*` stops). If a later
+  session prefers the alias tier for symmetry with `--alias-primary-700`, that
+  is a free swap with no pixel consequence — but it is a swap nobody needs to
+  make, not a defect to fix.
+
+  STILL THEME-INVARIANT, but by the OLD mechanism rather than the new one:
+  `--brand-*` values cannot flip, and `--alias-primary-700` is declared once at
+  bare `:root`. Confirmed rendered — every figure below is identical in light
+  and dark, at both viewports.
+
+  MEASURED — rendered, sampling every painted pixel of the card with all
+  descendants hidden (`visibility: hidden`, which preserves layout), animations
+  finished, DPR 2. Worst point is the 100% (teal-600) end in every case:
+
+    whole card vs white   3.9480 computed   3.9480 rendered @375
+                                            3.9470 rendered @430
+
+  THE INSTRUMENT BIAS IS NEGLIGIBLE HERE, UNLIKE STEP 2, AND THE REASON IS
+  GEOMETRIC. The sampler insets 2px (x DPR) and excludes the radius corners, so
+  it under-reads whenever the worst point sits IN a corner — which is exactly
+  where step 2's worst sat (t=0, top-left). Here the worst sits at t=1 along the
+  bottom-right EDGE, which the inset still reaches, so rendered lands on
+  computed. Do not carry step 2's "rendered reads high" caveat across to these
+  numbers.
+
+  *** THREE TEXT ROLES DO NOT CLEAR AA 4.5:1. THIS IS ACCEPTED, NOT MISSED. ***
+  Teku ruled display over compliance here and explicitly declined to hold the
+  gate for it. Recorded so nobody re-derives it as a fresh discovery:
+
+    role                          fg        @375     @430
+    .mvp-finance__networth-label  #ffffff   7.2725   7.5394   pass
+    .mvp-finance__networth-amount #ffffff   4.5371   4.4305   FAILS at 430
+    axis label 1 (leftmost)       #e7eaed   6.2433   6.4001   pass
+    axis label 2                  #e7eaed   5.3292   5.3899   pass
+    axis label 3                  #e7eaed   4.5526   4.6044   pass
+    axis label 4                  #e7eaed   3.9344   3.9344   FAILS both
+    axis label 5 (rightmost)      #e7eaed   3.3817   3.3817   FAILS both
+
+  NONE OF THESE QUALIFIES AS WCAG LARGE-SCALE (that needs >=24px, or >=18.66px
+  at weight >=700), so 4.5:1 is the right bar and it is genuinely missed.
+
+  THE BINDING IS NOT THE LEVER — THE RAMP IS. The axis labels sit on
+  `--mapped-text-on-color-caption` (#e7eaed), which is why their figures are
+  ~0.68 worse than the same pixels measured against pure white: #008ab7 is
+  3.9480 against white but only 3.2693 against #e7eaed. So the ceiling for the
+  rightmost label is set by the teal-600 endpoint itself. Fixing it needs either
+  a darker teal at the 100% end (teal-700 restores AA but returns toward the
+  slab) or a DS on-colour caption token with more weight — a DS conversation,
+  not an MVP one. Do NOT quietly re-bind this rule to chase the number; that
+  decision has already been made against.
 */
 .mvp-finance__networth {
   display: flex;
@@ -95,8 +183,8 @@
   border-radius: var(--brand-scale-300);
   background-image: linear-gradient(
     109deg,
-    var(--brand-blue-400) 0%,
-    var(--brand-blue-300) 100%
+    var(--alias-primary-700) 0%,
+    var(--brand-teal-600) 100%
   );
 }
 
@@ -175,9 +263,33 @@
 /* ----------------------------------------------------------- detail: hero */
 
 /*
-  The FD hero. Same D10 treatment as the net-worth card: Figma's 126.85deg teal
-  ramp has no backing token, so the nearest steps are used and the divergence is
-  recorded here.
+  CONTRAST — FIXED AT GATE 31, THROUGH THE MAPPED LAYER.
+
+  The holding hero, on all nine holding routes. HISTORY: same D10 treatment as
+  the net-worth card — Figma's 126.85deg teal ramp has no backing token, so the
+  nearest steps (brand-teal-500 -> brand-teal-400) were used and the divergence
+  recorded. White on that ramp measured 2.1857 computed, and the footnote on
+  `--mapped-text-on-color-caption` reached only 1.83 rendered. Gate 26 already
+  logged this surface as the defect; this is the fix arriving.
+
+  COMPOSITION UNCHANGED — still 127deg, still 0% and 100%, this card's Figma
+  geometry. Only the two colours moved, up a layer:
+
+    var(--brand-teal-500)  ->  var(--mapped-surface-information-default)
+                                 -> --alias-information-700 -> --brand-teal-700  #006789
+    var(--brand-teal-400)  ->  var(--mapped-surface-information-default-pressed)
+                                 -> --alias-information-900 -> --brand-teal-900  #00222e
+
+  Same token pair as `.mvp-finance__networth` above — see that rule for the
+  token-name caveat, the theme-invariance mechanism and the measurement method.
+
+    before   teal-500 -> teal-400   2.1857 computed   2.1869 rendered @375
+                                                      2.1857 rendered @430
+    after    teal-700 -> teal-900   6.3611 computed   6.4495 rendered, both
+
+  EVERY TEXT ROLE ON THIS CARD CLEARS AA 4.5:1, worst 6.4518 — the footnote,
+  which was the 1.83 case. That is the Gate 26 on-colour finding closing from
+  the SURFACE side, exactly as rule 3 said it would have to.
 */
 .mvp-finance__hero {
   display: flex;
@@ -188,8 +300,8 @@
   border-radius: var(--brand-scale-300);
   background-image: linear-gradient(
     127deg,
-    var(--brand-teal-500) 0%,
-    var(--brand-teal-400) 100%
+    var(--mapped-surface-information-default) 0%,
+    var(--mapped-surface-information-default-pressed) 100%
   );
   color: var(--mapped-text-primary-on-color);
 }
