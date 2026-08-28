@@ -226,7 +226,9 @@
   half-width it was never given and would stop the row reflowing on a wider
   frame.
 
-  The ninth card sitting alone on the final row is correct wrapping behaviour.
+  A FINAL CARD WITH NO PARTNER IS NOT LEFT TO FILL THE ROW. It is held to one
+  column width by the `:last-child:nth-child(odd)` rule below — Teku's ruling
+  at Gate 33, from a reference screenshot.
 */
 .mvp-finance__grid {
   display: flex;
@@ -246,10 +248,11 @@
   zero basis distributes the row's width equally instead, so every card in a row
   is identical: (343 - 8) / 2 = 167.5 each.
 
-  The cap is still `CardBalance`'s own `max-width: 172px` — nothing here
-  overrides the DS component's width range, it only decides how the spare width
-  in the row is shared out. The ninth card, alone on the last row, therefore
-  settles at its own 172px maximum rather than stretching to 343.
+  THE 172px CAP IS GONE AS OF GATE 33. `sizing="fill"` (DS v1.11.0) drops the
+  component's own `width: 161px` and `max-width: 172px`, so this row now decides
+  the width outright — which is what closed the 23px of dead space that used to
+  sit to the right of every card at 430. `min-width: 128px` is untouched and
+  still holds. A lone final card is handled separately, immediately below.
 */
 .mvp-finance__grid-item {
   display: flex;
@@ -258,6 +261,37 @@
 
 .mvp-finance__grid-item > * {
   width: 100%;
+}
+
+/*
+  AN UNPAIRED FINAL CARD STAYS ONE COLUMN WIDE — Teku's ruling at Gate 33.
+
+  `sizing="fill"` hands the width decision to this CONTAINER, and what this
+  container decides is that a lone trailing card is one column, left aligned,
+  with empty space to its right. That is using the prop as intended rather than
+  overriding it: the component no longer carries a width of its own, so the row
+  is now the thing that has to say what a column is.
+
+  KEYED TO PARITY, NOT TO A COUNT. `:last-child:nth-child(odd)` matches only
+  when the final card is unpaired, and matches nothing at all on an even number
+  of holdings — so it survives the fixture growing or shrinking. There are nine
+  holdings today (`src/data/holdings.ts`), so it is live rather than dormant.
+
+  `flex-grow: 0` IS THE LOAD-BEARING HALF. Left at the `1` it inherits from the
+  rule above, the item consumes the whole row whatever basis is set here, and
+  this rule would look applied while doing nothing.
+
+  The basis is the two-column arithmetic — one gap removed, the remainder
+  halved — written against `var(--spacing-200)`, the SAME token the container's
+  `gap` shorthand uses above, rather than a second copy of `8px`. CSS cannot
+  read a value back out of a `gap` shorthand, so sharing the token is as close
+  to a single source as this can be expressed; move the token and both move.
+
+  Measured at Gate 33: 167.5px at 375 and 195px at 430 — identical to a paired
+  card to the pixel, at both widths, with its left edge on the left column.
+*/
+.mvp-finance__grid-item:last-child:nth-child(odd) {
+  flex: 0 1 calc((100% - var(--spacing-200)) / 2);
 }
 
 /* ----------------------------------------------------------- detail: hero */

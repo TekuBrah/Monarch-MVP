@@ -1915,6 +1915,189 @@ Teku's to create. Bumping the manifest would break the pattern rather than
 follow it, and would invent a version number nothing consumes — this package is
 never published and nothing resolves it.
 
+## The DS v1.11.0 re-pin and the balance-grid fill (Gate 33)
+
+The pin moved `v1.10.0` (`0cafb111ebde`) -> `v1.11.0` (`ec9ffe05ff32`). **The
+re-pin moved ZERO pixels**; all four re-minted baselines belong to the fill
+change, which is a separate, intentional change made in the same gate. One
+commit, two findings — keep them apart when reading the diff.
+
+### The defect, derived in this repo rather than carried
+
+`CardBalance` renders at **exactly one site**, `FinanceOverview.tsx:45` — found
+by grepping `.tsx`/`.ts`/`.css` outside `node_modules` (seven hits, six of them
+prose) and cross-checked against the whole router table in `App.tsx:23-72`.
+**There is no "See all" balances screen**; the "See all" strings in `src/` are
+inert `SectionHeader` labels carrying no route. So `/finance`'s default
+`overview` tab is the entire blast radius, and it is 1 walk state, not a family.
+
+**THE CONTAINER IS A WRAPPING FLEX ROW, NOT A CSS GRID**, despite every name in
+it saying "grid". `grid-template-columns` computes to `none` at both viewports;
+the analogue of a track is the flex item's resolved width. Do not go looking for
+track sizing.
+
+Measured at DPR exactly 2 through a Playwright-launched browser, animations
+finished:
+
+| | 375 before | 375 after | 430 before | 430 after |
+|---|---|---|---|---|
+| container content box | 16 -> 359 (343) | unchanged | 16 -> 414 (398) | unchanged |
+| net-worth card, border box | 16 -> 359 (343) | unchanged | 16 -> 414 (398) | unchanged |
+| column-gap / row-gap | 8 / 8 | 8 / 8 | 8 / 8 | 8 / 8 |
+| flex item width | 167.5 | 167.5 | **195** | 195 |
+| paired card width | 167.5 | 167.5 | **172** (capped) | **195** |
+| lone 9th card width | **172** | **167.5** | **172** | **195** |
+| leftover, card to item right | 0 | 0 | **23 per card** | **0** |
+| card right edge vs net-worth right | 0 | 0 | **-23** | **0** |
+
+**THE CAP BOUND ONLY AT 430, WHICH IS WHY ONE VIEWPORT COULD NOT SEE IT.** At
+375 the two-column arithmetic lands at 167.5, under the DS's `max-width: 172px`,
+so the cap never engaged. At 430 it lands at 195, the cap clamped every card to
+172, and 23px collected on the right of all eight. Same shape as the Gate 13
+`sizing='fill'` finding — a real geometry fact invisible at the pinned viewport,
+and part of what 430 was added for.
+
+**FIGURES WITHDRAWN AND THEN RE-DERIVED.** 195 and 23 had been circulating from
+a review thread with no measurement behind them; both are **confirmed** above.
+172 is confirmed as the DS `max-width` and as the pre-fix rendered width at 430.
+**161 is real as the DS's declared `width` but never renders here**, because
+`.mvp-finance__grid-item > * { width: 100% }` overrides it. **191 could not be
+reproduced at either viewport** and appears to be a corruption of 195.
+
+### Two halves, and only the second one moves anything
+
+| half | what it is | effect alone |
+|---|---|---|
+| the re-pin | `package.json` + lockfile to v1.11.0 | **zero pixels** — see the alias note below for why this is nearly tautological locally |
+| `sizing="fill"` | one prop at `FinanceOverview.tsx:45` | the whole change |
+
+The prop is declared `sizing?: 'fixed' or 'fill'` (a union of the two string
+literals) and defaults to `"fixed"`, and the new CSS rule is
+`.mn-card-balance--fill{width:auto;max-width:none;flex:1 1 0}` — a class nothing
+applies until the prop is passed. **`min-width: 128px` is NOT released by the
+fill class** and still holds on every card; the narrowest rendered card is 167.5.
+
+Note the prop also arrived on `CardFeaturesAndEducation` in the same release,
+with the same `"fixed"` default, and is not passed there.
+
+### The lone ninth card is held to one column — Teku's ruling
+
+**THE FILL PROP ALONE STRETCHES THE UNPAIRED FINAL CARD ACROSS THE WHOLE ROW**
+(172 -> 343 at 375, 172 -> 398 at 430), because releasing `max-width` lets the
+item's `flex: 1 1 0` consume the remainder. That was shipped, measured, and
+**reverted within the same gate on a design ruling from a reference screenshot**:
+a lone trailing card stays one column wide, left-aligned, with empty space to
+its right.
+
+```css
+.mvp-finance__grid-item:last-child:nth-child(odd) {
+  flex: 0 1 calc((100% - var(--spacing-200)) / 2);
+}
+```
+
+**THE CONSTRAINT BELONGS ON THE CONTAINER, NOT ON THE COMPONENT, AND THAT IS THE
+POINT RATHER THAN A COMPROMISE.** `sizing="fill"` means the CONTAINER decides
+the width. A container that decides its lone item is one column wide is using
+the prop as intended; it is not an override, and it is not a breach of rule 1 or
+rule 4. The prop stays on all nine cards.
+
+**KEYED TO PARITY, NOT TO A COUNT.** `:last-child:nth-child(odd)` matches only
+when the final card is unpaired and matches nothing at all on an even number of
+holdings, so it survives the fixture growing or shrinking. **An earlier
+recommendation argued against this rule on the grounds that it "rots when the
+holdings count changes" — that was wrong, and it was the deciding point in a
+recommendation that has since been overturned.** Only a rule keyed to a literal
+count would rot.
+
+**`flex-grow: 0` IS THE LOAD-BEARING HALF.** Left at the `1` inherited from
+`.mvp-finance__grid-item`, the item consumes the whole row whatever basis is
+set, and the rule looks applied while doing nothing. Ship the basis without the
+grow reset and the change is invisible.
+
+**THE BASIS SHARES THE CONTAINER'S TOKEN RATHER THAN COPYING ITS LITERAL.** It
+reads `var(--spacing-200)`, the same token the container's `gap` shorthand uses.
+**CSS cannot read a value back out of a `gap` shorthand**, so sharing the token
+is as close to a single source as this can be expressed; it computes to
+`calc(50% - 4px)`. Move the token and both move.
+
+**THE LIVE HOLDING COUNT IS NINE**, established three ways: nine top-level `id:`
+entries in `HOLDINGS` (`src/data/holdings.ts:73`), passed through unfiltered by
+`AccountsProvider.tsx:82`, and nine rendered `.mvp-finance__grid-item` nodes.
+Nine is odd, so the rule is live rather than dormant.
+
+### The four acceptance criteria, measured after
+
+Identical at 375 and 430, all four met, every delta exactly 0:
+
+| criterion | 375 | 430 |
+|---|---|---|
+| two cards per row | 2,2,2,2,1 | 2,2,2,2,1 |
+| column-gap = row-gap | 8 = 8 | 8 = 8 |
+| paired right edge = net-worth right edge | 0 | 0 |
+| lone card width = paired card width | 0 (167.5) | 0 (195) |
+| lone card left edge = left column | 0 (x=16) | 0 (x=16) |
+
+**CRITERION 2 WAS NEVER BROKEN AND CANNOT BE.** Both gaps come from one `gap:`
+shorthand, so they cannot diverge. **Criterion 3's container half was also
+already correct before the gate** — the grid's right CONTENT edge equalled the
+net-worth card's right BORDER edge at both viewports, before and after. What was
+broken was the CARD's right edge inside its item. Comparing against the
+net-worth card's *content* edge (343 / 398) instead would be comparing against
+the inside of that card's own padding, which is not a page margin.
+
+### Baselines: four, predicted and bounded
+
+Predicted from the single-site list before running —
+`finance-{375,430}-{light,dark}` — and the actual failing set matched exactly,
+twice (once for the fill change, once for the lone-card revert). Re-minted with
+`--update-snapshots=all`; all 96 baselines hashed before and after, **exactly 4
+changed, 92 byte-identical, 96 total, zero added and zero deleted**, so all three
+arms of `baselines.spec.ts` stayed green throughout.
+
+### Two protocol changes, and they carry forward
+
+**1 · `npm run build:package` IS NOW A STANDING GATE ON EVERY RE-PIN.**
+`vite.config.ts:30-57` aliases `@monarch/design-system` to the sibling DS
+**source** checkout whenever that folder exists, so **`node_modules` IS NOT IN
+THE LOCAL RENDER PATH** — not for `npm run dev`, and not for `npm run build`.
+
+**THE CONSEQUENCE IS THAT A RE-PIN'S "ZERO PIXELS MOVED" RESULT IS NEARLY
+TAUTOLOGICAL LOCALLY, AND IT LOOKS LIKE EVIDENCE.** At this gate the DS working
+tree was already at v1.11.0 before the pin moved, so the pre-re-pin build —
+nominally v1.10.0 — **already contained `.mn-card-balance--fill` and emitted a
+byte-identical bundle** (`index-Mrdm5WvD.css`, 161,223 bytes, same content hash
+before and after the install). The three package-path checks the gate ran
+(installed `package.json` version, the rule in `dist/index.css`, the prop in the
+`.d.ts`) all verify the path that is NOT being exercised.
+
+Nothing here is wrong — the alias is deliberate and is the DS iteration loop —
+but a re-pin gate must run `npm run build:package` to exercise what production
+compiles. It did, exit 0, with the fill rule present exactly once in that bundle
+too. **Both paths confirmed consumable; neither result substitutes for the
+other.**
+
+**2 · AN `--update-snapshots=all` RUN IS NEVER ITSELF A VERIFICATION.** It
+overwrites the very files it compares against, so its green is unfalsifiable —
+it reported 202 passed while rewriting four baselines. **A separate clean
+`npm run test:e2e` afterwards is mandatory**, and that run is the real green.
+Both were done here; the clean run reported 202 passed with baselines
+byte-stable across it.
+
+### What this gate changed
+
+`package.json` + `package-lock.json` (the pin), one prop at
+`FinanceOverview.tsx:45`, one new rule plus two corrected comment blocks in
+`finance.css`, one corrected comment in `visual.spec.ts`, and four re-minted
+baselines. No spec was added, no CSS rule was deleted, and `index.html` is
+untouched.
+
+**TWO STALE COMMENTS WERE CORRECTED RATHER THAN LEFT BESIDE THE NEW CODE.** Both
+`finance.css` and `FinanceOverview.tsx` asserted that the lone ninth card
+"sitting alone on the final row is correct wrapping behaviour", and
+`finance.css` further claimed "the cap is still `CardBalance`'s own
+`max-width: 172px`". After this gate the cap is gone and the lone card is held
+by an explicit rule, so both assertions had become the opposite of the code.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
@@ -2368,6 +2551,25 @@ Inherited from the design system, and it applies identically here:
   reached, so the half that matters goes unproven. The control must disable the
   earlier assertion to reach the later one. Gate B's first control was
   inconclusive for exactly this reason; the isolated one was the deciding test.
+- **THE BROWSER PANE CAN RUN AT A FRACTIONAL DPR AND A FRACTIONAL LAYOUT
+  VIEWPORT, AND THE TWO OBVIOUS SANITY CHECKS DO NOT CATCH IT.** Observed at
+  Gate 33: `devicePixelRatio` **2.0000000298023224** and
+  `visualViewport.width` **375.2**, while `innerWidth` and
+  `document.documentElement.clientWidth` BOTH still reported a clean **375**.
+  Card widths came back 167.6 against a true 167.5, and a right edge 359.2
+  against a true 359 — wrong in the first decimal, on every absolute figure.
+
+  **RELATIVE DELTAS ARE SCALE-INVARIANT AND SURVIVE THIS.** Every
+  edge-alignment and equal-width check at that gate read exactly 0 through the
+  pane and exactly 0 through the harness, which is why the pane is still fine
+  for structure, for alignment and for before/after comparison.
+
+  **ABSOLUTE GEOMETRY MUST BE TAKEN THROUGH A PLAYWRIGHT-LAUNCHED CHROMIUM** at
+  a pinned viewport and `deviceScaleFactor`, never through the pane. **The tells
+  are `visualViewport.width` and the fractional `devicePixelRatio` — `innerWidth`
+  is NOT a tell**, because it rounds and will agree with the harness while the
+  layout box does not. This is the same class of trap as the harness-honesty
+  guard above: a number that looks right is not the same as a number that is.
 - **Ground truth is disk and git, never session memory.**
 - **Type-check gate is `npx tsc -b --force`, never bare `tsc -b`** — the
   incremental cache can report success having checked nothing, which is exactly
@@ -2380,7 +2582,7 @@ Inherited from the design system, and it applies identically here:
 
 ## The gates
 
-Four, all green before a step is done:
+Five, all green before a step is done — six on a DS re-pin, see below:
 
 ```
 npx tsc -b --force
@@ -2391,8 +2593,18 @@ npm run test:e2e
 ```
 
 `lint:linkage` also runs automatically before `test:e2e` and
-`test:e2e:update`. Before a deploy, add `npm run build:package` — it is the
-only command that compiles what production compiles.
+`test:e2e:update`.
+
+**`npm run build:package` IS A SIXTH GATE ON ANY DS RE-PIN, not just before a
+deploy.** `vite.config.ts` aliases the DS to a sibling SOURCE checkout, so
+`node_modules` is not in the local render path and a re-pin's "zero pixels
+moved" result can be true for the wrong reason. It is the only command that
+compiles what production compiles. See Gate 33 for the measurement that forced
+this.
+
+**AN `--update-snapshots=all` RUN IS NOT A VERIFICATION.** It overwrites the
+files it compares against, so it reports green whatever it wrote. Always follow
+a re-mint with a separate clean `npm run test:e2e`; that run is the real green.
 
 `test:e2e` starts its own dev server on 5174 and reuses one that is already
 listening, so the port rule above still applies — check first.

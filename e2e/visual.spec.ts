@@ -76,9 +76,10 @@ import {
  * `fullPage` is in Playwright's `NonConfigProperties`, so it has to be written
  * at the call site. It is declared ONCE here and handed to BOTH checks, because
  * two captures compared byte-for-byte must be taken the same way — a `fullPage`
- * that disagreed between them would fail all 96 states for a reason that has
- * nothing to do with the app. Every other capture setting lives in
- * `SCREENSHOT_CAPTURE_OPTIONS`, which playwright.config.ts imports.
+ * that disagreed between them would fail all 96 baselines — 24 walk states x 2
+ * viewports x 2 themes — for a reason that has nothing to do with the app. Every
+ * other capture setting lives in `SCREENSHOT_CAPTURE_OPTIONS`, which
+ * playwright.config.ts imports.
  */
 const SHOT: ExactPixelOptions = { fullPage: true }
 
