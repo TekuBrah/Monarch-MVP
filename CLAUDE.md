@@ -1083,6 +1083,12 @@ allow-list form, because `ALLOW-FROM` was never implemented in Chromium.
 
 ### The PWA manifest is BLOCKED on icon artwork, and nothing was shipped
 
+**SUPERSEDED AT GATE 38 — THE APP IS INSTALLABLE NOW.** The manifest, the four
+icons, the two favicons and the iOS tags all landed; see "The icon set" under
+Gate 38 below for the measured artwork, including the maskable safe-zone
+derivation. What follows is Gate 24 as written, kept because its census and its
+requirements table are what the Gate 38 work was built from.
+
 **THE APP IS NOT INSTALLABLE TODAY AND THIS GATE DID NOT CHANGE THAT.**
 `index.html`'s viewport comment cites roadmap D1's "PWA-installable" as
 *intent*; there is no manifest, no `<link rel="icon">` and no
@@ -1135,19 +1141,42 @@ break iOS splash screens. **Ship both spellings plus the manifest's
 ```
 
 **THE COLOURS ARE ALREADY DERIVED — do not re-invent them.** Both traced to
-their brand values in the DS `globals.css`, not picked:
+their brand values in the DS `globals.css`, not picked.
 
-| manifest member | value | derivation |
+**THE `theme_color` ROW BELOW WAS CORRECTED AT GATE 38, AND THE STALE VALUE IS
+LEFT VISIBLE BECAUSE IT IS THE WHOLE POINT.** Gate 24 recorded `#046eff` via
+`--alias-primary-500`. **DS v1.7.0 rebound `--mapped-surface-primary-default`
+from `--alias-primary-500` to `--alias-primary-600`** — re-derived at Gate 38
+across the tags rather than taken on trust: v1.6.0 reads `--alias-primary-500`,
+v1.7.0 reads `--alias-primary-600`, and it has read 600 at every tag since,
+through v1.15.0. The manifest is invisible to `scripts/check-tokens.mjs` (see
+below), so nothing reported the drift: the value was correct when written,
+became wrong at v1.7.0, and has been wrong at every tag from v1.7.0 through
+v1.15.0. The values below are re-resolved against the pinned **v1.15.0**
+`globals.css`:
+
+| manifest member | value | derivation, re-resolved at v1.15.0 |
 |---|---|---|
-| `theme_color` | `#046eff` | `--mapped-surface-primary-default` (`:430`) -> `--alias-primary-500` (`:198`) -> `--brand-blue-500` (`:23`). Cross-checks against the brand logo's own fill. |
-| `background_color` | `#ffffff` | `--mapped-surface-page` (`:437`) -> `--alias-foundations-white` (`:272`) -> `--brand-white` (`:97`) |
+| `theme_color` | **`#0358cc`** | `--mapped-surface-primary-default` (`:431` `:root`, `:626` `[data-theme="dark"]`, **identical in both**) -> `--alias-primary-600` (`:199`, declared once at bare `:root`) -> `--brand-blue-600` (`:24`) = `#0358cc` |
+| `background_color` | `#ffffff` | `--mapped-surface-page` (`:438`) -> `--alias-foundations-white` (`:272`) -> `--brand-white` (`:97`) |
+
+**AND THE CLAUSE THAT CAME WITH THE OLD ROW IS NOW FALSE, WHICH MATTERS MORE
+THAN THE HEX.** Gate 24 wrote that `theme_color` *"cross-checks against the
+brand logo's own fill"*. It no longer does, and that was a genuine
+cross-check being quietly lost: both DS brand marks still fill `#046eff`
+(`--brand-blue-500`), measured at v1.15.0, while `theme_color` is now
+`#0358cc` (`--brand-blue-600`). **The two are one ramp step apart and that is
+correct, not a defect** — `theme_color` is a SURFACE token and the logo fill is
+artwork — but the coincidence that once validated the value is gone, so the
+chain above is the only check left. Do not "fix" either one to make them agree.
 
 **THE LIGHT VALUE IS THE RIGHT ONE, AND IT IS NOT A COIN TOSS.** A manifest
 carries ONE `background_color`, used for the splash screen before any CSS or JS
 runs. `ThemeProvider` initialises to `'light'` unconditionally — it reads no
 stored preference and no `prefers-color-scheme` — so the app's first paint is
 always the light page surface. The dark counterpart exists
-(`--mapped-surface-page` -> `--alias-foundations-black` -> `#000000`, `:631`)
+(`--mapped-surface-page` `:633` -> `--alias-foundations-black` `:273` ->
+`--brand-black` `:98` -> `#000000`)
 and is not what the splash should use.
 
 #### The guardrail sees `index.html` but NOT the manifest
@@ -1156,7 +1185,7 @@ and is not what the splash should use.
 `SCAN_DIRS = ['src']` plus `SCAN_FILES = ['index.html']`, and its rules apply
 to `.html` as much as to `.css`. Two consequences pointing opposite ways:
 
-- **`<meta name="theme-color" content="#046eff">` WILL BE FLAGGED** by
+- **`<meta name="theme-color" content="#0358cc">` WILL BE FLAGGED** by
   `raw-hex-color` and needs a same-line `token-exempt: <reason>` marker — and
   per Gate 18 the marker must sit on the SAME physical line as the literal.
 - **`public/manifest.webmanifest` WILL NOT BE SCANNED AT ALL**, because
@@ -2097,6 +2126,366 @@ untouched.
 `finance.css` further claimed "the cap is still `CardBalance`'s own
 `max-width: 172px`". After this gate the cap is gone and the lone card is held
 by an explicit rule, so both assertions had become the opposite of the code.
+
+## The DS v1.15.0 re-pin, the pointer park and the icon set (Gate 38 / 38B)
+
+Three changes, one branch, and they must be read apart. The pin moved
+`v1.11.0` (`ec9ffe05ff32`) -> `v1.15.0` (`c6c7f2f1cd73`), **crossing four
+releases** — v1.12.0, v1.13.0, v1.14.0 and v1.15.0 all exist as tags, so this
+is not a single-release step and its delta is correspondingly wider than the
+re-pins before it. Gate 38 landed the pin plus the icon/manifest set; Gate 38B
+added the harness pointer park and re-minted. **All 96 baselines changed.**
+
+`lint:linkage` PASS with all four sources agreeing: manifest pin
+`github:TekuBrah/Monarch-Design-System#v1.15.0`, `node_modules` 1.15.0, lock
+`resolved` `c6c7f2f1cd73`, DS working tree HEAD `c6c7f2f1cd73` (tag v1.15.0).
+
+### The resting-state token moved in BOTH themes
+
+**THE DECLARATION DELTA IN `globals.css` IS EXACTLY ONE FAMILY —
+`--mapped-text-primary-*` — AND ONLY ONE OF ITS THREE MEMBERS IS A RESTING
+STATE.** Derived by diffing the DS's own `src/styles/globals.css` across the
+two tags, not from a changelog:
+
+| token | light `:root` | dark `[data-theme="dark"]` |
+|---|---|---|
+| **`--mapped-text-primary-default`** | `--alias-primary-500` -> **`-600`** | `--alias-primary-500` -> **`-300`** |
+| `-default-hover` | `-600` -> `-700` | `-400` -> `-200` |
+| `-default-pressed` | `-700` -> `-800` | `-300` -> `-150` |
+
+Resolved to brand values at v1.15.0 (`--alias-primary-N` -> `--brand-blue-N`,
+each declared once at bare `:root`):
+
+| | before | after |
+|---|---|---|
+| light resting | `#046eff` (blue-500) | **`#0358cc`** (blue-600) — darker |
+| dark resting | `#046eff` (blue-500) | **`#68a8ff`** (blue-300) — lighter |
+
+The hover and pressed members changed too and **neither can reach a baseline**:
+hover is unreachable by construction (below), and no walk state captures a
+pressed control.
+
+#### What the resting token recolours — 12 rules, and one is on every screen
+
+Twelve consuming rules, found by walking the shipped DS `dist/index.css`
+rule-by-rule plus a grep of MVP `src/`:
+
+- `.mn-btn--secondary` and `.mn-btn--tertiary`, via `--btn-text`
+- `.mn-bottom-nav__item--selected .mn-bottom-nav__label`
+- `.mn-card-balance__name`
+- `.mn-link--default:not(.mn-link--visited)`
+- `.mn-badge--inverted`
+- `.mn-card-monthly-budget__details`
+- `.mn-filter-chip--selected`
+- `.mn-menu-item--selected` (two rules: label/crypto-name/trailing-label, and crypto-sub)
+- `.mn-side-nav__tab--selected .mn-side-nav__tab-label`
+- MVP `src/flows/homepage/homepage.css:131`
+
+**`.mn-btn--secondary` IS WHY ALL 96 BASELINES MOVED RATHER THAN A SUBSET.**
+The shell's theme-switch affordance renders as
+`button.mn-btn.mn-btn--secondary.mn-btn--s` — read off the live DOM in this
+gate's hover census, not inferred from the JSX — and `.mvp-shell__theme-switch`
+is in `AppShell`, so it is present on **every one of the 24 walk states, in both
+themes**. Its label colour is `--btn-text`, i.e. the token that moved.
+
+**THE PER-BASELINE PIXEL ATTRIBUTION WAS NOT DONE, AND THAT IS STATED RATHER
+THAN GLOSSED.** Content-column Gate 1 proved its 20 stale baselines to 100%
+pixel coverage with zero orphan pixels. This gate did not do that for 96. What
+was measured is (a) the declaration delta is this one family, (b) a consumer of
+it renders on every state, and (c) exactly 96 baselines changed. That is
+consistent, and it is weaker than attribution. If a future session needs the
+stronger claim, the instrument is Gate 1's, and per Gate 26 it must include the
+`[style]` sweep for runtime-composed tokens — `titleToken` in
+`src/data/insights.ts` still holds the only three, and **none of them is
+`mapped-text-primary-default`**, so that path is clear here.
+
+### The suite has ZERO hover coverage, BY CONSTRUCTION
+
+**THIS IS THE MOST IMPORTANT THING v1.15.0 CHANGED ABOUT WHAT THE HARNESS CAN
+SEE, AND IT IS INVISIBLE IN THE PIXEL COUNT.**
+
+`playwright.config.ts:72` sets `hasTouch: true`. Chromium then reports
+`hover: none` for the primary pointer, so **every rule behind
+`@media (hover: hover)` is dead inside this suite** — not merely un-hovered,
+but unreachable at any pointer position.
+
+Measured across the tags with `git grep` in the DS, and the transition is
+abrupt rather than gradual:
+
+| DS tag | `hover: hover` guards in `src/**/*.css` |
+|---|---|
+| v1.11.0 – v1.14.0 | **0** |
+| **v1.15.0** | **39** |
+
+And in the artefact this app actually ships, `dist/assets/index-SvxPQyoN.css`,
+measured by brace-matching each guard's block rather than by grepping lines:
+
+```
+@media(hover: hover) blocks : 39
+:hover inside a guard       : 87
+:hover OUTSIDE any guard    : 0
+```
+
+MVP `src/` contributes **zero** `:hover` of its own.
+
+**SO 87 OF 87 HOVER RULES ARE UNTESTABLE HERE, AND THE SUITE WILL NEVER GO RED
+FOR ANY OF THEM.** That is the correct trade for a mobile banking app — the
+target device has no hover — but it must be written down, because the failure
+mode is a future session reading "202 passed" as covering the DS hover layer.
+It does not cover one rule of it. If hover ever needs coverage it needs a
+SECOND context with `hasTouch: false`, which is a new axis and a new baseline
+set; **do not get it by flipping `hasTouch`**, which would silently re-render
+every existing baseline.
+
+**IT ALSO DATES THE HAZARD THE PARK REMOVES.** Before v1.15.0 those hover rules
+were unguarded, and an unguarded `:hover` applies whenever the element is
+hovered regardless of the device's pointer capability. So a pointer left
+resting on a control COULD paint into a baseline at v1.11.0–v1.14.0 and cannot
+at v1.15.0. The park's hover benefit is now **prospective**: it protects
+against the guards being removed, against `hasTouch` being changed, and against
+an MVP-local hover rule being written.
+
+### The pointer was never parked, and it was not only the theme toggle
+
+Playwright leaves the virtual pointer where it clicked. Nothing in the harness
+moved it, so every control the harness operated stayed hovered for the rest of
+its test — **mouse position encoded as if it were app state**.
+
+**THE CARRIED DIAGNOSIS WAS "`gotoRoute` LEAVES THE POINTER ON THE THEME
+SWITCH, SO DARK CAPTURES ARE AFFECTED". THAT IS ONE OF THREE RESIDUES AND IT
+COVERS LESS THAN HALF THE DAMAGE.** Censused over all 24 walk states x 2
+viewports x 2 themes by reading `document.querySelectorAll(':hover')` at each:
+
+| residue | interaction site | states | themes |
+|---|---|---|---|
+| `.mvp-shell__theme-switch button` | `gotoRoute` theme click | **14** | dark only |
+| `.mn-tab--selected` | `activateTab` | **7** | **both** |
+| `.mn-blanket` (x2), `.mvp-finance__row` (x1) | `openOverlay` | **3** | **both** |
+
+14 + 7 + 3 = 24, i.e. every walk state carried exactly one residue. In
+state/theme pairs that is **34 of 48**, and **10 of the 24 states carried stale
+hover in LIGHT** — a theme the carried diagnosis said was unaffected. A park
+placed only after the theme click would have cleared 14 of 34 and looked
+finished: the Gate 13 half-fix shape, in a new place.
+
+**SO THE PARK IS CALLED FROM ALL FOUR INTERACTION EXITS**, not one:
+
+1. `gotoRoute`, after the theme click
+2. `activateTab`, after the `aria-selected` settle
+3. `openOverlay`, at its **no-confirm** exit (pointer on the opening control)
+4. `openOverlay`, at its **confirm** exit (pointer on the confirm button)
+
+Exits 3 and 4 are separate calls deliberately: one park at the end of the
+function would miss the no-confirm states, and one at the top would be undone by
+the confirm click.
+
+#### `(-1, -1)`, and why `(0, 0)` was measured and rejected
+
+`POINTER_PARK` is `(-1, -1)` — outside the initial containing block on **both**
+axes, so the hit test has no target and `:hover` matches **nothing at all**,
+not even `html`. Confirmed empty in all 96 states.
+
+**IT IS INERT BY CONSTRUCTION, WHICH IS THE ENTIRE REASON FOR THE NEGATIVE
+COORDINATE.** An in-viewport park would have to be argued against the layout of
+24 states at two widths and re-argued whenever a screen changed. A point off
+the top-left corner cannot be covered at any viewport size, so no width is
+plumbed in and there is no second literal to drift out of step with `VIEWPORTS`
+— the hazard Gate A's `DEFAULT_VIEWPORT` import exists to prevent.
+
+**`(0, 0)` IS THE OBVIOUS CHOICE AND IT IS WRONG, MEASURED.** It is INSIDE the
+viewport and lands on real content in **all 96** states: `.mn-status-bar` on the
+home and finance screens, `.mvp-coming-soon` on `/transfer`, `/more` and
+`/steward`, and `.mn-blanket` on the two modal states. A far-outside point —
+`(width + 500, height + 500)` — also reads empty, but it must be derived from
+the viewport, which reintroduces exactly the drift the negative coordinate
+avoids.
+
+#### `assertPointerIsParked` — and its negative control
+
+The assertion runs in `gotoState`, after every interaction a walk state
+performs, and reads `document.querySelectorAll(':hover')`, permitting only
+`html` and `body`. No new dependency: the selector is CSS the browser already
+implements.
+
+**IT IS STATED IN `gotoState` RATHER THAN IN `visual.spec.ts`** so it also
+covers `routes.spec.ts` and `section-headers.spec.ts`, which read computed
+styles a hover could move.
+
+**IT IS EXPRESSED AS "WHAT DOES THE PAGE THINK IS HOVERED", NOT "WHERE IS THE
+POINTER".** The second is what a coordinate check would answer; the first is
+what reaches the pixels, and it is the one that breaks when a future
+interaction site is added with no park.
+
+**PROVEN BY NEGATIVE CONTROL, NOT ASSUMED.** Disabling the `activateTab` park
+alone — leaving the other three in place — turned `routes.spec.ts` red at
+**14 failed / 35 passed**, naming exactly the 7 tab states in **both** themes.
+The harness was then restored and hash-verified byte-identical
+(`22ea5d85…630387`).
+
+### The 5 divergent baselines were a STALE COMPOSITED FRAME, not a hover style
+
+**READ THIS BEFORE CONCLUDING THE PARK IS A HOVER FIX. IT IS NOT.**
+
+The park is provably unable to change a hover style here — 0 of 87 hover rules
+are reachable under `hasTouch`. Yet it moved exactly five baselines, and the
+control that isolates them is a suite run with the park reverted:
+
+| | visual tests |
+|---|---|
+| without the park | **91 failed / 5 passed** |
+| with the park | **96 failed / 0 passed** |
+
+The failing set with the park is a **strict superset**, adding precisely:
+
+```
+finance-holding-main-375-dark        finance-holding-main-430-dark
+finance-holding-joint-375-dark       finance-holding-joint-430-dark
+finance-holding-unit-trust-375-dark
+```
+
+**ALL FIVE DARK, AND ALL FIVE DIFFER IN THE SAME PLACE.** Decoding each new
+capture against its committed baseline:
+
+| | |
+|---|---|
+| differing bbox | **`[16, 690, 60, 715]`** on all five |
+| differing pixels | 1120 – 1122 |
+| max channel delta | **25** |
+| committed baseline, fill plateau | **242** |
+| with the park, fill plateau | **255** |
+
+THE PLATEAU STEP IS 13 AND THE MAX DELTA IS 25, SO THEY ARE TWO FIGURES AND NOT
+ONE. 242 -> 255 is the flat fill; the 25 is the worst pixel anywhere in the box,
+on the antialiased edge, where the two renders diverge further than the flat
+fill does. Do not subtract one from the other and expect them to agree.
+
+That bbox is the theme-switch Button, recorded elsewhere in this file as
+`[16, 690, 60.5, 716]` — the same element the Gate 17 raster flake sat on.
+
+**THE MECHANISM IS THE COMPOSITE, AND A CONTROL SEPARATES IT FROM HOVER.**
+Sampling the button after parking and then again after deliberately hovering it
+returns the **same** painted value both ways. Hover is not the variable. The
+variable is whether **any** pointer move followed the click: without one the
+capture keeps the frame composited at click time (242); any mousemove forces the
+recomposite and the button settles to its resting 255. These five states are
+simply the ones where v1.15.0 changed nothing else, so the stale frame was the
+only difference left to see.
+
+**NO SLEEP AND NO TIMER WAS ADDED, AND NONE WAS NEEDED.** The park alone clears
+it. A `waitForTimeout` here would have been the Gate 17 mistake — a tolerance
+wearing a fix's clothes.
+
+### The re-mint, bounded by hash
+
+`npm run test:e2e:update`, which is `--update-snapshots=all` at
+`package.json:16` — **never the bare flag**, whose `changed` preset routes the
+decision through the comparator and would rewrite nothing on a baseline the
+comparator calls green (Gate 30).
+
+All 96 baselines were SHA-256'd before and after into a scratch manifest
+outside the repo:
+
+| | |
+|---|---|
+| hashed before | **96** |
+| changed | **96** |
+| byte-identical | **0** |
+| added / deleted | **0 / 0** |
+
+Every one is a modification to an already-tracked path, so **all three arms of
+`baselines.spec.ts` stayed green throughout**, per the Gate α correction.
+
+**THE UPDATE RUN IS NOT THE VERIFICATION.** It reported 202 passed while
+rewriting all 96 files it was comparing against. The real green is the separate
+clean runs afterwards: **202 passed / 0 failed, twice**, with all 96 baselines
+byte-identical across both — and a third clean 202 after a late comment-only
+edit. The standalone baseline guard reports **3 passed**, with 96 derived
+expected names = 96 on disk = 96 tracked and **zero orphans**.
+
+### The icon set — measured, not assumed
+
+Gate 24 stopped at a census and said the manifest was blocked on artwork. It is
+no longer blocked. Seven files were added under `public/` and `index.html`
+gained 29 lines.
+
+**ARTWORK PROVENANCE.** `public/favicon.svg` is a 24x24 viewBox whose first
+path is **character-identical to the first path of the DS's
+`Assets/logo/brand/Monarch logo, Style = Thin.svg`**, fill `#046EFF`, over an
+added opaque `<rect width="24" height="24" fill="#ffffff"/>`. That plate is the
+thing Gate 24 named as missing.
+
+**THE FOUR PNGs, read from the IHDR and decoded scanline-by-scanline:**
+
+| file | size | colour type | plate | mark | bytes |
+|---|---|---|---|---|---|
+| `icon-192.png` | 192x192 | **2 = RGB, no alpha** | `#ffffff` | `rgb(4,110,255)` | 3,554 |
+| `icon-512.png` | 512x512 | 2 = RGB, no alpha | `#ffffff` | `rgb(4,110,255)` | 10,014 |
+| `icon-maskable-512.png` | 512x512 | 2 = RGB, no alpha | `#ffffff` | `rgb(4,110,255)` | 8,635 |
+| `apple-touch-icon.png` | **180x180** | 2 = RGB, no alpha | `#ffffff` | `rgb(4,110,255)` | 3,460 |
+
+**COLOUR TYPE 2 IS THE LOAD-BEARING MEASUREMENT, NOT A CURIOSITY.** These PNGs
+carry no alpha channel at all, so the iOS requirement Gate 24 flagged — *iOS
+does not honour alpha and renders transparent pixels black* — cannot be
+violated by `apple-touch-icon.png`. It is opaque by encoding, not by
+convention.
+
+The mark is `rgb(4,110,255)` = `#046eff` = `--brand-blue-500`, i.e. the DS
+brand logo's own fill — **which is one ramp step away from the manifest's
+`theme_color`**. See the correction under Deploy hygiene: that is correct, not a
+drift.
+
+Ink aspect ratio is **~1.82 on all four** (360x198, 288x158, 136x74, 126x70),
+which is what confirms one artwork source rather than four independent exports.
+
+**THE MASKABLE DERIVATION, against the 80%-diameter safe circle** (the mark must
+sit inside a circle of radius 40% of the icon width, i.e. >=10% padding a side):
+
+| | min padding | as % of width | max ink radius | safe radius | ink / safe |
+|---|---|---|---|---|---|
+| `icon-maskable-512` | **112 px** | **21.9%** | 161.2 px | 204.8 px | **78.7%** |
+| `icon-512` | 76 px | 14.8% | 201.9 px | 204.8 px | **98.6%** |
+| `icon-192` | 28 px | 14.6% | 75.8 px | 76.8 px | 98.7% |
+| `apple-touch-icon` | 27 px | 15.0% | 70.4 px | 72.0 px | 97.8% |
+
+**THIS IS WHY THE MASKABLE IS A SEPARATE FILE AND NOT THE `any` ICON REUSED.**
+The `any` icons clear the 10% padding rule comfortably, but their ink reaches
+**97.8–98.7% of the safe radius** — inside the circle by well under two percent,
+which is no margin at all once a launcher applies its own mask inset. The
+maskable variant pads to 21.9% and lands at 78.7%. Declaring `icon-512` as
+`purpose: "maskable"` would satisfy the padding rule on paper and clip the mark
+on a real device.
+
+`favicon.ico` is 2,319 bytes and `favicon.svg` 988 bytes.
+
+**THE GUARDRAIL NOW CARRIES A SECOND EXEMPTION, AND IT IS NEW AT THIS GATE.**
+`lint:tokens` scans 39 files and reports 2 exemptions: the pre-existing frame
+width at `src/index.css:93`, and **`index.html:30`, the `theme-color` meta**.
+The committed `index.html` carries zero `token-exempt` markers, so this one
+arrived here. Gate 24 predicted both the flag and the need for the marker; the
+marker sits on the same physical line as the literal, per Gate 18.
+
+**`public/manifest.webmanifest` IS STILL INVISIBLE TO THE GUARDRAIL** —
+`SCAN_DIRS = ['src']`, `SCAN_FILES = ['index.html']` — which is exactly how the
+`theme_color` value in the Gate 24 table stayed wrong from v1.7.0 through
+v1.15.0 without anything reporting it. See the corrected table under Deploy hygiene
+above; the two hex values in the manifest must be re-derived by hand on every DS
+re-pin.
+
+### What this gate changed
+
+`package.json` + `package-lock.json` (the pin), `index.html` (+29 lines), seven
+new files in `public/`, `e2e/harness.ts` (**+114 lines, 0 deletions** — the
+park, the assertion and their four call sites), and 96 re-minted baselines. No
+spec was added, no CSS rule was touched, and `src/` is untouched — the token
+change is entirely DS-side.
+
+### Deliberately not in scope
+
+The DS repo (working tree clean at `c6c7f2f`, untouched); the stale remote
+branches; the `nanoid` advisory (`npm audit fix` NOT run); the Playwright pin
+(still `^1.62.1`, resolving 1.62.1); `hasTouch`, the viewport list, the theme
+list, the device scale factor and the state walk (all unchanged); Flow 8; and
+the three AA shortfalls on the net-worth card ruled on at Gate 31.
 
 ## Known conditions of this setup
 

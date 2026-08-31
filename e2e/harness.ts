@@ -772,6 +772,95 @@ export async function assertTabEnumerationMatchesDom(
 }
 
 /**
+ * WHERE THE POINTER IS PARKED BETWEEN INTERACTIONS — Gate 38B.
+ *
+ * (-1, -1). Outside the initial containing block on BOTH axes, so the hit test
+ * has no target and `:hover` matches nothing at all.
+ *
+ * IT IS INERT BY CONSTRUCTION RATHER THAN BY LUCK, WHICH IS THE WHOLE REASON
+ * FOR THE NEGATIVE COORDINATE. Any in-viewport park would have to be argued
+ * against the layout of all 24 walk states at BOTH widths, and re-argued every
+ * time a screen changed; a point off the top-left corner cannot be covered by
+ * anything at any viewport size, so it needs no width plumbed in and there is
+ * no second literal to drift out of step with `VIEWPORTS`.
+ *
+ * MEASURED BEFORE IT WAS CHOSEN, over all 24 walk states x 2 viewports x 2
+ * themes = 96 states: `document.querySelectorAll(':hover')` returns EMPTY in
+ * every one. The two rejected candidates are recorded because the obvious one
+ * fails: (0, 0) is INSIDE the viewport and lands on real content in all 96 —
+ * `.mn-status-bar` on the home and finance screens, `.mvp-coming-soon` on
+ * /transfer, /more and /steward, and `.mn-blanket` on the two modal states. A
+ * far-outside point (width+500, height+500) also reads empty, but it has to be
+ * derived from the viewport, which is exactly the drift hazard above.
+ */
+const POINTER_PARK = { x: -1, y: -1 } as const
+
+/**
+ * Move the pointer off every element, so no hover state is captured.
+ *
+ * WHY THIS IS NEEDED AT ALL. Playwright's click leaves the virtual pointer
+ * resting where it clicked, and it stays there for the rest of the test — so
+ * every control this harness operates was being encoded into the baseline in
+ * its hovered state. That is mouse position recorded as if it were app state,
+ * and it is invisible in a screenshot right up until a DS release gives
+ * `:hover` something to paint.
+ *
+ * IT IS NOT A DARK-THEME PROBLEM, THOUGH THE THEME TOGGLE IS THE MOST VISIBLE
+ * CASE. Measured across all 96 states before the fix, THREE different residues
+ * existed and only one of them came from the theme click:
+ *
+ *   `.mvp-shell__theme-switch button`  14 states, DARK only  (the theme toggle)
+ *   `.mn-tab--selected`                 7 states, BOTH themes (activateTab)
+ *   `.mn-blanket` / `.mvp-finance__row` 3 states, BOTH themes (openOverlay)
+ *
+ * So 10 of the 24 states carried stale hover in LIGHT as well, and a park that
+ * ran only after the theme click would have cleared 14 of 34 affected
+ * state/theme pairs while looking finished. That is why the park is called from
+ * all three interaction sites and why `assertPointerIsParked` exists — the
+ * assertion is what makes the coverage a measurement instead of a claim.
+ *
+ * NO SLEEP AND NO TIMER. A pointer move is dispatched synchronously by CDP and
+ * the hover recomputation is part of the same hit test; the assertion below is
+ * the settle signal, exactly as `aria-selected` is for a tab.
+ */
+export async function parkPointer(page: Page): Promise<void> {
+  await page.mouse.move(POINTER_PARK.x, POINTER_PARK.y)
+}
+
+/**
+ * THE ASSERTION, NOT THE ASSUMPTION.
+ *
+ * Runs before every capture. `:hover` matches the whole ancestor chain of the
+ * hovered node, so `html` and `body` are permitted — they are what a pointer
+ * resting over the page background alone would match, and neither carries a
+ * hover rule anywhere in the loaded stylesheet set. ANYTHING ELSE means an
+ * interaction left the pointer on a control and this state's baseline is about
+ * to record it.
+ *
+ * Expressed with `querySelectorAll(':hover')` rather than by checking a
+ * coordinate, because the question is not "where is the pointer" but "what does
+ * the page think is hovered" — the second is what reaches the pixels, and it is
+ * the one a future interaction site added without a park would break.
+ *
+ * No new dependency: the selector is CSS the browser already implements.
+ */
+export async function assertPointerIsParked(page: Page, where: string): Promise<void> {
+  const hovered = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(':hover')).map((el) => {
+      const cls = typeof el.className === 'string' ? el.className.trim() : ''
+      return el.tagName.toLowerCase() + (cls ? `.${cls.split(/\s+/).join('.')}` : '')
+    }),
+  )
+
+  expect(
+    hovered.filter((sel) => sel !== 'html' && sel !== 'body'),
+    `${where}: the pointer is resting on a control, so this state would capture a hover ` +
+      `state as if it were app state. Every interaction site must call parkPointer() ` +
+      `after it settles.`,
+  ).toEqual([])
+}
+
+/**
  * Navigate to a route in a given theme, with time pinned and fonts settled.
  *
  * THEME IS SET THROUGH THE APP'S OWN TOGGLE, not by writing `data-theme` on
@@ -791,6 +880,11 @@ export async function gotoRoute(page: Page, route: string, theme: Theme): Promis
     const toggle = page.locator('.mvp-shell__theme-switch button')
     await expect(toggle).toHaveText('Dark')
     await toggle.click()
+
+    // THE CLICK LEAVES THE POINTER ON THE TOGGLE. Without this the button
+    // stays hovered for the rest of the test and every dark baseline encodes
+    // it. See parkPointer above for the census that found two more residues.
+    await parkPointer(page)
   }
 
   await expect(page.locator('html')).toHaveAttribute(
@@ -852,6 +946,10 @@ export async function activateTab(page: Page, tab: TabState): Promise<void> {
 
   await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
   await page.waitForFunction(() => document.fonts.status === 'loaded')
+
+  // Parked AFTER the settle assertions, never before. `aria-selected` is what
+  // proves React committed the new state; the park is cleanup that follows it.
+  await parkPointer(page)
 }
 
 /**
@@ -915,6 +1013,13 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
   await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
   await page.waitForFunction(() => document.fonts.status === 'loaded')
 
+  // BOTH EXITS OF THIS FUNCTION PARK, and they are separate calls on purpose:
+  // a state with no confirm step leaves the pointer on the opening control,
+  // a state with one leaves it on the confirm button inside the modal. One
+  // park at the end would miss the first; one at the top would be undone by
+  // the confirm click.
+  await parkPointer(page)
+
   if (!overlay.confirm) return
 
   // THE CONFIRM STEP. Same discipline as the open: the control is asserted to
@@ -955,6 +1060,8 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
 
   await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
   await page.waitForFunction(() => document.fonts.status === 'loaded')
+
+  await parkPointer(page)
 }
 
 /**
@@ -1030,6 +1137,13 @@ export async function gotoState(page: Page, state: WalkState, theme: Theme): Pro
   await gotoRoute(page, state.route, theme)
   if (state.tab) await activateTab(page, state.tab)
   if (state.overlay) await openOverlay(page, state.overlay)
+
+  // THE ASSERTION, NOT THE ASSUMPTION. Every interaction site above parks the
+  // pointer itself; this is the check that they all actually did, and it is
+  // the thing that fails when a future interaction site is added without one.
+  // Stated here rather than in visual.spec.ts so it also covers routes.spec.ts
+  // and section-headers.spec.ts, which read computed styles a hover can move.
+  await assertPointerIsParked(page, stateTitle(state))
 }
 
 /**

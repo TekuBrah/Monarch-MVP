@@ -9,6 +9,35 @@
       per the accessibility baseline in the design system's CLAUDE.md.
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <!--
+      theme_color and background_color are DERIVED, not picked. Both chains were
+      resolved against the pinned DS (v1.15.0), not carried from an earlier gate:
+        theme-color      --mapped-surface-primary-default -> --alias-primary-600
+                         -> --brand-blue-600  #0358cc
+        background_color --mapped-surface-page -> --alias-foundations-white
+                         -> --brand-white      #ffffff
+      The LIGHT value is the right one for background_color: a manifest carries
+      one, it paints the splash before any CSS or JS runs, and ThemeProvider
+      initialises to 'light' unconditionally.
+      public/manifest.webmanifest is NOT scanned by scripts/check-tokens.mjs
+      (SCAN_DIRS = ['src'], SCAN_FILES = ['index.html']), so its two hex values must
+      be re-derived by hand across a DS upgrade. Nothing will report that they drifted.
+    -->
+    <meta name="theme-color" content="#0358cc" /> <!-- token-exempt: manifest theme colour, mirrored from --mapped-surface-primary-default; a meta content attribute cannot hold a var() -->
+    <!--
+      BOTH spellings ship deliberately. MDN marks apple-mobile-web-app-capable
+      deprecated in favour of the standard mobile-web-app-capable, but removing
+      it has been reported to break iOS splash screens. iOS is the audience that
+      matters most here, and Safari reads the apple-touch-icon link rather than
+      the manifest's icons array for Add to Home Screen.
+    -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Monarch MVP</title>
   </head>
   <body>

@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",
-    "@monarch/design-system": "github:TekuBrah/Monarch-Design-System#v1.11.0",
+    "@monarch/design-system": "github:TekuBrah/Monarch-Design-System#v1.15.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.18.2"
