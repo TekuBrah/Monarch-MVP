@@ -410,18 +410,35 @@
 /*
   STATIC ON-COLOUR, matching the title above and `HeaderBg.css`'s reasoning.
 
-  This was `--mapped-text-on-color-caption`, which the DS deliberately FLIPS:
-  `--alias-neutral-100` in light, `--alias-neutral-950` in dark. That mapping is
-  correct for a surface that flips with the theme — but this band's gradient is
-  built from raw `--brand-*-500` tokens and is byte-identical in both modes, so
-  the caption swung to near-black on an unchanged blue and fell to ~3.8:1.
+  WHY THIS IS NOT `--mapped-text-on-color-caption`. The original reason is
+  HISTORY, corrected at Gate 39 — read the indented paragraph as the state at
+  Gate 3c, NOT as current DS behaviour:
 
-  The title never had the bug because `--mapped-text-primary-on-color` resolves
-  to `--alias-foundations-white` in BOTH blocks. `--mapped-text-on-color-body` is
-  the same static white and is the semantically right member of the on-colour
-  family for body copy, so the subtitle now uses it. Hierarchy is carried by the
-  type ramp — `type-body-caption` 12/400 against the title's 16/600 — not by
-  colour, which is exactly what `HeaderBg` does with everything over its photo.
+    At the time, the DS deliberately FLIPPED that token — `--alias-neutral-100`
+    in light, `--alias-neutral-950` in dark — which is correct for a surface
+    that flips with the theme. This band's gradient did not flip: it was built
+    from raw `--brand-*-500` values, which cannot. So the caption swung to
+    near-black on an unchanged blue and fell to ~3.8:1.
+
+  BOTH HALVES OF THAT HAVE SINCE MOVED, AND NEITHER REOPENS THE QUESTION:
+
+    - DS v1.6.0 REMOVED THE FLIP. Measured against the pinned v1.15.0
+      `dist/index.css`, `--mapped-text-on-color-caption` is emitted in both the
+      `:root` and `[data-theme="dark"]` blocks with the SAME value,
+      `--alias-neutral-100`. The swing this comment was written about no longer
+      exists.
+    - GATE 29 MOVED THE BAND off raw `--brand-*-500` and onto
+      `--mapped-gradient-primary-from` / `-to`. See the derivation inside
+      `.mvp-home__promo` above.
+
+  THE DECLARATION STANDS ANYWAY, ON THE SEMANTIC ARGUMENT RATHER THAN THE BUG.
+  `--mapped-text-on-color-body` is the right member of the on-colour family for
+  body copy, and it resolves to static white (`--alias-foundations-white`) in
+  both blocks — as does the title's `--mapped-text-primary-on-color`, which is
+  why the title never had the bug. Hierarchy is carried by the type ramp
+  (`type-body-caption` 12/400 against the title's 16/600) rather than by colour,
+  which is exactly what `HeaderBg` does with everything over its photo.
+  Reverting to the caption token would move pixels and buy nothing.
 */
 .mvp-home__promo-subtitle {
   margin: 0;

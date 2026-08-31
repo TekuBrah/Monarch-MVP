@@ -1308,17 +1308,37 @@ literals only — no template strings, no `clsx`.
 the `Divider` with the row and carries the React `key`. Removing the element
 would change the DOM; removing a class that styles nothing cannot.
 
-#### One orphan found in the reverse direction — REPORTED, NOT DELETED
+#### One orphan found in the reverse direction — CLOSED AT GATE 39
 
 The same sweep run backwards — every class selector in the MVP's own CSS
 checked against all MVP TSX/TS — found **1 of 74** with no usage:
 
-- **`.mvp-finance__hero-category`** (`src/flows/finance/finance.css:210`), whose
-  sole declaration is `color: var(--mapped-text-on-color-caption)`. Its sibling
-  `.mvp-finance__hero-names` IS used, so this is a rule that outlived its
+- **`.mvp-finance__hero-category`**, whose sole declaration was
+  `color: var(--mapped-text-on-color-caption)`. Its sibling
+  `.mvp-finance__hero-names` IS used, so this was a rule that outlived its
   markup — the INVERSE of the two above, which were markup that outlived their
-  rules. Out of scope for this gate by instruction; it is a one-line deletion
-  whenever someone wants it.
+  rules. Out of scope at Gate 25 by instruction; **deleted at Gate 39.**
+
+**GATE 25 CITED IT AS `finance.css:210` AND BY GATE 39 IT WAS AT `:356`.** The
+file grew underneath the reference. That is why the re-derivation was run rather
+than the line number trusted, and it is the general reason a `file:line` in this
+document is a starting point rather than an address.
+
+**THE DELETION WAS PROVED ON FIVE LEGS BEFORE IT WAS MADE**, searching the
+PARTIAL string `hero-category` so a BEM name built by concatenation would still
+have been caught: **0** in MVP `src/` TS/TSX, **0** in `e2e/`, **0** in the DS's
+shipped `dist/index.css`, **0** in the DS working tree's `src/`, and every
+`className` in `src/flows/finance/` confirmed a static literal — no template
+strings, no `clsx`. The only other occurrence anywhere in the repo was this
+paragraph describing it.
+
+**IT MOVED NO PIXELS, WHICH IS THE POINT OF DELETING A RULE NOTHING SELECTS.**
+All 96 baselines byte-identical by SHA-256 across the gate.
+
+**THE SWEEP IS NOW 73 OF 73 CLEAN IN BOTH DIRECTIONS.** Re-run at Gate 39 over
+6 MVP CSS files and 40 TS/TSX files: zero declared-but-unused, and zero
+used-but-undeclared. The count is 73 rather than Gate 25's 74 because this rule
+is the one that went.
 
 ### `.gitattributes` — and the measurement that made it safe
 
@@ -2217,8 +2237,9 @@ abrupt rather than gradual:
 | v1.11.0 – v1.14.0 | **0** |
 | **v1.15.0** | **39** |
 
-And in the artefact this app actually ships, `dist/assets/index-SvxPQyoN.css`,
-measured by brace-matching each guard's block rather than by grepping lines:
+And in the artefact this app actually ships — the single `dist/assets/index-*.css`
+emitted by `npm run build:package` — measured by brace-matching each guard's
+block rather than by grepping lines:
 
 ```
 @media(hover: hover) blocks : 39
@@ -2226,6 +2247,19 @@ measured by brace-matching each guard's block rather than by grepping lines:
 :hover OUTSIDE any guard    : 0
 ```
 
+
+**THE FILENAME IS DELIBERATELY NOT WRITTEN OUT, AND THAT IS A CORRECTION MADE
+AT GATE 39.** Gate 38 recorded this measurement against `index-SvxPQyoN.css`.
+That name is a Vite CONTENT HASH: it renames on any change to the emitted CSS —
+a DS re-pin, an MVP rule, a token move — so quoting it dates the measurement to
+a build rather than to a release. Worse, it is not even stable across this
+repo's two build paths on identical source: at Gate 39, `npm run build` emitted
+`index-CyFurvJV.css` while `npm run build:package` emitted `index-SvxPQyoN.css`,
+because the two feed Rollup different module graphs (see "Two resolution paths"
+under Known conditions). The glob plus the command that produced it identifies
+the artefact without rotting. Re-derive the three counts with the brace-matching
+walk rather than trusting them across a DS upgrade; they were re-confirmed at
+Gate 39 under the pinned v1.15.0 as 39 / 87 / 0, unchanged.
 MVP `src/` contributes **zero** `:hover` of its own.
 
 **SO 87 OF 87 HOVER RULES ARE UNTESTABLE HERE, AND THE SUITE WILL NEVER GO RED
@@ -2473,11 +2507,23 @@ re-pin.
 
 ### What this gate changed
 
-`package.json` + `package-lock.json` (the pin), `index.html` (+29 lines), seven
-new files in `public/`, `e2e/harness.ts` (**+114 lines, 0 deletions** — the
-park, the assertion and their four call sites), and 96 re-minted baselines. No
-spec was added, no CSS rule was touched, and `src/` is untouched — the token
-change is entirely DS-side.
+**THE FIGURES BELOW ARE THE COMMIT'S, NOT A WORKING TREE'S — anchored at Gate
+39.** Gate 38 wrote them while its own tree was still dirty, which made them
+unfalsifiable the moment it was committed. They are now stated against the
+commit that carries them, `6d074f8` (tag `mvp-gate38`), and re-derivable at any
+time with:
+
+```bash
+git show --numstat --format="" mvp-gate38 | grep -v visual.spec.ts-snapshots
+```
+
+`package.json` + `package-lock.json` (the pin), `index.html` (**+29, -0**),
+seven new files in `public/`, `e2e/harness.ts` (**+114, -0** — the park, the
+assertion and their four call sites), and 96 re-minted baselines. No spec was
+added, no CSS rule was touched, and `src/` is untouched — the token change is
+entirely DS-side. Re-derived at Gate 39 against `6d074f8`: all three numbers
+confirmed exactly, with `CLAUDE.md` itself at +396/-7 and `package-lock.json` at
++3/-3 as the only other non-baseline paths.
 
 ### Deliberately not in scope
 
@@ -2486,6 +2532,150 @@ branches; the `nanoid` advisory (`npm audit fix` NOT run); the Playwright pin
 (still `^1.62.1`, resolving 1.62.1); `hasTouch`, the viewport list, the theme
 list, the device scale factor and the state walk (all unchanged); Flow 8; and
 the three AA shortfalls on the net-worth card ruled on at Gate 31.
+
+## Cleanup — deps, manifest Content-Type, dead code (Gate 39)
+
+**NO PIXEL MOVED, AND THAT WAS THE GATE'S HARD CONSTRAINT RATHER THAN ITS
+RESULT.** All 96 baselines byte-identical by SHA-256 across the whole gate,
+bounded by a manifest written OUTSIDE the repo before the first change. Nothing
+in scope here can legitimately reach a rendered pixel, so a single differing
+baseline would have been a finding and a halt — never a re-mint.
+
+Four items, unrelated to each other except by being small. The dependency work
+is written up under "npm audit" and "The Playwright specifier" in Known
+conditions below, because that is where a future session will look for it; this
+section carries the rest.
+
+### `/manifest.webmanifest` was served as `application/octet-stream`
+
+Measured post-deploy, not locally. All six icon assets returned correct types;
+only the manifest fell through, because Netlify's CDN maps Content-Type from the
+file extension and has no entry for `.webmanifest`. Chromium is lenient and
+installed the app anyway, which is exactly why nothing looked broken for the
+whole of Gate 38.
+
+Fixed by a **second** `[[headers]]` block in `netlify.toml`, `for =
+"/manifest.webmanifest"`, setting `Content-Type = "application/manifest+json"`.
+
+**IT IS A SECOND BLOCK AND NOT AN EDIT TO THE FIRST, AND THAT IS THE ONLY
+INTERESTING THING ABOUT IT.** Netlify applies EVERY matching `[[headers]]` rule
+cumulatively rather than letting the most specific path win, so the manifest
+still receives `X-Robots-Tag: noindex, nofollow` from the `/*` rule. **Do not
+narrow the `/*` rule to "everything except the manifest" to make room** — that
+would drop the noindex from the manifest for no reason. The change is a pure
+36-line insertion; the existing rule is byte-identical and still first.
+
+**IT IS NOT VERIFIED, AND MUST NOT BE REPORTED AS VERIFIED.** `vite preview`
+serves the file straight off disk and never evaluates `netlify.toml`, so no
+local check exercises any of this — the same limitation Gate 24 recorded for the
+`robots.txt` precedence rule. The check is post-deploy:
+
+```
+curl -sSI https://monarchmvp.netlify.app/manifest.webmanifest
+```
+
+PASS = `content-type: application/manifest+json` **and** `x-robots-tag: noindex,
+nofollow` on the same response. The second half is the one worth reading: it is
+what proves the `/*` rule still reaches this path.
+
+### The dead-file derivation found ZERO, and the method is the point
+
+**A GREP FOR A BASENAME IS NOT A NON-REFERENCE PROOF**, because a file can be
+reached through a barrel re-export or a dynamic path. What was run instead is a
+reachability walk: resolve every relative specifier from a fixed set of entry
+points — `index.html`, `vite.config.ts`, `playwright.config.ts`, the three
+`scripts/*.mjs` the npm scripts invoke, and every `e2e/*.spec.ts` Playwright's
+`testMatch` collects — following static imports, bare `import '...'`, dynamic
+`import()`, `require()`, CSS `@import` and `url()`, HTML `src`/`href`,
+`import.meta.glob`, and `readFileSync` of repo-relative paths (which is how
+`harness.ts` reaches `src/App.tsx`).
+
+Result: **51 modules reached, 49 tracked source files considered, 1 unreached**
+— `src/vite-env.d.ts`, which is **not dead**. It is a one-line
+`/// <reference types="vite/client" />` consumed by TypeScript through
+`tsconfig.app.json`'s `"include": ["src"]`, never by an import, so no
+import-graph walk can reach it by construction. It stays.
+
+**THE WALK ALSO REPORTED ZERO FILES CONTAINING A NON-LITERAL `import()`**, which
+is what bounds the method: a computed dynamic path would have been the one thing
+a static parse could miss, and there are none.
+
+**ALL SIX SPEC FILES ARE LIVE**, checked with `--list` rather than assumed from
+the file names: `baselines` 3, `frame-cap` 2, `routes` 49, `section-headers` 50,
+`tile-fill` 2, `visual` 96 = **202**.
+
+### One dead CSS rule, deleted — see the Gate 25 orphan entry above
+
+`.mvp-finance__hero-category`. The evidence, the five-leg search and the stale
+`:210` line reference are written up where Gate 25 left the finding, so the
+history reads in one place.
+
+### One stale comment, corrected rather than deleted
+
+`src/flows/homepage/homepage.css` carried a Gate 3c comment making **two
+present-tense claims that had both become false**, on a block whose conclusion
+is still correct:
+
+| claim | status |
+|---|---|
+| `--mapped-text-on-color-caption` "the DS deliberately FLIPS: `--alias-neutral-100` in light, `--alias-neutral-950` in dark" | **false since DS v1.6.0** — measured on the pinned v1.15.0 `dist/index.css`, the token is emitted in both blocks with the same value, `--alias-neutral-100` |
+| "this band's gradient is built from raw `--brand-*-500` tokens" | **false since Gate 29** — it is `--mapped-gradient-primary-from` / `-to`, as the block 100 lines above it in the same file already says |
+
+**THE DECLARATION WAS NOT TOUCHED.** `.mvp-home__promo-subtitle` still binds
+`--mapped-text-on-color-body`, and the comment now rests that on the semantic
+argument (it is the right member of the on-colour family for body copy, and it
+is static white in both blocks) rather than on a bug that no longer exists.
+Reverting to the caption token would move pixels and buy nothing.
+
+**GATE 26 ALREADY FLAGGED THIS COMMENT** as "still correct history but no longer
+describes current DS behaviour". That was a note telling future readers not to
+believe a comment — strictly worse than fixing the comment, because it only
+works for readers who happen to have read the note.
+
+### Zero TODO / FIXME / XXX / HACK
+
+Swept across `src`, `e2e`, `scripts`, `index.html`, `netlify.toml`,
+`vite.config.ts`, `playwright.config.ts` and `package.json`. None. Recorded
+because "no TODOs" is a fact that has to be re-measured to stay true, and
+because its absence is what made the stale-comment sweep the whole of the job.
+
+### Two figures made durable, and why each rotted
+
+Both were real measurements. Neither was wrong. Both were written in a form that
+could stop being true without anything reporting it — the failure mode this
+document is most exposed to.
+
+| figure | why it rotted | what it says now |
+|---|---|---|
+| `dist/assets/index-SvxPQyoN.css` | a Vite **content hash** — renames on any emitted-CSS change, and is not even stable across this repo's two build paths on identical source (Gate 39 measured `index-CyFurvJV.css` from `npm run build` against `index-SvxPQyoN.css` from `npm run build:package`) | the single `dist/assets/index-*.css` emitted by `npm run build:package` |
+| `e2e/harness.ts` **+114 lines, 0 deletions** | described an **uncommitted working tree**, so it became unfalsifiable the moment Gate 38 was committed | anchored to `6d074f8` (tag `mvp-gate38`) with the `git show --numstat` command that re-derives it |
+
+Both were re-derived at Gate 39 before rewording: the hover-guard counts are
+still **39 / 87 / 0** under the pinned v1.15.0, and the diffstat is confirmed
+exactly at `+114/-0` on `e2e/harness.ts` and `+29/-0` on `index.html`.
+
+### The branch census — a REPORT, not a task
+
+**26 remote branches besides `main`, and ALL 26 are merged into `origin/main`.
+Zero unmerged.** Local and remote `main` agree at `6d074f8`. There are **27**
+tags, `mvp-gate6` through `mvp-gate38` with gaps (no 28, 32, 34–37, and none for
+gates A, B, D or α).
+
+A review thread carried the branch figure as 23, then 25, then 27 at different
+times. All three are explainable and only one is an error: **27** counts every
+remote ref including `main`, **26** is the deletable set, and **23** was a pager
+truncating `git tag -l`. Say which you mean.
+
+Branch deletion is Teku's, in Sourcetree. Nothing was deleted here.
+
+### Deliberately not in scope
+
+The DS repo entirely; deleting any branch, local or remote; the commit author
+name (a git config, Teku's); the icon and manifest ASSETS (verified untouched by
+SHA-256, not regenerated); the 96 baselines; Flow 8; the three AA shortfalls on
+the net-worth card ruled on at Gate 31; the ungated-`:hover` regression guard,
+which belongs to the DS; and every other Netlify setting — no redirect, no build
+command, no plugin was changed.
 
 ## Known conditions of this setup
 
@@ -2816,47 +3006,88 @@ describing what the author believed the settings meant, never checked against th
 library that implements them. Both were found by reading `node_modules`. Read the
 implementation before writing down what an instrument proves.
 
-### npm audit — what it actually reports (re-measured at Gate 26)
+### npm audit — CLEAN as of Gate 39
 
-**`npm audit` REPORTS ONE HIGH-SEVERITY FINDING, AND IT IS NOT REACT ROUTER.**
-Measured at Gate 26, on the tree pinned to DS v1.6.0:
+**`npm audit` REPORTS ZERO VULNERABILITIES.** Measured at Gate 39 on a COLD
+tree — `node_modules` deleted, `npm ci` from the lockfile — which is the only
+state in which the number means anything:
 
 ```
-nanoid  <3.3.18
-Severity: high
-nanoid: custom generators can loop indefinitely when size is zero
-  https://github.com/advisories/GHSA-2v37-7h3g-55p8
-fix available via `npm audit fix`
+added 117 packages, and audited 118 packages
+found 0 vulnerabilities
 ```
 
-`npm install` prints `1 high severity vulnerability` on the same tree.
+**WHAT CLOSED IT, AND WHY IT WAS CHEAP.** The single finding was `nanoid
+<3.3.18` (high, GHSA-2v37-7h3g-55p8, "custom generators can loop indefinitely
+when size is zero"), reached only as
+`vite@6.4.3 -> postcss@8.5.25 -> nanoid@3.3.16`. `npm audit fix` moved exactly
+one version — **nanoid 3.3.16 -> 3.3.18** — with no direct dependency changing
+major and no other package in the lockfile moving at all. Verified by
+diffing every resolved version in `package-lock.json` before and after: one
+line changed out of 170.
 
-**THIS SUPERSEDES THE PARAGRAPH THAT USED TO SIT HERE, WHICH IS WRONG IN EVERY
-PARTICULAR NOW.** It recorded **2** high-severity findings, named them as *"React
-Router: RSC Mode CSRF Bypass Allows Action Execution Before 400 Response"*, and
-warned that the only remedy offered was `npm audit fix --force`. None of that
-matches what the tool reports today: the count is 1, the package is `nanoid`
-(a transitive dependency, not `react-router-dom`), and the offered fix is a
-**plain `npm audit fix`** with no `--force` and no breaking-change warning. Do
-not quote the old numbers, and do not go looking for the React Router advisories
-— they no longer appear.
-
-**NOTHING WAS RUN.** Gate 26 measured this and deliberately did not fix it: the
-gate's scope was a token re-pin, and a dependency bump is its own change with its
-own baseline risk. `npm audit fix` on `nanoid` is a live option for whoever wants
-it — unlike the old entry, there is no standing reason here not to.
+**IT NEVER REACHED PRODUCTION CODE.** `vite` is a devDependency and `postcss`
+uses `nanoid` at build time; `grep -c nanoid dist/assets/*.js` returned **0**.
+So this was hygiene, not exposure — worth recording, because the severity label
+would otherwise suggest the opposite.
 
 **THE REASONING THAT SURVIVES, because it is about the app and not the advisory
 database:** the MVP is a client-only SPA with **no React Server Components**, so
 any RSC-mode advisory against `react-router-dom` does not describe a path that
-exists here. That assessment stands and would apply again if such an advisory
-returns. Revisit only if the MVP ever adopts RSC or a framework that enables it.
+exists here. (Gate 26 corrected an earlier entry that had recorded 2 findings
+against React Router; those advisories no longer appear.) That assessment stands
+and would apply again if such an advisory returns. Revisit only if the MVP ever
+adopts RSC or a framework that enables it.
 
 **AND THE GENERAL LESSON: AN AUDIT PARAGRAPH ROTS FASTER THAN ALMOST ANYTHING
 ELSE IN THIS FILE.** Advisories are withdrawn, re-scored and re-attributed
-upstream, and the dependency tree moves under a DS re-pin. Re-run `npm audit`
-rather than trusting this section's specifics; what is durable is the RSC
-reasoning above, not the counts.
+upstream, and the dependency tree moves under a DS re-pin. "Zero" above is a
+measurement of one moment, not a property of the repo. Re-run `npm audit`
+rather than trusting this section's count; what is durable is the RSC reasoning
+above and the cold-tree method, not the number.
+
+### The Playwright specifier is EXACT, and that is load-bearing (Gate 39)
+
+`package.json` declares `"@playwright/test": "1.62.1"` — no caret. It was
+`^1.62.1` from Gate 7 until Gate 39.
+
+**THE CARET WAS NOT A STYLE PROBLEM; IT WAS A LIVE HAZARD WITH TWO NAMED
+VICTIMS ALREADY DOCUMENTED IN THIS FILE**, and pinning it is what makes both of
+them impossible to trigger by accident:
+
+- **The Gate 30 source offsets.** That section reads specific line numbers out
+  of the installed `playwright-core` (`coreBundle.js:7550`, `:6666`, `:6623`)
+  to prove the comparator discards antialiased pixels. Those are true of
+  **1.62.1** and nothing pinned it, so an ordinary `npm install` could have
+  moved the minor version and quietly invalidated the proof.
+- **The Gate 17 launch flag.** `--disable-partial-raster` is a Chromium switch,
+  and **Chromium ignores unknown switches silently**. Playwright bundles its own
+  Chromium, so a Playwright upgrade is also a Chromium upgrade — and a
+  rasteriser or PNG-encoder change arriving that way can redden up to all 96
+  visual tests at once, or silently re-open the ±22.5% flake.
+
+**GATE 30 DOCUMENTED THE HAZARD; IT DID NOT RULE THAT THE SPECIFIER SHOULD BE
+EXACT.** A review thread carried it as an existing ruling — it was not one, and
+this section is the ruling arriving. Gate 30's prescription was the weaker "on
+any Playwright upgrade, re-read `:7550`", which depends on someone noticing that
+an upgrade happened.
+
+**PINNING CHANGED NOTHING THAT RESOLVES.** Before and after, `@playwright/test`,
+`playwright` and `playwright-core` all read **1.62.1**, confirmed from each
+package's own `package.json` in `node_modules` after a cold `npm ci` — not from
+install output. This is a specifier change, not an upgrade, and the whole
+lockfile diff for it is one line.
+
+**A PLAYWRIGHT UPGRADE IS NOW A DELIBERATE EDIT**, which is the point. When one
+is wanted: change the literal, re-read Gate 30's offsets against the new
+`playwright-core`, confirm `--disable-partial-raster` is still honoured, and
+expect a baseline re-mint. Name the version in the commit message.
+
+**IT IS THE ONLY EXACT SPECIFIER IN THE MANIFEST, AND THAT ASYMMETRY IS
+DELIBERATE.** The other eleven npm entries keep their ranges; none of them has
+documentation reading line numbers out of its installed source, and none bundles
+a browser. `@monarch/design-system` is a git-tag pin, which is stricter still
+and guarded by `lint:linkage`.
 
 ### Propagation status — both mechanisms confirmed live
 

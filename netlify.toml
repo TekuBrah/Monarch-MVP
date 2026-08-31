@@ -81,6 +81,42 @@
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
 
+# ---------------------------------------------------------------------------
+# Gate 39 — the manifest's Content-Type.
+# ---------------------------------------------------------------------------
+
+# MEASURED ON THE LIVE DEPLOY: `/manifest.webmanifest` came back as
+# `Content-Type: application/octet-stream`, while all six icon assets returned
+# their correct types. Netlify's CDN maps Content-Type from the file extension
+# and has no entry for `.webmanifest`, so it falls back to the generic binary
+# type. Chromium is lenient and installs the app anyway, which is why nothing
+# looked broken; the registered type is `application/manifest+json`, and
+# validators — and stricter user agents — are entitled to reject the generic
+# one.
+#
+# THIS BLOCK ADDS A HEADER. IT DOES NOT REPLACE THE ONE ABOVE, AND THAT IS THE
+# LOAD-BEARING FACT. Netlify applies EVERY matching [[headers]] rule
+# cumulatively rather than letting the most specific path win, so
+# `/manifest.webmanifest` still receives `X-Robots-Tag: noindex, nofollow`
+# from the `/*` rule above. That is why this could be a second block instead of
+# an edit to the first — and it is why the first must not be narrowed to
+# "everything except the manifest" to make room for it.
+#
+# NOT VERIFIABLE LOCALLY, AND DO NOT REPORT IT AS VERIFIED. `vite preview`
+# serves the file straight off disk and never evaluates netlify.toml, so a
+# green local check exercises none of this. The only honest check is
+# post-deploy, exactly as with the robots.txt precedence check at Gate 24:
+#
+#   curl -sSI https://monarchmvp.netlify.app/manifest.webmanifest
+#
+# PASS = `content-type: application/manifest+json` AND `x-robots-tag: noindex,
+# nofollow` both present on the same response. The second half is the one worth
+# reading: it is what proves the `/*` rule still reaches this path.
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
 # FRAMING IS DELIBERATELY LEFT OPEN — Gate 24, Phase 2. THIS IS A DECISION,
 # NOT AN OVERSIGHT, and the absence of a policy here is the implementation of
 # it.

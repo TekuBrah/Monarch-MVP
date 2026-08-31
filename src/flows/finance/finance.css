@@ -353,10 +353,6 @@
   min-width: 0;
 }
 
-.mvp-finance__hero-category {
-  color: var(--mapped-text-on-color-caption);
-}
-
 .mvp-finance__hero-amount {
   display: flex;
   align-items: baseline;
