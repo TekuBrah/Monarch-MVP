@@ -538,15 +538,47 @@ export function filterTransactions(
  * The applied filter as chip labels — what `Finance_Transaction01` draws.
  *
  * DERIVED FROM THE FILTER VALUE, so a facet the user changes is a chip that
- * changes with it. Four chips when the applied filter is in force, matching
- * A5's count, and the fourth reads "RM 0 - 500" exactly as A5 records it.
+ * changes with it.
+ *
+ * THE MODEL IS ONE CHIP PER FACET, VALUE ONLY, WITH THE PAYEE FACET THE SOLE
+ * EXCEPTION — and all three halves of that were READ OFF THE FILE rather than
+ * inferred. `Frame 467`, in each of the gate's three frames:
+ *
+ * | frame | chip row | children |
+ * |---|---|---|
+ * | `1266:14328` Transaction01 | 281 wide | `All` 52, `This Month` 103, *`Watson` 84 HIDDEN*, `RM 0 - 500` 102 |
+ * | `1376:24708` …_all rows | 377 wide | the same four, with `Watson` VISIBLE |
+ * | `1266:14329` Transaction02 | 281 wide | three children; no `Watson` node at all |
+ *
+ * 1 · NO FACET PREFIX. Every label is the VALUE — `All`, never `Type: All`.
+ *
+ * 2 · A FACET AT ITS DEFAULT STILL SHOWS A CHIP, so the model is NOT
+ *     one-chip-per-non-default-facet. Type, date and amount are all at their
+ *     defaults in `TRANSACTION_FILTER_APPLIED` and Figma draws a chip for each
+ *     of them; under a non-default-only rule the row would be EMPTY in all
+ *     three frames, and it is not.
+ *
+ * 3 · THE PAYEE CHIP IS THE ONE THAT COMES AND GOES, and the evidence is one
+ *     node in two states rather than two different nodes: `825:5389` carries
+ *     `label="Watson"` and is `hidden` in Transaction01, visible in _all rows,
+ *     and absent entirely from Transaction02 — whose own `Select` reads
+ *     `Watson`, i.e. picked in the sheet but not yet applied.
+ *
+ * THE ORDER IS THE CHIP ROW'S, NOT THE SHEET'S. Chips run type → date →
+ * payee → amount; the sheet's sections run date → type → merchant → amount.
+ * Do not tidy one into the other — they genuinely differ in the file.
+ *
+ * SUPERSEDES THE CARRIED "four chips, matching A5's count". A5 measured the
+ * elongated exploratory frame, the one frame where a payee IS set. The
+ * canonical 375 frame draws THREE.
  */
 export function filterChipLabels(filter: TransactionFilter): string[] {
   const range = TRANSACTION_DATE_RANGES.find((r) => r.id === filter.dateRange)
-  return [
-    `Payee: ${filter.payees ? filter.payees.join(', ') : 'All'}`,
-    `Type: ${filter.methods ? filter.methods.join(', ') : 'All'}`,
+  const labels = [
+    filter.methods ? filter.methods.join(', ') : 'All',
     range ? range.label : 'All Time',
-    `RM ${filter.amountMin} - ${filter.amountMax}`,
   ]
+  if (filter.payees) labels.push(filter.payees.join(', '))
+  labels.push(`RM ${filter.amountMin} - ${filter.amountMax}`)
+  return labels
 }

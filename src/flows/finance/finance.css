@@ -483,8 +483,33 @@
 .mvp-transactions {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-300);
-  padding-top: var(--spacing-300);
+  /*
+    8px, not 12 — Figma `Frame 452` (`I1266:14328;824:5704`) is
+    `flex-col gap-[var(--scale/200, 8px)]`, and it is the box that holds the
+    search field and the chip row. The list is NOT a child of that frame, which
+    is why it takes its own margin below rather than sharing this gap.
+  */
+  gap: var(--spacing-200);
+  /*
+    NO PADDING-TOP. Figma's content frame (`Frame 449`) sits flush against the
+    tab band at y=170, and the entire 10px of separation is owned by the band
+    itself: `Frame 279` is 58 tall = 16 top + 32 tabs + 10 bottom.
+
+    MEASURED FROM THE TAB'S VISUAL BOX, NOT THE TABLIST'S. The DS `Tabs`
+    element carries `padding: 4px; margin: -4px`, so its `[role="tablist"]`
+    rect overhangs the visible row by 4px a side and is the wrong anchor. The
+    selected `.mn-tab` measures 32px tall — EXACTLY Figma's 32 — with its
+    bottom at y=138 against `.mvp-finance__tabs`' 146.
+
+    So this screen's own 12px sat on top of that wrapper's 8 for a 20px gap
+    against Figma's 10. Removing it leaves 8.
+
+    THE RESIDUAL 2px IS DELIBERATELY NOT CHASED FROM HERE. It is
+    `.mvp-finance__tabs`' `padding-bottom: var(--spacing-200)` (8) against
+    Figma's `Scale/250` (10), and that wrapper is shared by all five finance
+    tabs — moving it would re-render Overview, Budget, Plans and Receipts too,
+    outside this gate's four-baseline budget. Logged rather than fixed.
+  */
 }
 
 /*
@@ -504,20 +529,42 @@
 }
 
 /*
-  A5 — Figma's chip row is 377 wide at x=16 in a 375 frame and clips its fourth
-  chip. It scrolls here instead, carrying the gutter as padding through
-  `.mvp-column--bleed`, which is why this rule declares no horizontal padding of
-  its own: a `padding` shorthand at equal specificity would land later in source
-  order and collapse the class's longhands (the Gate 14 hazard).
+  A5 — AND IT DOES NOT REPRODUCE, WHICH IS WHY THIS ROW SCROLLS FOR A DIFFERENT
+  REASON THAN THE INVENTORY GIVES.
+
+  A5 records the applied-chip row as 377 wide at x=16 in a 375 frame, clipping
+  its fourth chip. Re-read at Gate 41-B, that 377 belongs to ONE frame —
+  `1376:24708`, the elongated exploratory copy, the only one where the payee
+  facet is set and a fourth chip therefore exists. Both canonical 375 frames
+  (`1266:14328`, `1266:14329`) draw a 281-wide row of THREE chips, which does
+  not overflow at all. Figma also builds these chips out of `Field` instances
+  (inventory A9), and the DS's real chip is narrower still.
+
+  SO THE OVERFLOW IS PROSPECTIVE, NOT CURRENT, AND THE SCROLLING IS STILL
+  RIGHT. `filterChipLabels` joins selected payees with commas, so Gate 42's
+  sheet produces a long payee chip the moment anyone picks two — measured at
+  Gate 41 by injecting one: `scrollWidth` 375 -> 729, the row genuinely
+  scrolled, and the other chips kept their widths because of the `flex: 0 0 auto`
+  below.
+
+  The gutter arrives as padding through `.mvp-column--bleed`, which is why this
+  rule declares no horizontal padding of its own: a `padding` shorthand at equal
+  specificity would land later in source order and collapse the class's
+  longhands (the Gate 14 hazard).
 
   NO `scroll-snap-align` ON THE CHILDREN, so the class's `scroll-padding-left`
-  is inert here rather than load-bearing. That is fine and deliberate — the
-  gutter half is what this row needs, and adding snap to a four-chip row would
-  fight the user's scroll for no gain.
+  is inert here rather than load-bearing. That is deliberate — the gutter half
+  is what this row needs, and snapping a three-chip row would fight the user's
+  scroll for no gain.
 */
 .mvp-transactions__chips {
   display: flex;
-  gap: var(--spacing-200);
+  /*
+    12px, not 8 — Figma `Frame 467` is `flex gap-[var(--scale/300, 12px)]`,
+    confirmed twice: the declaration, and the drawn offsets (52 @0, 103 @64,
+    84 @179, 102 @275 — every step exactly 12 past the previous chip's edge).
+  */
+  gap: var(--spacing-300);
   overflow-x: auto;
   margin: 0;
   padding-top: 0;
@@ -527,13 +574,39 @@
 
 /* Chips must not compress to fit; the row scrolls instead. */
 .mvp-transactions__chips > li {
+  /*
+    `flex` so the item hugs the chip. The chip is `inline-flex`, so a block
+    `li` boxes it in a LINE BOX instead — measured 25px tall around a 16px
+    chip, which silently inflated the row and every gap derived from it.
+  */
+  display: flex;
   flex: 0 0 auto;
 }
 
 .mvp-transactions__list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-200);
-  margin: 0;
+  /*
+    28px between rows, not 8. Figma `Frame 453` declares `gap-[28px]`, and the
+    frame's own height agrees independently: 9 rows x 44 + 8 gaps x 28 = 620,
+    which is exactly the height the file records.
+
+    `--brand-scale-700` RATHER THAN A `--spacing-*` ALIAS BECAUSE THERE IS NO
+    `--spacing-700`. The DS ramp declares 25/50/100/200/300/400/500/600/800 and
+    up, skipping 700 — while `--brand-scale-700` is a real 28px step. Reaching
+    past the alias here follows the precedent already set by
+    `.mvp-shell__fab` (`--brand-scale-1500`) and `.mvp-shell__scrim`
+    (`--brand-scale-1700`); the missing alias is logged DS-side.
+  */
+  gap: var(--brand-scale-700);
+  /*
+    24px from the chip row, which is 16 here plus the parent's 8. Figma puts
+    `Frame 453` at y=100 inside `Frame 449` against `Frame 452`'s 76px
+    height — a 24px step that the parent's 8px gap alone cannot express,
+    because that same gap is also the 8px between the search field and the
+    chips. Two different gaps, one flex container, so the second one is a
+    margin.
+  */
+  margin: var(--spacing-400) 0 0;
   list-style: none;
 }

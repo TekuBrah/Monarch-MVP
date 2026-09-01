@@ -286,6 +286,53 @@ exposed by the DS.
 They are the same defect in two components, and G11 already proposes a single
 `Blanket` fix. Listed separately here because G11's evidence names `Blanket` and
 `Modal` specifically and a reader checking `Sheet` against it would find nothing.
+### Two further entries — B1 and B2, opened at MVP Gate 41-B
+
+**A THIRD LETTER, BECAUSE `U` IS ALREADY DOUBLE-CLAIMED IN THIS FILE.** §7
+"Unverifiable / needs Teku" runs **U1–U6**, and §2a's "Two new entries" runs
+**U1–U2** for `Sheet` — so `U1` and `U2` each mean two different things depending
+on which section you are in, and `U3`/`U4` are taken by §7. That is the same
+ambiguity `CLAUDE.md` documents for the `G` series, reproduced in the series
+that was created to avoid it. **These are `B`, for Gate 41-B**, so they collide
+with neither — and the `U` collision is logged for the review thread rather
+than renumbered here, because renumbering a live series is not a cosmetic edit.
+**Always write "§2a U1" or "§7 U1"; never a bare `U`-number.**
+
+**BOTH WERE FOUND BY READING FIGMA, NOT BY READING THE DS**, which is why the
+original sweep missed them: that sweep asked whether each component had the
+SLOTS a flow demanded, and both of these are about a component's own GEOMETRY.
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **B1** | *(none exists)* | An **applied-filter chip**: a dismissible pill summarising one facet — `label` plus a trailing ✕. | `component-gap` | **8** | Figma draws it at `888:10849` — white ground, `Dropshadow_default`, `pl 12 / pr 8 / py 4`, `gap 4`, radius 8, `body/caption-semibold` on `Neutral02` `#6b7280`, trailing 12px `close` glyph, **24px tall**. **No pinned DS component can render it.** `Chips`: `icon` is documented "leading glyph" and renders BEFORE the label — no trailing slot and no `onClick` — and `.mn-chips` is `padding: 0 var(--brand-scale-100)`, i.e. **16px** tall against 24. `FilterChip` HAS `iconRight` + `onClick` but is the SHEET's toggle (`filter/chips/toggle`): `padding: 12px 16px` = **40px** tall, bordered and transparent. `Tag` has `iconAfter` + `onClick` but is `padding: 4px 2px`, radius 4 |
+| **B2** | `Field` | **Fill the content column.** Figma's search field is **343 wide** — the whole 375−32 gutter. | `prop-gap` | **8** | `.mn-field` declares a hard `width: 240px`, and `FieldProps` exposes no `sizing` / `isFullWidth` / `width`. Measured live on `/finance [tab:transactions]`: the field renders `[16, 158, 256, 204]` — **240 wide in a 343 column, at 375 AND at 430**. The only `width` escape in any `.mn-field*` rule is `.mn-field--compact { width: auto }`, which also forces `justify-content: center` and is documented as the "square, icon-only field (no text/label)" — it cannot carry a placeholder |
+
+**B1 IS NOT "FIGMA USED THE WRONG COMPONENT", AND THAT DECIDES HOW IT GETS
+FIXED.** Inventory **A9** already records that Figma builds these chips out of
+`Field` instances. Read together with this entry, that says the DESIGNER was
+improvising too — the Figma library has no applied-filter chip either, so the
+frame reached for the nearest available pill. The fix is therefore a genuinely
+NEW component on both sides, not a re-binding of an existing one.
+
+**MVP GATE 41-B SHIPPED THE MODEL AND STOPPED AT THE APPEARANCE, PER RULE 3.**
+The chip COUNT, ORDER and LABELS now match Figma exactly — three chips,
+`All` / `This Month` / `RM 0 - 500`, no facet prefixes, payee appearing only
+when set — because that is data and needs no primitive. The white pill and the
+dismiss ✕ were NOT approximated in MVP CSS, because that would be defining a
+primitive here.
+
+**B2 IS THE SAME SHAPE AS THE `CardBalance` FINDING, AND THE PRECEDENT IS
+BINDING.** MVP Gate 26 recorded `CardBalance` as pinned at its own
+`max-width: 172px` with "no fill or sizing prop", declined to override it from
+the consumer, and waited for **DS v1.11.0** to add `sizing="fill"` — which Gate
+33 then adopted. `Field` wants the identical prop for the identical reason. An
+MVP-side `.mn-field { width: 100% }` override is precisely what Gate 13 REMOVED
+on measurement, on the grounds that it masks the DS's ownership of geometry.
+
+**NEITHER RE-LITIGATES `not-a-gap`.** That table clears `Field` for "search with
+leading glyph + trailing filter button" — SLOTS — and `Chips` was only ever
+examined for its LEADING glyph (**G9**). Width and a trailing dismiss were never
+asked of either.
 
 ---
 

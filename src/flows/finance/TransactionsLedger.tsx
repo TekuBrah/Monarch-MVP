@@ -13,7 +13,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * `Finance_Transaction01` (`1266:14328`) — the Transactions tab's body.
  *
  * THE NINE ROWS FIGMA DRAWS ARE AN OUTPUT, NOT A LIST. The screen opens with
- * Figma's four applied filters in force and computes the result with
+ * Figma's applied filter in force and computes the result with
  * `filterTransactions()` over the whole 23-row ledger; the nine rows the frame
  * shows are simply the first nine of the 15 that match, under an ordinary
  * date-descending sort. Nothing here is hand-picked, which is what makes the
@@ -37,7 +37,7 @@ export function TransactionsLedger() {
   const { transactions } = useAccounts()
   const [search, setSearch] = useState('')
 
-  // Figma's four applied chips, as a value. `useState` rather than a constant
+  // Figma's applied filter, as a value. `useState` rather than a constant
   // because Gate 42's sheet writes it; nothing writes it today, and the screen
   // is already correct for whatever it is set to.
   const [filter] = useState(TRANSACTION_FILTER_APPLIED)
@@ -54,7 +54,18 @@ export function TransactionsLedger() {
         <Field
           value={search}
           onChange={setSearch}
-          placeholder="Search transactions"
+          /*
+            "Search" is Figma's literal placeholder (`I1376:24708;824:5785`,
+            `body/m` on `--text/subtle/default`) — not a shortening of ours. The
+            longer string also did not fit: `.mn-field` is a hard-coded 240px
+            with no sizing prop (logged against `Field`), so "Search
+            transactions" ran into the trailing filter icon at both viewports.
+
+            `ariaLabel` KEEPS THE LONG FORM, so the accessible name does not
+            change — a placeholder is not an accessible name, and "Search"
+            alone would not say what is being searched.
+          */
+          placeholder="Search"
           ariaLabel="Search transactions"
           leadingIcon={<Icon name="search" size="m" />}
           trailingIcon={
@@ -78,13 +89,19 @@ export function TransactionsLedger() {
       </div>
 
       {/*
-        A5 — Figma's applied-chip row is 377 wide at x=16 inside a 375 frame, so
-        its fourth chip ("RM 0 - 500") is clipped. HANDLED BY SCROLLING, NOT BY
-        DROPPING A CHIP OR SHRINKING ONE: the row scrolls horizontally and
-        carries the content gutter as padding via `.mvp-column--bleed`, which is
-        the same answer A3/A4's five-tab overflow already took in this app
-        (`Tabs isScrollable` on `FinanceScreen`). Every chip stays reachable at
-        375 and the row does not overflow at all at 430.
+        A5 — AND IT DOES NOT REPRODUCE. A5 records this row as 377 wide at
+        x=16 in a 375 frame, clipping a fourth chip. Re-read at Gate 41-B, that
+        377 is ONE frame — `1376:24708`, the elongated exploratory copy, and the
+        only one where the payee facet is set so a fourth chip exists at all.
+        Both canonical 375 frames draw a 281-wide row of THREE chips and do not
+        overflow.
+
+        THE ROW STILL SCROLLS, for a prospective overflow rather than a current
+        one: `filterChipLabels` joins selected payees with commas, so Gate 42's
+        sheet makes a long payee chip the moment two are picked. The gutter
+        arrives as padding via `.mvp-column--bleed` — the same answer A3/A4's
+        five-tab overflow already took here (`Tabs isScrollable` on
+        `FinanceScreen`).
       */}
       <ul className="mvp-transactions__chips mvp-column--bleed">
         {chips.map((label) => (
@@ -93,7 +110,7 @@ export function TransactionsLedger() {
               `icon={null}` — an APPLIED filter is not a completed task, and
               `Chips` defaults its leading glyph to a `done` checkmark. Passing
               null is exactly the slot DS v1.16.0's Chips exposes (register G9,
-              closed), and it is why no checkmark appears on these four.
+              closed), and it is why no checkmark appears on any of them.
             */}
             <Chips label={label} icon={null} />
           </li>
