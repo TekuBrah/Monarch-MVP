@@ -8,6 +8,7 @@ import type {
   Holding,
   Transaction,
   TransactionCategoryId,
+  TransactionMethod,
 } from './types'
 
 /**
@@ -360,4 +361,192 @@ export function netWorthChange(series: number[]): Amount {
 /** Total x slots for the chart — the whole month, even before it has elapsed. */
 export function chartDomain(): number {
   return daysInMonth(TODAY)
+}
+
+// ------------------------------------------------------- Flow 8: the filter
+
+/**
+ * The four facets of Flow 8's filter sheet, as a value.
+ *
+ * `null` means "All" on the two list facets — an ABSENT constraint, not an empty
+ * selection. The distinction matters because an empty array would otherwise have
+ * to mean "match everything", which reads backwards at the call site and makes
+ * "the user deselected every payee" unexpressible.
+ */
+export interface TransactionFilter {
+  /** Merchant/person names to keep. `null` = All. */
+  payees: string[] | null
+  /** Payment kinds to keep. `null` = All. */
+  methods: TransactionMethod[] | null
+  dateRange: TransactionDateRangeId
+  /** Inclusive MAGNITUDE bounds — see `filterTransactions`. */
+  amountMin: Amount
+  amountMax: Amount
+}
+
+export type TransactionDateRangeId = 'all' | 'this-month' | 'last-7' | 'last-30'
+
+/**
+ * The date-range options, with A8's capitalization FIXED IN CODE.
+ *
+ * Figma writes "This Month", "last 7 days" and "Last 30 days" — three different
+ * capitalizations in one control (inventory A8, dispositioned FIX IN CODE in the
+ * gap register). One casing is applied here; "This Month" is the spelling kept,
+ * because it is the one the applied chip on `Finance_Transaction01` renders.
+ */
+export const TRANSACTION_DATE_RANGES: { id: TransactionDateRangeId; label: string }[] = [
+  { id: 'all', label: 'All Time' },
+  { id: 'this-month', label: 'This Month' },
+  { id: 'last-7', label: 'Last 7 Days' },
+  { id: 'last-30', label: 'Last 30 Days' },
+]
+
+/** The slider's own bounds — the full range the amount facet can express. */
+export const TRANSACTION_AMOUNT_FLOOR = 0
+export const TRANSACTION_AMOUNT_CEILING = 10000
+
+/** Everything, i.e. what the screen shows once all four facets are cleared. */
+export const TRANSACTION_FILTER_ALL: TransactionFilter = {
+  payees: null,
+  methods: null,
+  dateRange: 'all',
+  amountMin: TRANSACTION_AMOUNT_FLOOR,
+  amountMax: TRANSACTION_AMOUNT_CEILING,
+}
+
+/**
+ * The filter `Finance_Transaction01` opens with — Figma's four applied chips.
+ *
+ * Payee All, Type All, This Month, RM 0-500. Applied to the ledger this returns
+ * 15 rows, which is the number Figma's own button prints ("Apply Filter (15)",
+ * inventory A14 — recorded there as unverifiable from a static frame, and now
+ * computed), and whose first nine ARE the nine rows the frame draws.
+ */
+export const TRANSACTION_FILTER_APPLIED: TransactionFilter = {
+  payees: null,
+  methods: null,
+  dateRange: 'this-month',
+  amountMin: 0,
+  amountMax: 500,
+}
+
+/**
+ * The instant the date facet measures back from.
+ *
+ * IT IS THE LEDGER'S NEWEST ROW, NOT `TODAY`, AND THAT IS A DELIBERATE
+ * DIVERGENCE FROM B5 rather than an oversight. Every other date in this app is
+ * an offset from `TODAY` so nothing goes stale; the transaction ledger is the
+ * one place that CANNOT be, because inventory SYS-7 fixes these rows to
+ * September 2025 and Flow 1's Homepage reconciles against "15 Sept 22:03"
+ * literally.
+ *
+ * So the two clocks genuinely disagree, and by a lot: the harness pins `TODAY`
+ * to 2026-08-15 (`PINNED_NOW` in `e2e/harness.ts`, chosen so the fixed deposit
+ * and the net-worth chart derive sensibly), while the ledger's present is
+ * 2025-09-15. A "This Month" facet measured against `TODAY` would ask for
+ * August 2026 and match ZERO of the 23 rows — a filter that is technically
+ * correct, silently empty, and impossible to tell apart from a broken predicate.
+ *
+ * Measuring from the newest row keeps the facet DERIVED — move the ledger
+ * forward a year and the window follows it, with no literal to update. The
+ * alternative was a hardcoded September 2025 boundary, which is the thing this
+ * file exists to avoid.
+ */
+export function ledgerNow(transactions: Transaction[]): Date {
+  const newest = transactions.reduce(
+    (latest, t) => (t.occurredAt > latest ? t.occurredAt : latest),
+    transactions[0]?.occurredAt ?? '',
+  )
+  return new Date(newest)
+}
+
+/** Every payee in the ledger, once each, alphabetical — the Payee facet's options. */
+export function transactionPayees(transactions: Transaction[]): string[] {
+  return [...new Set(transactions.map((t) => t.merchant))].sort((a, b) =>
+    a.localeCompare(b),
+  )
+}
+
+/** Whether one row falls inside a named window, measured back from `ledgerNow`. */
+function withinRange(
+  transaction: Transaction,
+  range: TransactionDateRangeId,
+  now: Date,
+): boolean {
+  if (range === 'all') return true
+
+  const at = new Date(transaction.occurredAt)
+
+  if (range === 'this-month') {
+    return (
+      at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth()
+    )
+  }
+
+  const days = range === 'last-7' ? 7 : 30
+  const floor = new Date(now.getTime())
+  floor.setDate(floor.getDate() - days)
+  return at > floor && at <= now
+}
+
+/**
+ * Apply all four facets, plus the search box, and return newest-first.
+ *
+ * A REAL PREDICATE OVER THE WHOLE LEDGER, never a hand-picked list. Flow 8's
+ * nine drawn rows are the OUTPUT of this function against
+ * `TRANSACTION_FILTER_APPLIED`, not an input to it — which is the only way the
+ * screen can honour a filter the user then changes.
+ *
+ * THE AMOUNT FACET BOUNDS MAGNITUDE, NOT SIGNED VALUE. Figma's control is an
+ * "RM 0 - 500" range over a 0-10,000 slider, and a ledger that stores outflows
+ * as negative would otherwise exclude every debit at a floor of 0 — i.e. the
+ * whole list. `Math.abs` is therefore load-bearing rather than defensive, and
+ * `txn-maybank-0907` (+RM 1,500) is the row that proves it: it is a CREDIT
+ * excluded by the cap, so dropping the `Math.abs` would let it back in while
+ * every debit vanished.
+ *
+ * The search box matches merchant OR method, case-insensitively, so typing
+ * "crypto" narrows to the two Crypto Transfers.
+ */
+export function filterTransactions(
+  transactions: Transaction[],
+  filter: TransactionFilter,
+  search = '',
+): Transaction[] {
+  const now = ledgerNow(transactions)
+  const needle = search.trim().toLowerCase()
+
+  return transactions
+    .filter((t) => {
+      if (filter.payees && !filter.payees.includes(t.merchant)) return false
+      if (filter.methods && !filter.methods.includes(t.method)) return false
+      if (!withinRange(t, filter.dateRange, now)) return false
+
+      const magnitude = Math.abs(t.amount)
+      if (magnitude < filter.amountMin || magnitude > filter.amountMax) return false
+
+      if (needle) {
+        const haystack = `${t.merchant} ${t.method}`.toLowerCase()
+        if (!haystack.includes(needle)) return false
+      }
+      return true
+    })
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+}
+
+/**
+ * The applied filter as chip labels — what `Finance_Transaction01` draws.
+ *
+ * DERIVED FROM THE FILTER VALUE, so a facet the user changes is a chip that
+ * changes with it. Four chips when the applied filter is in force, matching
+ * A5's count, and the fourth reads "RM 0 - 500" exactly as A5 records it.
+ */
+export function filterChipLabels(filter: TransactionFilter): string[] {
+  const range = TRANSACTION_DATE_RANGES.find((r) => r.id === filter.dateRange)
+  return [
+    `Payee: ${filter.payees ? filter.payees.join(', ') : 'All'}`,
+    `Type: ${filter.methods ? filter.methods.join(', ') : 'All'}`,
+    range ? range.label : 'All Time',
+    `RM ${filter.amountMin} - ${filter.amountMax}`,
+  ]
 }

@@ -6,13 +6,13 @@ import {
   Icon,
   IconObject,
   ListItem,
-  Logo,
   StatusBar,
   ToastMobile,
 } from '@monarch/design-system'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
+import { TransactionMark } from '../../components/TransactionMark'
 import { holdingValue } from '../../data/derive'
 import { DetailRows } from './components/DetailRows'
 import { HoldingHero } from './components/HoldingHero'
@@ -124,7 +124,7 @@ export function HoldingDetailScreen() {
                     type={entry.trend ? 'crypto' : 'default'}
                     leading={
                       entry.logo ? (
-                        <Logo name={entry.logo} size="m" />
+                        <TransactionMark mark={entry.logo} size="m" />
                       ) : (
                         <IconObject color={holding.badgeColor} shape="circle" size="l">
                           <Icon name={entry.icon ?? 'icon_stocks'} size="m" />

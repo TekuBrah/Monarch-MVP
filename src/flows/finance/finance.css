@@ -472,3 +472,68 @@
   display: flex;
   justify-content: center;
 }
+
+/*
+  ── Flow 8, the transactions ledger ──────────────────────────────────────────
+
+  Three stacked regions: the search bar, the applied-filter chips, and the list.
+  The screen scrolls as one; nothing here is fixed, so nothing needs the Gate D
+  frame inset.
+*/
+.mvp-transactions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  padding-top: var(--spacing-300);
+}
+
+/*
+  The filter affordance inside the Field's trailing slot.
+
+  A BUTTON RATHER THAN A BARE ICON, and it is a no-op until Gate 42 — see the
+  TODO at the call site. Reset to nothing so the DS Field owns every visual:
+  the MVP supplies a hit target and an accessible name, not an appearance.
+*/
+.mvp-transactions__filter-btn {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/*
+  A5 — Figma's chip row is 377 wide at x=16 in a 375 frame and clips its fourth
+  chip. It scrolls here instead, carrying the gutter as padding through
+  `.mvp-column--bleed`, which is why this rule declares no horizontal padding of
+  its own: a `padding` shorthand at equal specificity would land later in source
+  order and collapse the class's longhands (the Gate 14 hazard).
+
+  NO `scroll-snap-align` ON THE CHILDREN, so the class's `scroll-padding-left`
+  is inert here rather than load-bearing. That is fine and deliberate — the
+  gutter half is what this row needs, and adding snap to a four-chip row would
+  fight the user's scroll for no gain.
+*/
+.mvp-transactions__chips {
+  display: flex;
+  gap: var(--spacing-200);
+  overflow-x: auto;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  list-style: none;
+}
+
+/* Chips must not compress to fit; the row scrolls instead. */
+.mvp-transactions__chips > li {
+  flex: 0 0 auto;
+}
+
+.mvp-transactions__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  margin: 0;
+  list-style: none;
+}

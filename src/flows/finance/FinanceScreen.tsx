@@ -4,6 +4,7 @@ import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
 import { mediaUrl } from '../../config/media'
 import { FinanceOverview } from './FinanceOverview'
+import { TransactionsLedger } from './TransactionsLedger'
 import './finance.css'
 
 /**
@@ -87,13 +88,7 @@ export function FinanceScreen() {
       </div>
 
       {selected === 'overview' && <FinanceOverview />}
-      {selected === 'transactions' && (
-        <ComingSoon
-          title="Transactions"
-          description="Every movement across your accounts, in one ledger."
-          icon="icon_transfer"
-        />
-      )}
+      {selected === 'transactions' && <TransactionsLedger />}
       {selected === 'budget' && (
         <ComingSoon
           title="Budget"

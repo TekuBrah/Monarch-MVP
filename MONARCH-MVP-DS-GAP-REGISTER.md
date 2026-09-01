@@ -237,6 +237,58 @@ belong here so the DS session has one document.
 
 ---
 
+## 2a. Status at MVP Gate 41 (2026-09-01) — DS pinned at v1.16.0
+
+**THE REGISTER ABOVE IS DATED 2026-08-09 AND WAS WRITTEN AGAINST v1.2.0. Thirteen
+DS releases have shipped since.** Four entries have moved, and they are recorded
+here rather than by editing the rows above, so the original sweep stays readable
+as the document it was.
+
+Every closure below was re-derived against the **pinned** package in
+`node_modules/@monarch/design-system`, never against the DS working tree and
+never against a changelog.
+
+| # | Was | Now | How it was checked |
+|---|---|---|---|
+| **G1** | `component-gap` — no bottom-anchored sheet; *"the critical path… blocking Flows 8 and 9"* | **CLOSED** | `Sheet` ships. `dist/components/Sheet/Sheet.d.ts` exists in the pin; `git ls-tree` on the DS shows `src/components/Sheet/` absent at `v1.2.0` and present at `v1.3.0` (4 files), so **v1.3.0 is the release that closed it**, as carried |
+| **G9** | `prop-gap` — `Chips`' leading glyph is a fixed `done` checkmark | **CLOSED** | `dist/components/Chips/Chips.d.ts` declares `icon?: React.ReactNode` and documents *"pass `null` for no glyph at all"*. Present at both `v1.15.0` and `v1.16.0`, so it closed **before** this gate, not because of it. Flow 8's four applied chips are the first MVP consumer to pass `null` |
+| **G10** | `token-gap` — `FilterChip.css` FAIL-LOUD literal `padding-left: 10px` when both icons are set | **CLOSED** | zero matches for a `10px` literal in any `.mn-filter-chip` rule of the pinned `dist/index.css` |
+| **G8** | `prop-gap` — `Modal`'s header and ✕ are not suppressible, *"compounds G1"* | **OPEN, but MOOT for Flow 8** | still unconditional — `Modal.tsx:115` renders `<div className="mn-modal__header">` with no guard (**the register cites `:109`; the file grew underneath the reference**). It only ever mattered as a way to fake a sheet out of a `Modal`, and G1 removed the need: Gate 42 will compose the real `Sheet` |
+
+**G11 and G12 are unchanged and still open.** Both are `Blanket` items and
+neither is fixable from this repo.
+
+### Two new entries — U1 and U2, both `Sheet`
+
+**A SEPARATE LETTER ON PURPOSE.** The `G` series is claimed twice in this project
+already — this register runs G1–G12 and the flow inventory runs G1–G3, and a bare
+`G`-number has produced a phantom entry before. These come from **U**pcoming
+Flow 8/9 sheet work and are numbered `U` so they cannot be confused with either.
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **U1** | `Sheet` | **Frame awareness.** The panel should cap at the app's frame width rather than spanning the window. | `prop-gap` | **8, 9** | Derived from the pinned `dist/index.css` only. `.mn-sheet` is `position:fixed; top/right/bottom/left:0` — a full-viewport container — and `.mn-sheet__panel` is `width:100%` with **no `max-width` in any `.mn-sheet*` rule**. Contrast `.mn-modal__card`, which is `width:100%; max-width:375px` and therefore already frame-safe. Above the MVP's 430px cap (Gate D) the panel spans the whole window while the modal card does not |
+| **U2** | `Sheet` | **Background scroll lock** while the sheet is open. | `prop-gap` | **8, 9** | `Sheet.tsx` portals to `document.body` (`:251`) and never touches `overflow` on `<html>` or `<body>` — its only `overflow` references are about its OWN content region being scrollable. Same defect class as **G11**, which is scoped to `Blanket`/`Modal` and does not name `Sheet` |
+
+**U1's PAINTED GEOMETRY WAS NOT MEASURED, AND THAT IS STATED RATHER THAN
+GLOSSED.** No `Sheet` consumer exists in this app yet, so there is nothing to
+measure; the claim above is read off shipped CSS. **Measure it at Gate 42**, at a
+viewport above 430, before treating the width figure as established.
+
+**U1 IS DS-SIDE PER RULE 3, AND THE OBVIOUS CONSUMER-SIDE FIX IS KNOWN TO BE
+FATAL.** Capping the panel from the MVP would mean wrapping it in a
+`transform`, `contain` or `filter` container — and Gate D measured all three:
+each establishes a containing block and **un-fixes** the element, relocating it
+to the bottom of the document and making it unhittable. The seam has to be
+exposed by the DS.
+
+**WHETHER U2 FOLDS INTO G11 IS THE REVIEW THREAD'S CALL, NOT THIS DOCUMENT'S.**
+They are the same defect in two components, and G11 already proposes a single
+`Blanket` fix. Listed separately here because G11's evidence names `Blanket` and
+`Modal` specifically and a reader checking `Sheet` against it would find nothing.
+
+---
+
 ## Summary
 
 - **28 of 28 screens read.** **40 DS components read in source**, `.tsx` and `.css`.

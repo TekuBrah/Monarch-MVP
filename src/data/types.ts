@@ -77,14 +77,53 @@ export interface TransactionCategory {
   icon: IconName
 }
 
+/**
+ * How a row is paid — inventory §D3's three kinds, verbatim.
+ *
+ * Narrowed from a free `string` by Flow 8, because the Transactions filter has a
+ * Type facet and a facet over an open string cannot be exhaustive: the chip list
+ * would either be hand-maintained beside the data (two places to update) or
+ * derived from whatever happens to be present (a facet that silently loses an
+ * option when the last row using it is deleted). The three values ARE the
+ * display strings, which is what the ledger already rendered — `titleInfo` takes
+ * `method` unmodified at both pre-existing call sites, so no lookup table is
+ * needed and none was added.
+ */
+export type TransactionMethod = 'Card Payment' | 'Fund Transfer' | 'Crypto Transfer'
+
+/**
+ * Who the row is with — a merchant mark, or a person.
+ *
+ * A DISCRIMINATED UNION rather than two optional fields, for the same reason
+ * `Holding` is one: the two cases render through DIFFERENT DS components
+ * (`Logo` vs `Avatar`) with disjoint inputs, so `{ logo?, initials? }` would
+ * admit both-set and neither-set — two states with no meaning that every call
+ * site would then have to defend against. The tag makes the render a total
+ * switch instead.
+ *
+ * NO IMAGE ASSET IS INVOLVED. `Avatar` takes `initials`, verified against the
+ * pinned `dist/components/Avatar/Avatar.d.ts`, so a person row needs no
+ * photograph and `public/media/` is untouched. Inventory §F describes Figma's
+ * people as avatar PHOTOGRAPHS; initials are the substitution, and they are a
+ * substitution rather than a shortcut — a photograph of a fictional person is
+ * product data this repo has no source for.
+ *
+ * THE FIELD IS STILL CALLED `logo`. The merchant case dominates (21 of 23 rows)
+ * and both read sites already spell `logo`; renaming it would have widened a
+ * type change into a rename across every consumer for no behavioural gain.
+ */
+export type TransactionLogo =
+  | { kind: 'merchant'; name: LogoName }
+  | { kind: 'person'; initials: string }
+
 export interface Transaction {
   id: string
-  /** Merchant display name. */
+  /** Merchant display name, or the person's name. */
   merchant: string
-  /** DS `Logo` name — merchant identity carried by a component (inventory §7). */
-  logo: LogoName
+  /** Merchant mark or person — see `TransactionLogo` (inventory §7). */
+  logo: TransactionLogo
   /** Figma: the caption under the merchant — "Card Payment". */
-  method: string
+  method: TransactionMethod
   /** Negative for an outflow. */
   amount: Amount
   currency: CurrencyCode
@@ -94,7 +133,15 @@ export interface Transaction {
   /** Drives `ListItem`'s `hasReceiptIcon`. Becomes writable state in Flow 9 (W2). */
   hasReceipt: boolean
   /**
-   * Which cash account the row was spent from — joins to `BankHolding.accountId`.
+   * Which account the row moved through.
+   *
+   * Joins to `BankHolding.accountId` for the two cash accounts. Flow 8 widened
+   * the RANGE, not the type: a `Crypto Transfer` did not move through a bank
+   * account, so those rows carry a `CryptoWallet.id` instead. That join is
+   * one-way and currently unread — `holdingFields`' `crypto-wallet` case renders
+   * the TOKEN list, not transactions — so a wallet id here reaches no
+   * drill-down. Recorded rather than invented: the alternative was attributing a
+   * crypto movement to a savings account, which is false.
    *
    * Added by Flow 7 so a bank holding's drill-down can show its own rows. It is
    * an ATTRIBUTION of the existing ledger, not new transactions: no merchant,

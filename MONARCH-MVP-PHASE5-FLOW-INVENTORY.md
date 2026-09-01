@@ -2568,6 +2568,23 @@ matching results rather than rows drawn, and the list clips (A6), so this is
 Possible in real data, but noted alongside Flow 5's identical-value duplicate
 (Stellar/Uniswap at RM 5,117.70), which turned out to matter.
 
+**A16 — the nine ledger rows are NOT drawn in date order, and no sort produces
+the drawn order.** Added at MVP Gate 41, when the rows were first implemented as
+the output of a real filter rather than transcribed. Figma's drawn sequence is
+Aeon Big (15 Sept) · Caring Pharmacy (13) · KFC (12) · Granddaughter (11 06:12) ·
+IKEA (**6** Sept) · Rachum Greene (11 23:46) · Tony Roma's (10 07:21) ·
+Rachum Greene (10 13:33) · Touch N Go (9). **IKEA sits fifth, between two
+11 Sept rows**, and the two 11 Sept rows are themselves inverted against each
+other — so the order is neither ascending nor descending by date, and is not
+grouped by payee, type or amount either.
+
+**Disposition: FIX IN CODE — the MVP sorts date-descending**, which is ordinary
+ledger behaviour and the only order a filter can produce over a changing result
+set. The consequence is visible and intended: the same nine rows appear, in a
+different order from the frame. Not a data defect — the rows and figures
+reconcile exactly (§G) — so this is a LAYOUT artifact of the mockup, in the same
+class as A5 and A13's overflowing rows rather than as A2's mislabel.
+
 ## B. Detached instances — triaged
 
 **B1 — `Transaction01`'s `Tabs` (`0:266`) → detached copy. High confidence, and

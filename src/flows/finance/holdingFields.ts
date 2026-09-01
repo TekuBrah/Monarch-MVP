@@ -1,4 +1,4 @@
-import type { IconName, LogoName, TrendDirection } from '@monarch/design-system'
+import type { IconName, TrendDirection } from '@monarch/design-system'
 import {
   fixedDepositAccrued,
   fixedDepositDates,
@@ -19,7 +19,12 @@ import {
   formatTrendPercent,
 } from '../../data/format'
 import { formatDate } from '../../data/today'
-import type { CryptoHolding, Holding, Transaction } from '../../data/types'
+import type {
+  CryptoHolding,
+  Holding,
+  Transaction,
+  TransactionLogo,
+} from '../../data/types'
 import type { DetailRow } from './components/DetailRows'
 
 /**
@@ -70,8 +75,15 @@ export interface HoldingListEntry {
   amountInfo?: string
   trend?: TrendDirection
   icon?: IconName
-  /** Set for crypto tokens and merchants, which have real marks; funds do not. */
-  logo?: LogoName
+  /**
+   * Set for crypto tokens, merchants and people; funds have no mark at all.
+   *
+   * Widened by Flow 8 from a bare `LogoName` to the tagged `TransactionLogo`,
+   * so one list can hold a merchant mark and a person side by side. A crypto
+   * token is wrapped as `{ kind: 'merchant' }` — a token's mark IS a logo, and
+   * inventing a third tag for it would split a case that renders identically.
+   */
+  logo?: TransactionLogo
 }
 
 export interface HoldingFields {
@@ -255,7 +267,7 @@ export function holdingFields(
             amount: formatMyr(token.valueMyr),
             amountInfo: formatTrendPercent(token.changePct),
             trend: trendOf(token.changePct),
-            logo: token.logo,
+            logo: { kind: 'merchant', name: token.logo },
           })),
         },
         actions: NO_ACTIONS,

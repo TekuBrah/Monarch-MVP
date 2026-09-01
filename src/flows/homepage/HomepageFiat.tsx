@@ -13,6 +13,7 @@ import { recentTransactions } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
 import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insights'
 import { SectionHeader } from '../../components/SectionHeader'
+import { TransactionMark } from '../../components/TransactionMark'
 import { BalanceCard } from './components/BalanceCard'
 
 /**
@@ -53,7 +54,7 @@ export function HomepageFiat() {
             <li key={txn.id}>
               <ListItem
                 type="default"
-                leading={<Logo name={txn.logo} size="m" />}
+                leading={<TransactionMark mark={txn.logo} size="m" />}
                 title={txn.merchant}
                 titleInfo={txn.method}
                 amount={formatSignedMyr(txn.amount)}

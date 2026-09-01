@@ -2677,6 +2677,229 @@ the net-worth card ruled on at Gate 31; the ungated-`:hover` regression guard,
 which belongs to the DS; and every other Netlify setting — no redirect, no build
 command, no plugin was changed.
 
+## Flow 8 part 1 — the ledger, and the DS v1.16.0 re-pin (Gate 41)
+
+Two changes, one branch, and they must be read apart. The pin moved `v1.15.0`
+(`c6c7f2f1cd73`) -> `v1.16.0` (`bda721115d9e`) and **moved zero pixels**; the
+ledger is the whole of the visible change. **Eight baselines were re-minted, not
+the four this gate predicted** — see the account-attribution note below, which is
+the one decision in here worth overturning if Teku disagrees.
+
+`lint:linkage` PASS, all four sources agreeing: manifest pin
+`github:TekuBrah/Monarch-Design-System#v1.16.0`, `node_modules` 1.16.0, lock
+`resolved` `bda721115d9e`, DS working tree HEAD `bda721115d9e` (tag v1.16.0).
+
+### The re-pin changed no shipped file at all
+
+**A REVIEW THREAD CARRIED "v1.16.0 CHANGED NO PUBLIC API" AS A RULING NOBODY HAD
+VERIFIED. IT IS TRUE, AND THE DERIVATION IS STRONGER THAN THE CLAIM.** The whole
+delta is seven files, by `git diff --name-only v1.15.0 v1.16.0` in the DS:
+
+```
+CLAUDE.md  package.json  package-lock.json
+showcase/App.tsx  showcase/AppShell.css
+src/components/Card/CardFeaturesAndEducation.test.tsx
+src/test/tokens.test.ts
+```
+
+Zero files under `src/` outside tests. `globals.css` untouched. The DS's own
+`package.json` diff is the version line and nothing else — `exports` and
+dependencies did not move. `showcase/` is not part of the package (the same
+reason `@fontsource/poppins` is an MVP responsibility). **So v1.16.0 is a
+tests-and-showcase release**, and the full suite passing 202/0 against
+v1.15.0-minted baselines was guaranteed by construction rather than observed by
+luck. Do not re-derive this from the changelog; re-run the two-tag diff.
+
+### THE APP HAS TWO CLOCKS, AND THEY DISAGREE BY ELEVEN MONTHS
+
+**THIS IS THE FINDING MOST LIKELY TO BITE A FUTURE FLOW, AND IT IS INVISIBLE
+UNTIL SOMETHING FILTERS BY DATE.**
+
+- `TODAY` (`src/data/today.ts`) is `new Date()`, pinned by the harness to
+  **2026-08-15** (`PINNED_NOW` in `e2e/harness.ts`, chosen so the fixed deposit
+  and the net-worth chart derive sensibly).
+- The transaction ledger is fixed to **September 2025**, because inventory SYS-7
+  dates it there and Flow 1's Homepage reconciles against "15 Sept 22:03"
+  literally.
+
+A "This Month" facet measured against `TODAY` therefore asks for **August 2026
+and matches ZERO of the 23 rows** — a predicate that is technically correct,
+silently empty, and indistinguishable from a broken one. B5's "every date is an
+offset from `TODAY`" does not and cannot apply to this ledger.
+
+**SO THE DATE FACET MEASURES BACK FROM `ledgerNow()`, THE NEWEST ROW'S
+TIMESTAMP** (`derive.ts`), not from `TODAY`. That keeps the window DERIVED — move
+the ledger forward a year and it follows, with no literal to update — where the
+alternative was a hardcoded September 2025 boundary. **It is a deliberate,
+documented divergence from B5, not an oversight**, and any future date-filtered
+surface has to make the same choice consciously.
+
+### The nine Figma rows are an OUTPUT, and the arithmetic is closed
+
+The ledger went **6 rows -> 23**, all in the one `src/data/transactions.ts`.
+There is no second, screen-local array anywhere in `src/`, and
+`TransactionsLedger` reads `useAccounts().transactions` — the same path
+`HomepageFiat` and `holdingFields` already take. A row added by any future flow
+appears on every surface with nothing else to update.
+
+`filterTransactions()` evaluates four facets plus the search box over all 23:
+
+| facet | applied value | excludes |
+|---|---|---|
+| Payee | All | — |
+| Type | All | — |
+| Date range | This Month (Sept 2025, via `ledgerNow`) | 5 rows dated August 2025 |
+| Amount | RM 0-500, **magnitude** | 3 September rows over the cap |
+
+**23 - 8 = 15**, which is the number Figma's own button prints ("Apply Filter
+(15)", inventory A14 — recorded there as *unverifiable from a static frame*, and
+now computed). Sorted date-descending, **rows 1-9 are exactly Figma's nine**;
+rows 10-15 are Lotus's, Netflix, Aeon Big, Celcom, Anytime Fitness, Giant.
+
+**THE AMOUNT FACET BOUNDS MAGNITUDE, NOT SIGNED VALUE, AND ONE ROW EXISTS TO
+PROVE IT.** A ledger storing outflows as negative would exclude every debit at a
+floor of 0. `txn-maybank-0907` is **+RM 1,500** — a CREDIT excluded by the cap —
+so removing the `Math.abs` lets it back in while every debit vanishes. Each facet
+likewise has at least one row that ONLY it excludes, so a facet that silently
+stopped working changes the count rather than being masked by another.
+
+### One pre-existing row had to move, and it was a date rather than an amount
+
+`txn-aeon-0909` (Aeon Big −420.50) sat at **9 Sept 13:45** — inside the filter,
+and BETWEEN Tony Roma's (10 Sept 07:21) and Touch N Go (9 Sept 12:55). It landed
+eighth and pushed IKEA out of the top nine. It is now `txn-aeon-0904` at
+**4 Sept 13:45**, below IKEA's 6 Sept 08:00.
+
+**THE ALTERNATIVE WAS WORSE, AND WAS REJECTED ON ARITHMETIC.** Raising its amount
+past the 500 cap would break the RM 1,800.00 groceries chain unless a second
+amount were lowered to compensate — two fabricated edits to established figures
+instead of one date. Its amount, category, account and receipt flag are all
+unchanged, so `categoryTotal('groceries')` still computes **1800.00** from five
+rows, verified after the change. Its ORDER on `/finance/holding/main` is also
+unchanged (still third of the original four); only its printed timestamp moved.
+
+**RULING 3 HOLDS, RE-DERIVED AFTER THE DATA WAS WRITTEN.** The two newest rows in
+the ledger are still **Aeon Big 2025-09-15T22:03** and **Caring Pharmacy
+2025-09-13T18:50**, so the Homepage's two-row slice is untouched. The newest
+fabricated row is KFC at 12 Sept 08:15.
+
+### EIGHT BASELINES, NOT FOUR — the account-attribution decision
+
+**THE GATE PREDICTED 4 AND GOT 8, AND THE EXTRA 4 ARE A CHOICE RATHER THAN AN
+ACCIDENT.** Every fabricated fiat row carries `accountId: 'main'`, and the two
+Crypto Transfers carry the `marg` wallet, because that is where the money
+actually moved. `main` therefore went **4 rows -> 19** and
+`/finance/holding/main` re-rendered at both viewports in both themes.
+
+| | before | after |
+|---|---|---|
+| `main` | 4 | **19** |
+| `joint` | 2 | **2** — untouched, deliberately, as a control |
+| `marg` | 0 | 2, and they **render nowhere**: `holdingFields`' `crypto-wallet` case draws the TOKEN list, not transactions |
+
+The pre-mint run isolated it exactly: **8 failed / 194 passed**, the 8 being 4 ×
+`[tab:transactions]` and 4 × `/finance/holding/main`, with `joint`, the Homepage
+and every other screen green.
+
+**THE ALTERNATIVE WAS AN INVENTED ACCOUNT ID, AND IT WOULD HAVE BOUGHT THE
+PREDICTED 4 AT THE COST OF THE RULING THIS GATE EXISTS TO SERVE.** Attributing
+the rows to an id no holding claims keeps `/finance/holding/main` still, and
+leaves the Main account's drill-down showing four groceries rows while the
+Transactions tab shows fifteen — a ledger that disagrees with the account screen
+it feeds. That is the exact inconsistency single-source-of-truth prevents.
+**Reversing this is cheap** (change `accountId` on the fabricated rows and
+re-mint `main` back), which is why it was taken as a judgment call rather than
+held as a blocker.
+
+### A5 does not reproduce, and the guard against it is live rather than dead
+
+Inventory A5 records Figma's applied-chip row as **377 wide at x=16 in a 375
+frame**, clipping its fourth chip. **MEASURED IN THE APP, THE ROW IS 329.37 AND
+DOES NOT OVERFLOW AT ALL** — Figma builds those chips out of `Field` instances
+(A9), and the DS's real `Chips` are narrower. So A5 is a Figma-side artifact that
+the DS's own component does not have.
+
+The row still scrolls (`overflow-x: auto` on `.mvp-transactions__chips`, gutter
+via `.mvp-column--bleed`), which is the same answer A3/A4's five-tab overflow
+already took here (`Tabs isScrollable`). **THAT IS NOT DEAD CSS, AND IT WAS
+PROVEN RATHER THAN ASSUMED.** The chip labels are DERIVED from filter state, and
+`filterChipLabels` joins selected payees with commas — so Gate 42's sheet will
+produce a long Payee chip the moment anyone selects two. Injecting one such chip
+took `scrollWidth` **375 -> 729**, the row genuinely scrolled (max `scrollLeft`
+354), and the original four kept their exact widths (66.78 / 59 / 74.56 / 73.03)
+because `flex: 0 0 auto` stops them being squashed.
+
+**A6 IS LEFT AS DRAWN, per SYS-8, and reachability was measured.** Document
+height 1153 against an 812 viewport; the last row starts below the fold, and
+after scrolling its bottom sits at 684 against the nav's top at 713 — **29px of
+clearance**, on the shell's documented 128px bottom reserve. Rows 10-15 are
+reachable.
+
+### The data model widened, and one MVP component absorbed it
+
+`Transaction.logo` went from `LogoName` to the tagged union `TransactionLogo`
+(`{ kind: 'merchant', name }` | `{ kind: 'person', initials }`) so Rachum Greene
+and Granddaughter can sit in the same list as IKEA. **A DISCRIMINATED UNION
+RATHER THAN TWO OPTIONAL FIELDS**, for the reason `Holding` is one: the branches
+render through different DS components with disjoint inputs, so
+`{ logo?, initials? }` would admit both-set and neither-set. **No image asset was
+added** — `Avatar` takes `initials`, verified against the pinned
+`dist/components/Avatar/Avatar.d.ts`.
+
+`Transaction.method` narrowed from `string` to
+`'Card Payment' | 'Fund Transfer' | 'Crypto Transfer'` (inventory §D3, verbatim),
+because a Type facet over an open string cannot be exhaustive.
+
+**THE FIELD IS STILL NAMED `logo`, DELIBERATELY.** The merchant case is 21 of 23
+rows and both read sites already spelled it; renaming would have widened a type
+change into a rename across every consumer for no behavioural gain.
+
+`src/components/TransactionMark.tsx` is new and is **composition, not a
+primitive** (rule 4): it switches between DS `Logo` and DS `Avatar` on the data's
+tag and owns no stylesheet. It exists as a component because there are now THREE
+call sites — the Homepage slice, the bank drill-down, and this ledger — with a
+fourth arriving in Flow 9.
+
+### Open architectural question — `AccountsProvider` is not writable
+
+**RECORDED, DELIBERATELY NOT ACTED ON.** `AccountsProvider` re-exposes a static
+imported array; it is not `useState`/reducer state a future create-transaction
+screen could push into. **Nothing in Flow 8 writes a transaction**, so converting
+it here would have been speculative machinery with no consumer — the same trap as
+shipping a CSS class before its adopter.
+
+The file already anticipates this in its own header (*"No writers yet… the
+mutators W1 needs arrive with the transfer flows"*). **Resolve it the day some
+flow first needs to CREATE a transaction**, not before. The property that makes
+that cheap is already in place: every consumer reads `useAccounts()`, so the
+provider can become a store without a single screen changing.
+
+### What this gate changed
+
+`package.json` + `package-lock.json` (the pin); `src/data/types.ts` (the two type
+changes); `src/data/transactions.ts` (6 rows -> 23); `src/data/derive.ts` (the
+filter engine); `src/components/TransactionMark.tsx` (new);
+`src/flows/finance/TransactionsLedger.tsx` (new);
+`src/flows/finance/FinanceScreen.tsx` (the `ComingSoon` stub swapped — it was at
+`:90-96`, **not** the `:98-104` a review thread carried, which is the Budget
+stub); `src/flows/finance/finance.css` (+5 rules);
+`src/flows/finance/holdingFields.ts`, `HoldingDetailScreen.tsx` and
+`HomepageFiat.tsx` (the widened `logo`); the inventory (**A16**, the sort-order
+note); the gap register (**§2a** closures and **U1**/**U2**); and 8 re-minted
+baselines.
+
+**No test was added, and the count is unchanged at 202** — this gate adds no walk
+state. `lint:tokens` scans 41 files (was 39) and reports the same 2 pre-existing
+exemptions: no new raw value entered the tree.
+
+### Deliberately not in scope
+
+The filter **Sheet** itself (Gate 42 — the filter control is a no-op with a TODO,
+kept as a real button with its accessible name so that gate replaces a handler
+rather than the markup); making `AccountsProvider` writable; `TRANSACTION_CATEGORIES`,
+which is still exported with **zero consumers**; the DS repo; G11/G12; and the
+three AA shortfalls on the net-worth card ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
