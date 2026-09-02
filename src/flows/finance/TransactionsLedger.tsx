@@ -148,6 +148,26 @@ export function TransactionsLedger() {
             <FilterChip
               label={chip.label}
               /*
+                THE DS DEFAULTS THIS NAME TO `Remove <label>`, WHICH IS
+                AMBIGUOUS HERE. The type chip prints "All" at its default, so
+                the default name reads "Remove All" — indistinguishable, spoken
+                aloud, from a control that clears every filter. And labels are
+                not unique across facets — the same reason `key` is the facet
+                and not the label — so two chips could announce the same name.
+                The DS declined a clickable chip ROOT on jest-axe grounds;
+                leaving ambiguous names on the buttons it DID model would be
+                inconsistent with that.
+
+                THE FACET WORD IS DERIVED FROM `chip.facet`, NOT WRITTEN OUT
+                PER CHIP. `TransactionFacet` is the four ids `type`, `date`,
+                `payee` and `amount`, which are already the display words, so
+                a lookup table would restate all four literals and could drift
+                from the union. Deriving is also what covers the PAYEE chip,
+                which does not render at the default filter and would be the
+                one a per-chip literal forgot.
+              */
+              dismissLabel={`Remove ${chip.facet} filter (${chip.label})`}
+              /*
                 Dismiss clears THAT facet, through the screen's one filter
                 state. `clearFacet` reads its reset values out of
                 `TRANSACTION_FILTER_ALL`, so this cannot drift from the cleared
