@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Chips, Field, Icon, ListItem } from '@monarch/design-system'
+import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import {
   TRANSACTION_FILTER_APPLIED,
-  filterChipLabels,
+  clearFacet,
+  filterChips,
   filterTransactions,
 } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
@@ -37,16 +38,18 @@ export function TransactionsLedger() {
   const { transactions } = useAccounts()
   const [search, setSearch] = useState('')
 
-  // Figma's applied filter, as a value. `useState` rather than a constant
-  // because Gate 42's sheet writes it; nothing writes it today, and the screen
-  // is already correct for whatever it is set to.
-  const [filter] = useState(TRANSACTION_FILTER_APPLIED)
+  // Figma's applied filter, as a value. The chip row writes it through
+  // `clearFacet` as of Gate 41-C, and Gate 42's sheet will write it too —
+  // THROUGH THIS SAME SETTER. There is one filter state in this screen and
+  // there must stay one: a sheet holding its own copy is how the row and the
+  // list start disagreeing about what is in force.
+  const [filter, setFilter] = useState(TRANSACTION_FILTER_APPLIED)
 
   const rows = useMemo(
     () => filterTransactions(transactions, filter, search),
     [transactions, filter, search],
   )
-  const chips = useMemo(() => filterChipLabels(filter), [filter])
+  const chips = useMemo(() => filterChips(filter), [filter])
 
   return (
     <div className="mvp-transactions">
@@ -56,10 +59,15 @@ export function TransactionsLedger() {
           onChange={setSearch}
           /*
             "Search" is Figma's literal placeholder (`I1376:24708;824:5785`,
-            `body/m` on `--text/subtle/default`) — not a shortening of ours. The
-            longer string also did not fit: `.mn-field` is a hard-coded 240px
-            with no sizing prop (logged against `Field`), so "Search
-            transactions" ran into the trailing filter icon at both viewports.
+            `body/m` on `--text/subtle/default`) — not a shortening of ours, so
+            it stays whatever the field's width becomes.
+
+            THE SECOND HALF OF THIS NOTE WAS TRUE AND IS NOT ANY MORE. It read
+            that the longer string "also did not fit", because `.mn-field` was
+            a hard-coded 240px with no sizing prop. DS v2.0.0 closed that
+            (register B2) and the field now fills the 343 column, so width is no
+            longer a reason for the short placeholder — Figma is. Do not read
+            the fit argument back in to justify changing it.
 
             `ariaLabel` KEEPS THE LONG FORM, so the accessible name does not
             change — a placeholder is not an accessible name, and "Search"
@@ -67,6 +75,20 @@ export function TransactionsLedger() {
           */
           placeholder="Search"
           ariaLabel="Search transactions"
+          /*
+            B2, CLOSED BY DS v2.0.0. Figma's search field is 343 wide — the
+            whole 375-32 gutter — and `.mn-field` shipped a hard `width: 240px`
+            with no escape, so this rendered 240 in a 343 column at BOTH
+            viewports. `sizing="fill"` is the DS's own prop for it, the same
+            shape as `CardBalance.sizing` (Gate 33).
+
+            NO MVP-LOCAL WIDTH OVERRIDE, deliberately. `.mn-field { width: 100% }`
+            from this repo would be an equal-specificity rule sitting on top of
+            DS geometry — invisible while the values agree and a silent mask
+            over any future DS change. That is the exact rule Gate 13 removed
+            on measurement.
+          */
+          sizing="fill"
           leadingIcon={<Icon name="search" size="m" />}
           trailingIcon={
             <button
@@ -97,22 +119,46 @@ export function TransactionsLedger() {
         overflow.
 
         THE ROW STILL SCROLLS, for a prospective overflow rather than a current
-        one: `filterChipLabels` joins selected payees with commas, so Gate 42's
+        one: `filterChips` joins selected payees with commas, so Gate 42's
         sheet makes a long payee chip the moment two are picked. The gutter
         arrives as padding via `.mvp-column--bleed` — the same answer A3/A4's
         five-tab overflow already took here (`Tabs isScrollable` on
         `FinanceScreen`).
       */}
+      {/*
+        B1, CLOSED BY DS v2.0.0. This row rendered `Chips` — a 16-tall status
+        pill with a leading glyph and no trailing slot, reached for because
+        nothing in the pinned DS could draw an applied filter. v2.0.0 ships the
+        real thing: `FilterChip` is Figma `filter/chips` (228:1296) at 24 tall
+        on elevation with a dropshadow and a trailing dismiss BUTTON.
+
+        THE NAME `FilterChip` MEANT A DIFFERENT COMPONENT BEFORE v2.0.0 — the
+        40-tall bordered sheet toggle, now `ToggleChip`. This repo never
+        imported that one, so nothing here had to be renamed; a repo that did
+        would have resolved silently to the wrong component, since v2.0.0 ships
+        no deprecation alias.
+
+        `key` IS THE FACET, NOT THE LABEL. Labels are not unique — the type and
+        date facets can both print "All" — and a duplicate React key silently
+        drops a chip.
+      */}
       <ul className="mvp-transactions__chips mvp-column--bleed">
-        {chips.map((label) => (
-          <li key={label}>
-            {/*
-              `icon={null}` — an APPLIED filter is not a completed task, and
-              `Chips` defaults its leading glyph to a `done` checkmark. Passing
-              null is exactly the slot DS v1.16.0's Chips exposes (register G9,
-              closed), and it is why no checkmark appears on any of them.
-            */}
-            <Chips label={label} icon={null} />
+        {chips.map((chip) => (
+          <li key={chip.facet}>
+            <FilterChip
+              label={chip.label}
+              /*
+                Dismiss clears THAT facet, through the screen's one filter
+                state. `clearFacet` reads its reset values out of
+                `TRANSACTION_FILTER_ALL`, so this cannot drift from the cleared
+                state Gate 42's sheet produces.
+
+                The functional update form is not decoration: two dismisses in
+                one React batch would otherwise both read the pre-batch filter
+                and the second would discard the first.
+              */
+              onDismiss={() => setFilter((f) => clearFacet(f, chip.facet))}
+            />
           </li>
         ))}
       </ul>

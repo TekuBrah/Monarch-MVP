@@ -541,7 +541,7 @@
   (inventory A9), and the DS's real chip is narrower still.
 
   SO THE OVERFLOW IS PROSPECTIVE, NOT CURRENT, AND THE SCROLLING IS STILL
-  RIGHT. `filterChipLabels` joins selected payees with commas, so Gate 42's
+  RIGHT. `filterChips` joins selected payees with commas, so Gate 42's
   sheet produces a long payee chip the moment anyone picks two — measured at
   Gate 41 by injecting one: `scrollWidth` 375 -> 729, the row genuinely
   scrolled, and the other chips kept their widths because of the `flex: 0 0 auto`

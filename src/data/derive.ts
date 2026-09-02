@@ -387,6 +387,29 @@ export interface TransactionFilter {
 export type TransactionDateRangeId = 'all' | 'this-month' | 'last-7' | 'last-30'
 
 /**
+ * The four facets, as an identity a chip can carry.
+ *
+ * THE AMOUNT FACET IS ONE MEMBER DESPITE BEING TWO FIELDS. `amountMin` and
+ * `amountMax` are one control in the sheet and one chip in the row, so
+ * splitting them here would let a caller clear half a range.
+ */
+export type TransactionFacet = 'type' | 'date' | 'payee' | 'amount'
+
+/**
+ * One applied-filter chip: the facet it summarises, and the text it prints.
+ *
+ * THE FACET IS WHAT MAKES A CHIP DISMISSIBLE. A bare label cannot say what to
+ * clear — two facets can print the same string (`All` is both the type
+ * default and, at a different range, nothing else), so the row would have to
+ * infer identity from position, which is exactly the coupling that breaks the
+ * day the payee chip appears and shifts every index after it.
+ */
+export interface TransactionFilterChip {
+  facet: TransactionFacet
+  label: string
+}
+
+/**
  * The date-range options, with A8's capitalization FIXED IN CODE.
  *
  * Figma writes "This Month", "last 7 days" and "Last 30 days" — three different
@@ -571,14 +594,60 @@ export function filterTransactions(
  * SUPERSEDES THE CARRIED "four chips, matching A5's count". A5 measured the
  * elongated exploratory frame, the one frame where a payee IS set. The
  * canonical 375 frame draws THREE.
+ *
+ * IT RETURNS FACET-TAGGED CHIPS, NOT LABELS, SINCE GATE 41-C. The row became
+ * dismissible when DS v2.0.0 shipped a real `FilterChip`, and a dismiss
+ * handler has to name the facet it clears — see `TransactionFilterChip` for
+ * why position could not stand in for that. The MODEL above is unchanged; only
+ * the shape of what this returns is.
  */
-export function filterChipLabels(filter: TransactionFilter): string[] {
+export function filterChips(filter: TransactionFilter): TransactionFilterChip[] {
   const range = TRANSACTION_DATE_RANGES.find((r) => r.id === filter.dateRange)
-  const labels = [
-    filter.methods ? filter.methods.join(', ') : 'All',
-    range ? range.label : 'All Time',
+  const chips: TransactionFilterChip[] = [
+    { facet: 'type', label: filter.methods ? filter.methods.join(', ') : 'All' },
+    { facet: 'date', label: range ? range.label : 'All Time' },
   ]
-  if (filter.payees) labels.push(filter.payees.join(', '))
-  labels.push(`RM ${filter.amountMin} - ${filter.amountMax}`)
-  return labels
+  if (filter.payees) chips.push({ facet: 'payee', label: filter.payees.join(', ') })
+  chips.push({
+    facet: 'amount',
+    label: `RM ${filter.amountMin} - ${filter.amountMax}`,
+  })
+  return chips
+}
+
+/**
+ * Clear one facet, returning a NEW filter with that facet at its `ALL` value.
+ *
+ * IT READS ITS RESET VALUES OUT OF `TRANSACTION_FILTER_ALL` RATHER THAN
+ * RESTATING THEM, which is what stops this drifting from the cleared state
+ * Gate 42's sheet will produce. The amount facet is two fields and is
+ * therefore ONE `facet` here, not two — dismissing "RM 0 - 500" restores both
+ * bounds, because half a restored range is not a cleared facet.
+ *
+ * DISMISSING A FACET ALREADY AT ITS DEFAULT IS A NO-OP BY CONSTRUCTION, not by
+ * a guard. Type and date chips render at their defaults — that is the chip
+ * model, see `filterChips` — so their dismiss writes the value already there
+ * and `filterTransactions` returns the same rows. The affordance is still
+ * drawn on every chip because Figma draws a close glyph on every chip
+ * (register B1); suppressing it on the defaulted ones would make the row's
+ * shape depend on the filter value, which the source does not do.
+ */
+export function clearFacet(
+  filter: TransactionFilter,
+  facet: TransactionFacet,
+): TransactionFilter {
+  switch (facet) {
+    case 'type':
+      return { ...filter, methods: TRANSACTION_FILTER_ALL.methods }
+    case 'date':
+      return { ...filter, dateRange: TRANSACTION_FILTER_ALL.dateRange }
+    case 'payee':
+      return { ...filter, payees: TRANSACTION_FILTER_ALL.payees }
+    case 'amount':
+      return {
+        ...filter,
+        amountMin: TRANSACTION_FILTER_ALL.amountMin,
+        amountMax: TRANSACTION_FILTER_ALL.amountMax,
+      }
+  }
 }
