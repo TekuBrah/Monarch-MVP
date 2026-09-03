@@ -2885,7 +2885,9 @@ filter engine); `src/components/TransactionMark.tsx` (new);
 stub); `src/flows/finance/finance.css` (+5 rules);
 `src/flows/finance/holdingFields.ts`, `HoldingDetailScreen.tsx` and
 `HomepageFiat.tsx` (the widened `logo`); the inventory (**A16**, the sort-order
-note); the gap register (**§2a** closures and **U1**/**U2**); and 8 re-minted
+note); the gap register (**§2a** closures and **U1**/**U2** — *renamed to
+**G13**/**G14** at Gate 43; the names above are Gate 41's record and are left as
+written*); and 8 re-minted
 baselines.
 
 **No test was added, and the count is unchanged at 202** — this gate adds no walk
@@ -4084,6 +4086,61 @@ overlay states.** Both overlay states are `HoldingDetailScreen`'s preset modals
 on `/finance/holding/fd`, and that route is not a convenience — the fixed
 deposit is the ONLY holding type whose `holdingFields` entry returns
 `actions: { reminder: true, statement: true }`.
+
+**CURRENT FIGURE: THE WALK IS 24 STATES — 14 routes + 7 non-default tab states +
+3 `OVERLAY_STATES`.** The 23 above is Gate α's own record and is left standing as
+the account of what that gate built; it stopped being the live number when a
+THIRD overlay state, `/finance/holding/fd [overlay:toast]`, was added after it.
+That state reaches `ToastMobile` by CONFIRMING the reminder modal rather than by
+opening a dialog, which is why it is an overlay state with a `confirm` block and
+not a fourth route.
+
+**THE 24 WAS CARRIED WRONG IN THIS FILE FOR FIVE GATES, AND WAS RE-DERIVED THREE
+WAYS AT GATE 43 RATHER THAN PATCHED FROM THE PROMPT** — the carried figure is
+exactly the kind this document keeps getting bitten by:
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "id: '"
+```
+
+```bash
+npx playwright test --list --reporter=json
+```
+
+Both were executed at Gate 43 and return **3** and a `visual.spec.ts` count of
+**96** respectively. The `awk` slice is scoped to the `OVERLAY_STATES` array on
+purpose: a bare `grep -c "route: '"` over the whole file also returns 3 today,
+but only because `ROUTES` is PARSED from `src/App.tsx` rather than written as
+literals — it would start over-counting silently the day any literal `route:`
+is added elsewhere in the harness.
+
+1. `e2e/harness.ts:554` — the comment beside the `WALK` construction already
+   read *"14 routes … + 7 non-default tab states + 3 OVERLAY_STATES = 24"*. The
+   harness was right; only the prose here was stale.
+2. `OVERLAY_STATES` holds three literal entries — `reminder`, `statement` and
+   `toast`.
+3. **Test arithmetic, which is the independent check.** `visual.spec.ts`
+   iterates `WALK × VIEWPORTS × THEMES`, so |WALK| = 96 ÷ 2 ÷ 2 = **24**, and
+   `npx playwright test --list` names all three overlay states at both widths in
+   both themes.
+
+**THE BASELINE ARITHMETIC FOLLOWS FROM THAT AND IS WORTH WRITING DOWN, because
+every gate that adds a walk state has to predict it.** Only `visual.spec.ts`
+iterates the viewport axis; `routes.spec.ts` and `section-headers.spec.ts`
+iterate `WALK × THEMES` and add a fixed tail of non-walk guards:
+
+| spec | formula | at 24 walk states |
+|---|---|---|
+| `visual` | \|WALK\| × 2 viewports × 2 themes | 96 |
+| `routes` | \|WALK\| × 2 themes + 1 uniqueness guard | 49 |
+| `section-headers` | \|WALK\| × 2 themes + 2 not-vacuous guards | 50 |
+| `baselines` / `frame-cap` / `tile-fill` | fixed, no walk axis | 3 / 2 / 2 |
+| | | **202** |
+
+So **one added walk state costs 4 baseline FILES and 8 TESTS** (visual +4,
+routes +2, section-headers +2), taking the suite to 100 baselines and 210 tests.
+The baseline figure is 4 and not 2 because the viewport axis is a peer of the
+theme axis, not a member of `WALK`.
 
 **OPENED THROUGH ITS OWN CONTROL, never by setting state** — the discipline
 `gotoRoute` already follows for the theme and `activateTab` for tabs.

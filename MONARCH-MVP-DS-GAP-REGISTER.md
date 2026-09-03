@@ -258,45 +258,135 @@ never against a changelog.
 **G11 and G12 are unchanged and still open.** Both are `Blanket` items and
 neither is fixable from this repo.
 
-### Two new entries — U1 and U2, both `Sheet`
+### Two new entries — G13 and G14, both `Sheet` (renumbered at Gate 43)
 
-**A SEPARATE LETTER ON PURPOSE.** The `G` series is claimed twice in this project
-already — this register runs G1–G12 and the flow inventory runs G1–G3, and a bare
-`G`-number has produced a phantom entry before. These come from **U**pcoming
-Flow 8/9 sheet work and are numbered `U` so they cannot be confused with either.
+**THESE WERE `U1` AND `U2` UNTIL GATE 43, AND THAT WAS A CATEGORISATION ERROR AS
+WELL AS A COLLISION.** They were lettered `U` for **U**pcoming Flow 8/9 sheet
+work, which put them in the same namespace as §7 "Unverifiable / needs Teku"
+U1–U6 — so `U1` and `U2` each meant two different things depending on which
+section you were in, and `U3`/`U4` were taken by §7 alone.
+
+**THE FIX IS NOT A FIFTH LETTER; IT IS PUTTING THEM IN THE SERIES THEY ALWAYS
+BELONGED TO.** These are ordinary register entries — a named component, a
+concrete demand, a tag, affected flows and evidence — which is exactly what
+`G1`–`G12` are. §7's `U` series is a different KIND of thing: open questions
+nobody can answer from code. Extending `G` is also the established precedent
+rather than an innovation: **`G11` and `G12` were themselves added at MVP Gates
+α and D, after the original sweep**, by the same mechanism.
+
+Four letters (`E`, `H`, `T`, `V`) were measured free across all three numbered
+documents and all four were rejected: inventing a fifth series to hold two rows
+compounds the ambiguity this renumber exists to remove.
+
+**§7's U1–U6 WERE DELIBERATELY NOT TOUCHED.** They are the original 2026-08-09
+sweep, and §1 states that sweep "stays readable as the document it was". The
+newer pair moves; the original does not.
 
 | # | Component | Demand | Tag | Flows | Evidence |
 |---|---|---|---|---|---|
-| **U1** | `Sheet` | **Frame awareness.** The panel should cap at the app's frame width rather than spanning the window. | `prop-gap` | **8, 9** | Derived from the pinned `dist/index.css` only. `.mn-sheet` is `position:fixed; top/right/bottom/left:0` — a full-viewport container — and `.mn-sheet__panel` is `width:100%` with **no `max-width` in any `.mn-sheet*` rule**. Contrast `.mn-modal__card`, which is `width:100%; max-width:375px` and therefore already frame-safe. Above the MVP's 430px cap (Gate D) the panel spans the whole window while the modal card does not |
-| **U2** | `Sheet` | **Background scroll lock** while the sheet is open. | `prop-gap` | **8, 9** | `Sheet.tsx` portals to `document.body` (`:251`) and never touches `overflow` on `<html>` or `<body>` — its only `overflow` references are about its OWN content region being scrollable. Same defect class as **G11**, which is scoped to `Blanket`/`Modal` and does not name `Sheet` |
+| **G13** | `Sheet` | **Frame awareness.** The panel should cap at the app's frame width rather than spanning the window. | `prop-gap` | **8, 9** | **MEASURED at Gate 43** (was: derived from shipped CSS only). `.mn-sheet` is `position:fixed; inset:0` and `.mn-sheet__panel` is `width:100%` with **no `max-width` in any `.mn-sheet*` rule** — computed `max-width` reads `none`. Contrast `.mn-modal__card`, `width:100%; max-width:375px`, already frame-safe. Rendered widths below |
+| **G14** | `Sheet` | **Background scroll lock** while the sheet is open. | `prop-gap` | **8, 9** | **MEASURED at Gate 43** by behaviour, not by reading CSS. `Sheet.tsx` portals to `document.body` and never touches `overflow` on `<html>` or `<body>`; with the sheet open the page behind scrolls its full extent. Same defect class as **G11**, which is scoped to `Blanket`/`Modal` and does not name `Sheet` |
 
-**U1's PAINTED GEOMETRY WAS NOT MEASURED, AND THAT IS STATED RATHER THAN
-GLOSSED.** No `Sheet` consumer exists in this app yet, so there is nothing to
-measure; the claim above is read off shipped CSS. **Measure it at Gate 42**, at a
-viewport above 430, before treating the width figure as established.
+#### G13 — the measurement, taken at Gate 43
 
-**U1 IS DS-SIDE PER RULE 3, AND THE OBVIOUS CONSUMER-SIDE FIX IS KNOWN TO BE
+**THE "NOT MEASURED" CAVEAT THAT STOOD HERE IS DISCHARGED.** It read that no
+`Sheet` consumer existed yet so there was nothing to measure, and directed a
+later gate to measure above 430 before treating the width as established. That
+has now been done.
+
+Measured through a Playwright-launched Chromium at `deviceScaleFactor: 2` with
+`--disable-partial-raster`, against a throwaway `Sheet` mounted on the
+Transactions tab and reverted byte-identical afterwards. The app was compiled
+through the LIVE source alias, i.e. DS `v2.0.1`.
+
+| viewport | panel rect | `.mvp-shell` rect | overhang per side |
+|---|---|---|---|
+| 375 | `left 0, right 375`, **width 375** | `left 0, right 375`, width 375 | **0** |
+| 430 | `left 0, right 430`, **width 430** | `left 0, right 430`, width 430 | **0** |
+| 768 | `left 0, right 768`, **width 768** | `left 169, right 599`, width 430 | **169** |
+| 1280 | `left 0, right 1280`, **width 1280** | `left 425, right 855`, width 430 | **425** |
+
+Computed `max-width: none` and `position: fixed` on `.mn-sheet` at every width;
+the panel's portal parent is `document.body`, confirmed, which is why the
+shell's `max-width: 430px` cannot contain it.
+
+**THE SUITE'S TWO VIEWPORTS CANNOT SEE THIS, AND THAT IS THE POINT.** At 375 and
+430 the panel width EQUALS the frame width and the overhang is exactly 0 — not
+because the panel is frame-aware, but because the Gate D cap does not bind at or
+below 430. The defect is latent at every width the visual net covers and only
+appears above the cap. This is the same shape as the Gate 13 `sizing='fill'`
+finding and the Gate 33 `CardBalance` cap: a real geometry fact that the pinned
+viewports are arithmetically incapable of exposing.
+
+**IT IS THE SAME CLASS AS GATE D's FIVE FIXED ELEMENTS.** Gate D found that
+`position: fixed` chrome does not inherit the shell's cap and gave the nav,
+scrim, FAB, theme switch and toast an explicit `--mvp-frame-inset`. `Sheet` is a
+DS component with no such seam, so it is the sixth case and the first that this
+repo cannot fix.
+
+**G13 IS DS-SIDE PER RULE 3, AND THE OBVIOUS CONSUMER-SIDE FIX IS KNOWN TO BE
 FATAL.** Capping the panel from the MVP would mean wrapping it in a
 `transform`, `contain` or `filter` container — and Gate D measured all three:
 each establishes a containing block and **un-fixes** the element, relocating it
 to the bottom of the document and making it unhittable. The seam has to be
 exposed by the DS.
 
-**WHETHER U2 FOLDS INTO G11 IS THE REVIEW THREAD'S CALL, NOT THIS DOCUMENT'S.**
+#### G14 — the measurement, taken at Gate 43
+
+**VERIFIED BY BEHAVIOUR, NOT BY READING CSS**, because a missing scroll lock is
+an absence, and an absence cannot be confirmed by finding no rule — only by
+watching the page move. Same context as G13 above.
+
+With the sheet open, at BOTH 375 and 430, identically:
+
+| probe | result |
+|---|---|
+| document scrollable extent behind the sheet | 1428 − 812 = **616px** |
+| `window.scrollY` before opening | 0 |
+| after `window.scrollBy(0, 300)` | **300** — the page moved |
+| after a real `mouse.wheel` over the scrim | **616** — scrolled to the very end |
+| computed `overflow` on `<html>` / `<body>` | `visible` / `visible` |
+| computed `position` on `<body>` | `static` |
+| `.mn-sheet` bounding top after scrolling 616px | **0** — the sheet itself correctly stays put |
+
+So the sheet holds its position while the entire page behind it scrolls out from
+under it. The last row matters: this is **only** a missing scroll lock, not a
+broken `position: fixed`.
+
+**THIS REPRODUCES THE GATE α `Blanket` FINDING IN A SECOND COMPONENT.** Gate α
+measured exactly this on the preset modals — `overflow: visible` on both
+`<html>` and `<body>` with the overlay open, and a real wheel gesture moving the
+background — and logged it as G11.
+
+**WHETHER G14 FOLDS INTO G11 IS THE REVIEW THREAD'S CALL, NOT THIS DOCUMENT'S.**
 They are the same defect in two components, and G11 already proposes a single
 `Blanket` fix. Listed separately here because G11's evidence names `Blanket` and
 `Modal` specifically and a reader checking `Sheet` against it would find nothing.
+
+**NEITHER G13 NOR G14 WAS FIXED, AND NEITHER MAY BE FIXED FROM THIS REPO.**
+Rule 3. An MVP-local `max-width` on `.mn-sheet__panel` would be a finding, not a
+fix — it is the equal-specificity override on DS geometry that Gate 13 removed
+on measurement — and Gate D proved the three container-based alternatives
+(`transform`, `contain`, `filter`) each un-fix the element.
 ### Two further entries — B1 and B2, opened at MVP Gate 41-B
 
-**A THIRD LETTER, BECAUSE `U` IS ALREADY DOUBLE-CLAIMED IN THIS FILE.** §7
-"Unverifiable / needs Teku" runs **U1–U6**, and §2a's "Two new entries" runs
-**U1–U2** for `Sheet` — so `U1` and `U2` each mean two different things depending
-on which section you are in, and `U3`/`U4` are taken by §7. That is the same
-ambiguity `CLAUDE.md` documents for the `G` series, reproduced in the series
-that was created to avoid it. **These are `B`, for Gate 41-B**, so they collide
-with neither — and the `U` collision is logged for the review thread rather
-than renumbered here, because renumbering a live series is not a cosmetic edit.
-**Always write "§2a U1" or "§7 U1"; never a bare `U`-number.**
+**THE `U` COLLISION THAT FORCED THIS LETTER IS RESOLVED AS OF GATE 43.** This
+paragraph originally read that §7 "Unverifiable / needs Teku" runs **U1–U6**
+while §2a's "Two new entries" ran **U1–U2** for `Sheet`, so a bare `U`-number
+meant two different things depending on the section — and it deferred the
+renumber to the review thread on the grounds that renumbering a live series is
+not a cosmetic edit. Gate 43 carried out that renumber: the `Sheet` pair is now
+**G13/G14**, in the register series it always belonged to.
+
+**`U` NOW MEANS EXACTLY ONE THING — §7, and only §7.** A bare `U`-number is
+unambiguous again, so the "always write §2a U1 or §7 U1" instruction that stood
+here is retired rather than merely satisfied.
+
+**`B1`/`B2` KEEP THEIR LETTER, DELIBERATELY.** They were opened at Gate 41-B and
+closed by DS v2.0.0; renaming a closed pair buys nothing and would break the two
+dated gate records that cite them. **`G` is the series a NEW register entry
+joins** — that is now the standing rule, set by G11/G12 and confirmed by
+G13/G14.
 
 **BOTH WERE FOUND BY READING FIGMA, NOT BY READING THE DS**, which is why the
 original sweep missed them: that sweep asked whether each component had the
@@ -339,8 +429,10 @@ asked of either.
 ## Summary
 
 - **28 of 28 screens read.** **40 DS components read in source**, `.tsx` and `.css`.
-- **12 register entries**: 2 `component-gap`, 9 `prop-gap`, 1 `token-gap`.
-  (G11 and G12 were added at MVP Gates α and D, after the original sweep.)
+- **14 register entries**: 2 `component-gap`, 11 `prop-gap`, 1 `token-gap`.
+  (G11 and G12 were added at MVP Gates α and D, and **G13/G14 at Gate 43** —
+  the latter pair renumbered there out of a colliding `U1`/`U2`, see §2a — all
+  after the original sweep, which reported 12.)
 - **6 foreign-variable families → `figma-defect`.** The DS is correct on every
   one, and already documents two of them in comments.
 - **8 `shape-mismatch` items** needing a design call, not code.
