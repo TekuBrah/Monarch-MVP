@@ -450,9 +450,10 @@ export interface WalkState {
 }
 
 /**
- * THE THREE OVERLAY STATES, WRITTEN DOWN ONE AT A TIME.
+ * THE FOUR OVERLAY STATES, WRITTEN DOWN ONE AT A TIME.
  *
- * Both live on `/finance/holding/fd`, and that is not a convenience: the fixed
+ * THREE OF THEM live on `/finance/holding/fd`, and that is not a convenience:
+ * the fixed
  * deposit is the ONLY holding type whose `holdingFields` entry returns
  * `actions: { reminder: true, statement: true }`. `bank`/`joint` return
  * `{ reminder: false, statement: true }` and the remaining five return
@@ -530,6 +531,36 @@ export const OVERLAY_STATES: WalkState[] = [
       },
     },
   },
+  // THE TRANSACTIONS FILTER SHEET (Gate 43) — the first overlay state that also
+  // carries a TAB, and the first that is not a `Modal`.
+  //
+  // `gotoState` already sequences route -> tab -> overlay, so this composes with
+  // no harness change: `/finance` loads on its default `overview` tab, the
+  // Transactions tab is activated through its own control, and only then is the
+  // filter button clicked. Nothing here needed a new mechanism, which is the
+  // argument for having enumerated overlays instead of crossing them.
+  //
+  // THE CONTROL IS THE ONE GATE 41 LEFT IN PLACE. `.mvp-transactions__filter-btn`
+  // kept its hit target and its `aria-label` through the whole gate precisely so
+  // this state could open the sheet the way a user does, rather than by setting
+  // `isFilterOpen` — the same discipline that makes `gotoRoute` click the theme
+  // toggle instead of writing `data-theme`.
+  //
+  // THE CONTROL LABEL AND THE DIALOG TITLE ARE BOTH "Filter transactions" AND
+  // THAT IS NOT A COPY-PASTE. The button's accessible name is the Gate 41
+  // `ariaLabel`; the dialog's is the `Sheet` title Figma prints in the header.
+  // They coincide, and the assertion still distinguishes them — one is checked
+  // before the click and one after.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'filter',
+      control: '.mvp-transactions__filter-btn',
+      controlLabel: 'Filter transactions',
+      title: 'Filter transactions',
+    },
+  },
 ]
 
 /**
@@ -551,7 +582,9 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 3 OVERLAY_STATES = 24.
+  // each, from ROUTES) + 7 non-default tab states + 4 OVERLAY_STATES = 25.
+  // (Gate 43 added the fourth, the Transactions filter sheet; it was 3 = 24
+  // from Gate α through Gate 41.)
   ...OVERLAY_STATES,
 ]
 
@@ -991,11 +1024,40 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
       `not the new state it claims to be`,
   ).toHaveCount(0)
   await expect(control, `no control matching "${overlay.control}" on this screen`).toHaveCount(1)
+  /*
+    ACCESSIBLE NAME, NOT TEXT CONTENT — corrected at Gate 43.
+
+    This assertion read `toHaveText`, while the dialog check a few lines below
+    it — the one the numbered contract's item 3 describes — already used
+    `toHaveAccessibleName`. The inconsistency was invisible because all three
+    overlay controls shipped before this gate were `Button`s whose visible
+    label IS their accessible name, so text and name were the same string and
+    either predicate passed.
+
+    THE TRANSACTIONS FILTER CONTROL IS THE FIRST ICON-ONLY ONE. It renders a
+    single `Icon` inside a button carrying `aria-label="Filter transactions"`,
+    so its text content is the empty string and `toHaveText` could never match
+    any label a state might declare. An icon-only affordance is a perfectly
+    ordinary control; the assertion, not the control, was the thing that was
+    wrong.
+
+    THIS IS A CORRECTION, NOT A LOOSENING. For a text button the computed
+    accessible name is that same visible text, so the three pre-existing states
+    assert exactly what they asserted before — verified: they stayed green
+    across the change. For an icon-only button it asserts the name a screen
+    reader would announce, which is what "carries its declared label" was
+    always meant to mean.
+
+    THE CONFIRM BRANCH BELOW STILL USES `toHaveText`, DELIBERATELY. Every
+    confirm control today is a text button, so the change would have no
+    adopter there — the same reason `.mvp-column--outset` was proposed and not
+    shipped. Change it when an icon-only confirm control actually exists.
+  */
   await expect(
     control,
     `"${overlay.control}" does not carry its declared label — the selector is opening ` +
       `something other than the control this state names`,
-  ).toHaveText(overlay.controlLabel)
+  ).toHaveAccessibleName(overlay.controlLabel)
 
   await control.click()
 
@@ -1080,11 +1142,37 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
  * baseline as though it belonged there.
  */
 export async function assertOverlayMatchesState(page: Page, state: WalkState): Promise<void> {
+  /*
+    THE TITLE IS READ OFF THE ARIA WIRING, NOT OFF A COMPONENT'S CLASS NAME —
+    corrected at Gate 43.
+
+    This read `el.querySelector('.mn-modal__title')`, which is `Modal`'s
+    internal class. Every overlay state that existed before this gate was a
+    `Modal`, so the hardcoded class always matched and nothing revealed that
+    the check was coupled to one component's markup. The Transactions filter
+    is a `Sheet`, whose title is `.mn-sheet__title`, so the selector found
+    nothing and the state reported "(no title)" while a correctly-named dialog
+    was open on screen.
+
+    `aria-labelledby` -> that element's text, falling back to `aria-label`, is
+    the same wiring BOTH components already use — `Modal.tsx:110-120` and
+    `Sheet.tsx` are character-for-character the same pattern — so this is
+    DS-agnostic rather than a second class name bolted onto a growing list. It
+    also agrees with what `openOverlay` asserts a few lines above
+    (`toHaveAccessibleName`), which is what made the two disagree in the first
+    place: the open check passed and this one failed on the same dialog.
+  */
   const dialogs = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('[role="dialog"]')).map((el) => ({
-      ariaModal: el.getAttribute('aria-modal'),
-      title: el.querySelector('.mn-modal__title')?.textContent ?? '(no title)',
-    })),
+    Array.from(document.querySelectorAll('[role="dialog"]')).map((el) => {
+      const labelledBy = el.getAttribute('aria-labelledby')
+      const labelledText = labelledBy
+        ? document.getElementById(labelledBy)?.textContent
+        : null
+      return {
+        ariaModal: el.getAttribute('aria-modal'),
+        title: labelledText ?? el.getAttribute('aria-label') ?? '(no title)',
+      }
+    }),
   )
 
   // A CONFIRMED OVERLAY ENDS WITH NO DIALOG. Its dialog is the ROUTE to the

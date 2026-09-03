@@ -2823,7 +2823,7 @@ The row still scrolls (`overflow-x: auto` on `.mvp-transactions__chips`, gutter
 via `.mvp-column--bleed`), which is the same answer A3/A4's five-tab overflow
 already took here (`Tabs isScrollable`). **THAT IS NOT DEAD CSS, AND IT WAS
 PROVEN RATHER THAN ASSUMED.** The chip labels are DERIVED from filter state, and
-`filterChipLabels` joins selected payees with commas — so Gate 42's sheet will
+`filterChipLabels` joins selected payees with commas — so Gate 43's sheet will
 produce a long Payee chip the moment anyone selects two. Injecting one such chip
 took `scrollWidth` **375 -> 729**, the row genuinely scrolled (max `scrollLeft`
 354), and the original four kept their exact widths (66.78 / 59 / 74.56 / 73.03)
@@ -2896,11 +2896,146 @@ exemptions: no new raw value entered the tree.
 
 ### Deliberately not in scope
 
-The filter **Sheet** itself (Gate 42 — the filter control is a no-op with a TODO,
+The filter **Sheet** itself (shipped at Gate 43 — at Gate 41 the filter control was a no-op with a TODO,
 kept as a real button with its accessible name so that gate replaces a handler
 rather than the markup); making `AccountsProvider` writable; `TRANSACTION_CATEGORIES`,
 which is still exported with **zero consumers**; the DS repo; G11/G12; and the
 three AA shortfalls on the net-worth card ruled on at Gate 31.
+
+## Flow 8 part 2 — the filter Sheet (Gate 43)
+
+The sheet Gate 41 deferred. **No DS re-pin** — v2.0.1 throughout, and the whole
+visible change is one new screen surface. **96 baselines -> 100, 202 tests ->
+210, zero existing baselines changed.**
+
+### What the sheet is, and what it is composed of
+
+`src/flows/finance/TransactionFilterSheet.tsx` — COMPOSITION, not a primitive
+(rule 4). Every control is a DS export: `Sheet`, `ToggleChip`, `Select`,
+`Menu`/`MenuItem`, `RangeSlider`, `Button`, `Icon`. Its stylesheet is seven
+layout rules appended to `finance.css` and it owns no appearance the DS could
+own.
+
+**FIGMA'S SHEET ORDER IS Date Range -> Transaction Type -> Transaction Merchant
+-> Transaction Amount, AND IT DIFFERS FROM THE APPLIED-CHIP ROW'S ORDER** (type,
+date, payee, amount). That divergence was left untidied at Gate 41-B and is
+still deliberate. **Do not "fix" either one into the other.**
+
+| facet | control, from the Figma read | option list derives from |
+|---|---|---|
+| Date Range | `ToggleChip` — 40 tall, 1px border, radius 8 | `TRANSACTION_DATE_RANGES` (4) |
+| Transaction Type | `ToggleChip` | `TRANSACTION_METHODS` (3) + an "All" chip |
+| Transaction Merchant | `Select` + `Menu`/`MenuItem` | `transactionPayees()` (18) |
+| Transaction Amount | `RangeSlider`, `showInputs` | `TRANSACTION_AMOUNT_FLOOR`/`_CEILING` |
+
+The header carries the title and a `Reset` `Button variant="tertiary"`; the
+actions region carries the primary `Apply Filter (N)`.
+
+**`showCloseButton={false}`, BECAUSE FIGMA DRAWS NO ✕.** Dismissal is still
+complete — `Sheet` supplies Escape and a scrim click unconditionally, both
+verified live.
+
+### `TRANSACTION_METHODS` is exhaustiveness-checked, not a bare array
+
+`TransactionMethod` is a type union and erases at compile time, so a chip row
+cannot iterate it and the list has to exist as a value. It is declared through a
+`Record<TransactionMethod, true>` and read back with `Object.keys`, so **adding a
+fourth method to the union without listing it is a type error at
+`npx tsc -b --force`** rather than a chip that silently stops being offered.
+Deriving the list from the ledger's rows was the alternative and `types.ts`
+had already rejected it — a facet built from what happens to be present loses an
+option when the last row using it is deleted.
+
+### The pending filter is a DRAFT, and the screen still has ONE filter state
+
+`TransactionsLedger` keeps its single `useState` filter. The sheet holds a
+`pending` copy so that editing a chip does not re-filter the list behind the
+scrim, and that copy reaches the screen's setter **exactly once, on Apply**.
+
+**THE SHEET IS MOUNTED CONDITIONALLY, AND THAT IS WHAT SEEDS IT.** The pending
+copy is a `useState` initialiser, which runs once per MOUNT. Keeping the sheet
+mounted and toggling `isOpen` would run it once per SCREEN, and the draft would
+go stale the moment a chip was dismissed behind it. `{isFilterOpen && <…/>}`
+makes "the draft starts from what is in force" true by construction, with no
+effect to keep in step — verified live: apply-all, reopen, and the sheet shows
+All Time with `Apply Filter (23)`.
+
+Reset writes the DRAFT, not the applied filter, and reads its values out of
+`TRANSACTION_FILTER_ALL` — so it cannot drift from what `clearFacet` produces.
+
+### "Apply Filter (N)" counts ROWS, and Figma confirmed it
+
+`TRANSACTION_FILTER_APPLIED` over the 23-row ledger returns 15; the live Figma
+read prints **"Apply Filter (15)"**. So N is a row count — not facets changed
+(which would print 2) and not options selected (4). The app renders
+`Apply Filter (15)` on load, measured in the browser.
+
+**N INCLUDES THE SEARCH TERM, WHICH FIGMA CANNOT ADJUDICATE** because the
+mockup's search box is empty and both readings print 15 there. Including it
+makes the call here literally the same `filterTransactions(...)` call the ledger
+makes, so N is the number of rows the user will actually see. Stated as a
+judgment, not as something the mockup settled.
+
+### Three mockup-vs-data mismatches. All registered, all built from the DATA.
+
+Per the standing rule — a control offering an option the data cannot produce is
+a dead filter.
+
+| facet | Figma draws | the data offers | disposition |
+|---|---|---|---|
+| Date Range | **4**: This Month, last 7 days, Last 30 days, **Custom Range** | **4**: All Time, This Month, Last 7 Days, Last 30 Days | same COUNT, different MEMBERS. `Custom Range` is not expressible by `TransactionDateRangeId`; `All Time` is the cleared state Reset produces and Figma omits it |
+| Transaction Type | **5**: All, Food, Bills, Utilities, Transfers | **3** methods + All | Figma's row is a THIRD taxonomy — neither the method union nor the category table, which has "Bills & Utilities" as ONE member where Figma splits two. Four of five chips are unbuildable |
+| Transaction Amount | max thumb ~58% along the track at RM 500 | ceiling **10000**, so RM 500 sits at **5%** | the mockup's slider SCALE disagrees with the data's ceiling. Built to the data |
+
+**THE COUNTS THE PROMPT EXPECTED WERE BOTH WRONG IN THE SAME DIRECTION** — it
+anticipated 3 date chips and 4 type chips; Figma draws 4 and 5. Read them, do
+not carry them.
+
+### The two harness assertions this gate corrected
+
+Both were latent, both were exposed by the same thing — **this is the first
+overlay state whose control is icon-only and whose dialog is a `Sheet` rather
+than a `Modal`** — and neither was a loosening.
+
+| assertion | was | is | why it never fired before |
+|---|---|---|---|
+| `openOverlay` control label | `toHaveText` | `toHaveAccessibleName` | all three prior overlay controls were `Button`s whose visible text IS their accessible name. The filter control is an `Icon` in a button with `aria-label`, so its text content is `""` and `toHaveText` could never match any label |
+| `assertOverlayMatchesState` dialog title | `el.querySelector('.mn-modal__title')` | `aria-labelledby` -> that element's text, falling back to `aria-label` | the class is `Modal`'s internal markup. A `Sheet`'s title is `.mn-sheet__title`, so a correctly-named dialog reported `"(no title)"` |
+
+The second fix is DS-agnostic rather than a second class name bolted on:
+`Modal.tsx:110-120` and `Sheet.tsx` use character-for-character the same
+`aria-labelledby` -> `<h2 id>` wiring. It also agrees with what `openOverlay`
+asserts, which is exactly how the two came to disagree — the open check passed
+and the state check failed on the same dialog.
+
+**THE CONFIRM BRANCH STILL USES `toHaveText`, DELIBERATELY.** Every confirm
+control today is a text button, so the change has no adopter there — the
+`.mvp-column--outset` rule.
+
+### Two new DS gaps, G15 and G16, both `Select`
+
+Registered, not fixed (rule 3). **G15** — `.mn-select` is a hard `width: 320px`
+with no `sizing` prop and no `className`, so the merchant dropdown renders 23px
+short in the 343 column at both viewports. **This is B2 again on a different
+component**, and it ships unfixed for the same reason B2 did: an MVP-local
+`.mn-select { width: 100% }` is the equal-specificity override on DS geometry
+that Gate 13 removed on measurement. **G16** — the DS `Icon` registry has no
+`storefront`/`store` for the trigger's leading slot, which is left empty rather
+than filled with a near-miss glyph.
+
+### The local Figma tools cannot address instance-child nodes
+
+**`mcp__figma-local__*` constrains `nodeId` to `^\d+[:-]\d+$`**, which rejects
+the `I1266:14329;825:6148` form; only the remote server's schema accepts it, and
+the remote is prohibited. So "read the sheet's child nodes individually" is not
+available locally — sub-node reads go through the DESKTOP SELECTION (call with
+no `nodeId`), and reading one specific child requires Teku to select it.
+
+**THE WHOLE-FRAME READ DID NOT CRASH THE APP; IT OVERFLOWED THE TOOL.**
+`get_design_context` on the selection returned 91,097 characters and was spilled
+to a file rather than into context — which is the SAFE outcome and the one to
+plan for. Extract from that file with `node -e` and `grep`; **`python` is not on
+PATH on this machine** and `npx tsx` must not be used.
 
 ## Known conditions of this setup
 
@@ -4087,8 +4222,43 @@ on `/finance/holding/fd`, and that route is not a convenience — the fixed
 deposit is the ONLY holding type whose `holdingFields` entry returns
 `actions: { reminder: true, statement: true }`.
 
-**CURRENT FIGURE: THE WALK IS 24 STATES — 14 routes + 7 non-default tab states +
-3 `OVERLAY_STATES`.** The 23 above is Gate α's own record and is left standing as
+**CURRENT FIGURE: THE WALK IS 25 STATES — 14 routes + 7 non-default tab states +
+4 `OVERLAY_STATES`.** Gate 43 added the fourth,
+`/finance [tab:transactions] [overlay:filter]` — the Transactions filter Sheet.
+It is the first overlay state that also carries a TAB, and the first that is not
+a `Modal`. Derived three ways at that gate's close, not carried:
+
+1. The overlay entries themselves — **4** (see the command below).
+2. `npx playwright test --list --reporter=json` reports **210** tests, of which
+   `visual.spec.ts` contributes **100**, so |WALK| = 100 ÷ 2 viewports ÷ 2
+   themes = **25**. The other two walk-iterating specs agree independently:
+   `routes` 51 = 25 × 2 + 1 and `section-headers` 52 = 25 × 2 + 2.
+3. The gate minted exactly **4** new baseline files and changed none of the 96
+   existing ones — the per-state cost the table below predicts.
+
+**THE COMMAND THIS SECTION USED TO DOCUMENT WAS BROKEN BY THE VERY STATE THAT
+MADE IT WRONG, WHICH IS WORTH MORE THAN THE COUNT.** It was:
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "id: '"
+```
+
+Run against the 4-entry array it returns **5**, because the new entry carries a
+`tab: { id: 'transactions', label: 'Transactions' }` and that nested `id:`
+matches too. The old command was only ever correct while every overlay state had
+`tab: null`. Anchor on the overlay block instead, which no nested key can
+impersonate — executed off disk at Gate 43 and returning **4**:
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "^    overlay: {"
+```
+
+**THE 24 BELOW WAS THE LIVE FIGURE FROM GATE α UNTIL GATE 43's SHEET LANDED**,
+and its three-way re-derivation is kept intact because the method is the point
+rather than the number. Read it as a dated record, not as the current count.
+
+**THE SUPERSEDED FIGURE: THE WALK WAS 24 STATES — 14 routes + 7 non-default tab
+states + 3 `OVERLAY_STATES`.** The 23 above is Gate α's own record and is left standing as
 the account of what that gate built; it stopped being the live number when a
 THIRD overlay state, `/finance/holding/fd [overlay:toast]`, was added after it.
 That state reaches `ToastMobile` by CONFIRMING the reminder modal rather than by
@@ -4141,6 +4311,20 @@ So **one added walk state costs 4 baseline FILES and 8 TESTS** (visual +4,
 routes +2, section-headers +2), taking the suite to 100 baselines and 210 tests.
 The baseline figure is 4 and not 2 because the viewport axis is a peer of the
 theme axis, not a member of `WALK`.
+
+**THAT PREDICTION WAS TESTED FOR THE FIRST TIME AT GATE 43 AND HELD EXACTLY.**
+The filter Sheet is the first walk state added since the table was written, and
+it moved the suite 202 -> 210 and the baselines 96 -> 100, with **0 changed and
+0 deleted** — measured by SHA-256 manifests taken outside the repo before and
+after. At **25 walk states** the same formulas give visual 100, routes 51,
+section-headers 52 and the fixed tail 3 / 2 / 2, totalling **210**, which is
+what `npx playwright test --list` reports per spec.
+
+**AN ADDED WALK STATE COSTS TWO SUITE RUNS, NOT ONE, AND THE FIRST ONE IS RED
+BY DESIGN.** `updateSnapshots: 'none'` means the 4 missing baselines are a hard
+failure that writes nothing, so the sequence is: an ordinary run to prove the
+other 96 did not move, a deliberate `npm run test:e2e:update` to mint, then a
+clean run. Budget ~7.5 minutes each.
 
 **OPENED THROUGH ITS OWN CONTROL, never by setting state** — the discipline
 `gotoRoute` already follows for the theme and `activateTab` for tabs.

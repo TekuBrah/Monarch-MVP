@@ -424,6 +424,35 @@ export const TRANSACTION_DATE_RANGES: { id: TransactionDateRangeId; label: strin
   { id: 'last-30', label: 'Last 30 Days' },
 ]
 
+/**
+ * The Type facet's options, as a RUNTIME list the sheet can map over.
+ *
+ * `TransactionMethod` is a type union, which erases at compile time — a chip
+ * row cannot iterate it. The list therefore has to exist as a value, and the
+ * only question is whether adding a fourth method to the union can leave this
+ * behind. It cannot: the keys are declared through a
+ * `Record<TransactionMethod, true>`, so an unlisted member is a TYPE ERROR at
+ * `npx tsc -b --force` rather than a chip that silently stops being offered.
+ *
+ * DERIVING IT FROM THE LEDGER'S ROWS WAS THE OTHER OPTION AND `types.ts`
+ * ALREADY REJECTED IT, in the note above `TransactionMethod`: a facet built
+ * from whatever happens to be present "silently loses an option when the last
+ * row using it is deleted". This keeps the closed set closed.
+ *
+ * THE THREE VALUES ARE THE DISPLAY STRINGS, so there is no lookup table and
+ * none is wanted — the ledger already renders `method` unmodified as
+ * `titleInfo`.
+ */
+const TRANSACTION_METHOD_KEYS: Record<TransactionMethod, true> = {
+  'Card Payment': true,
+  'Fund Transfer': true,
+  'Crypto Transfer': true,
+}
+
+export const TRANSACTION_METHODS = Object.keys(
+  TRANSACTION_METHOD_KEYS,
+) as TransactionMethod[]
+
 /** The slider's own bounds — the full range the amount facet can express. */
 export const TRANSACTION_AMOUNT_FLOOR = 0
 export const TRANSACTION_AMOUNT_CEILING = 10000
@@ -620,7 +649,7 @@ export function filterChips(filter: TransactionFilter): TransactionFilterChip[] 
  *
  * IT READS ITS RESET VALUES OUT OF `TRANSACTION_FILTER_ALL` RATHER THAN
  * RESTATING THEM, which is what stops this drifting from the cleared state
- * Gate 42's sheet will produce. The amount facet is two fields and is
+ * Gate 43's sheet produces. The amount facet is two fields and is
  * therefore ONE `facet` here, not two — dismissing "RM 0 - 500" restores both
  * bounds, because half a restored range is not a cleared facet.
  *

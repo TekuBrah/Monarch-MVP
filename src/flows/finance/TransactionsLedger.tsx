@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
+import { TransactionFilterSheet } from './TransactionFilterSheet'
 import {
   TRANSACTION_FILTER_APPLIED,
   clearFacet,
@@ -30,20 +31,25 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * chronological and cannot be produced by any sort. Date descending is the
  * behaviour; the drawn order is a source artifact.
  *
- * THE FILTER SHEET IS GATE 42 AND IS NOT HERE. The trailing filter control is
- * present with its real hit target and accessible name so that gate replaces a
- * handler rather than restructuring this markup — see the TODO below.
+ * THE FILTER SHEET LANDED AT GATE 43, and it did replace a handler rather than
+ * restructure this markup — the trailing filter control below kept its hit
+ * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
   const { transactions } = useAccounts()
   const [search, setSearch] = useState('')
 
   // Figma's applied filter, as a value. The chip row writes it through
-  // `clearFacet` as of Gate 41-C, and Gate 42's sheet will write it too —
-  // THROUGH THIS SAME SETTER. There is one filter state in this screen and
-  // there must stay one: a sheet holding its own copy is how the row and the
-  // list start disagreeing about what is in force.
+  // `clearFacet` as of Gate 41-C, and Gate 43's sheet writes it too — THROUGH
+  // THIS SAME SETTER. There is one filter state in this screen and there
+  // stays one: a sheet holding its own copy is how the row and the list start
+  // disagreeing about what is in force. The sheet's `pending` value is not a
+  // second state — it is a draft that exists only while the sheet is mounted
+  // and reaches this setter exactly once, on Apply.
   const [filter, setFilter] = useState(TRANSACTION_FILTER_APPLIED)
+
+  // Whether the sheet is on screen. It holds NO filter value of its own.
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
 
   const rows = useMemo(
     () => filterTransactions(transactions, filter, search),
@@ -96,13 +102,14 @@ export function TransactionsLedger() {
               className="mvp-transactions__filter-btn"
               aria-label="Filter transactions"
               /*
-                TODO(Gate 42) — open the filter Sheet. Deliberately a no-op
-                rather than an absent control: Figma draws a real affordance
-                here, and keeping the button, its hit target and its accessible
-                name means Gate 42 supplies an `onClick` body instead of
-                rebuilding the search bar around a new element.
+                Gate 43 supplied this body and changed nothing else about the
+                control — the button, its hit target and its accessible name
+                are the ones Gate 41 left here for exactly that purpose. The
+                e2e overlay state opens the sheet through THIS control rather
+                than by setting state, which is why it had to stay a real
+                button with a real name.
               */
-              onClick={() => {}}
+              onClick={() => setIsFilterOpen(true)}
             >
               <Icon name="filter_list" size="m" />
             </button>
@@ -119,7 +126,7 @@ export function TransactionsLedger() {
         overflow.
 
         THE ROW STILL SCROLLS, for a prospective overflow rather than a current
-        one: `filterChips` joins selected payees with commas, so Gate 42's
+        one: `filterChips` joins selected payees with commas, so Gate 43's
         sheet makes a long payee chip the moment two are picked. The gutter
         arrives as padding via `.mvp-column--bleed` — the same answer A3/A4's
         five-tab overflow already took here (`Tabs isScrollable` on
@@ -171,7 +178,7 @@ export function TransactionsLedger() {
                 Dismiss clears THAT facet, through the screen's one filter
                 state. `clearFacet` reads its reset values out of
                 `TRANSACTION_FILTER_ALL`, so this cannot drift from the cleared
-                state Gate 42's sheet produces.
+                state Gate 43's sheet produces.
 
                 The functional update form is not decoration: two dismisses in
                 one React batch would otherwise both read the pre-batch filter
@@ -204,6 +211,31 @@ export function TransactionsLedger() {
           </li>
         ))}
       </ul>
+
+      {/*
+        MOUNTED ONLY WHILE OPEN, WHICH IS WHAT SEEDS IT.
+
+        `TransactionFilterSheet` seeds its pending copy from `filter` in a
+        `useState` initialiser, and an initialiser runs once per MOUNT. Keeping
+        the sheet mounted and toggling its `isOpen` would run it once per
+        SCREEN and the draft would go stale the moment a chip was dismissed
+        behind it — the classic stale-copy bug this app has an explicit rule
+        against. Conditional mounting makes "the draft starts from what is in
+        force" true by construction, with no effect to keep in step.
+
+        `Sheet` also restores focus to the previously-focused element on
+        unmount, so closing returns the user to the filter button they opened
+        it from.
+      */}
+      {isFilterOpen && (
+        <TransactionFilterSheet
+          transactions={transactions}
+          filter={filter}
+          search={search}
+          onApply={(next) => setFilter(() => next)}
+          onClose={() => setIsFilterOpen(false)}
+        />
+      )}
     </div>
   )
 }

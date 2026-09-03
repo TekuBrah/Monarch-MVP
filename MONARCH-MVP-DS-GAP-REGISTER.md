@@ -253,7 +253,7 @@ never against a changelog.
 | **G1** | `component-gap` — no bottom-anchored sheet; *"the critical path… blocking Flows 8 and 9"* | **CLOSED** | `Sheet` ships. `dist/components/Sheet/Sheet.d.ts` exists in the pin; `git ls-tree` on the DS shows `src/components/Sheet/` absent at `v1.2.0` and present at `v1.3.0` (4 files), so **v1.3.0 is the release that closed it**, as carried |
 | **G9** | `prop-gap` — `Chips`' leading glyph is a fixed `done` checkmark | **CLOSED** | `dist/components/Chips/Chips.d.ts` declares `icon?: React.ReactNode` and documents *"pass `null` for no glyph at all"*. Present at both `v1.15.0` and `v1.16.0`, so it closed **before** this gate, not because of it. Flow 8's four applied chips are the first MVP consumer to pass `null` |
 | **G10** | `token-gap` — `FilterChip.css` FAIL-LOUD literal `padding-left: 10px` when both icons are set | **CLOSED** | zero matches for a `10px` literal in any `.mn-filter-chip` rule of the pinned `dist/index.css` |
-| **G8** | `prop-gap` — `Modal`'s header and ✕ are not suppressible, *"compounds G1"* | **OPEN, but MOOT for Flow 8** | still unconditional — `Modal.tsx:115` renders `<div className="mn-modal__header">` with no guard (**the register cites `:109`; the file grew underneath the reference**). It only ever mattered as a way to fake a sheet out of a `Modal`, and G1 removed the need: Gate 42 will compose the real `Sheet` |
+| **G8** | `prop-gap` — `Modal`'s header and ✕ are not suppressible, *"compounds G1"* | **OPEN, but MOOT for Flow 8** | still unconditional — `Modal.tsx:115` renders `<div className="mn-modal__header">` with no guard (**the register cites `:109`; the file grew underneath the reference**). It only ever mattered as a way to fake a sheet out of a `Modal`, and G1 removed the need: Gate 43 composed the real `Sheet` |
 
 **G11 and G12 are unchanged and still open.** Both are `Blanket` items and
 neither is fixable from this repo.
@@ -368,6 +368,95 @@ Rule 3. An MVP-local `max-width` on `.mn-sheet__panel` would be a finding, not a
 fix — it is the equal-specificity override on DS geometry that Gate 13 removed
 on measurement — and Gate D proved the three container-based alternatives
 (`transform`, `contain`, `filter`) each un-fix the element.
+### Two new entries — G15 and G16, opened at MVP Gate 43 building the filter Sheet
+
+Both were found by BUILDING the sheet rather than by reading either source, and
+both are `Select`. Neither was fixed here (rule 3).
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G15** | `Select` | **Fill the content column.** Figma's merchant dropdown is **343 wide** — the whole 375−32 gutter. | `prop-gap` | **8, 9** | `.mn-select` declares a hard `width: 320px` whose own comment calls it *"Figma demo width; caller-controllable"*, and **`SelectProps` exposes neither a `sizing` prop nor a `className`** — so there is no mechanism to control it with, and the comment's claim is not met. Measured live at Gate 43 on `/finance [tab:transactions] [overlay:filter]`: the control renders **320 wide in a 343 column**, 23px short, at 375 AND at 430. **This is B2 again on a different component** — same shape, same tag, same fix |
+| **G16** | `Icon` | A **storefront / merchant mark** for the merchant dropdown's leading slot. | `component-gap` | **8** | Figma draws a storefront glyph inside the `Select` trigger before "Watson". The DS `Icon` registry is 101 named assets and contains **no `storefront` and no `store`** (`grep` over `Icon/icons.ts`: zero matches for either). `Select` DOES expose the slot (`leadingSlot`), so this is an ASSET gap, not a prop gap — the composition point exists and there is nothing to put in it |
+
+**G15 SHIPPED UNFIXED AND VISIBLY SHORT, WHICH IS THE B2 PRECEDENT AND NOT AN
+OVERSIGHT.** An MVP-local `.mn-select { width: 100% }` is the
+equal-specificity override on DS geometry that Gate 13 removed on measurement,
+and that `TransactionsLedger`'s own search-field note explicitly forbids. B2
+rendered a 240px field in a 343 column for two whole gates before DS v2.0.0
+closed it; the same disposition applies here. The call site carries a comment
+saying so, so a future session does not "tidy" it into an override.
+
+**G16 WAS NOT FILLED WITH A NEAR-MISS GLYPH.** Substituting an unrelated icon
+would be exactly the "do not substitute a control the mockup draws differently"
+failure, and it would make the gap invisible. The slot is left empty.
+
+#### The Figma provenance for Flow 8's sheet, recorded here because nothing else records it
+
+**THE SHEET'S NODE ID HAD NEVER BEEN WRITTEN DOWN ANYWHERE.** Established at
+Gate 43 by `mcp__figma-local__get_metadata` against the live desktop selection:
+
+| node | id | box |
+|---|---|---|
+| `Finance_Transaction02` — the product frame, a COMPONENT INSTANCE | **`1266:14329`** | 375 × 812 |
+| `Bottom Sheet` — the overlay wrapper (scrim + panel) | **`I1266:14329;825:6146`** | 375 × 812 |
+| `Bottom Sheet` — the PANEL itself | **`I1266:14329;825:6148`** | 375 × 609 at y=203 |
+| `Blanket` | `I1266:14329;825:6147` | 375 × 812 |
+
+**`Finance_Transaction02` IS NOT THE SHEET; IT CONTAINS IT.** The sheet is a
+child frame of the product frame, which is what the prompt suspected and what
+the metadata confirms.
+
+**DOCUMENT IDENTITY — SETTLED, AND THE TAB LABEL IS A RED HERRING.** The Figma
+desktop tab reads `casestudy_tekucheong_Mas…` while the supplied URL says
+`casestudy_02`, which raised the question of whether two different documents
+were in play. They are the same document, and **no file key was needed to show
+it** — no local tool returns one, so the identification is by content:
+
+- **The sheet's box matches this register's own §2 `G1` row exactly.** `G1` was
+  written from an earlier Figma read and records *"F8's filter sheet is 375×609
+  at y=203"*. The Gate 43 metadata read returns `I1266:14329;825:6148` at
+  **375 × 609, y=203** — the same three numbers, independently arrived at.
+- **The node id resolves.** `1266:14329` exists in the open document and is
+  named `Finance_Transaction02`, which is the id the supplied URL names.
+- **The variable namespace matches** the one this register was built against —
+  `Scale/*`, `Border Radius/*`, `text/*/*`, `surface/*/*`, `body/*`,
+  `Dropshadow_*`, `Neutral01`/`Neutral02`.
+
+§1 of this document records the file key as **`v9MI8jxTaXiJA234Hkanlf`**, which
+is the key in the supplied URL. That is consistent, but it is EVIDENCE ONLY: it
+was recorded in an earlier session and no Gate 43 tool call re-derived it. The
+content match above is the load-bearing part.
+
+**FIGMA'S OWN INSTANCE-VS-MAIN-COMPONENT WARNING, RESOLVED.** The Inspect panel
+flags that *"the text in this instance differs from the main component"*. What
+differs is **the fourth facet's label**. Figma layer names on an instance come
+from the MAIN COMPONENT while the rendered text is the instance's override, and
+the two disagree at exactly one node:
+
+| node | layer NAME (main component) | rendered TEXT (instance) | width |
+|---|---|---|---|
+| `I1266:14329;826:7210` | `Transaction Merchant` | "Transaction Merchant" | 136 |
+| **`I1266:14329;826:7475`** | **`Transaction Merchant`** | **"Transaction Amount"** | **126** |
+
+So the main component labels BOTH the third and fourth groups "Transaction
+Merchant" — a copy-paste in the main component — and the mockup instance
+corrects the fourth to "Transaction Amount". The 10px width difference is
+consistent with the shorter string. **Per standing convention the instance
+wins**, so the app ships "Transaction Amount"; the divergence is reported here
+rather than silently resolved. Every other text node's name and content agree.
+
+This was established from layer-name provenance, not by opening the main
+component — the local tools cannot address it without Teku selecting it, per the
+addressing limitation noted above.
+
+**THE `I…;…` FORM CANNOT BE ADDRESSED BY THE LOCAL FIGMA TOOLS.** Every
+`mcp__figma-local__*` tool constrains `nodeId` to `^\d+[:-]\d+$`, which rejects
+instance-child ids; only the remote server's schema accepts them, and the remote
+is prohibited by standing instruction. So sub-node reads must go through the
+DESKTOP SELECTION (call the tool with no `nodeId`), and a request to read one
+specific child of an instance requires Teku to select it. Worth knowing before
+planning a Figma read around child ids.
+
 ### Two further entries — B1 and B2, opened at MVP Gate 41-B
 
 **THE `U` COLLISION THAT FORCED THIS LETTER IS RESOLVED AS OF GATE 43.** This

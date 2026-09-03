@@ -515,7 +515,7 @@
 /*
   The filter affordance inside the Field's trailing slot.
 
-  A BUTTON RATHER THAN A BARE ICON, and it is a no-op until Gate 42 — see the
+  A BUTTON RATHER THAN A BARE ICON. It was a no-op until Gate 43 — see the
   TODO at the call site. Reset to nothing so the DS Field owns every visual:
   the MVP supplies a hit target and an accessible name, not an appearance.
 */
@@ -541,7 +541,7 @@
   (inventory A9), and the DS's real chip is narrower still.
 
   SO THE OVERFLOW IS PROSPECTIVE, NOT CURRENT, AND THE SCROLLING IS STILL
-  RIGHT. `filterChips` joins selected payees with commas, so Gate 42's
+  RIGHT. `filterChips` joins selected payees with commas, so Gate 43's
   sheet produces a long payee chip the moment anyone picks two — measured at
   Gate 41 by injecting one: `scrollWidth` 375 -> 729, the row genuinely
   scrolled, and the other chips kept their widths because of the `flex: 0 0 auto`
@@ -609,4 +609,102 @@
   */
   margin: var(--spacing-400) 0 0;
   list-style: none;
+}
+
+/* =========================================================================
+   The Transactions filter sheet (Gate 43)
+
+   LAYOUT ONLY. Every control inside is a DS export and owns its own
+   appearance; these four rules place the groups, the labels and the two
+   scrolling chip rows. Nothing here restates a DS geometry, and in particular
+   nothing sets a width on `.mn-select` — see G15 in the gap register and the
+   note at the call site.
+   ========================================================================= */
+
+/*
+  Figma `Content` (`I1266:14329;825:6150`) stacks its four groups at y=16, 116,
+  216 and 312 with heights 68, 68, 64 and 100 — so every step between groups is
+  exactly 32, three times over. `--spacing-800` is that 32.
+*/
+.mvp-txn-filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-800);
+}
+
+/*
+  A `fieldset` reset. Two of the four groups are fieldsets — the ones whose
+  controls are chips and therefore need a `legend` for their accessible name —
+  and a fieldset ships a border, padding and margin that would otherwise draw
+  a box Figma does not have.
+
+  `min-width: 0` IS LOAD-BEARING ON A FIELDSET. It has an automatic minimum
+  size that ignores `overflow`, so without this the chip rows below would
+  refuse to shrink to the column and would widen the whole sheet instead of
+  scrolling inside it.
+*/
+.mvp-txn-filter__group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/*
+  12px from the group's label to its control — Figma puts every label at y=0
+  with height 16 and every control at y=28.
+
+  EXPRESSED AS A MARGIN ON THE SECOND CHILD RATHER THAN A FLEX GAP, because
+  two of these groups are fieldsets and `<legend>` is not an ordinary flex
+  item: it is rendered out of flow against the fieldset's border box, so a
+  `gap` would apply to the controls and skip the label. A sibling margin
+  behaves identically in a fieldset and in the two plain `div` groups, which is
+  what keeps all four spaced by one rule.
+*/
+.mvp-txn-filter__group > * + * {
+  margin-top: var(--spacing-300);
+}
+
+.mvp-txn-filter__legend {
+  display: block;
+  margin: 0;
+  padding: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+/* The amount group's label shares its row with Figma's "RM" unit mark. */
+.mvp-txn-filter__legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mvp-txn-filter__unit {
+  color: var(--mapped-text-primary-default);
+}
+
+/*
+  THE CHIP ROWS OVERFLOW IN FIGMA AND THEREFORE SCROLL HERE. `Frame 422` is
+  458 wide in the Date Range group and 454 in Transaction Type, both inside a
+  343 column — so the fourth date chip and the fifth type chip are clipped in
+  the mockup. That is the same answer the applied-chip row and the five-tab bar
+  already take on this screen (`overflow-x: auto`, `Tabs isScrollable`).
+
+  `--brand-scale-250` BECAUSE THERE IS NO `--spacing-250`. Figma binds these
+  rows to `Scale/250` (10px) and the DS ramp aliases 25/50/100/200/300/400/...,
+  skipping 250. Reaching past the alias to the real 10px step follows the
+  precedent already set on this screen by `.mvp-transactions__list`
+  (`--brand-scale-700`) and in the shell by `.mvp-shell__scrim`
+  (`--brand-scale-1700`). A spacing primitive carries no theme dimension, so
+  the "raw primitives do not dark-flip" hazard does not apply to it.
+*/
+.mvp-txn-filter__chips {
+  display: flex;
+  gap: var(--brand-scale-250);
+  overflow-x: auto;
+}
+
+/* Chips must not compress to fit; the row scrolls instead — as above. */
+.mvp-txn-filter__chips > * {
+  flex: 0 0 auto;
 }
