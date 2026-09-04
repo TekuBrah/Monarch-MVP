@@ -137,10 +137,41 @@ html {
   above a `HeaderDefault`, pulls its title up underneath the phone's real
   clock.
 
-  So the glyphs go and the box stays, resized to whatever the device
-  actually reserves. `visibility: hidden` removes the painting and keeps
-  the box; `height: env(safe-area-inset-top)` makes that box the real
-  bar's size instead of Figma's 44.
+  So the glyphs go and the box stays. `visibility: hidden` removes the
+  painting and keeps the box exactly.
+
+  THE BOX IS `max(natural height, inset)`, AND GATE 44 SHIPPED ONLY THE
+  SECOND HALF. It set `height: env(safe-area-inset-top)` outright, which is
+  right where the platform grants the region and CATASTROPHIC where it does
+  not: Android Chrome in `display: standalone` paints the status strip
+  ITSELF from the manifest `theme_color` and hands the app only the viewport
+  below it, so the inset is 0, the bar collapsed to 0, and the whole header
+  collapsed with it. Measured at 375, both HeaderBg screens: header 90 -> 50,
+  greeting y=52 -> y=12. `HoldingDetailScreen` collapsed the same way, its
+  `HeaderDefault` moving y=40 -> y=0.
+
+  `min-height` AND NO `height` IS THE WHOLE FIX, AND IT COSTS NO LITERAL.
+  A `min-height` floors the box at the height the bar naturally occupies —
+  the DS's own `padding: 8px 16px` around a 24px line box, i.e. 40 — and
+  raises it to the inset when the inset is larger. That is `max(natural,
+  inset)` written with no invented number, no new token and no second
+  literal to drift out of step with the DS's padding. `padding: 0`,
+  `min-height: 0` and `overflow: hidden` all went with it: they existed only
+  to stop the glyphs overflowing a box shrunk below its content, and nothing
+  is shrunk below its content any more (nor could it paint if it were —
+  `visibility: hidden`).
+
+  Measured after, at 375: inset 0 -> bar 40, header 90, greeting y=52 —
+  BYTE-IDENTICAL to the browser tab; inset 47 -> bar 47, header 97, greeting
+  y=59. The browser-tab render cannot move at all, because the whole block
+  is inside the media query and no tab matches it.
+
+  IT FLOORS AT THE APP'S 40, NOT AT FIGMA'S 44, DELIBERATELY. `Header/bg`
+  fixes its status row at h=44 and its content row at h=50 where the DS hugs
+  both (40 and 32), so Figma's component is 112 tall where this app's is 90.
+  That 22px divergence is real, is DS-side, and is registered as G18 — it is
+  NOT corrected here, because correcting it would move every baseline on
+  five screens and this rule must leave the browser tab untouched.
 
   THE SAME RULE THEREFORE SERVES BOTH SHAPES, which is why it is one rule
   and not two:
@@ -160,12 +191,22 @@ html {
   meta the function resolves to 0 everywhere and this silently reserves
   nothing.
 
-  IT IS CORRECT IN BOTH ANDROID MODES, WHICH IS WORTH STATING because the
-  manifest's `theme_color` decides which one applies. Where Chrome draws
-  its own `theme_color` bar above the viewport, the inset is 0, the spacer
-  collapses, and the app simply loses its duplicate bar. Where the app
-  runs edge-to-edge, the inset is real, the spacer matches it, and the
-  artwork extends beneath the system glyphs.
+  IT IS CORRECT IN BOTH ANDROID MODES, and Gate 44 claimed that while only
+  one of them worked. Where Chrome draws its own `theme_color` strip above
+  the viewport the inset is 0 and the bar holds its natural 40, so the
+  header keeps the proportions the browser tab has. Where the app runs
+  edge-to-edge the inset is real, the box grows to it, and the artwork
+  extends beneath the system glyphs.
+
+  ANDROID GRANTS THE FIRST MODE AND NOT THE SECOND — measured against the
+  documentation at Gate 44-B, not assumed. `theme_color`'s alpha channel is
+  ignored ("In most environments, theme_color cannot be transparent" —
+  MDN), Chrome's own edge-to-edge work extends the viewport into the
+  BOTTOM gesture bar only ("From Chrome 135, the viewport is allowed to
+  extend into Android's gesture navigation bar"), and a standalone PWA
+  "keeps the status bar visible" as Chrome's own strip. So on Android the
+  inset is 0, `::before` below is INERT, and the visual continuity has to
+  come from the strip's colour instead — see `useStatusBarColor`.
 
   ---------------------------------------------------------------
   2 · THE LEGIBILITY SCRIM OVER THE ARTWORK
@@ -212,10 +253,7 @@ html {
 @media (display-mode: standalone) {
   .mn-status-bar {
     visibility: hidden;
-    height: env(safe-area-inset-top, 0px);
-    min-height: 0;
-    padding: 0;
-    overflow: hidden;
+    min-height: env(safe-area-inset-top, 0px);
   }
 
   .mn-header-bg::before {

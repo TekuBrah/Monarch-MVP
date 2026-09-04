@@ -3428,6 +3428,293 @@ pin, the manifest, `index.html`, the three AA shortfalls on the net-worth card
 ruled on at Gate 31, and `TRANSACTION_CATEGORIES`, still exported with zero
 consumers.
 
+## The Android status strip, and `Header/bg`'s vertical spec (Gate 44-B)
+
+Gate 44's standalone CSS was correct in colour, correct in mechanism and
+**wrong about what the platform grants**. Two changes, one branch, and they are
+different in kind: one is a geometry fix that had a measurable defect behind it,
+the other is a colour behaviour that no instrument in this repo can see. **No DS
+re-pin — v2.0.1 throughout. ZERO of 104 baselines moved, predicted before the
+run and confirmed by SHA-256.**
+
+### What Android actually permits — the ceiling is (ii)
+
+**ESTABLISHED AGAINST THE DOCUMENTATION, NOT ASSUMED, BECAUSE IT CANNOT BE
+TESTED HERE.** Gate 44 already measured that headless Chromium cannot be put
+into standalone (CDP `Emulation.setEmulatedMedia` does not take, `--app=` does
+not either) and that all four safe-area insets resolve to `0px` with no notch.
+Neither of those is evidence about a real phone, so this had to be settled from
+the specs.
+
+| | | |
+|---|---|---|
+| **(i)** | genuinely transparent, artwork visible through the strip | **NOT POSSIBLE** |
+| **(ii)** | a flat colour matched to what sits below it | **THE CEILING** |
+| **(iii)** | neither — a solid theme colour is all there is | too pessimistic |
+
+**(i) IS REFUSED THREE SEPARATE WAYS, AND NO COMBINATION OF THEM HELPS:**
+
+- **`theme_color`'s alpha is discarded.** MDN, verbatim: *"Browsers may ignore
+  the alpha component of the color based on the context. In most environments,
+  `theme_color` cannot be transparent."* So a translucent strip is not
+  expressible, in the manifest or in the meta.
+- **Chrome's edge-to-edge work reaches the BOTTOM only.** Its own migration
+  guide: *"From Chrome 135, the viewport is allowed to extend into Android's
+  gesture navigation bar."* Nothing is granted at the top, and the guide does
+  not discuss the status bar at all. So `viewport-fit=cover` buys a real
+  `safe-area-inset-bottom` and a **zero** `safe-area-inset-top`.
+- **`display: standalone` is DEFINED as keeping Chrome's strip.** web.dev's PWA
+  guidance: *"a standalone PWA experience will create a standard screen that
+  keeps the status bar visible."*
+
+**`display: fullscreen` WOULD HAND OVER THE REGION AND IS THE WRONG TRADE — do
+not reach for it.** It removes the clock, signal and battery entirely, and
+Chromium then forces the bars black regardless of the manifest. The design wants
+a status bar; it wants it not to be DUPLICATED. `display_override` is likewise
+not a lever here: the manifest declares none today, and every value it could
+declare is either `fullscreen` (above) or a desktop mode.
+
+**SO `env(safe-area-inset-top)` IS 0 ON ANDROID STANDALONE, AND THAT IS THE
+ROOT CAUSE OF BOTH DEFECTS THIS GATE FIXES.** iOS edge-to-edge still grants a
+real inset; nothing below removes that path.
+
+#### The scrim is INERT on Android, and it was KEPT
+
+`.mn-header-bg::before` — the `surface/Overlay/default` band Figma paints over
+the status row — is sized to `env(safe-area-inset-top)`. Measured through the
+shipped rules with the `env()` substituted: **`0px` at inset 0**, `47px` at
+inset 47, where it aligns with the spacer exactly.
+
+**IT IS NOT DELETED AND MUST NOT BE.** It is correct and live wherever the
+region IS granted, which is every edge-to-edge iOS install. What changed is
+that its value on Android is now known rather than assumed — see the G17
+addendum in the gap register, which downgrades the (b) half of that demand
+accordingly.
+
+### The header collapsed, and the fix costs no literal
+
+**GATE 44 SET `height: env(safe-area-inset-top)` OUTRIGHT.** That is right where
+the platform grants the region and catastrophic where it does not: at inset 0
+the bar collapsed to zero and took the whole header with it.
+
+Measured at 375 in a Playwright-launched Chromium, DPR 2, animations finished,
+with the standalone rules read off `document.styleSheets` and the `env()`
+substituted — **not** transcribed:
+
+| | browser tab | Gate 44, inset 0 | Gate 44-B, inset 0 | inset 47 |
+|---|---|---|---|---|
+| `.mn-status-bar` height | 40 | **0** | **40** | 47 |
+| `.mn-header-bg` height | 90 | **50** | **90** | 97 |
+| greeting top | 52 | **12** | **52** | 59 |
+| `HeaderDefault` top (`/finance/holding/fd`) | 40 | **0** | **40** | 47 |
+| `.mvp-shell__main` padding-top (`/more`) | 0px | 0px | 0px | 47px |
+
+**THE FIX IS `min-height` AND NO `height`, AND THAT IS THE WHOLE OF IT:**
+
+```css
+.mn-status-bar {
+  visibility: hidden;
+  min-height: env(safe-area-inset-top, 0px);
+}
+```
+
+A `min-height` floors the box at the height the bar NATURALLY occupies — the
+DS's own `padding: 8px 16px` around a 24px line box, i.e. 40 — and raises it to
+the inset when the inset is larger. **That is `max(natural, inset)` written with
+no invented number, no new token, and no second literal to drift out of step
+with the DS's padding.** The `max()` operator was the obvious spelling and would
+have needed a hardcoded 40 on its right-hand side; `min-height` gets the same
+result by asking the DS what its own bar measures.
+
+`padding: 0`, `min-height: 0` and `overflow: hidden` all went with it. They
+existed only to stop the glyphs overflowing a box shrunk below its content, and
+nothing is shrunk below its content any more — nor could it paint if it were,
+since `visibility: hidden` is what removes the glyphs.
+
+**IT FLOORS AT THE APP'S 40, NOT AT FIGMA'S 44, AND THAT IS A CONSTRAINT RATHER
+THAN A PREFERENCE.** See G18: honouring 44 would move pixels on five screens,
+and this rule was required to leave the browser tab untouched.
+
+### `Header/bg`'s COMPLETE vertical spec — the authority for header geometry
+
+Read at Gate 44-B from node **`390:639`**, variant `Type=No search bar`, via
+`mcp__figma-local__get_metadata` (geometry), `get_variable_defs` (bindings) and
+`get_design_context` (auto-layout). **Gate 44's four recorded figures are all
+CONFIRMED** — 375x112 overall, Status Bar `390:641` = 375x44 at y=0, artwork
+`390:640` = 375x112 at y=0, content row group at y=52. Nothing it recorded was
+wrong; it simply stopped at four numbers.
+
+| y | height | node | what it is |
+|---|---|---|---|
+| 0 | **44** | `390:641` Status Bar | `h-[44px]` FIXED, `px-16 py-8`, plus a `surface/Overlay/default` background |
+| 44 | **8** | — | the column's `gap`, bound to `Scale/200` |
+| 52 | **50** | `390:642` -> `390:643` | content row, `h-[50px]` FIXED, `px-16`, **no vertical padding** |
+| 102 | **10** | — | space to the bottom of the component |
+| | **112** | `390:639` | declared frame height. 44+8+50+10 closes exactly |
+
+Inside the 50px content row, `items-center` does all the vertical work and there
+is no padding at all:
+
+| node | y within the row | height | derived inset |
+|---|---|---|---|
+| `390:644` avatar + greeting group | 9 | **32** | 9 above, 9 below |
+| `390:645` bell + badge | 13 | **24** | 13 above, 13 below |
+
+Both are centring artifacts of a fixed 50px box, **not** declared paddings —
+which is why the row cannot be reproduced by adding padding to a hugging row.
+`390:648` (the search `Field`, 375x44 at y=58 within `390:642`) is
+`hidden="true"` on this variant and is excluded from the hug, which is why
+`390:642` measures 50 while containing a child that reaches 102.
+
+**THE OUTER FRAME DECLARES NO PADDING**, so the 10px at the bottom is frame
+height minus content. The DS reached the same number independently by
+back-solving across all three variants and records it as
+`padding-bottom: var(--brand-scale-250)` — two sources agreeing, and
+`get_variable_defs` confirms there is no `10` among the node's bound spacing
+values (`space/0`, `space/075`=6, `Scale/200`=8, `Scale/400`=16, `Scale/600`=24).
+
+**ONE FINDING GATE 44 DID NOT RECORD, AND IT IS THE INTERESTING ONE: FIGMA PUTS
+THE SCRIM ON THE STATUS ROW ITSELF.** `390:641` carries
+`background: surface/Overlay/default` on the `No search bar` variant, and the
+`Default` variant carries none. So the scrim's correct geometry is the status
+row's box, not a separately-sized strip — which is exactly what
+`.mn-header-bg::before` produces once its height tracks the reserve, and it does.
+
+**AND THE DS RENDERS THIS COMPONENT 22px SHORTER THAN THE DESIGN.** Figma fixes
+both row heights; the DS hugs both. Status row 44 -> **40** (-4), content row
+50 -> **32** (-18), so 112 -> **90**. `gap` (8) and `padding-bottom` (10) are
+correct and are not part of it. **Registered as G18**, tagged `shape-mismatch`
+because the hug is a deliberate DS choice and the question is which geometry
+Monarch wants — not a transcription error to correct.
+
+### The strip's colour — per route, and only when installed
+
+`src/shell/useStatusBarColor.ts`, called once from `AppShell`.
+
+**A SINGLE VALUE IS WRONG ON 12 OF 14 ROUTES, WHICHEVER ONE IS CHOSEN.** The
+strip abuts viewport y=0, so it is continuous only with what that route paints
+there — and this app paints two different things. `/` and `/finance` put
+`HeaderBg`'s photograph at y=0; the other twelve put the page surface there,
+which dark-flips. So the surface became a **third axis on `chromeFor()`**,
+alongside `nav` and `fab`, declared per route in the same explicit table and
+inferred from nothing. `/steward` and `/more` agree on it while disagreeing on
+both other axes, which is what makes it a separate field rather than a derived
+one.
+
+| branch | value | is it a literal? |
+|---|---|---|
+| `artwork` | **`#1a2351`** | **YES, and no token can back it** |
+| `page` | `--mapped-surface-page`, read at runtime | no — dark-flips for free |
+
+**HOW `#1a2351` WAS SAMPLED.** `.mn-header-bg__content` hidden with
+`visibility: hidden` (which preserves layout exactly), animations finished, the
+top CSS row of the rendered header captured at DPR 2 through a
+Playwright-launched Chromium and decoded via `createImageBitmap` +
+`OffscreenCanvas` — the instrument Gate 31 used on the gradient cards. Mean of
+that row:
+
+| viewport | mean | |
+|---|---|---|
+| **375** | rgb(26, 35, 81) | **`#1a2351`** — chosen; Figma authors exclusively at 375 |
+| 430 | rgb(28, 36, 80) | `#1c2450` |
+
+Two channels apart, so one value serves both. `/` and `/finance` measured
+**identical** at each width — they share one artwork through one `HeaderBg`
+slot — which is why this is one constant and not two.
+
+**IT IS A LITERAL AND THAT IS UNAVOIDABLE.** It is a pixel out of a photograph,
+not a palette value; nothing in the DS ramp is `#1a2351` and nothing should be.
+**`scripts/check-tokens.mjs` DOES scan it** — `SCAN_DIRS = ['src']` and `.ts` is
+in `EXTS` — so it is flagged and carries a same-line `token-exempt` marker.
+**This is the THIRD exemption in the tree, where there were two**, and it is
+reported rather than hidden.
+
+**THE SEAM IS SOFTENED, NOT ERASED, AND THAT IS THE CEILING'S REAL COST.** The
+row this averages is not flat — it spans rgb(0,8,20) to rgb(159,148,177) — so a
+flat strip matches it on average and visibly diverges wherever the photograph is
+bright. White system glyphs are safe on it either way: contrast against the mean
+is **14.97:1**, against **6.42:1** for the `#0358cc` it replaces.
+
+#### Nothing happens in a browser tab, by construction
+
+The whole effect is behind `matchMedia('(display-mode: standalone)')`. **That is
+not tidiness: on Android a TAB's `theme-color` tints the BROWSER toolbar**, so
+writing a page-surface white there would repaint Chrome's own chrome on every
+route change. Measured, 6 routes x 2 themes: the meta reads `#0358cc` on every
+one, exactly as before this gate.
+
+`index.html`'s static `#0358cc` therefore stands unchanged and is still doing
+two jobs the runtime value cannot — tinting a browser tab, and painting the
+splash before any script runs. It stays a derived brand colour.
+
+| | light | dark |
+|---|---|---|
+| tab, every route | `#0358cc` | `#0358cc` |
+| standalone, `/` and `/finance` | `#1a2351` | `#1a2351` |
+| standalone, the other twelve | `#ffffff` | `#000000` |
+
+#### `ThemeProvider` moved to a layout effect, and it fixed a real latent bug
+
+**READ THIS BEFORE MOVING IT BACK.** `ThemeProvider` set `data-theme` on
+`<html>` from a passive `useEffect`, and it wraps the entire app. **React runs a
+child's passive effect BEFORE its parent's**, so any descendant reading a
+theme-dependent token from a passive effect saw the attribute the PREVIOUS theme
+left behind. Measured on `/more` before the fix: light -> dark reported
+`#ffffff` and dark -> light reported `#000000`, each exactly one flip stale.
+
+**A DESCENDANT CANNOT WORK AROUND THIS ITSELF, AND THE FIRST ATTEMPT HERE PROVED
+IT.** A probe element stamped `data-theme="dark"` does resolve the dark ramp —
+the DS declares its dark values on the ordinary attribute selector
+`[data-theme="dark"]` (globals.css:523). But the light values live on **bare
+`:root`**, so a probe stamped `data-theme=""` declares nothing, INHERITS from a
+still-dark `<html>`, and reports dark. The probe could be stamped INTO dark and
+never back OUT of it: measured, it fixed light -> dark and left dark -> light
+still stale.
+
+`useLayoutEffect` closes it for every consumer at once, because React completes
+ALL layout effects before ANY passive effect regardless of tree depth. It also
+removes a real (if brief) window in which the DOM was committed with the new
+state and the old theme attribute. **Zero baselines moved** — the harness
+settles before it captures, so an attribute landing one phase earlier is
+invisible to it.
+
+### What no instrument in this repo can see
+
+**THE COLOUR HALF IS UNVERIFIABLE OFF-DEVICE, AND THE ZERO-BASELINE RESULT IS A
+PREDICTION CONFIRMED RATHER THAN EVIDENCE IT WORKS.** `matchMedia` is false
+under Playwright, so no baseline can move and none can confirm it either. The
+same shape as the `100vw` blind spot under the frame cap and the scrollbar rule
+at Gate 44: a real consequence on a real platform that no screenshot can reach.
+
+What WAS verified, and how:
+
+- **geometry** — by substituting the `env()` into the rules read off
+  `document.styleSheets`, at inset 0 and 47, on four representative routes;
+- **the gate** — by stubbing only `matchMedia` in an init script and leaving
+  every line downstream of it the shipped code path;
+- **the tab control** — unstubbed, 6 routes x 2 themes, meta unchanged;
+- **the shipped artefact** — the whole `@media(display-mode:standalone)` block
+  confirmed present and intact in the single `dist/assets/index-*.css` emitted
+  by `npm run build:package`, all three rules and all three `env()` calls, and
+  `#1a2351` present exactly once in the shipped JS.
+
+**WHAT REMAINS UNPROVEN IS THE PHONE.** Whether Android's strip actually lands
+on `#1a2351`, and whether the seam reads as continuous over a non-flat
+photograph, needs an install. State it that way rather than reporting the gate
+as verified.
+
+### Deliberately not in scope
+
+G18 itself (the 22px divergence — registered, not corrected, because correcting
+it moves pixels on five screens); G13, G14, G15, G16 and the prop half of G17 —
+all still registered, still deferred, and **no MVP-local override was added for
+any of them**; the merchant picker, which is Gate 45/46 work; the manifest,
+untouched — `theme_color`, `background_color`, `display` and the absent
+`display_override` are all exactly as Gate 38 left them; the DS repo and the
+pin; the bottom reserve, tap highlight, scrollbars, chip model and Apply copy,
+all shipped at Gate 44; and the three AA shortfalls on the net-worth card ruled
+on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

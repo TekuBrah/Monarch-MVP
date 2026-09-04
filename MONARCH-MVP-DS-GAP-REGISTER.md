@@ -423,6 +423,55 @@ refused, and all three should be checked before it is ever copied:
 its own box could interact with it. That is the cost of the missing prop, and
 it is the argument for the prop.
 
+#### Gate 44-B — the coupling got LOOSER, and G17 itself is unchanged
+
+**THE PARAGRAPH ABOVE IS GATE 44'S DATED RECORD AND IS ACCURATE FOR GATE 44.**
+That block no longer overrides `height` or `padding`: it is now
+`visibility: hidden` plus `min-height: env(safe-area-inset-top, 0px)` and
+nothing else. `padding: 0`, `min-height: 0`, `height` and `overflow: hidden`
+all went, so the MVP no longer contends with `StatusBar`'s own box at all — it
+only raises a floor the DS still sets. The coupling that remains is one
+direction (the DS may grow the bar; the MVP will never shrink it), which is
+strictly less than what Gate 44 shipped.
+
+**THE PROP GAP IS UNCHANGED AND STILL OPEN.** `HeaderBg` still renders
+`StatusBar` unconditionally and still exposes no slot above
+`.mn-header-bg__content`. G17 is not closed by this.
+
+**THE SCRIM HALF OF G17 IS NOW KNOWN TO BE INERT ON ANDROID.**
+`.mn-header-bg::before` is sized to `env(safe-area-inset-top)`, and Android
+Chrome grants a standalone PWA no region above the viewport, so that inset is
+0 and the scrim has zero height there. It is kept because it is correct and
+live wherever the region IS granted. **So the (b) half of G17's demand is
+worth less than it looked when it was written** — a slot above the content
+would be usable on iOS edge-to-edge and dead on Android. Weight the (a) half
+accordingly when the DS rules on it.
+
+### One new entry — G18, `HeaderBg`, opened at MVP Gate 44-B reading `Header/bg`'s full vertical spec
+
+Found by reading the Figma component's COMPLETE vertical box model rather than
+just the three figures an earlier gate had needed. Not fixed DS-side (rule 3),
+and deliberately not worked around MVP-side either.
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G18** | `HeaderBg` | **Honour Figma's FIXED row heights, or expose them.** `Header/bg` fixes its status row at `h-44` and its content row at `h-50`; the DS hugs both. | `shape-mismatch` | **1, 7** | Read from node `390:639` (`Type=No search bar`) at Gate 44-B. Figma: status row `h-[44px]`, content row `h-[50px]`, `gap-[8px]`, 10px below the last row — 44+8+50+10 = **112**, which is the frame's declared height. The DS sets no height on either: `.mn-status-bar` hugs `8px` padding around a 24px line box = **40**, and `.mn-header-bg__row` hugs its tallest child, the 32px avatar = **32**. Measured live at 375, both HeaderBg screens: status bar **40**, header **90**, greeting at y=**52**. So the component renders **22px shorter than the design** — 4 in the status row, 18 in the content row — and the two shortfalls are independent. `gap` (8) and `padding-bottom` (10) are both correct and are not part of this |
+
+**IT IS A RULING, NOT A BUG REPORT, WHICH IS WHY IT IS `shape-mismatch`.** The
+DS's hug is a deliberate choice and its own comment records the back-solve that
+produced the 10px bottom padding, so nobody transcribed a number wrongly. The
+open question is whether Monarch wants Figma's fixed 112 or the DS's hugged 90,
+and that is Teku's call rather than a defect to fix.
+
+**IT WAS NOT CORRECTED FROM THE MVP, AND THAT WAS THE CONSTRAINT RATHER THAN
+THE PREFERENCE.** Gate 44-B's standalone spacer floors at the app's **40**, not
+Figma's 44, precisely so the browser-tab render cannot move: honouring 44 would
+change pixels on `/`, `/finance` and every `/finance/holding/*` screen, which is
+5 screens and a large share of the 104 baselines. **Whoever rules on G18 should
+expect a re-mint**, and should note that the MVP's floor is written as
+`min-height` against the DS's own natural height rather than as a literal — so
+if the DS adopts 44, the MVP follows with no edit.
+
 **THE SEARCH-BAR VARIANT IS OUT OF SCOPE AND WAS NOT READ FOR THIS.**
 `HeaderBgVariant` is `'default' | 'noSearchBar' | 'compact'`, and the Figma node
 read at Gate 44 was `Type=No search bar` (`390:639`, 375×112), whose own
@@ -632,10 +681,16 @@ asked of either.
   and **G13/G14 at Gate 43** — the latter pair renumbered there out of a
   colliding `U1`/`U2`, see §2a — all after the original sweep, which reported
   12.)
-- **CURRENT, GATE 44: 17 register entries** — 2 `component-gap`,
+- **DATED RECORD, GATE 44: 17 register entries** — 2 `component-gap`,
   **14** `prop-gap`, 1 `token-gap`. G15 and G16 were added at Gate 43 building
   the filter sheet, and **G17 at Gate 44** making the app installable-clean.
   G16 is the second `component-gap`; G15 and G17 are `prop-gap`.
+- **CURRENT, GATE 44-B: 18 register entries** — 2 `component-gap`,
+  14 `prop-gap`, 1 `token-gap`, **1 `shape-mismatch`**. **G18 was added at Gate
+  44-B**, reading `Header/bg`'s full vertical spec. It is the first register
+  entry tagged `shape-mismatch`; the 8 `shape-mismatch` items counted two
+  bullets below are sweep findings that were never given G-numbers, and G18 is
+  not one of them.
 - **6 foreign-variable families → `figma-defect`.** The DS is correct on every
   one, and already documents two of them in comments.
 - **8 `shape-mismatch` items** needing a design call, not code.

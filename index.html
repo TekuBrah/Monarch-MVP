@@ -26,6 +26,19 @@
       public/manifest.webmanifest is NOT scanned by scripts/check-tokens.mjs
       (SCAN_DIRS = ['src'], SCAN_FILES = ['index.html']), so its two hex values must
       be re-derived by hand across a DS upgrade. Nothing will report that they drifted.
+      THIS FILE *IS* SCANNED — index.html is in SCAN_FILES — which is why the meta
+      below carries a token-exempt marker and the manifest's identical value does not.
+
+      THE VALUE BELOW IS THE STATIC ONE, AND SINCE GATE 44-B IT IS NOT THE ONLY ONE.
+      Installed on Android, Chrome paints the status strip itself from this colour and
+      grants the app no region beneath it, so a fixed blue strip sits above whatever
+      the route actually renders. src/shell/useStatusBarColor.ts repaints it per route
+      once the app is running — the header photograph's own colour on / and /finance,
+      --mapped-surface-page everywhere else. That override is gated on
+      (display-mode: standalone), so in a browser tab this value stands unchanged and
+      is what tints Chrome's toolbar; it is also what paints the splash before any
+      script runs, which is why it stays a real derived brand colour rather than
+      becoming one of the two runtime values.
     -->
     <meta name="theme-color" content="#0358cc" /> <!-- token-exempt: manifest theme colour, mirrored from --mapped-surface-primary-default; a meta content attribute cannot hold a var() -->
     <!--

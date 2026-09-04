@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '../theme/ThemeProvider'
 import { chromeFor } from './chrome'
 import { NAV_ITEMS } from './navItems'
+import { useStatusBarColor } from './useStatusBarColor'
 import './AppShell.css'
 
 export function AppShell() {
@@ -12,6 +13,12 @@ export function AppShell() {
 
   // EXPLICIT config, never inferred from what the screen renders (§5).
   const chrome = chromeFor(pathname)
+
+  // Installed on Android the platform paints the status strip itself and grants
+  // the app no region under it, so matching its colour to whatever this route
+  // puts at y=0 is the only continuity available. Inert in a browser tab, by
+  // construction — see useStatusBarColor for the full ruling.
+  useStatusBarColor(chrome.statusBar, theme)
 
   const items = NAV_ITEMS.map(({ path, ...item }) => ({
     ...item,
