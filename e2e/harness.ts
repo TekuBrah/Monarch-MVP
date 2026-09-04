@@ -367,6 +367,48 @@ export function expectedTabIds(route: string): string[] {
  * THE TEST FOR A FUTURE SESSION: if you find yourself writing a nested loop
  * over overlays, you have taken the wrong turn. Write the state down.
  */
+/**
+ * ONE INTERACTION PERFORMED INSIDE AN OPEN DIALOG, BEFORE IT IS CONFIRMED.
+ *
+ * WHY THIS EXISTS: `confirm` is a single click, which is enough for a modal
+ * whose default state is already the state worth capturing — the reminder
+ * modal seeds its own first preset, so confirming it straight away is a real
+ * user path. THE FILTER SHEET IS NOT LIKE THAT. Its draft opens at whatever
+ * filter is in force, so confirming it immediately applies what was already
+ * applied and captures nothing new. Reaching a FILTERED ledger means setting
+ * facets first, and there is no honest way to do that in one click.
+ *
+ * SAME DISCIPLINE AS EVERY OTHER STEP IN THIS HARNESS: a real control is
+ * located, asserted to carry its declared name, and then operated the way a
+ * user operates it. Nothing here sets React state, and nothing writes to the
+ * DOM. That is the whole reason this is a list of interactions rather than a
+ * seeded initial filter — a test that poked `setFilter` would be verifying a
+ * state the app may have no way of reaching.
+ *
+ * EVERY STEP ASSERTS ITS OWN EFFECT. Without `settlesOn`/`settlesText` a step
+ * that silently did nothing — a chip that moved, a field that stopped
+ * accepting input — would leave the sequence running on to `confirm` and
+ * minting a baseline of the WRONG filter, which is exactly the failure a
+ * screenshot cannot report. Both steps below settle on the Apply button,
+ * whose label is a live count of the rows the pending filter matches; it is
+ * the sheet's own read-out of its draft, so asserting it is asserting the
+ * draft.
+ */
+export interface PrepareStep {
+  /** CSS selector for the control. Playwright's engine, so `:has-text()` works. */
+  control: string
+  /** The accessible name it must carry. Asserted BEFORE it is operated. */
+  controlName: string
+  /** `click` presses it; `fill` types `value` into it. */
+  action: 'click' | 'fill'
+  /** The text to type. Required for `fill`, meaningless for `click`. */
+  value?: string
+  /** What must exist afterwards — asserted present EXACTLY once. */
+  settlesOn: string
+  /** The text that surface must carry, so a step that half-worked still fails. */
+  settlesText: string
+}
+
 export interface OverlayState {
   /** Slug component and test-name suffix. Unique within its route + tab. */
   id: string
@@ -408,6 +450,18 @@ export interface OverlayState {
    * click a button and screenshot whatever happened to be on screen, which is
    * how a silently-broken flow earns a baseline that looks fine.
    */
+  /**
+   * ORDERED INTERACTIONS RUN INSIDE THE OPEN DIALOG, BEFORE `confirm`.
+   *
+   * Optional, and only the filter sheet uses it today. See `PrepareStep` for
+   * why a single `confirm` click could not reach a filtered ledger.
+   *
+   * IT RUNS AFTER THE OPEN ASSERTIONS AND BEFORE THE CONFIRM ONES, so a state
+   * that declares `prepare` without `confirm` is legal and simply leaves the
+   * dialog open in a prepared state. Nothing declares that shape yet; it is
+   * not forbidden because there is no reason to forbid it.
+   */
+  prepare?: PrepareStep[]
   confirm?: {
     /** CSS selector for the control that CONFIRMS. Clicked, never simulated. */
     control: string
@@ -559,6 +613,84 @@ export const OVERLAY_STATES: WalkState[] = [
       control: '.mvp-transactions__filter-btn',
       controlLabel: 'Filter transactions',
       title: 'Filter transactions',
+    },
+  },
+  // THE FILTERED LEDGER (Gate 44) — the only state in the walk where the
+  // applied-chip row renders at all.
+  //
+  // WHY IT HAD TO BE ADDED. Until Gate 44 the Transactions tab OPENED at
+  // `TRANSACTION_FILTER_APPLIED`, so `/finance [tab:transactions]` was itself a
+  // filtered ledger and the chip row was covered for free. Gate 44 reversed
+  // that default to `TRANSACTION_FILTER_ALL` — correctly — and in doing so took
+  // the ONLY filtered render, and under the new chip model the ONLY non-empty
+  // chip row, out of the visual net in the same stroke. A screen that renders
+  // no chips anywhere in the suite is a screen where `filterChips`, the
+  // dismiss affordance and the whole `FilterChip` row could break silently.
+  //
+  // IT LANDS EXACTLY ON `TRANSACTION_FILTER_APPLIED`, WHICH IS THE POINT
+  // rather than a coincidence: this walks the sheet to Figma's own applied
+  // filter — This Month, RM 0-500 — over the same 23-row ledger, and the
+  // prepare steps' own assertions prove it arrived. The Apply button reads
+  // "15 results" before it is pressed, and 15 is the number Figma's frame
+  // prints and the count `TRANSACTION_FILTER_APPLIED` produces. So the
+  // constant is still exercised end to end; what changed is that the app no
+  // longer starts there.
+  //
+  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 23 rows at open, 18
+  // after This Month (the five August rows drop out), 15 after the RM 500 cap
+  // (three September rows over it drop out). A step that silently failed would
+  // land on the wrong rung and fail there rather than minting a baseline of a
+  // filter nobody asked for.
+  //
+  // IT CONFIRMS, SO NO DIALOG IS OPEN AT CAPTURE — the same shape as the toast
+  // state above, and `assertOverlayMatchesState` already expects an empty
+  // dialog list whenever `confirm` is present. The surface being captured is
+  // the ledger behind the sheet, not the sheet.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'applied',
+      control: '.mvp-transactions__filter-btn',
+      controlLabel: 'Filter transactions',
+      title: 'Filter transactions',
+      prepare: [
+        {
+          // `:has-text()` and NOT `:text-is()`. Measured: `ToggleChip` renders
+          // its label in a child <span>, and `:text-is` matches an element's
+          // own immediate text, so it returns ZERO here. `:has-text` matches
+          // the ancestor and returns exactly one.
+          control: '.mn-toggle-chip:has-text("This Month")',
+          controlName: 'This Month',
+          action: 'click',
+          settlesOn: '.mn-sheet__actions .mn-btn',
+          settlesText: 'Apply Filter · 18 results',
+        },
+        {
+          // THE INPUT, NOT THE THUMB. `RangeSlider` puts the SAME
+          // `aria-label="Maximum amount"` on both its role="slider" thumb and
+          // its text Field, so a name-based lookup is ambiguous by two. The
+          // `input` tag qualifier resolves it — measured count 1.
+          control: 'input[aria-label="Maximum amount"]',
+          controlName: 'Maximum amount',
+          action: 'fill',
+          value: '500',
+          settlesOn: '.mn-sheet__actions .mn-btn',
+          settlesText: 'Apply Filter · 15 results',
+        },
+      ],
+      confirm: {
+        control: '.mn-sheet__actions .mn-btn',
+        controlLabel: 'Apply Filter · 15 results',
+        // THE CHIP ROW IS THE SETTLE TARGET, DELIBERATELY. The ledger's row
+        // count is not directly assertable as text, but the chip row is — and
+        // it is also the thing this state exists to cover. Two chips and only
+        // two: the type and payee facets are at their defaults and Gate 44
+        // suppresses them, so this text is simultaneously the proof that the
+        // filter applied AND that the suppression rule fired.
+        settlesOn: '.mvp-transactions__chips',
+        settlesText: 'This MonthRM 0 - 500',
+      },
     },
   },
 ]
@@ -1081,6 +1213,55 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
   // park at the end would miss the first; one at the top would be undone by
   // the confirm click.
   await parkPointer(page)
+
+  /*
+    THE PREPARE STEPS. Each one locates a real control, asserts it carries the
+    name the state declares, operates it the way a user would, and then asserts
+    what the sheet did about it.
+
+    THE POINTER IS PARKED AFTER EVERY STEP, not once at the end. A click leaves
+    the pointer on the control it pressed, and `assertPointerIsParked` runs on
+    every walk state — so a sequence that parked only at the end would still be
+    correct at capture time, but a step that threw halfway would leave the
+    hover residue Gate 38B exists to eliminate. Parking per step also keeps the
+    invariant simple: nothing in this function ever leaves the pointer on a
+    control.
+  */
+  for (const step of overlay.prepare ?? []) {
+    const target = page.locator(step.control)
+    await expect(
+      target,
+      `no control matching "${step.control}" inside the "${overlay.id}" dialog — ` +
+        `this state's prepare sequence cannot run`,
+    ).toHaveCount(1)
+    await expect(
+      target,
+      `"${step.control}" does not carry its declared name — the selector is reaching a ` +
+        `different control than this step names`,
+    ).toHaveAccessibleName(step.controlName)
+
+    if (step.action === 'fill') {
+      // `fill` and not `type`: it replaces the field's whole value, which is
+      // what a user editing a pre-filled amount does, and it fires the input
+      // event React's onChange listens for.
+      await target.fill(step.value ?? '')
+    } else {
+      await target.click()
+    }
+
+    const settled = page.locator(step.settlesOn)
+    await expect(
+      settled,
+      `"${step.controlName}" did not leave exactly one "${step.settlesOn}" on screen`,
+    ).toHaveCount(1)
+    await expect(
+      settled,
+      `operating "${step.controlName}" did not move the sheet to the state this step ` +
+        `declares — the draft filter is not what the next step assumes`,
+    ).toHaveText(step.settlesText)
+
+    await parkPointer(page)
+  }
 
   if (!overlay.confirm) return
 

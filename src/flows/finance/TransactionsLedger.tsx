@@ -4,7 +4,7 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import { TransactionFilterSheet } from './TransactionFilterSheet'
 import {
-  TRANSACTION_FILTER_APPLIED,
+  TRANSACTION_FILTER_ALL,
   clearFacet,
   filterChips,
   filterTransactions,
@@ -14,12 +14,19 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
 /**
  * `Finance_Transaction01` (`1266:14328`) — the Transactions tab's body.
  *
- * THE NINE ROWS FIGMA DRAWS ARE AN OUTPUT, NOT A LIST. The screen opens with
- * Figma's applied filter in force and computes the result with
- * `filterTransactions()` over the whole 23-row ledger; the nine rows the frame
- * shows are simply the first nine of the 15 that match, under an ordinary
- * date-descending sort. Nothing here is hand-picked, which is what makes the
- * filter a filter rather than a caption over a fixed list.
+ * THE NINE ROWS FIGMA DRAWS ARE AN OUTPUT, NOT A LIST, AND THAT IS STILL TRUE —
+ * WHAT CHANGED AT GATE 44 IS WHEN THE SCREEN IS IN THAT STATE. Every row here
+ * comes from `filterTransactions()` over the whole 23-row ledger, and Figma's
+ * nine are simply the first nine of the 15 that match `TRANSACTION_FILTER_APPLIED`
+ * under an ordinary date-descending sort. Nothing is hand-picked, which is what
+ * makes the filter a filter rather than a caption over a fixed list.
+ *
+ * BUT THE SCREEN NO LONGER OPENS THERE. Gate 44 reversed the earlier ruling
+ * that it should: the initial filter is `TRANSACTION_FILTER_ALL`, all 23 rows
+ * show, and the chip row is empty. Figma's frame is a picture of the screen
+ * MID-USE — it is what the screen looks like once a filter has been applied,
+ * and reproducing it as the initial state made an applied filter look like a
+ * property of the screen. See the `useState` below for the full note.
  *
  * IT READS THE LEDGER THROUGH `useAccounts()`, never by importing
  * `TRANSACTIONS` directly — the same path `HomepageFiat` and `holdingFields`
@@ -39,14 +46,29 @@ export function TransactionsLedger() {
   const { transactions } = useAccounts()
   const [search, setSearch] = useState('')
 
-  // Figma's applied filter, as a value. The chip row writes it through
-  // `clearFacet` as of Gate 41-C, and Gate 43's sheet writes it too — THROUGH
-  // THIS SAME SETTER. There is one filter state in this screen and there
-  // stays one: a sheet holding its own copy is how the row and the list start
-  // disagreeing about what is in force. The sheet's `pending` value is not a
-  // second state — it is a draft that exists only while the sheet is mounted
-  // and reaches this setter exactly once, on Apply.
-  const [filter, setFilter] = useState(TRANSACTION_FILTER_APPLIED)
+  // THE SCREEN OPENS UNFILTERED, AS OF GATE 44. This was
+  // `TRANSACTION_FILTER_APPLIED` — Figma's applied filter — and that decision
+  // was recorded as settled ("Transactions opens pre-filtered, matching Figma
+  // exactly. No unfiltered view is built"). Teku reopened and reversed it.
+  //
+  // WHAT THE REVERSAL BUYS: a screen that opens showing a SUBSET of the user's
+  // own transactions, with no action having been taken to ask for that, is
+  // a screen that lies about what it holds. Figma's frame is a picture of the
+  // screen mid-use, and it was implemented as the screen's initial state.
+  //
+  // `TRANSACTION_FILTER_APPLIED` IS NOT DELETED and is still exercised: it is
+  // the value the harness's filtered walk state applies, which is what keeps
+  // a filtered ledger — and, under Gate 44's chip model, the chip row itself —
+  // inside the visual net. See OVERLAY_STATES in `e2e/harness.ts`.
+  //
+  // The chip row writes this state through `clearFacet` as of Gate 41-C, and
+  // Gate 43's sheet writes it too — THROUGH THIS SAME SETTER. There is one
+  // filter state in this screen and there stays one: a sheet holding its own
+  // copy is how the row and the list start disagreeing about what is in force.
+  // The sheet's `pending` value is not a second state — it is a draft that
+  // exists only while the sheet is mounted and reaches this setter exactly
+  // once, on Apply.
+  const [filter, setFilter] = useState(TRANSACTION_FILTER_ALL)
 
   // Whether the sheet is on screen. It holds NO filter value of its own.
   const [isFilterOpen, setIsFilterOpen] = useState(false)

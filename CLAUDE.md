@@ -3037,6 +3037,397 @@ to a file rather than into context — which is the SAFE outcome and the one to
 plan for. Extract from that file with `node -e` and `grep`; **`python` is not on
 PATH on this machine** and `npx tsx` must not be used.
 
+## Flow 8 part 3 — polish, and two device-level rules (Gate 44)
+
+Seven changes, no DS re-pin — **v2.0.1 throughout**. Baselines went **100 ->
+104**, tests **210 -> 218**, walk states **25 -> 26**. Shipped in attributed
+batches, each with its own suite run, because they have completely different
+pixel signatures and pooling them would have made every moved baseline
+unattributable.
+
+| batch | change | baselines |
+|---|---|---|
+| **1** | tap-highlight suppression; the no-scrollbar rule | **0** |
+| **2** | default filter reversed; chip suppression; Apply copy | **8 changed** |
+| **2b** | the filtered walk state | **4 added** |
+| **3a** | standalone status bar | **0** |
+| **3b** | the bottom reserve | **52 changed** |
+
+**THE PER-BATCH COUNTS DO NOT SUM, AND THE DIFFERENCE IS THE POINT.** Against
+the manifest taken before the first change, the whole gate is **48 changed,
+4 added, 0 deleted, 52 byte-identical, 104 total** — not the 56 that adding
+the batch rows gives. The eight `finance-transactions*` baselines moved TWICE,
+once in batch 2 for the filter model and again in batch 3b for the reserve, and
+the four `applied` files count as ADDED rather than changed even though batch
+3b also rewrote them. A per-batch count answers "what did this change do"; a
+count against the start answers "what is different now", and only the second
+one reconciles with `git status`.
+
+All of it bounded by SHA-256 manifests taken OUTSIDE the repo before the first
+change and after every batch.
+
+### NO VISIBLE SCROLLBAR, ANYWHERE, EVER — a standing convention
+
+**THIS IS A RULE OF THE APP, NOT A FIX TO TWO CHIP ROWS.** Every scroll
+container here is a native-app surface, and a desktop scrollbar in any of them
+reads as a web page. `src/index.css` declares it once, on `*`, in both
+spellings (`scrollbar-width` for Firefox, `::-webkit-scrollbar` for
+Chromium/WebKit — neither covers the other).
+
+**IT IS ON `*` BECAUSE `scrollbar-width` IS NOT INHERITED.** A declaration on
+`html` reaches the document scroller and nothing else, so every nested
+container would still need its own — including containers this app does not
+own. That is the case that matters: `.mn-sheet__content` and
+`.mn-tabs--is-scrollable` each carry their own suppression today, and a future
+DS scroller will not.
+
+**THE RULE HAD ALREADY BEEN WRITTEN, TWICE, AND ONLY EVER APPLIED PER-SITE.**
+`homepage.css` states it in as many words over the carousel; the DS states it
+again inside `Sheet` and `Tabs`. So each new scroll container arrived with a
+visible bar until somebody noticed — the filter sheet's two chip rows are what
+noticed it this time. **Do not re-introduce a per-site rule, and do not "tidy"
+this one away.**
+
+**SCROLLING BEHAVIOUR IS UNTOUCHED, MEASURED.** With the rule in force, the two
+sheet chip rows still report `scrollWidth` 425 and 449 against `clientWidth`
+343, and `scrollLeft = 40` still takes.
+
+#### THE HARNESS IS STRUCTURALLY BLIND TO THIS, AND THE CONTROL PROVES IT
+
+**THE ZERO-BASELINE RESULT IS A PREDICTION CONFIRMED, NOT EVIDENCE THAT A REAL
+DEVICE IS UNAFFECTED.** Headless Chromium reserves **no scrollbar gutter at
+all**: a probe div with `overflow: auto` reports `offsetWidth - clientWidth` of
+**0 at `scrollbar-width: auto` and 0 at `scrollbar-width: none`**. The two
+configurations are indistinguishable to every screenshot in the suite.
+
+That is the same shape as the `100vw` blind spot under the frame cap — a real
+consequence on a real platform that no baseline can see. Where a platform DOES
+reserve a classic gutter, hiding the bar gives that width back to content, and
+the suite will report nothing either way.
+
+### The tap flash — killed at the root, and it is NOT the sticky-hover work
+
+`-webkit-tap-highlight-color: transparent` on `html`. **The property
+INHERITS**, so one declaration reaches every descendant including DS components
+and components that do not exist yet; neither tree declares it anywhere else
+(grep: zero matches in both).
+
+**IT IS A DIFFERENT DEFECT FROM DS GATES 31-37.** Those concerned `:hover`
+styles latching after a touch, fixed by the `@media (hover: hover)` guards the
+DS now ships. This is the browser's own tap flash, which no hover guard touches
+and which is painted on elements carrying no hover rule at all.
+
+**FOCUS RINGS ARE UNAFFECTED — VERIFIED ON FOUR CONTROLS IN BOTH THEMES.**
+`.mn-btn` (the theme switch), `.mvp-shell__fab`, `.mn-tab` and
+`.mn-bottom-nav__item` each report `:focus-visible` true with a `2px solid`
+outline at `2px` offset — `rgb(4, 110, 255)` throughout, except the theme
+switch in dark which is `rgb(255, 255, 255)`.
+
+**THE PROBE HAD TO PRESS `Tab` FIRST, AND THE FIRST ONE THAT DID NOT REPORTED A
+FALSE REGRESSION.** Chromium's `:focus-visible` heuristic latches to the last
+INPUT MODALITY. Reaching dark mode requires clicking the theme toggle, so a
+probe that then called `el.focus()` programmatically got `:focus-visible =
+false` on all four controls — which looks exactly like the tap-highlight change
+having eaten the focus ring, and is a property of the probe. A fresh context per
+theme plus one real `Tab` press is what makes the reading mean anything.
+
+### The Transactions screen opens UNFILTERED — a reversal, not a drift
+
+**THIS OVERTURNS A DECISION RECORDED AS SETTLED** ("Transactions opens
+pre-filtered, matching Figma exactly. No unfiltered view is built. Do not
+re-open."). Teku reopened and reversed it. The initial filter is
+`TRANSACTION_FILTER_ALL`, all 23 rows show, and the chip row is empty.
+
+**FIGMA'S FRAME IS A PICTURE OF THE SCREEN MID-USE.** It shows what the screen
+looks like once a filter has been applied; implementing it as the INITIAL state
+made an applied filter look like a property of the screen, and showed the user
+a subset of their own transactions without their having asked for one.
+
+**`TRANSACTION_FILTER_APPLIED` IS NOT DELETED AND IS STILL EXERCISED END TO
+END** — see the walk state below. Deleting it would also have thrown away the
+one value that reproduces Figma's own 15.
+
+### A facet at its default renders NO chip
+
+**THE PAYEE CHIP ALREADY BEHAVED THIS WAY; GATE 44 MADE IT THE RULE FOR ALL
+FOUR.** Under the old model type, date and amount drew a chip even at their
+defaults, because that is what Figma draws.
+
+**A DEFAULT CHIP IS A CONTROL THAT CANNOT DO ANYTHING.** Every chip carries a
+dismiss button, and dismissing a facet already at its default is a no-op —
+drawn, focusable, announced to a screen reader, and inert. `clearFacet`'s own
+comment already said so and treated it as a curiosity. It also makes the row
+mean something: the presence of ANY chip is now exactly the statement that a
+filter is in force.
+
+**THE "All" OPTIONS STAY INSIDE THE SHEET.** They are how a user affirmatively
+clears a facet. Only the OUTSIDE chip is suppressed.
+
+**"AT ITS DEFAULT" IS DERIVED FROM `clearFacet`, NEVER FROM RESTATED
+LITERALS.** `isFacetDefault(filter, facet)` clears the facet and compares — so
+a facet is at its default exactly when clearing it changes nothing.
+`clearFacet` already reads its reset values out of `TRANSACTION_FILTER_ALL`, so
+there is ONE definition of "default" and this reuses it. **The obvious
+alternative — comparing each facet against `TRANSACTION_FILTER_ALL` directly —
+would need a second switch over the same union**, knowing that the amount facet
+is two fields and the list facets are arrays, kept in step by hand. That is how
+the chip row and the sheet come to disagree about what "cleared" means.
+
+The equality helper iterates `Object.keys` of the value rather than listing the
+five field names, because a listed field that someone forgets to add is not a
+type error — it is a facet that reports itself at its default forever.
+
+**THE EMPTY ROW TAKES NO VERTICAL SPACE, AND COLLAPSING ITS HEIGHT WAS NOT
+ENOUGH.** `.mvp-transactions__chips` already had zero vertical padding and
+`margin: 0`, so it collapses on its own — but it is still a FLEX ITEM, and
+`.mvp-transactions` carries `gap: var(--spacing-200)`. An invisible item
+between the search field and the list still costs a SECOND 8px gap.
+`.mvp-transactions__chips:empty { display: none }` is the only spelling that
+takes the gap with it. Measured: search-bottom to list-top is **24px** (the
+parent's 8 plus the list's own 16 margin) at both viewports.
+
+### "Apply Filter · N results" — the number is unchanged, the words are not
+
+See the gap register for the full copy divergence. In short: N still counts
+**rows the pending filter matches**, which is what Figma's own frame prints;
+`Apply Filter (23)` simply read as "23 filters". Zero is `No results`, one is
+`1 result`. Longest form measures **160.77px** on one line inside a 343px
+button at 375 and a 398px button at 430.
+
+### The filtered walk state, and `prepare` steps in the harness
+
+**THE DEFAULT REVERSAL TOOK THE ONLY FILTERED RENDER — AND, UNDER THE NEW CHIP
+MODEL, THE ONLY NON-EMPTY CHIP ROW — OUT OF THE VISUAL NET IN ONE STROKE.**
+Before Gate 44, `/finance [tab:transactions]` was itself filtered, so
+`filterChips`, the dismiss affordance and the whole `FilterChip` row were
+covered for free. Afterwards nothing in the suite rendered a chip at all.
+
+`/finance [tab:transactions] [overlay:applied]` closes that. It walks the sheet
+to Figma's own applied filter and captures the LEDGER, not the sheet — it
+declares `confirm`, so no dialog is open at capture, the same shape as the
+toast state.
+
+**`confirm` ALONE COULD NOT REACH IT, WHICH IS WHY `PrepareStep` EXISTS.** The
+sheet's draft opens at whatever filter is in force, so confirming immediately
+applies what was already applied and captures nothing new. Reaching a filtered
+ledger means setting facets first, and there is no honest way to do that in one
+click. `prepare` is an ordered list of real interactions run inside the open
+dialog — located, name-asserted, operated, then asserted — with **the pointer
+parked after every step**, not once at the end.
+
+**THE COUNTS ARE A LADDER AND EVERY RUNG IS ASSERTED**, which is what stops a
+step that silently did nothing from minting a baseline of a filter nobody asked
+for:
+
+| after | Apply button reads | why |
+|---|---|---|
+| open | `Apply Filter · 23 results` | nothing filtered |
+| click `This Month` | `Apply Filter · 18 results` | the five August rows drop out |
+| fill max `500` | `Apply Filter · 15 results` | three September rows over the cap drop out |
+| confirm | chip row reads `This MonthRM 0 - 500` | 15 rows, TWO chips |
+
+15 is the number Figma's frame prints and the count
+`TRANSACTION_FILTER_APPLIED` produces, so the constant is exercised end to end.
+The settle text is simultaneously the proof that the filter applied AND that
+the suppression rule fired — type and payee are at their defaults and draw no
+chip.
+
+**TWO SELECTOR FACTS, BOTH MEASURED, BOTH NON-OBVIOUS:**
+
+- **`:has-text()` AND NOT `:text-is()`** for the date chip. `ToggleChip`
+  renders its label in a child `<span>`, and `:text-is` matches an element's
+  own immediate text — it returns **zero**. `:has-text` returns exactly one.
+- **`input[aria-label="Maximum amount"]`, NOT the bare name.** `RangeSlider`
+  puts the SAME `aria-label` on both its `role="slider"` thumb and its text
+  `Field`, so a name-based lookup is ambiguous by two. The tag qualifier
+  resolves it to one.
+
+**HOW MANY WALK STATES SHOW A FILTERED LEDGER: exactly ONE of 26.**
+`[overlay:applied]` is filtered (15 of 23 rows, two chips);
+`/finance [tab:transactions]` and `[overlay:filter]` both show the full 23 with
+an empty chip row. No other walk state renders the ledger at all.
+
+**THE GATE α PREDICTION HELD EXACTLY, FOR THE SECOND TIME.** One added walk
+state cost **4 baseline files and 8 tests** — visual +4, routes +2,
+section-headers +2 — taking the suite to 104 and 218. Re-derived three ways:
+the overlay-block `awk` count returns **5**, and `--list` gives
+`visual` 104 / `routes` 53 / `section-headers` 54, all three agreeing that the
+walk is **26** states.
+
+### Standalone (installed PWA) — one real status bar, not two
+
+Installed to an Android home screen the app ran standalone and drew TWO status
+bars: the phone's real one, and the DS `StatusBar`'s fake 9:41 underneath it.
+
+**DETECTED BY `@media (display-mode: standalone)`, NEVER BY USER AGENT.** The
+media query is the platform stating how it launched the app; a UA sniff guesses
+at that from a string that says nothing about launch mode, and would be wrong
+for every browser tab on a phone — which is the case that must not change.
+
+**THE WHOLE FIX IS INSIDE THE MEDIA QUERY, AND IT MOVED ZERO OF 104
+BASELINES** — the predicted result, since the harness never matches it.
+
+**THE FAKE BAR BECOMES A SPACER RATHER THAN DISAPPEARING, and removing it
+outright is the wrong spelling.** The element does two jobs and only one is
+fake: it draws fake OS chrome AND it reserves the height that chrome occupies.
+Removed outright, `HoldingDetailScreen` — which renders `StatusBar` in flow
+above a `HeaderDefault` — pulls its title up under the phone's real clock. So
+the glyphs go (`visibility: hidden`) and the box stays, resized to
+`env(safe-area-inset-top)`.
+
+**ONE RULE SERVES BOTH SHAPES, measured on three screens** with the inset
+substituted at 47px (see the caveat below):
+
+| screen | browser | standalone |
+|---|---|---|
+| `/finance` — `HeaderBg` | bar 40 tall, artwork 90, first row at y=48 | bar **47, hidden**, artwork **97**, first row at **y=55** |
+| `/finance/holding/fd` — bar in flow | `HeaderDefault` at y=40 | `HeaderDefault` at **y=47** |
+| `/more` — no status bar at all | main padding-top 0 | main padding-top **47** |
+
+**THE SCRIM IS `.mn-header-bg::before`, BOUND TO
+`--mapped-surface-overlay-default`** — Figma's `surface/Overlay/default`,
+`#0d0f1199`, rendered `rgba(13, 15, 17, 0.6)`. It takes **z-index 1**, between
+the DS's own `__background` (0) and `__content` (2), so it dims the artwork and
+not the greeting. A pseudo-element because `HeaderBg` exposes no slot there —
+that is gap-register **G17**.
+
+**IT IS SCOPED TO `.mn-header-bg`, NOT TO THE VIEWPORT.** The scrim exists for
+white glyphs over ARTWORK; the three `ComingSoon` routes have no artwork and a
+dark band under the clock there would be a defect. Those routes instead take
+the reserve through `.mvp-shell__main:not(:has(.mn-status-bar))`, which asks the
+only question that matters — does this screen reserve the inset already —
+rather than listing routes.
+
+#### The inset resolves to 0px here, and the media query cannot be emulated
+
+**BOTH LIMITS ARE STATED BECAUSE NEITHER IS A MEASUREMENT OF A REAL DEVICE.**
+
+- **`env(safe-area-inset-top)` IS `0px` in the harness**, as are all four
+  insets — headless has no notch. `viewport-fit=cover` IS present in
+  `index.html`, which is what exposes the function at all; without that meta it
+  resolves to 0 everywhere and the rules silently reserve nothing. The 47px in
+  the table above is a SUBSTITUTION, labelled as such.
+- **HEADLESS CHROMIUM CANNOT BE PUT INTO STANDALONE.** CDP
+  `Emulation.setEmulatedMedia` with a `display-mode` feature does not take
+  (`matchMedia` still reports `browser`), and launching with `--app=` does not
+  either, because Playwright creates its own context. So the gating was verified
+  a different way: the block is confirmed PARSED off `document.styleSheets` —
+  condition `(display-mode: standalone)`, all three selectors, all three
+  `env()` calls intact — and `matchMedia` confirmed **false** in a tab, which is
+  the property that protects the baselines. The geometry was then verified by
+  applying the identical declarations.
+
+#### `theme_color` may make this inert on Android, and it was NOT changed
+
+**REPORTED RATHER THAN ACTED ON, because it is a decision with a visible
+consequence.** The manifest declares `theme_color: "#0358cc"`. Where Chrome
+draws its own `theme_color` band above the viewport in standalone, the safe-area
+inset is **0**, the spacer collapses, and the app simply loses its duplicate bar
+— correct, but the artwork does not reach under the system glyphs and the scrim
+has nothing to dim. Where the app runs edge-to-edge, the inset is real and the
+full effect applies.
+
+**THE CSS IS CORRECT IN BOTH MODES**, which is why it shipped without touching
+the manifest. If Teku wants the artwork under the status bar on every Android
+build, `theme_color` is the thing to revisit — and per Gate 38 the manifest is
+invisible to `lint:tokens`, so nothing will report it either way.
+`apple-mobile-web-app-status-bar-style` is `default`, which is the equivalent
+iOS lever (`black-translucent` is the edge-to-edge one); also unchanged.
+
+### The bottom reserve was never big enough for the FAB
+
+**THE OLD COMMENT CLAIMED IT "clears the fixed nav and FAB". MEASURED, IT DID
+NOT CLEAR THE FAB.** At rest, scrolled to the bottom of the Transactions ledger
+at both viewports: content ended at **y=684** against a FAB box of
+**[303, 660, 359, 716]** (375) / **[358, 660, 414, 716]** (430). The FAB
+overlapped the last row by **24px**, across its amount column. The comment
+described an intention the arithmetic never supported.
+
+**THE PURPLE AFFORDANCE IS THE STEWARD FAB — IDENTIFIED, NOT ASSUMED.** It is
+`.mvp-shell__fab` wrapping DS `IconObject color="ai"`, whose
+`.mn-icon-object--ai` paints
+`linear-gradient(132.61deg, rgb(54,139,255), rgb(4,110,255), rgb(223,90,246))`
+— the violet is that last stop.
+
+**MOVING THE AFFORDANCES ALONE IS PROVABLY IMPOSSIBLE, AND THIS IS THE PART TO
+READ BEFORE "just move the button".** Two constraints must hold at once:
+
+```
+above the nav pill      FAB bottom <= 723        ->  inset >= 89
+clear of page content   FAB top >= 812 - reserve ->  inset <= reserve - 56
+```
+
+At the old reserve of 128 the second gives `inset <= 72` while the first demands
+`inset >= 89`. **The feasible range is EMPTY.** There is no height at which a
+56px FAB is both clear of content and above the pill, so the reserve is the only
+free variable.
+
+**SO THE RESERVE IS NOW DERIVED FROM THE FAB RATHER THAN BEING A SECOND
+LITERAL:**
+
+```css
+--mvp-fab-inset: var(--brand-scale-1500);   /* 96 — the affordances' inset */
+--mvp-fab-size:  var(--brand-scale-1200);   /* 56 — IconObject size xxl   */
+--mvp-bottom-reserve: calc(
+  var(--mvp-fab-inset) + var(--mvp-fab-size) + var(--spacing-200)
+);                                          /* = 160 */
+```
+
+**THAT IS A DERIVATION, NOT CURVE-FITTING.** The ban recorded for the frame cap
+is on fitting a wanted number out of UNRELATED ramp steps; here 1500 IS the
+affordances' own inset and 1200 IS `IconObject size="xxl"`, with `--spacing-200`
+as a deliberate 8px gap. The ramp has no single step between 128 and 256.
+
+**THE AFFORDANCES DID NOT MOVE. THE CONTENT DID.** Before and after are
+identical at both viewports — FAB `[303, 660, 359, 716]` / `[358, 660, 414,
+716]`, theme switch `[16, 690, 59.38, 716]` at both widths. What changed is the
+last row: **bottom 684 -> 652**. Result, measured at both viewports: FAB clear
+of content by **8px**, theme switch by **38px**, FAB bottom 716 against pill top
+723, **zero rows overlapped by either**, and both still hit-testable
+(`elementFromPoint` climbs to `.mvp-shell__fab` and `.mvp-shell__theme-switch`).
+
+**THE COUPLING TO WATCH:** `--mvp-fab-size` restates the DS's `xxl` IconObject
+size. It is measured (56x56 rendered, both viewports), but nothing checks it —
+if the DS changes that size the reserve silently stops matching the FAB.
+Re-measure it on a DS re-pin.
+
+#### 52 baselines, predicted to the state before the run
+
+**A FULL-PAGE SCREENSHOT IS AS TALL AS THE DOCUMENT, so the reserve moves a
+baseline only where the document already exceeds the viewport.** Measured
+per walk state beforehand: **13 of 26 states exceed 812** and 13 clamp to it.
+13 x 2 viewports x 2 themes = **52**, and the failing set was exactly those 13
+states at 4 baselines each — `index`, `index-crypto`, `finance`,
+`finance-transactions`, `finance-holding-{fd,main,joint,wallet-marg}`,
+`finance-holding-fd-{reminder,statement,toast}`,
+`finance-transactions-{filter,applied}`. The other 52 came back byte-identical.
+
+The 13 that clamp are unchanged because padding BELOW content cannot move
+content that is already short of the fold — `index-cards`, `index-stocks`,
+`finance-{budget,plans,receipts}`, `/transfer`, `/more`, `/steward` and five
+holding screens.
+
+### The baseline guard's arm 1 is RED at this gate's close, and that is correct
+
+`git status` shows four **untracked** baselines, so `baselines.spec.ts`'s "every
+baseline on disk is tracked by git" fails and the suite closes at **217 passed /
+1 failed**. Per the Gate α correction that is arm 1 alone; arm 2 stays green
+because nothing was renamed or deleted. **Claude Code may make no git write**
+beyond creating the branch, so staging them is Teku's — the guard is doing
+exactly what it exists to do ("a baseline git does not track is a baseline
+nobody reviewed"). Do not read it as a regression and do not relax the guard.
+
+### Deliberately not in scope
+
+G13 (Sheet panel `max-width`), G14 (no background scroll lock), G15 (`Select`
+hard 320px) and G16 (missing storefront glyph) — all registered, all deferred to
+a DS round, and **no MVP-local override was added for any of them**, G15
+included. The merchant dropdown's overflow behaviour inside the sheet is being
+redesigned in a later gate and was left alone. Also untouched: the DS repo, the
+pin, the manifest, `index.html`, the three AA shortfalls on the net-worth card
+ruled on at Gate 31, and `TRANSACTION_CATEGORIES`, still exported with zero
+consumers.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
@@ -4222,8 +4613,29 @@ on `/finance/holding/fd`, and that route is not a convenience — the fixed
 deposit is the ONLY holding type whose `holdingFields` entry returns
 `actions: { reminder: true, statement: true }`.
 
-**CURRENT FIGURE: THE WALK IS 25 STATES — 14 routes + 7 non-default tab states +
-4 `OVERLAY_STATES`.** Gate 43 added the fourth,
+**CURRENT FIGURE, GATE 44: THE WALK IS 26 STATES — 14 routes + 7 non-default
+tab states + 5 `OVERLAY_STATES`.** Gate 44 added
+`/finance [tab:transactions] [overlay:applied]`, the filtered ledger, which is
+the first overlay state to declare `prepare` steps. Re-derived the same three
+ways at that gate close: the overlay-block command below returns **5**;
+`npx playwright test --list --reporter=json` reports **218** tests of which
+`visual.spec.ts` contributes **104**, so |WALK| = 104 / 2 viewports / 2 themes
+= **26**, with `routes` 53 = 26 x 2 + 1 and `section-headers` 54 = 26 x 2 + 2
+agreeing independently; and the gate minted exactly **4** new baseline files,
+taking the set to **104**.
+
+**THE ANCHORED COMMAND SURVIVED THE NEW STATE, WHICH IS WHAT IT WAS REWRITTEN
+FOR.** Both forms were executed off disk at Gate 44 against the 5-entry
+array. The anchored one returns **5**. The `id:`-counting version it replaced
+returns **7** — the five overlay ids plus the TWO nested `tab: { id: ... }`
+keys, one on each of the two Transactions states. Its error therefore GREW
+with this gate, from +1 to +2, which is the argument for anchoring on a
+key no nested object can impersonate.
+
+The Gate 43 record follows.
+
+**GATE 43 RECORD, AS WRITTEN AT THAT GATE — THE WALK WAS 25 STATES: 14 routes +
+7 non-default tab states + 4 `OVERLAY_STATES`.** Gate 43 added the fourth,
 `/finance [tab:transactions] [overlay:filter]` — the Transactions filter Sheet.
 It is the first overlay state that also carries a TAB, and the first that is not
 a `Modal`. Derived three ways at that gate's close, not carried:

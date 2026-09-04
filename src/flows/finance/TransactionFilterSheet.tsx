@@ -104,6 +104,35 @@ export function TransactionFilterSheet({
   )
 
   /**
+   * THE NUMBER IS UNCHANGED. THE WORDS AROUND IT ARE NOT — Gate 44.
+   *
+   * `Apply Filter (23)` reads as "23 filters", or as a version number, or as
+   * anything but what it is. That was a COPY defect rather than a semantic one:
+   * the count above is right, matches Figma's own frame, and was deliberately
+   * not touched. Naming the unit is the whole fix.
+   *
+   * THIS IS A DELIBERATE DIVERGENCE FROM FIGMA AND IT IS COPY-LEVEL ONLY.
+   * Figma prints `Apply Filter (15)`; this prints `Apply Filter · 15 results`
+   * for the same filter over the same ledger. Registered as such — the number
+   * the two produce is identical, so nothing about the model diverges.
+   *
+   * SINGULAR AND ZERO ARE HANDLED RATHER THAN LEFT TO THE COMMON CASE.
+   * "1 results" is the classic tell of a count pasted into a fixed string, and
+   * "0 results" is worse than useless on a button the user is about to press —
+   * "No results" says the same thing as a warning instead of as arithmetic.
+   * Applying a filter that matches nothing is still a legal act, so the button
+   * stays enabled and simply says so.
+   *
+   * SHORT ENOUGH NOT TO WRAP AT 375, measured rather than eyeballed: the
+   * longest form this can produce over the 23-row ledger renders on one line
+   * inside the sheet's action row at both viewports.
+   */
+  const applyLabel =
+    matchCount === 0
+      ? 'Apply Filter · No results'
+      : `Apply Filter · ${matchCount} ${matchCount === 1 ? 'result' : 'results'}`
+
+  /**
    * `null` is ABSENT, NOT EMPTY — the distinction `TransactionFilter`'s own
    * doc-comment draws. Deselecting the last member of a list facet therefore
    * returns to `null` ("All") rather than to `[]`, which would mean "match
@@ -161,7 +190,7 @@ export function TransactionFilterSheet({
       actions={
         <Button
           variant="primary"
-          label={`Apply Filter (${matchCount})`}
+          label={applyLabel}
           trailingIcon={<Icon name="tune" size="m" />}
           onClick={() => {
             onApply(pending)

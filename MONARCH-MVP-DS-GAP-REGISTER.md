@@ -390,6 +390,115 @@ saying so, so a future session does not "tidy" it into an override.
 would be exactly the "do not substitute a control the mockup draws differently"
 failure, and it would make the gap invisible. The slot is left empty.
 
+### One new entry — G17, `HeaderBg`, opened at MVP Gate 44 making the app installable-clean
+
+Found by INSTALLING the app rather than by reading either source: standalone on
+Android the phone draws its own status bar, and this app draws a second, fake
+one underneath it. Not fixed DS-side (rule 3).
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G17** | `HeaderBg` | **Suppressible status bar, and safe-area awareness.** A consumer running standalone must be able to (a) turn off the fake `StatusBar` and (b) put a legibility scrim in the safe-area strip above the header's own content. | `prop-gap` | **1, 7, 8** | `HeaderBg.tsx:74` renders `<StatusBar mode="Dark" …/>` UNCONDITIONALLY. `HeaderBgProps` exposes `statusBarTime` but no `showStatusBar`, and no slot above `.mn-header-bg__content` — so a consumer can change the fake clock's TEXT but cannot remove the clock. Measured at Gate 44: installed standalone the app shows two status bars, the phone's real one and this one. `HoldingDetailScreen` is unaffected by the prop half because it renders `StatusBar` itself and can simply stop — the gap is specifically that `HeaderBg` cannot |
+
+**THE CONSUMER-SIDE ANSWER SHIPPED, AND IT IS A RULE ON DS-OWNED CLASSES —
+STATED PLAINLY BECAUSE THAT IS NORMALLY THE THING THIS PROJECT REFUSES TO DO.**
+`src/index.css` carries an `@media (display-mode: standalone)` block that
+resizes `.mn-status-bar` to the safe-area inset and hides its glyphs, and adds
+`.mn-header-bg::before` as the scrim. Three things make this a different act
+from the equal-specificity geometry override Gate 13 removed and G15/B2
+refused, and all three should be checked before it is ever copied:
+
+1. **THE DS DECLARES NOTHING FOR THIS CONTEXT.** There is no `display-mode`
+   query anywhere in the DS, so the block is not contending with a DS opinion —
+   it is supplying behaviour for a mode the library does not model.
+2. **IT IS ENTIRELY INSIDE THE MEDIA QUERY**, so the browser-tab rendering is
+   untouched — measured, ZERO of 104 baselines moved.
+3. **THE ALTERNATIVE WAS SHIPPING THE DEFECT.** G15's "ship it visibly short"
+   precedent covers a 23px cosmetic shortfall with a working control. This is a
+   duplicated piece of OS chrome in the installed app, and there is no prop to
+   reach it with at all.
+
+**IT IS STILL A COUPLING AND IT CAN STILL ROT.** The block overrides
+`.mn-status-bar`'s `height` and `padding`, so a future `StatusBar` that changes
+its own box could interact with it. That is the cost of the missing prop, and
+it is the argument for the prop.
+
+**THE SEARCH-BAR VARIANT IS OUT OF SCOPE AND WAS NOT READ FOR THIS.**
+`HeaderBgVariant` is `'default' | 'noSearchBar' | 'compact'`, and the Figma node
+read at Gate 44 was `Type=No search bar` (`390:639`, 375×112), whose own
+`Frame 278`/`Field` search row is `hidden`. This app renders `compact` on
+Finance and `noSearchBar` on the Homepage; nothing here renders `default`.
+
+#### The Figma provenance for Gate 44's `Header/bg` read
+
+Established by `mcp__figma-local__get_metadata` against the live desktop
+selection, before that server disconnected later in the session:
+
+| node | id | box |
+|---|---|---|
+| `Header/bg` — variant `Type=No search bar` | **`390:639`** | 375 × 112 |
+| `img/bg01` — the artwork slot | `390:640` | 375 × 112 at y=0 |
+| `Status Bar` | `390:641` | **375 × 44 at y=0** |
+| `Frame 442` — the content row group | `390:642` | 375 × 50 at y=52 |
+| `header` — avatar + greeting | `390:644` | 197 × 32 |
+| `Frame 278` / `Field` — the SEARCH ROW, `hidden` in this variant | `390:648` | 375 × 44 |
+
+**THE ARTWORK AND THE STATUS BAR BOTH START AT y=0 AND THE ARTWORK IS THE FULL
+112**, which is the geometric statement that the status bar sits OVER the
+artwork rather than above it — the arrangement Gate 44 reproduces with the real
+system bar in place of the drawn one.
+
+**THE OVERLAY TOKEN IS `surface/Overlay/default` = `#0d0f1199`**, read from the
+same selection via `get_variable_defs`. It resolves to
+`--mapped-surface-overlay-default`, declared at BOTH `:root` and
+`[data-theme="dark"]` with the same value in the pinned v2.0.1 `globals.css` —
+so it is theme-invariant and needs no dark-mode handling. Rendered check:
+`rgba(13, 15, 17, 0.6)`, i.e. `#0d0f11` at alpha `0x99`.
+
+#### One deliberate COPY divergence from Figma — the Apply button, Gate 44
+
+**COPY-LEVEL ONLY. THE NUMBER IS IDENTICAL; THE WORDS AROUND IT ARE NOT.**
+Recorded here rather than silently resolved, on the same convention as the
+`Transaction Merchant` / `Transaction Amount` divergence below.
+
+| | |
+|---|---|
+| Figma prints | `Apply Filter (15)` |
+| the app prints | `Apply Filter · 15 results` |
+| what N counts | **unchanged** — rows the pending filter matches |
+
+**THE SEMANTICS WERE VERIFIED AND DELIBERATELY NOT TOUCHED.**
+`TRANSACTION_FILTER_APPLIED` over the 23-row ledger returns 15, and the frame
+prints 15; a count of facets changed would print 2 and a count of options
+selected would print 4. So the number is a ROW COUNT and Figma agrees. Gate 44
+changed only the unit.
+
+**WHAT WAS WRONG WITH THE PARENTHESISED FORM.** At the screen's new opening
+state the button read `Apply Filter (23)`, which parses as "23 filters" at
+least as readily as "23 rows" — and a bare bracketed integer on a button is a
+badge convention, i.e. a count of the things the button acts ON, which here
+would be filters. Naming the unit is the whole change.
+
+**THE THREE FORMS, ALL MEASURED ON ONE LINE AT BOTH VIEWPORTS** (Poppins
+600 14px/16px, longest run 160.77px inside a 343px button at 375 and a 398px
+button at 430 — line-box count 1 in every case):
+
+| N | label |
+|---|---|
+| 0 | `Apply Filter · No results` |
+| 1 | `Apply Filter · 1 result` |
+| n | `Apply Filter · n results` |
+
+Zero reads as a warning rather than as arithmetic, and the button stays enabled
+because applying a filter that matches nothing is still a legal act. `1 result`
+is handled rather than left to the plural, which is the classic tell of a count
+pasted into a fixed string.
+
+**N INCLUDES THE SEARCH TERM, which Figma cannot adjudicate** — the mockup's
+search box is empty, so both readings print 15 there. Gate 43's judgment stands:
+including it makes this literally the same `filterTransactions(...)` call the
+ledger makes, so N is the number of rows the user will actually see.
+
 #### The Figma provenance for Flow 8's sheet, recorded here because nothing else records it
 
 **THE SHEET'S NODE ID HAD NEVER BEEN WRITTEN DOWN ANYWHERE.** Established at
@@ -518,10 +627,15 @@ asked of either.
 ## Summary
 
 - **28 of 28 screens read.** **40 DS components read in source**, `.tsx` and `.css`.
-- **14 register entries**: 2 `component-gap`, 11 `prop-gap`, 1 `token-gap`.
-  (G11 and G12 were added at MVP Gates α and D, and **G13/G14 at Gate 43** —
-  the latter pair renumbered there out of a colliding `U1`/`U2`, see §2a — all
-  after the original sweep, which reported 12.)
+- **DATED RECORD, GATE 43: 14 register entries** — 2 `component-gap`,
+  11 `prop-gap`, 1 `token-gap`. (G11 and G12 were added at MVP Gates α and D,
+  and **G13/G14 at Gate 43** — the latter pair renumbered there out of a
+  colliding `U1`/`U2`, see §2a — all after the original sweep, which reported
+  12.)
+- **CURRENT, GATE 44: 17 register entries** — 2 `component-gap`,
+  **14** `prop-gap`, 1 `token-gap`. G15 and G16 were added at Gate 43 building
+  the filter sheet, and **G17 at Gate 44** making the app installable-clean.
+  G16 is the second `component-gap`; G15 and G17 are `prop-gap`.
 - **6 foreign-variable families → `figma-defect`.** The DS is correct on every
   one, and already documents two of them in comments.
 - **8 `shape-mismatch` items** needing a design call, not code.

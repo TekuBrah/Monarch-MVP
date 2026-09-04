@@ -603,18 +603,42 @@ export function filterTransactions(
  * | `1266:14329` Transaction02 | 281 wide | three children; no `Watson` node at all |
  *
  * 1 · NO FACET PREFIX. Every label is the VALUE — `All`, never `Type: All`.
+ *     THIS HALF IS UNCHANGED and is still exactly what the file draws.
  *
- * 2 · A FACET AT ITS DEFAULT STILL SHOWS A CHIP, so the model is NOT
- *     one-chip-per-non-default-facet. Type, date and amount are all at their
- *     defaults in `TRANSACTION_FILTER_APPLIED` and Figma draws a chip for each
- *     of them; under a non-default-only rule the row would be EMPTY in all
- *     three frames, and it is not.
+ * 2 · A FACET AT ITS DEFAULT RENDERS NO CHIP — AND THIS REVERSES WHAT FIGMA
+ *     DRAWS, DELIBERATELY, AT GATE 44.
  *
- * 3 · THE PAYEE CHIP IS THE ONE THAT COMES AND GOES, and the evidence is one
- *     node in two states rather than two different nodes: `825:5389` carries
- *     `label="Watson"` and is `hidden` in Transaction01, visible in _all rows,
- *     and absent entirely from Transaction02 — whose own `Select` reads
- *     `Watson`, i.e. picked in the sheet but not yet applied.
+ *     What the file shows is not in dispute and the reading above still
+ *     stands: type, date and amount all sit at their defaults in
+ *     `TRANSACTION_FILTER_APPLIED`, and Figma draws a chip for each. That was
+ *     implemented literally, and it is what Gate 44 overturned.
+ *
+ *     THE REASON IS THAT A DEFAULT CHIP IS A CONTROL THAT CANNOT DO ANYTHING.
+ *     Every chip carries a dismiss button, and dismissing a facet already at
+ *     its default is a no-op — a control that is drawn, focusable, announced
+ *     to a screen reader, and inert. The old note said as much in
+ *     `clearFacet` ("dismissing a facet already at its default is a no-op by
+ *     construction") and treated it as a curiosity rather than as the defect
+ *     it is.
+ *
+ *     IT ALSO MAKES THE ROW MEAN SOMETHING. A row that prints "All / All Time
+ *     / RM 0 - 10000" when nothing is filtered says the same thing as an
+ *     empty row, at the cost of three lines of screen and four tap targets;
+ *     under this model the presence of ANY chip is exactly the statement that
+ *     a filter is in force.
+ *
+ *     THE "All" OPTIONS STAY INSIDE THE SHEET. They are how a user
+ *     affirmatively clears a facet, and they are unaffected — only the
+ *     OUTSIDE chip is suppressed.
+ *
+ * 3 · THE PAYEE CHIP WAS ALREADY THE EXCEPTION, AND IS NOW THE RULE. The
+ *     evidence for it is one node in two states rather than two different
+ *     nodes: `825:5389` carries `label="Watson"`, is `hidden` in
+ *     Transaction01, visible in _all rows, and absent entirely from
+ *     Transaction02 — whose own `Select` reads `Watson`, i.e. picked in the
+ *     sheet but not yet applied. Gate 44 did not change the payee chip's
+ *     behaviour at all; it made the other three behave the way it already
+ *     did.
  *
  * THE ORDER IS THE CHIP ROW'S, NOT THE SHEET'S. Chips run type → date →
  * payee → amount; the sheet's sections run date → type → merchant → amount.
@@ -630,6 +654,55 @@ export function filterTransactions(
  * why position could not stand in for that. The MODEL above is unchanged; only
  * the shape of what this returns is.
  */
+/**
+ * Field-by-field equality for two filters.
+ *
+ * IT ITERATES THE VALUE'S OWN KEYS RATHER THAN LISTING THEM. Writing the five
+ * field names out here would be a fourth place that has to be updated when
+ * `TransactionFilter` grows a field, and the failure would be SILENT — a new
+ * field would simply never be compared, so a facet carrying it would report
+ * itself at its default forever.
+ *
+ * ARRAYS ARE COMPARED BY MEMBER because `payees` and `methods` hold arrays,
+ * and `===` on two arrays is identity. `clearFacet` returns a NEW object, so
+ * an identity comparison would call every list facet non-default.
+ */
+function sameFilter(a: TransactionFilter, b: TransactionFilter): boolean {
+  return (Object.keys(a) as (keyof TransactionFilter)[]).every((key) => {
+    const x = a[key]
+    const y = b[key]
+    if (Array.isArray(x) || Array.isArray(y)) {
+      if (!Array.isArray(x) || !Array.isArray(y)) return false
+      return x.length === y.length && x.every((v, i) => v === y[i])
+    }
+    return x === y
+  })
+}
+
+/**
+ * Is this facet sitting at its default — i.e. constraining nothing?
+ *
+ * IT IS DERIVED FROM `clearFacet`, NOT FROM RESTATED LITERALS, AND THAT IS THE
+ * WHOLE POINT. A facet is at its default exactly when clearing it changes
+ * nothing, so this asks that question literally: clear the facet, and compare.
+ * `clearFacet` already reads its reset values out of `TRANSACTION_FILTER_ALL`,
+ * so there is ONE definition of "default" in this file and this reuses it
+ * rather than adding a second one that could drift.
+ *
+ * THE ALTERNATIVE WAS A PER-FACET COMPARISON AGAINST
+ * `TRANSACTION_FILTER_ALL`, and it is worse in a specific way: it would have
+ * to know that the amount facet is two fields and the list facets are arrays,
+ * which is knowledge `clearFacet` already encodes. Two switch statements over
+ * the same union, kept in step by hand, is how the chip row and the sheet come
+ * to disagree about what "cleared" means.
+ */
+export function isFacetDefault(
+  filter: TransactionFilter,
+  facet: TransactionFacet,
+): boolean {
+  return sameFilter(filter, clearFacet(filter, facet))
+}
+
 export function filterChips(filter: TransactionFilter): TransactionFilterChip[] {
   const range = TRANSACTION_DATE_RANGES.find((r) => r.id === filter.dateRange)
   const chips: TransactionFilterChip[] = [
@@ -641,7 +714,12 @@ export function filterChips(filter: TransactionFilter): TransactionFilterChip[] 
     facet: 'amount',
     label: `RM ${filter.amountMin} - ${filter.amountMax}`,
   })
-  return chips
+  /*
+    A FACET AT ITS DEFAULT RENDERS NO CHIP — see the model note above for why
+    this reverses what Figma draws, and it is the LAST step rather than a set
+    of guards on each push so that every facet is judged by one predicate.
+  */
+  return chips.filter((chip) => !isFacetDefault(filter, chip.facet))
 }
 
 /**

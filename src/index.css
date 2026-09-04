@@ -28,6 +28,210 @@ body,
 html {
   /* Stop mobile Safari inflating text in landscape. */
   -webkit-text-size-adjust: 100%;
+
+  /*
+    THE TAP FLASH — killed at the root because the property INHERITS.
+
+    Android WebView and Chrome paint a translucent highlight rectangle over
+    whatever element a tap lands on. It is the browser's own affordance rather
+    than a CSS state: it is drawn on every <button>, on anything carrying a
+    click handler, and on the DS's own controls, and no component can opt out
+    of it from its own stylesheet without every future component remembering
+    to.
+
+    DECLARING IT HERE IS WHAT MAKES THAT UNNECESSARY.
+    `-webkit-tap-highlight-color` is an INHERITED property, so one declaration
+    on the root element reaches every descendant — DS components rendered
+    inside this app included, and components that do not exist yet. Neither
+    tree declares it anywhere else (grep: zero matches in DS `src/` and in
+    this repo), so nothing overrides it.
+
+    THIS IS NOT THE STICKY-HOVER WORK FROM DS GATES 31-37. That concerned
+    `:hover` styles latching on after a touch, and its fix is the
+    `@media (hover: hover)` guards the DS now ships. This is the browser's own
+    tap flash, which no hover guard touches and which is drawn on elements
+    that have no hover rule at all.
+
+    IT DOES NOT TOUCH FOCUS. `:focus-visible` outlines are a separate
+    mechanism and are unchanged — verified after this change on three
+    controls, in both themes, by reading computed `outline` under a real
+    keyboard focus.
+  */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+  NO VISIBLE SCROLLBAR, ANYWHERE, EVER — A STANDING RULE OF THIS APP.
+
+  Every scroll container here is a native-app surface: a chip row, a tab bar,
+  a carousel, a sheet body. A desktop scrollbar in any of them reads as a web
+  page rather than an app, and the phone platforms this targets draw no
+  persistent bar at all.
+
+  THE RULE ALREADY EXISTED IN WORDS AND ONLY EVER IN ONE PLACE AT A TIME.
+  `homepage.css` states it as a rule over the carousel; the DS states it again
+  inside `Sheet` and `Tabs`. Each new scroll container therefore arrived with
+  a visible bar until somebody noticed — the filter sheet's two chip rows are
+  what noticed it this time. Hoisting it here is what stops the next one.
+
+  IT IS DECLARED ON `*`, WHICH IS DELIBERATE RATHER THAN LAZY.
+  `scrollbar-width` is NOT an inherited property, so a declaration on `html`
+  reaches the document scroller and nothing else, and every nested container
+  would still need its own. `*` is the only spelling that also covers a
+  scroll container this app does not own — which is the case that matters,
+  because DS components scroll inside this app and a future DS scroller will
+  not carry its own suppression.
+
+  BOTH SPELLINGS SHIP BECAUSE NEITHER COVERS THE OTHER. `scrollbar-width` is
+  the standard property and is what Firefox reads; `::-webkit-scrollbar` is
+  what Chromium and WebKit read.
+
+  SCROLLING BEHAVIOUR IS UNTOUCHED. This hides the bar and nothing else: no
+  `overflow` is set, and wheel, touch, keyboard and programmatic scrolling all
+  work exactly as before. What it CAN change is layout — on a platform that
+  reserves a classic scrollbar gutter, hiding the bar gives that width back to
+  content. That is a real pixel consequence, which is why this shipped in its
+  own batch with its own suite run rather than folded in with the filter work.
+*/
+*,
+*::before,
+*::after {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+  ================================================================
+  STANDALONE (INSTALLED PWA) — ONE REAL STATUS BAR, NOT TWO
+  ================================================================
+
+  THE DEFECT. This app draws its OWN status bar: DS `StatusBar`, a fake
+  9:41 with fake signal, wifi and battery glyphs. In a browser tab that is
+  a design device and it is correct — the tab has browser chrome above it
+  and no system bar of its own. Installed to the home screen on Android the
+  app runs standalone, the PHONE's status bar is present, and the two stack:
+  a real clock above a fake one.
+
+  DETECTED BY `display-mode`, NEVER BY USER AGENT. `(display-mode:
+  standalone)` is the platform telling us how it launched the app. A UA
+  sniff would be guessing at the same question from a string that says
+  nothing about launch mode, and would be wrong for every browser tab on a
+  phone — which is the case that must NOT change.
+
+  NOTHING BELOW APPLIES IN A BROWSER TAB. The whole block is inside the
+  media query, so the browser-tab rendering is byte-for-byte what it was —
+  and the harness never matches it, which is why this change is predicted
+  to move zero baselines.
+
+  ---------------------------------------------------------------
+  1 · THE FAKE BAR BECOMES A SPACER RATHER THAN DISAPPEARING
+  ---------------------------------------------------------------
+
+  `display: none` was the obvious spelling and it is wrong, because the
+  element does TWO jobs and only one of them is fake. It draws fake OS
+  chrome, and it RESERVES THE HEIGHT that OS chrome occupies. Remove it
+  outright and `HoldingDetailScreen`, which renders `StatusBar` in flow
+  above a `HeaderDefault`, pulls its title up underneath the phone's real
+  clock.
+
+  So the glyphs go and the box stays, resized to whatever the device
+  actually reserves. `visibility: hidden` removes the painting and keeps
+  the box; `height: env(safe-area-inset-top)` makes that box the real
+  bar's size instead of Figma's 44.
+
+  THE SAME RULE THEREFORE SERVES BOTH SHAPES, which is why it is one rule
+  and not two:
+    - inside `HeaderBg` (Homepage, Finance) the bar sits in
+      `.mn-header-bg__content`, a flex column stacked OVER the artwork —
+      so shrinking it lets the header's own background artwork rise to
+      y=0, i.e. up beneath the real status bar, which is the effect Figma's
+      `Header/bg` draws;
+    - in `HoldingDetailScreen` the bar sits in ordinary flow on the page
+      surface, so it simply reserves the right height and the header below
+      it clears the real bar.
+
+  `env(safe-area-inset-top)` AND NOT A HARDCODED HEIGHT, because the value
+  is a device fact — notch, punch-hole, and Android's own bar height all
+  differ — and the platform is the only thing that knows it.
+  `viewport-fit=cover` in `index.html` is what exposes it; without that
+  meta the function resolves to 0 everywhere and this silently reserves
+  nothing.
+
+  IT IS CORRECT IN BOTH ANDROID MODES, WHICH IS WORTH STATING because the
+  manifest's `theme_color` decides which one applies. Where Chrome draws
+  its own `theme_color` bar above the viewport, the inset is 0, the spacer
+  collapses, and the app simply loses its duplicate bar. Where the app
+  runs edge-to-edge, the inset is real, the spacer matches it, and the
+  artwork extends beneath the system glyphs.
+
+  ---------------------------------------------------------------
+  2 · THE LEGIBILITY SCRIM OVER THE ARTWORK
+  ---------------------------------------------------------------
+
+  Once the artwork reaches y=0 the phone's own white status glyphs sit on
+  an arbitrary photograph, which is exactly the problem `HeaderBg`'s own
+  `--compact` scrim exists to solve one row lower. Figma's `Header/bg`
+  binds `surface/Overlay/default` for it; that is
+  `--mapped-surface-overlay-default`, and it is MAPPED rather than alias
+  or raw, so it is the tier interactive and overlay values are supposed to
+  come from. Measured on the pinned DS: declared at BOTH `:root` and
+  `[data-theme="dark"]` with the SAME value, so it needs no dark-theme
+  handling of its own.
+
+  A PSEUDO-ELEMENT, BECAUSE THE CONSUMER CANNOT ADD A CHILD. `HeaderBg`
+  renders its own subtree and exposes no slot above the status bar, so
+  `::before` is the only way to put a layer inside its stacking context
+  without reaching into DS markup. It takes z-index 1 — above
+  `.mn-header-bg__background` (0) and below `.mn-header-bg__content` (2) —
+  which are the DS's own layer numbers, so it scrims the artwork without
+  dimming the greeting, avatar or notify bell.
+
+  IT IS SCOPED TO `.mn-header-bg` AND NOT TO THE VIEWPORT. The scrim exists
+  to keep white glyphs legible over ARTWORK; the three `ComingSoon` routes
+  have no artwork and sit on the page surface, where a dark band under the
+  clock would be a defect rather than a fix.
+
+  ---------------------------------------------------------------
+  3 · THE SCREENS THAT HAVE NO STATUS BAR AT ALL
+  ---------------------------------------------------------------
+
+  `/transfer`, `/more` and `/steward` render a bare `ComingSoon` with no
+  `StatusBar` anywhere, so rule 1 has nothing to resize and their content
+  would start at y=0 under the real clock. They take the reserve directly.
+
+  `:has()` IS WHAT KEEPS THIS FROM DOUBLE-COUNTING. Applying the padding
+  unconditionally would add the inset a second time on every screen that
+  already reserves it through its own status bar. The selector asks the
+  only question that matters — does this screen reserve the inset already —
+  rather than listing routes, so a future screen is covered by what it
+  renders instead of by someone remembering to add it here.
+*/
+@media (display-mode: standalone) {
+  .mn-status-bar {
+    visibility: hidden;
+    height: env(safe-area-inset-top, 0px);
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .mn-header-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--mapped-surface-overlay-default);
+  }
+
+  .mvp-shell__main:not(:has(.mn-status-bar)) {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }
 
 body {
@@ -92,6 +296,56 @@ body {
   --mvp-gutter: var(--spacing-400);
   --mvp-frame-max: 430px; /* token-exempt: phone-frame width. 430 has no backing token — it falls between --brand-scale-1700 (256px) and -1800 (512px); curve-fitting it out of calc() on unrelated ramp steps is banned by the DS token-gap protocol. */
   --mvp-frame-inset: max(0px, (100% - var(--mvp-frame-max)) / 2);
+
+  /*
+    THE BOTTOM CHROME, AS ONE DERIVATION (Gate 44).
+
+    `--mvp-fab-inset` is how far the two floating affordances sit above the
+    viewport bottom, and `--mvp-fab-size` is the taller one's height. The
+    content reserve is then DERIVED from them rather than being a separate
+    number that has to be kept in step by hand — which is exactly how the two
+    fell out of step in the first place.
+
+    WHAT WAS WRONG. The reserve was a flat `--brand-scale-1600` (128) and
+    AppShell.css claimed it "clears the fixed nav and FAB". Measured at rest,
+    scrolled to the bottom of the Transactions ledger at BOTH viewports, it
+    did not: content ended at y=684 and the FAB's box was [*, 660, *, 716], so
+    the FAB overlapped the last row by 24px and covered its amount column. The
+    comment described an intention; the arithmetic never supported it.
+
+    WHY THE AFFORDANCES COULD NOT SIMPLY BE MOVED INSTEAD — this is the part
+    worth keeping, because "move the button" is the obvious fix and it is
+    provably impossible. Two constraints have to hold at once:
+
+      above the nav pill      FAB bottom edge <= 723   ->  inset >= 89
+      clear of page content   FAB top edge    >= 812 - reserve
+                                              ->  inset <= reserve - 56
+
+    At the old reserve of 128 the second gives inset <= 72 while the first
+    demands inset >= 89. THE FEASIBLE RANGE IS EMPTY: there is no height at
+    which a 56px FAB is both clear of content and above the pill, so no
+    repositioning of the affordance alone can satisfy the requirement. The
+    reserve is the only free variable, and growing it is what opens the range.
+
+    THE VALUE IS COMPOSED FROM THE RAMP, AND THAT IS A DERIVATION RATHER THAN
+    CURVE-FITTING. The ban recorded for the frame cap is on fitting a wanted
+    number out of UNRELATED scale steps; here each term is the token the thing
+    it describes actually uses — 1500 IS the affordances' own inset, 1200 IS
+    `IconObject size="xxl"`, and the trailing `--spacing-200` is a deliberate
+    8px breathing gap so content stops short of the FAB rather than touching
+    it. It resolves to 96 + 56 + 8 = 160, and the ramp has no single step
+    between 128 and 256 that could express it.
+
+    THE COUPLING TO WATCH: `--mvp-fab-size` restates the DS's `xxl` IconObject
+    size. It is measured (56x56 rendered, both viewports) rather than assumed,
+    but nothing checks it — if the DS changes that size the reserve silently
+    stops matching the FAB. Re-measure it on a DS re-pin.
+  */
+  --mvp-fab-inset: var(--brand-scale-1500);
+  --mvp-fab-size: var(--brand-scale-1200);
+  --mvp-bottom-reserve: calc(
+    var(--mvp-fab-inset) + var(--mvp-fab-size) + var(--spacing-200)
+  );
 }
 
 .mvp-column {

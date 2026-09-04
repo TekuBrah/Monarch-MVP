@@ -34,11 +34,18 @@
   /*
     No padding. Screens are full-bleed compositions — the Homepage header runs
     edge to edge — so horizontal padding belongs to the screen, not the shell.
-    The bottom reserve clears the fixed nav and FAB; without it the last row of
-    a screen sits under the nav with nowhere to scroll (the condition recorded
-    as Flow 1 C2).
+    The bottom reserve exists so the last row of a screen is not left under the
+    fixed chrome with nowhere to scroll (the condition recorded as Flow 1 C2).
+
+    IT WAS `--brand-scale-1600` (128) AND THIS COMMENT USED TO CLAIM IT
+    "clears the fixed nav and FAB". IT DID NOT CLEAR THE FAB, measured at both
+    viewports: content ended at y=684 against a FAB box of [*, 660, *, 716], so
+    the FAB sat over the last row's amount column. Gate 44 derives the reserve
+    from the FAB's own inset and size instead of restating a number — see
+    `--mvp-bottom-reserve` in index.css for the derivation, and for the proof
+    that repositioning the affordances alone cannot fix this.
   */
-  padding-bottom: var(--brand-scale-1600);
+  padding-bottom: var(--mvp-bottom-reserve);
 }
 
 /*
@@ -135,7 +142,14 @@
 .mvp-shell__fab {
   position: fixed;
   right: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
-  bottom: var(--brand-scale-1500);
+  /*
+    THE SAME OBJECT THE RESERVE IS DERIVED FROM. This was
+    `--brand-scale-1500` and resolves to the identical 96px, so the FAB does
+    not move — what changed is that the reserve above it is now computed FROM
+    this value rather than being a second literal that agreed with it by
+    coincidence. Move this and the content reserve follows.
+  */
+  bottom: var(--mvp-fab-inset);
   z-index: 3;
   display: flex;
   padding: 0;
@@ -150,10 +164,11 @@
   border-radius: var(--brand-scale-1800);
 }
 
-/* Demo affordance, not part of the design — mirrored opposite the FAB. */
+/* Demo affordance, not part of the design — mirrored opposite the FAB, and
+   sharing its inset so the pair cannot drift apart. */
 .mvp-shell__theme-switch {
   position: fixed;
-  bottom: var(--brand-scale-1500);
+  bottom: var(--mvp-fab-inset);
   left: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
   z-index: 3;
 }

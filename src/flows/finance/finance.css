@@ -573,6 +573,28 @@
 }
 
 /* Chips must not compress to fit; the row scrolls instead. */
+/*
+  AN EMPTY CHIP ROW TAKES NO VERTICAL SPACE — Gate 44's chip model.
+
+  A facet at its default renders no chip, so at the screen's new opening state
+  this <ul> has no children at all. It is already `margin: 0` with zero
+  vertical padding, so it collapses to height 0 on its own — BUT IT IS STILL A
+  FLEX ITEM, and `.mvp-transactions` carries `gap: var(--spacing-200)`. A
+  zero-height item between the search field and the list therefore still costs
+  a SECOND 8px gap: the row would be invisible and would still push the list
+  down by 8px.
+
+  `display: none` removes it from flex layout entirely, which is the only
+  spelling that takes the gap with it. `:empty` is exact here rather than
+  approximate — the element's children are chips and nothing else, and React
+  renders no whitespace text node between them, so `:empty` matches exactly
+  when `filterChips` returned nothing. Verified in the browser at both
+  viewports.
+*/
+.mvp-transactions__chips:empty {
+  display: none;
+}
+
 .mvp-transactions__chips > li {
   /*
     `flex` so the item hugs the chip. The chip is `inline-flex`, so a block
