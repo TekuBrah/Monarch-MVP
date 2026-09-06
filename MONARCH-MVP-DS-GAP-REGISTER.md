@@ -376,7 +376,7 @@ both are `Select`. Neither was fixed here (rule 3).
 | # | Component | Demand | Tag | Flows | Evidence |
 |---|---|---|---|---|---|
 | **G15** | `Select` | **Fill the content column.** Figma's merchant dropdown is **343 wide** — the whole 375−32 gutter. | `prop-gap` | **8, 9** | `.mn-select` declares a hard `width: 320px` whose own comment calls it *"Figma demo width; caller-controllable"*, and **`SelectProps` exposes neither a `sizing` prop nor a `className`** — so there is no mechanism to control it with, and the comment's claim is not met. Measured live at Gate 43 on `/finance [tab:transactions] [overlay:filter]`: the control renders **320 wide in a 343 column**, 23px short, at 375 AND at 430. **This is B2 again on a different component** — same shape, same tag, same fix |
-| **G16** | `Icon` | A **storefront / merchant mark** for the merchant dropdown's leading slot. | `component-gap` | **8** | Figma draws a storefront glyph inside the `Select` trigger before "Watson". The DS `Icon` registry is 101 named assets and contains **no `storefront` and no `store`** (`grep` over `Icon/icons.ts`: zero matches for either). `Select` DOES expose the slot (`leadingSlot`), so this is an ASSET gap, not a prop gap — the composition point exists and there is nothing to put in it |
+| **G16** | `Icon` | A **storefront / merchant mark** for the merchant dropdown's leading slot. | `component-gap` | **8** | Figma draws a storefront glyph inside the `Select` trigger before "Watson". The DS `Icon` registry is **102** named assets and contains **no `storefront` and no `store`** (`grep` over `Icon/icons.ts`: zero matches for either). *(**102 CORRECTED FROM 101 AT GATE 46.** The 101 was never measured here — it was quoted from a prose comment in the DS's own `Icon.test.tsx`, written at Gate 4 and stale by the time G16 was opened. The zero-matches claim that decided the gap was always right; only the size was wrong.)* `Select` DOES expose the slot (`leadingSlot`), so this is an ASSET gap, not a prop gap — the composition point exists and there is nothing to put in it |
 
 **G15 SHIPPED UNFIXED AND VISIBLY SHORT, WHICH IS THE B2 PRECEDENT AND NOT AN
 OVERSIGHT.** An MVP-local `.mn-select { width: 100% }` is the
@@ -389,6 +389,55 @@ saying so, so a future session does not "tidy" it into an override.
 **G16 WAS NOT FILLED WITH A NEAR-MISS GLYPH.** Substituting an unrelated icon
 would be exactly the "do not substitute a control the mockup draws differently"
 failure, and it would make the gap invisible. The slot is left empty.
+
+#### Both CLOSED at MVP Gate 46 — DS v2.1.0 shipped both, adopted here at v2.2.0
+
+| # | Status | What closed it | Verified in this repo |
+|---|---|---|---|
+| **G15** | **CLOSED** | `Select.sizing?: 'fixed' \| 'fill'` plus `.mn-select--fill { width: 100% }` | Adopted in `TransactionFilterSheet.tsx`. Measured live at 375 and 430 through a Playwright-launched Chromium at DPR 2: the trigger renders **343** in the 343 column and **398** in the 398 column, so the 23px shortfall is **0 at both viewports**, and the element carries `mn-select--fill` |
+| **G16** | **CLOSED** | `storefront` added to the `Icon` registry, taking it **102 → 103** entries | Present at `dist/components/Icon/icons.d.ts:350` AND in the sibling source `Icon/icons.ts:189` — both paths checked, because the Vite alias compiles the second and the pinned dist is what `tsc` reads. Adopted as `leadingSlot={<Icon name="storefront" size="m" />}`; the trigger now renders two SVGs where it rendered one |
+
+**THE "BEFORE" FIGURE WAS RE-DERIVED AT GATE 46 AND IS 102, NOT THE 101 THIS
+ENTRY CARRIED FOR THREE GATES.** Derived by counting the `ICONS` object's own
+keys at each tag rather than by trusting any prose:
+
+```bash
+git show v2.0.1:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"   # 102
+git show v2.2.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"   # 103
+```
+
+and the delta confirmed to be exactly one key by `diff`-ing the two sorted key
+lists: `> storefront:`, nothing else.
+
+**A NAIVE PER-LINE GREP UNDERCOUNTS BADLY AND IS THE TRAP TO AVOID HERE.**
+`grep -cE "^  [A-Za-z0-9_]+: *[A-Za-z0-9_]+Icon,?$"` returns **66/67** across
+the same two tags, because entries carrying a trailing comment or a differently
+shaped right-hand side do not match. Count the object's KEYS, not the lines that
+happen to look like assignments.
+
+**WHERE 101 CAME FROM, because the propagation is the lesson.** It was a prose
+comment in the DS's `Icon.test.tsx`, written at Gate 4 and never re-derived. The
+DS has since corrected it in place and its own comment now names this repo as
+the victim — G16 quoted the comment as fact rather than measuring, and a number
+nobody owned became evidence in two repos. Neither the gap nor its closure ever
+depended on it: what decided G16 was `grep` returning **zero** for `storefront`
+and `store`, which was true at 101, at 102 and at any other size.
+
+**NO MVP-LOCAL OVERRIDE WAS EVER WRITTEN FOR EITHER, WHICH IS THE POINT.** G15
+shipped visibly short for three gates rather than being papered over with
+`.mn-select { width: 100% }`, and G16's slot was left EMPTY rather than filled
+with a near-miss glyph. Both closed by the DS growing the seam — rule 3 working
+as designed, and the reason each closure is one prop and nothing else.
+
+**`Select.sizing` AND `Sheet.sizing` DO NOT SHARE A VALUE UNION, AND MUST NOT BE
+ASSUMED TO.** `Select.sizing` is `'fixed' | 'fill'`; `Sheet.sizing` — adopted in
+the same file at the same gate — is `'hug' | 'fill'`. The DS's own doc comments
+give the reason, and it is not an inconsistency: Select's default is a literal
+320px box, so Figma's `hug` would name behaviour it does not have, while Sheet's
+default is genuinely hug-height, so `'fixed'` would name behaviour IT does not
+have. Read each from its own `.d.ts`; never infer one from the other.
+`Sheet.sizing` is additionally the only `sizing` prop in the DS whose axis is
+HEIGHT rather than width.
 
 ### One new entry — G17, `HeaderBg`, opened at MVP Gate 44 making the app installable-clean
 
@@ -477,6 +526,55 @@ if the DS adopts 44, the MVP follows with no edit.
 read at Gate 44 was `Type=No search bar` (`390:639`, 375×112), whose own
 `Frame 278`/`Field` search row is `hidden`. This app renders `compact` on
 Finance and `noSearchBar` on the Homepage; nothing here renders `default`.
+
+#### G18 CLOSED at MVP Gate 46 — DS v2.2.0 honoured both fixed row heights
+
+The DS took the `shape-mismatch` ruling and adopted Figma's geometry. The whole
+CSS delta is two declarations, both FAIL-LOUD raw literals with the token gap
+named in the comment rather than curve-fitted out of `calc()` between ramp
+steps:
+
+| rule | added | closes |
+|---|---|---|
+| `.mn-status-bar` | `height: 44px` | the 4px status-row shortfall |
+| `.mn-header-bg__row` | `height: 50px` | the 18px content-row shortfall |
+
+So `HeaderBg` goes **90 → 112**, which is the frame height Figma declares, and
+44+8+50+10 closes exactly as Gate 44-B derived it.
+
+**IT IS THE MOST EXPENSIVE DS CHANGE THIS REPO HAS ABSORBED, AND THE COST IS
+BASELINES RATHER THAN CODE.** `src/` needed no edit at all. What it cost was
+**92 of 104 baselines**, because the two rules reach every screen that renders
+either a `HeaderBg` or a bare `StatusBar` — measured at Gate 46, not estimated
+from a filename prefix:
+
+| family | walk states | mechanism | Δ height |
+|---|---|---|---|
+| `/` + its 3 non-default tabs | 4 | `HeaderBg` | +22 |
+| `/finance` + its 4 non-default tabs | 5 | `HeaderBg` | +22 |
+| the 9 holding routes | 9 | bare `StatusBar` in flow | +4 |
+| `/finance/holding/fd` overlays | 3 | bare `StatusBar` | +4 |
+| `/finance [tab:transactions]` overlays | 2 | `HeaderBg` | +22 |
+| `/transfer`, `/more`, `/steward` | 3 | **neither** | **0** |
+
+23 of 26 walk states × 2 viewports × 2 themes = **92**, and the suite failed on
+exactly those 92 with the other 12 byte-identical. The 12 are the three
+`ComingSoon` routes, which render no status bar at all — they are the control
+group that proves the attribution.
+
+**THE +4 HALF IS THE ONE THAT WOULD BE MISSED.** `StatusBar` is not only used
+inside `HeaderBg`: `HoldingDetailScreen` renders it directly, in flow, above a
+`HeaderDefault`. So a change described as "the header grew" in fact reaches
+twelve screens that have no `HeaderBg` on them.
+
+**ONE MVP RULE'S FLOOR MOVED, AND IT STILL BEHAVES CORRECTLY.** Gate 44-B's
+standalone rule is `min-height: env(safe-area-inset-top, 0px)` on
+`.mn-status-bar` with deliberately NO `height`, so the box floors at whatever
+the bar naturally occupies and rises to the inset when the inset is larger. The
+DS now declares `height: 44px`, so that floor is **44 rather than 40**. The
+`max(natural, inset)` behaviour the rule was written for is unchanged, and the
+MVP rule needed no edit — but the number it floors at is now the DS's, which is
+the outcome G18 was asking for.
 
 #### The Figma provenance for Gate 44's `Header/bg` read
 
@@ -673,6 +771,163 @@ asked of either.
 
 ---
 
+### Two further entries — G19 and G20, landed at MVP Gate 46
+
+**BOTH WERE FOUND DS-SIDE AND REGISTERED IN THE DS DOCS AT GATE 45. THEY LAND
+HERE SO THE `G`-SERIES IS NOT SPLIT ACROSS TWO REPOS.** The register is this
+repo's document — see the CLAUDE.md warning about bare `G`-numbers — and a
+G-number that exists only in the DS repo is a number nobody here can look up.
+**NEITHER IS FIXED AT THIS GATE**, and the reason differs for each.
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G19** | `SelectTransfer`, `SelectWalletAccount` | **Fill the content column** — the same demand G15 made of `Select`. | `prop-gap` | *(none yet)* | Both declare an identical hard `width: 320px` carrying the identical comment *"Figma demo width; caller-controllable"* — `SelectTransfer.css:9` and `SelectWalletAccount.css:16` — and **neither exposes `sizing` nor `className`**, so the comment's claim is unmet on both. Verified at Gate 46 against the pinned v2.2.0 `.d.ts`: zero matches for either prop on either component. **Neither composes `Select`**, so G15's fix did NOT reach them by inheritance — confirmed, zero imports from `../Select` in either `.tsx` |
+| **G20** | `HeaderBg` | **The `default` (search-bar) variant is ~7px short** — renders **166** against Figma's **173**. | `shape-mismatch` | *(none yet)* | Registered DS-side at Gate 45; the shortfall lives in the search `Field`'s own box model rather than in either row height, so **G18's two fixed heights did not close it**. Pre-existing and deferred to the hygiene round |
+
+**G19 IS DELIBERATELY NOT FIXED, AND THE REASON IS THAT IT HAS NO VICTIM YET.**
+`grep` over MVP `src/` returns **zero** consumers of either component, so no
+consumer has reported them short. G15 was fixed because a real screen rendered
+23px short at both viewports and the shortfall was measurable; fixing G19 now
+would be shipping a prop ahead of its adopter — the same trap as declaring
+`.mvp-column--bleed` before the carousel needed it. The entry exists so that
+the day a transfer flow renders one of these, the diagnosis is already written.
+
+**THE PAIR IS ONE ENTRY, NOT TWO, BECAUSE THE DEFECT IS ONE COPY-PASTE.**
+Identical declaration, identical comment, identical missing pair of props. A DS
+fix that closes one and not the other would be a half-fix of exactly the shape
+CLAUDE.md warns about, so they are registered together to make that visible.
+
+**G20 WAS NOT RE-MEASURED IN THIS REPO, AND THAT IS STATED RATHER THAN
+GLOSSED.** `HeaderBgVariant` is `'default' | 'noSearchBar' | 'compact'`, and
+this app renders `noSearchBar` on the Homepage and `compact` on Finance —
+**zero instances of `default`**, verified at Gate 46 by reading both call
+sites. So the variant G20 concerns is unreachable from the MVP's walk, no
+baseline can see it, and the 166/173 figures are carried from the DS-side Gate
+45 measurement rather than confirmed here. Re-derive them in the DS repo before
+acting on them.
+
+### One further entry — G21, `Select`, opened at MVP Gate 46 building the merchant push
+
+Found by BUILDING the push, not by reading either source: the trigger works and
+announces itself wrongly.
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G21** | `Select` | **A trigger mode that NAVIGATES rather than expands** — or, minimally, a way to suppress the combobox expansion semantics when no `menuSlot` is supplied. | `prop-gap` | **8** | `Select.tsx:122` renders `aria-expanded={open}` UNCONDITIONALLY on the input, and `open` is `isOpen ?? uncontrolledOpen`. At `TransactionFilterSheet.tsx` the merchant trigger pins `isOpen={false}` and intercepts `onOpenChange` to push the sheet's second view, so the control **navigates and never expands** — yet it permanently announces `aria-expanded="false"`, i.e. "there is a popup here, currently collapsed". There is no popup. `SelectProps` exposes no `role`, no `aria-*` passthrough and no `className`, so a consumer cannot correct the announcement from outside |
+
+**IT IS A LIE OF PRESENCE, NOT OF STATE, WHICH IS WHY `aria-expanded={true}`
+WOULD NOT FIX IT.** The attribute's presence is itself the claim that this
+control owns a collapsible popup. A trigger that opens a different view of the
+same dialog owns none, and the honest markup is no `aria-expanded` at all —
+which is exactly what the component cannot be told to emit.
+
+**THE DS COULD EXPRESS THIS TODAY WITHOUT A NEW PROP, AND THAT IS WORTH SAYING
+IN THE ENTRY.** `Select` already computes `showMenu = open && !!menuSlot`
+(`Select.tsx:80`), so it knows when no dropdown can ever render. Deriving
+`aria-expanded` from that same condition — emitting the attribute only when a
+`menuSlot` exists — would close this with no API surface added. Recorded as the
+cheapest candidate fix, not as a demand for a particular one.
+
+**NO MVP-LOCAL WORKAROUND WAS WRITTEN, DELIBERATELY.** The available hacks are
+all worse than the gap: reaching into the rendered DOM to strip the attribute
+from a DS node, or wrapping the control in a `role`-overriding element, both put
+this repo in the business of correcting DS accessibility from outside — which is
+the same class of act as `.mn-select { width: 100% }`, and would hide the gap
+rather than register it. Deferred to the hygiene round.
+
+### Two further entries — G22 and G23, opened at MVP Gate 46 building the multi-select picker
+
+Both found by BUILDING the multi-select merchant picker. **G23 was not
+anticipated by the gate's own brief** — it surfaced only when the trigger was
+measured with two long names in it, which is why it is here rather than in a
+report.
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G22** | `Menu` | **Express multi-select.** A listbox whose options can be selected together must say so. | `prop-gap` | **8** | `Menu.tsx:125-126` emits `role="listbox"` and `aria-label={listAriaLabel}` and **nothing else** — no `aria-multiselectable`, and `MenuProps` exposes no prop that would produce one. The merchant picker is genuinely multi-select (two rows carry `aria-selected="true"` simultaneously, measured), so the listbox currently announces single-select semantics while behaving as multi-select. `MenuItem` is fine: it already emits `role="option"` + `aria-selected` (`MenuItem.tsx:74-75`), so only the container's declaration is missing |
+| **G23** | `Select` | **Ellipsis, or a seam to add one.** A trigger whose value can exceed its box must truncate legibly. | `prop-gap` | **8** | `.mn-select__input` (`Select.css:73-82`) sets `width`, `min-width`, `border`, `background`, `outline`, `padding`, `color`, `caret-color`, `font-family` — and **no `text-overflow`**, so the computed value is `clip`. Measured at Gate 46 with two payees selected ("Bio Lab Laboratories, Caring Pharmacy"): at **375** the input is `scrollWidth` **309** against `clientWidth` **259**, i.e. **50px overflowing and cut mid-glyph with no ellipsis**; at **430** it is 314 against 314 and fits. `SelectProps` exposes no `className` and no style passthrough, so a consumer cannot add `text-overflow` from outside |
+
+**G22 WAS NOT WORKED AROUND BY INJECTING THE ATTRIBUTE, DELIBERATELY.** Setting
+`aria-multiselectable` onto a DS-rendered node from MVP code — by ref, by effect
+or by wrapper — is this repo correcting DS accessibility from outside, the same
+class of act as `.mn-select { width: 100% }`. It would also be invisible to the
+DS's own tests, so the gap would stop being reportable while still being real.
+**The behaviour ships regardless**: selection is announced per row through
+`aria-selected`, which is correct and is what a screen reader reads on focus;
+what is missing is only the container's up-front declaration that more than one
+may be chosen.
+
+**G23 IS THE SAME SHAPE AS G15 AND IS NOT CLOSED BY IT.** `sizing="fill"` fixed
+how WIDE the control is; it did nothing about what happens when the value inside
+exceeds that width. **No MVP-local
+`.mn-select__input { text-overflow: ellipsis }` was written**, for the reason
+that rule would target a DS internal; and no JS truncation was written either,
+because a character budget is a literal that cannot be responsive and would
+differ between the two viewports by construction.
+
+**THE VIEWPORT POLARITY IS INVERTED AGAINST EVERY PRIOR FINDING OF THIS SHAPE,
+AND THAT IS THE PART TO REMEMBER.** Gates 13, 26 and 33 all established
+"375 hides it, 430 reveals it" — the arithmetic accident of the narrow column,
+the right-edge clip, the `max-width` cap that only binds when the track is
+wide — and 430 was added to the suite substantially for that reason. **G23 runs
+the other way: 375 reveals it (309 against 259) and 430 hides it (314 against
+314).** A session reaching for the established heuristic and checking the wide
+viewport first will conclude there is no defect.
+
+**IT NEEDS TWO SELECTIONS. A SINGLE MERCHANT CANNOT CLIP — MEASURED, NOT
+ASSUMED.** All 18 payee names were ranked by rendered width in the input's own
+computed font (`normal 400 16px/24px Poppins, sans-serif`) via canvas
+`measureText`, and the widest was then VERIFIED by actually selecting it alone:
+
+| | width |
+|---|---|
+| `Bio Lab Laboratories` — longest of the 18 | **160.88 px** |
+| `Caring Pharmacy` — 2nd | 140.70 px |
+| `Rachum Greene` — 3rd | 129.90 px |
+| the input's `clientWidth` at 375 | **259 px** |
+
+Selected alone, the trigger reports `scrollWidth` **259** against `clientWidth`
+**259** — no overflow, at either viewport. So the longest single name clears the
+box by ~98px and **no one-merchant selection can clip**. G23 is reachable only
+from **two or more** selections at 375, and only when their joined length
+exceeds 259px — `Bio Lab Laboratories, Caring Pharmacy` does at 309; two short
+names do not. **That makes it an edge case rather than the control's default
+state**, which is a materially lower severity than the first measurement alone
+suggested and should be weighed when scheduling the fix.
+
+#### The applied-chip row was measured too, and it is NOT a gap — no G24
+
+The chip row carries the same joined string as ONE chip, and Gate 41 measured
+that row's overflow behaviour against exactly this case without ever seeing a
+real multi-name chip. Measured now, with `Bio Lab Laboratories, Caring Pharmacy`
+applied:
+
+| | 375 | 430 |
+|---|---|---|
+| `.mvp-transactions__chips` `scrollWidth` / `clientWidth` | 375 / 375 | 430 / 430 |
+| max reachable `scrollLeft` | **0** | **0** |
+| `.mn-filter-chip` width | 273 | 273 |
+| `.mn-filter-chip__label` `scrollWidth` / `clientWidth` | 237 / 237 | 237 / 237 |
+| row height, one merchant → two | **24 → 24** | **24 → 24** |
+| dismiss button count / visible / hit-tested | 1 / true / **true** | 1 / true / **true** |
+| dismiss accessible name | `Remove payee filter (Bio Lab Laboratories, Caring Pharmacy)` | identical |
+
+**It neither wraps, scrolls nor clips**: `flex-wrap: nowrap` with the chip at
+273 inside a 375 row leaves **102px of headroom**, the row's `overflow-x: auto`
+is present but never engaged (`scrollLeft` cannot leave 0), and the row height
+is unchanged from the single-merchant case. The dismiss affordance sits fully
+inside the viewport at x=268.8 and `elementFromPoint` at its centre returns the
+dismiss button itself, with the full "Remove &lt;facet&gt; filter (&lt;value&gt;)"
+name intact.
+
+**SO THE ROW IS FINE AND THE TRIGGER IS NOT, ON THE SAME STRING — WHICH IS THE
+USEFUL COMPARISON.** The chip renders in `type-body-caption-semibold` (smaller
+than the trigger's 16px body) inside a box free to size to its content, where
+the trigger is a fixed-width `<input>` in 16px. Same text, 237px in one place
+and 309px in the other. Gate 41's scroll provision is real and simply is not
+needed at two payees; it would engage at a higher count, which is not a defect
+today and was not fabricated into one.
+
 ## Summary
 
 - **28 of 28 screens read.** **40 DS components read in source**, `.tsx` and `.css`.
@@ -685,12 +940,54 @@ asked of either.
   **14** `prop-gap`, 1 `token-gap`. G15 and G16 were added at Gate 43 building
   the filter sheet, and **G17 at Gate 44** making the app installable-clean.
   G16 is the second `component-gap`; G15 and G17 are `prop-gap`.
-- **CURRENT, GATE 44-B: 18 register entries** — 2 `component-gap`,
+- **DATED RECORD, GATE 44-B: 18 register entries** — 2 `component-gap`,
   14 `prop-gap`, 1 `token-gap`, **1 `shape-mismatch`**. **G18 was added at Gate
   44-B**, reading `Header/bg`'s full vertical spec. It is the first register
   entry tagged `shape-mismatch`; the 8 `shape-mismatch` items counted two
   bullets below are sweep findings that were never given G-numbers, and G18 is
   not one of them.
+- **CURRENT, GATE 46: 23 register entries, of which 3 are CLOSED and 20 are
+  open.** **G19–G23 landed** — G19/G20 from the DS docs so the series is not
+  split across repos, G21 found building the merchant push, G22/G23 found
+  building the multi-select picker; **G15, G16 and G18 were marked CLOSED** by
+  DS v2.1.0 and v2.2.0 and adopted at this gate.
+
+  **THE ARITHMETIC, from the Gate 44-B baseline of 18:**
+
+  | | entries | `component-gap` | `prop-gap` | `token-gap` | `shape-mismatch` |
+  |---|---|---|---|---|---|
+  | Gate 44-B | 18 | 2 | 14 | 1 | 1 |
+  | + G19 (`prop-gap`) | 19 | 2 | 15 | 1 | 1 |
+  | + G20 (`shape-mismatch`) | 20 | 2 | 15 | 1 | 2 |
+  | + G21 (`prop-gap`) | 21 | 2 | 16 | 1 | 2 |
+  | + G22 (`prop-gap`) | 22 | 2 | 17 | 1 | 2 |
+  | + G23 (`prop-gap`) | **23** | **2** | **18** | **1** | **2** |
+
+  2 + 18 + 1 + 2 = **23** ✓. Closures do not decrement these columns — a closed
+  entry keeps its tag and its number, so **G16** is 1 of the 2 `component-gap`,
+  **G15** 1 of the 18 `prop-gap`, and **G18** 1 of the 2 `shape-mismatch`.
+  Open by tag: 1 `component-gap`, 17 `prop-gap`, 1 `token-gap`, 1
+  `shape-mismatch` = **20 open**, and 20 + 3 closed = 23 ✓.
+
+  **THERE IS NO G24, AND THE NUMBER IS NOT MISSING — IT WAS NEVER ALLOCATED.**
+  A G24 was provisionally reserved at Gate 46 for the applied-chip row, on the
+  expectation that a two-merchant chip would overflow it. **It was measured and
+  it does not** — 375/375 and 430/430, `scrollLeft` capped at 0, row height
+  unchanged, dismiss affordance hit-tested and fully named. The evidence is
+  written up under G23 above. **The next entry opened is G24**, not G25.
+
+  **FIVE OF THE SIX ENTRIES ADDED THIS GATE ARE `Select` OR ITS RELATIVES** —
+  G19 (`SelectTransfer`/`SelectWalletAccount` width), G21 (`aria-expanded`),
+  G23 (value clipping), plus the now-closed G15. That concentration is worth
+  stating rather than leaving to be noticed: `Select` is the DS component this
+  app leans on hardest and the one whose seams are thinnest. A single
+  `Select` round in the hygiene gate would close four of them.
+  **THE THREE CLOSURES ARE NOT SYMMETRICAL AND SHOULD NOT BE READ AS ONE
+  EVENT.** G15 and G16 needed an MVP adoption to close — a prop and a slot fill
+  — and were verified by measuring the rendered control. G18 needed **no `src/`
+  edit at all** and closed the moment the pin moved; what it cost instead was
+  92 of 104 baselines. A closure that changes no code can still be the most
+  expensive one in the gate.
 - **6 foreign-variable families → `figma-defect`.** The DS is correct on every
   one, and already documents two of them in comments.
 - **8 `shape-mismatch` items** needing a design call, not code.

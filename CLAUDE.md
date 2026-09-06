@@ -602,7 +602,7 @@ Recorded at the time of the fix: Playwright **1.62.1**, bundled Chromium
 ### Logged, not acted on
 
 - **The JS bundle is 5.75 MB** (3.78 MB gzipped), driven by the DS
-  `dist/index.js` at 5.59 MB — most likely the 101 icons bundled rather than
+  `dist/index.js` at 5.59 MB — most likely the 103 icons bundled rather than
   tree-shaken. Worth a DS-side look; not an MVP fix.
 - **`npm run dev` leaves orphaned Vite servers — THREE of the last four gate
   pre-flights.** DS on 5173 at Gate 4; MVP on 5174 at Gate 16; MVP on 5174 at
@@ -3945,10 +3945,24 @@ reflexively, since it also means typechecking unbuilt source.
 
 ### Local-alias mode requires the DS's `node_modules` to be installed
 
-The DS's `Icon` imports 101 SVGs from `@material-design-icons/svg`, resolved by
-walking **up from the DS source file's own location** — i.e. into the DS's
-`node_modules`, not this repo's. A DS checkout without `npm install` produces a
-confusing resolution error that appears to come from the MVP.
+The DS's `Icon` imports 103 SVGs in `?react` form, 67 of them from
+`@material-design-icons/svg` and 36 custom Monarch assets. The package ones are
+resolved by walking **up from the DS source file's own location** — i.e. into
+the DS's `node_modules`, not this repo's. A DS checkout without `npm install`
+produces a confusing resolution error that appears to come from the MVP.
+
+**THE SPLIT MATTERS AND THE OLD WORDING HID IT.** This line read "imports 101
+SVGs from `@material-design-icons/svg`" until Gate 46, which was wrong twice:
+the count was stale (101 was a Gate 4 prose figure, never re-derived; it was
+102 before v2.2.0 added `storefront`, and is 103 now), and it attributed the
+WHOLE set to the package when a third of it is custom Monarch artwork. Only the
+67 are affected by the missing-`node_modules` failure this section describes.
+Re-derive rather than trust, by counting the `ICONS` object's own keys — a
+per-line grep for assignment-shaped lines returns 67 and looks plausible:
+
+```bash
+git show v2.2.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"
+```
 
 ### The `styles.css` subpath alias hardcodes an internal DS path
 

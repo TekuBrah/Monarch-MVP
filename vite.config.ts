@@ -32,7 +32,7 @@ const DS_LOCAL = !process.env.MONARCH_DS_FROM_PACKAGE && fs.existsSync(DS_SRC)
 
 export default defineConfig({
   // svgr is required because the DS barrel re-exports Icon, whose icons.ts
-  // imports 101 SVGs in `?react` form. In local-alias mode this app's Vite
+  // imports 103 SVGs in `?react` form. In local-alias mode this app's Vite
   // transforms that DS source itself, so the DS's own vite.config.lib.ts svgr
   // setup is not in play. Without svgr the `?react` query falls back to asset
   // handling, the default export becomes a URL string, and the failure surfaces

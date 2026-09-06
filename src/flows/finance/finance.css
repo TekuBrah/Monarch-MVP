@@ -730,3 +730,39 @@
 .mvp-txn-filter__chips > * {
   flex: 0 0 auto;
 }
+
+/*
+  THE MERCHANT PICKER — the sheet's second view, pushed IN PLACE.
+
+  `--menu-width` IS THE DS'S OWN OVERRIDE SEAM AND THIS IS NOT AN OVERRIDE OF
+  DS GEOMETRY. `.mn-menu` declares `width: var(--menu-width, 426px)` and its
+  own comment names the custom property as the caller's control, the same
+  convention Field's 240px default uses. 426 is wider than the 375 panel, so
+  taking the seam is using the component as designed — the opposite of writing
+  `.mn-menu { width: 100% }` here, which would be the equal-specificity rule on
+  top of DS geometry that Gate 13 removed on measurement.
+
+  `100%` RESOLVES AGAINST THIS WRAPPER, which is a child of
+  `.mn-sheet__content` and therefore already inside the sheet's own 16px side
+  padding. So the menu takes the content column exactly, with no second gutter
+  expression and no literal.
+*/
+.mvp-txn-filter__merchants {
+  --menu-width: 100%;
+}
+
+/*
+  The picker's back affordance. A bare reset on a real <button>, identical in
+  shape to `.mvp-transactions__filter-btn` above and for the same reason:
+  `ButtonProps` exposes no `ariaLabel` and no `className`, so an icon-only DS
+  Button could not be given an accessible name. Appearance is the Icon's; this
+  rule only removes the user-agent button chrome.
+*/
+.mvp-txn-filter__back {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
