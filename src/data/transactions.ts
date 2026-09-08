@@ -9,16 +9,17 @@ import type { Transaction, TransactionCategory } from './types'
  * appears on every surface at once, which is the property Flow 8 was required
  * to preserve — there is no second, screen-local ledger anywhere in `src/`.
  *
- * Two consequences worth stating, because both are checkable and both still
- * hold after Flow 8 tripled the row count:
+ * Two consequences worth stating, because both are checkable:
  *
  * - Sorting this ledger newest-first and taking two rows yields Aeon Big
  *   (15 Sept) and Caring Pharmacy (13 Sept) — exactly the two rows the Homepage
  *   draws. NOTHING FLOW 8 ADDED IS DATED LATER THAN 12 SEPT, so neither can be
- *   displaced; the newest fabricated row is KFC at 12 Sept 08:15.
- * - `categoryTotal('groceries')` computes 1800.00 from the five groceries rows.
- *   Flow 8 added NO groceries row, and changed no amount, so the one
- *   hand-authored total in the design that survives being recomputed still does.
+ *   displaced; the newest fabricated row is KFC at 12 Sept 08:15. GATE 48 MOVED
+ *   NO DATE, so this still holds.
+ * - `categoryTotal('groceries')` COMPUTED 1800.00 UNTIL GATE 48 AND NOW COMPUTES
+ *   1118.46. That was the one hand-authored total in the design that survived
+ *   being recomputed, and the receipt reconciliation below retired it. It has no
+ *   runtime consumer. Do not quote 1,800 as a live check on anything.
  *
  * YEAR: the file states no year on these rows. Inventory SYS-7 / F9 A6 records
  * the September items as 2025 (flagging a stray "15 Sept 2026" as the defect),
@@ -41,10 +42,13 @@ import type { Transaction, TransactionCategory } from './types'
  * FLOW 8 — THE LEDGER GREW FROM 6 ROWS TO 23, AND ONE DATE MOVED.
  *
  * Flow 8's Figma frame draws nine rows under four applied filters and labels the
- * button "Apply Filter (15)". Both numbers are now REAL rather than decorative:
- * `filterTransactions()` in `derive.ts` evaluates the four facets over this
- * array and returns 15 rows, whose first nine — under an ordinary
- * date-descending sort — are Figma's nine.
+ * button "Apply Filter (15)". Both numbers were REAL rather than decorative when
+ * this was written: `filterTransactions()` in `derive.ts` evaluated the four
+ * facets over this array and returned 15 rows, whose first nine — under an
+ * ordinary date-descending sort — were Figma's nine.
+ *
+ * GATE 48 TOOK THAT TO 16. See the Gate 48 block below; the nine drawn rows are
+ * still the top nine, but a tenth row now falls inside the cap.
  *
  * THE ONE PRE-EXISTING ROW THAT HAD TO MOVE, AND WHY IT IS A DATE AND NOT AN
  * AMOUNT. `txn-aeon-0909` was Aeon Big −420.50 at 2025-09-09T13:45. It passes
@@ -70,6 +74,56 @@ import type { Transaction, TransactionCategory } from './types'
  * screen it feeds — the exact inconsistency the single-source-of-truth rule
  * exists to prevent.
  * ─────────────────────────────────────────────────────────────────────────────
+ * ─────────────────────────────────────────────────────────────────────────────
+ * GATE 48 — TWO CHANGES, AND NEITHER TOUCHED A DATE OR A ROW ORDER.
+ *
+ * 1 · `hasReceipt` IS GONE FROM EVERY ROW. It was a stored boolean on 10 of the
+ *     23, and nothing kept it in step with the receipts that are the actual
+ *     evidence — two copies of one fact. `src/data/receipts.ts` now states it
+ *     once, and `transactionHasReceipt()` in `derive.ts` answers the question.
+ *     See the note in `types.ts` where the field used to be declared.
+ *
+ *     The reconciliation was exact: the 10 rows that carried `true` are the same
+ *     10 the receipt collection links to, with ZERO disagreements either way.
+ *
+ * 2 · NINE AMOUNTS FOLLOW THEIR RECEIPT'S PRINTED TOTAL. On a LINKED row the
+ *     amount is now the receipt total, negated. The receipts are photographs of
+ *     what was actually paid; these figures were authored at Gate 41 before any
+ *     receipt existed, so where they disagreed the receipt won.
+ *
+ *       txn-caring-0913      -25.50 ->    -26.29
+ *       txn-tonyroma-0910    -95.00 ->    -98.26
+ *       txn-ikea-0906       -129.00 ->   -137.59
+ *       txn-lotus-0905      -310.40 ->    -96.14
+ *       txn-aeon-0904       -420.50 ->   -429.19
+ *       txn-giant-0902      -288.60 ->    -79.18
+ *       txn-ikea-0908       -899.00 ->   -830.83
+ *       txn-jaya-0901       -529.75 ->   -263.20
+ *       txn-ikea-0815     -1,250.00 -> -2,647.67
+ *       txn-aia-0825        -320.00      UNCHANGED — already the receipt total
+ *
+ *     MERCHANT, CATEGORY, METHOD, ACCOUNT AND DATE ARE ALL UNTOUCHED, so the
+ *     date-descending order of all 23 rows is identical before and after. Only
+ *     the printed figures moved.
+ *
+ *     TWO INVARIANTS THIS BROKE ON PURPOSE, both stated so neither is
+ *     rediscovered as a bug:
+ *
+ *     (a) The RM 1,800.00 groceries chain — see above. Four of the five
+ *         groceries rows moved; the total is now 1118.46.
+ *
+ *     (b) `TRANSACTION_FILTER_APPLIED` NOW MATCHES 16 ROWS, NOT 15. Jaya Grocer
+ *         fell from 529.75 to 263.20 and crossed under that filter's RM 500 cap,
+ *         entering a set it used to sit just outside. Figma's own button prints
+ *         "Apply Filter (15)", so the correspondence between the code and the
+ *         frame is broken — and the frame is the thing that is now out of date,
+ *         not the code. The harness ladder in `e2e/harness.ts` was moved to the
+ *         derived 16 with it.
+ *
+ *     THE HEADLINE ABOVE — "15 satisfy Flow 8's applied filter" — IS THEREFORE
+ *     ALSO STALE AND HAS BEEN CORRECTED. Do not restore either number by editing
+ *     an amount away from its receipt.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 export const TRANSACTION_CATEGORIES: TransactionCategory[] = [
@@ -83,9 +137,10 @@ export const TRANSACTION_CATEGORIES: TransactionCategory[] = [
 ]
 
 /**
- * 23 rows. 15 satisfy Flow 8's applied filter; 8 are outside it, and they exist
- * so that clearing the filter is a visible act rather than a no-op — a filter
- * whose input equals its output is not a filter.
+ * 23 rows. SIXTEEN satisfy Flow 8's applied filter and 7 are outside it — it was
+ * 15 and 8 until Gate 48 reconciled the linked amounts to their receipts. They
+ * exist so that clearing the filter is a visible act rather than a no-op: a
+ * filter whose input equals its output is not a filter.
  *
  * Ordered by date descending, which is also the order the ledger renders in.
  */
@@ -105,10 +160,11 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-15T22:03:00',
     category: 'groceries',
-    // The Homepage draws no receipt glyph on this row; the Budget drilldown
-    // draws one on all five. Recorded per the Homepage, which is Flow 1's
-    // authority. Receipt link state becomes writable in Flow 9 (W2).
-    hasReceipt: false,
+    // NO RECEIPT. The Homepage draws no receipt glyph on this row and the Budget
+    // drilldown draws one on all five; the Homepage won, which is Flow 1's
+    // authority. As of Gate 48 that is expressed by this row's ABSENCE from
+    // `receipts.ts` rather than by a `hasReceipt: false` here — which is also
+    // why its amount did not move.
   },
   {
     id: 'txn-caring-0913', // (2)
@@ -116,11 +172,10 @@ export const TRANSACTIONS: Transaction[] = [
     merchant: 'Caring Pharmacy',
     logo: { kind: 'merchant', name: 'caring' },
     method: 'Card Payment',
-    amount: -25.5,
+    amount: -26.29,
     currency: 'MYR',
     occurredAt: '2025-09-13T18:50:00',
     category: 'healthcare',
-    hasReceipt: true,
   },
   {
     id: 'txn-kfc-0912', // (3)
@@ -134,7 +189,6 @@ export const TRANSACTIONS: Transaction[] = [
     // Caring Pharmacy from the Homepage's two-row slice.
     occurredAt: '2025-09-12T08:15:00',
     category: 'dining',
-    hasReceipt: false,
   },
   {
     id: 'txn-rachum-0911', // (6) in Figma's order — the file's single credit
@@ -146,7 +200,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-11T23:46:00',
     category: 'others',
-    hasReceipt: false,
   },
   {
     id: 'txn-granddaughter-0911', // (4)
@@ -159,7 +212,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-11T06:12:00',
     category: 'others',
-    hasReceipt: false,
   },
   {
     id: 'txn-rachum-0910', // (8)
@@ -171,7 +223,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-10T13:33:00',
     category: 'others',
-    hasReceipt: false,
   },
   {
     id: 'txn-tonyroma-0910', // (7)
@@ -179,11 +230,10 @@ export const TRANSACTIONS: Transaction[] = [
     merchant: "Tony Roma's",
     logo: { kind: 'merchant', name: 'tonyroma' },
     method: 'Fund Transfer',
-    amount: -95,
+    amount: -98.26,
     currency: 'MYR',
     occurredAt: '2025-09-10T07:21:00',
     category: 'dining',
-    hasReceipt: true,
   },
   {
     id: 'txn-touchngo-0909', // (9)
@@ -195,7 +245,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-09T12:55:00',
     category: 'transport',
-    hasReceipt: false,
   },
   {
     // (5) — the earliest of Figma's nine, and the boundary every filler row
@@ -205,16 +254,16 @@ export const TRANSACTIONS: Transaction[] = [
     merchant: 'IKEA',
     logo: { kind: 'merchant', name: 'ikea' },
     method: 'Fund Transfer',
-    amount: -129,
+    amount: -137.59,
     currency: 'MYR',
     occurredAt: '2025-09-06T08:00:00',
     category: 'shopping',
-    hasReceipt: true,
   },
 
   // Rows 10-15 of the filtered result: inside the filter, below Figma's nine.
-  // They are what makes "Apply Filter (15)" a computed number rather than a
-  // caption, and what puts content below the fold for A6's overflow.
+  // They are what makes the Apply button's count a computed number rather than a
+  // caption, and what puts content below the fold for A6's overflow. That count
+  // read 15 and matched Figma's own button until Gate 48; it now reads 16.
   {
     id: 'txn-lotus-0905',
     // Attributed to the Joint account by Flow 7 — see the header note.
@@ -222,11 +271,10 @@ export const TRANSACTIONS: Transaction[] = [
     merchant: "Lotus's",
     logo: { kind: 'merchant', name: 'lotus_s' },
     method: 'Card Payment',
-    amount: -310.4,
+    amount: -96.14,
     currency: 'MYR',
     occurredAt: '2025-09-05T17:12:00',
     category: 'groceries',
-    hasReceipt: true,
   },
   {
     id: 'txn-netflix-0905',
@@ -238,23 +286,22 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-05T09:15:00',
     category: 'bills',
-    hasReceipt: false,
   },
   {
     // WAS `txn-aeon-0909` at 2025-09-09T13:45 — moved by Flow 8 so Figma's nine
-    // occupy the filtered top nine. See the header note; the amount, category,
-    // account and receipt flag are all unchanged, so the groceries chain still
-    // sums to RM 1,800.00.
+    // occupy the filtered top nine. See the header note; its category and
+    // account are still unchanged. ITS AMOUNT IS NOT: Gate 48 moved it -420.50
+    // -> -429.19 to follow `receipt_aeonbig01`, which is part of why the
+    // groceries chain no longer sums to RM 1,800.00.
     id: 'txn-aeon-0904',
     accountId: 'main',
     merchant: 'Aeon Big',
     logo: { kind: 'merchant', name: 'aeon' },
     method: 'Card Payment',
-    amount: -420.5,
+    amount: -429.19,
     currency: 'MYR',
     occurredAt: '2025-09-04T13:45:00',
     category: 'groceries',
-    hasReceipt: true,
   },
   {
     id: 'txn-celcom-0904',
@@ -266,7 +313,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-04T10:30:00',
     category: 'bills',
-    hasReceipt: false,
   },
   {
     id: 'txn-anytimefitness-0903',
@@ -278,7 +324,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-03T07:45:00',
     category: 'others',
-    hasReceipt: false,
   },
   {
     id: 'txn-giant-0902',
@@ -287,18 +332,27 @@ export const TRANSACTIONS: Transaction[] = [
     merchant: 'Giant',
     logo: { kind: 'merchant', name: 'giant' },
     method: 'Card Payment',
-    amount: -288.6,
+    amount: -79.18,
     currency: 'MYR',
     occurredAt: '2025-09-02T12:56:00',
     category: 'groceries',
-    hasReceipt: true,
   },
 
   // ===== Outside the applied filter =========================================
-  // Three fail on AMOUNT alone and are inside September, three fail on DATE
-  // alone, and two fail on both. Each facet therefore has at least one row that
-  // only IT excludes, so a facet that stopped working would change the count
-  // rather than being masked by another facet excluding the same rows.
+  // RE-DERIVED AT GATE 48, because the amount reconciliation moved the boundary.
+  // Of the seven rows now excluded: TWO fail on AMOUNT alone and are inside
+  // September, THREE fail on DATE alone, and TWO fail on both. It was 3/3/2
+  // before — Jaya Grocer left this group entirely (see its row below).
+  //
+  // The property this grouping exists for SURVIVES: each facet still has at
+  // least one row that only IT excludes, so a facet that stopped working would
+  // change the count rather than being masked by another facet excluding the
+  // same rows.
+  //
+  // JAYA GROCER IS PHYSICALLY STILL IN THIS BLOCK AND IS NO LONGER EXCLUDED.
+  // It was left where it sits so the Gate 48 diff shows an amount changing and
+  // nothing else; this file's order is organisational, never rendered — every
+  // consumer sorts by date.
   {
     id: 'txn-ikea-0908',
     accountId: 'main',
@@ -306,11 +360,10 @@ export const TRANSACTIONS: Transaction[] = [
     logo: { kind: 'merchant', name: 'ikea' },
     method: 'Card Payment',
     // Excluded by AMOUNT only — inside September. A flatpack run.
-    amount: -899,
+    amount: -830.83,
     currency: 'MYR',
     occurredAt: '2025-09-08T15:20:00',
     category: 'shopping',
-    hasReceipt: true,
   },
   {
     id: 'txn-maybank-0907',
@@ -325,7 +378,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-09-07T09:30:00',
     category: 'others',
-    hasReceipt: false,
   },
   {
     id: 'txn-jaya-0901',
@@ -333,14 +385,14 @@ export const TRANSACTIONS: Transaction[] = [
     merchant: 'Jaya Grocer',
     logo: { kind: 'merchant', name: 'jayagrocer' },
     method: 'Card Payment',
-    // Excluded by AMOUNT only. The fifth groceries row — inside the filter's
-    // month and outside its amount cap, which is why the filtered ledger does
-    // not sum to the RM 1,800.00 groceries total.
-    amount: -529.75,
+    // NO LONGER EXCLUDED — AND IT IS THE ROW THAT MOVED THE COUNT. It failed on
+    // AMOUNT alone at -529.75; `receipt_jayagrocer01` prints RM 263.20, which is
+    // under the filter's RM 500 cap, so Gate 48 pulled it INTO the applied set
+    // and `TRANSACTION_FILTER_APPLIED` went 15 -> 16.
+    amount: -263.2,
     currency: 'MYR',
     occurredAt: '2025-09-01T14:36:00',
     category: 'groceries',
-    hasReceipt: true,
   },
   {
     id: 'txn-maybank-0828',
@@ -353,7 +405,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-08-28T09:00:00',
     category: 'others',
-    hasReceipt: false,
   },
   {
     id: 'txn-aia-0825',
@@ -366,7 +417,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-08-25T11:20:00',
     category: 'bills',
-    hasReceipt: true,
   },
   {
     id: 'txn-umobile-0820',
@@ -379,7 +429,6 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-08-20T14:05:00',
     category: 'bills',
-    hasReceipt: false,
   },
   {
     id: 'txn-ikea-0815',
@@ -388,11 +437,10 @@ export const TRANSACTIONS: Transaction[] = [
     logo: { kind: 'merchant', name: 'ikea' },
     method: 'Card Payment',
     // Excluded by BOTH facets.
-    amount: -1250,
+    amount: -2647.67,
     currency: 'MYR',
     occurredAt: '2025-08-15T16:40:00',
     category: 'shopping',
-    hasReceipt: true,
   },
   {
     id: 'txn-biolab-0808',
@@ -405,6 +453,5 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-08-08T08:30:00',
     category: 'healthcare',
-    hasReceipt: false,
   },
 ]

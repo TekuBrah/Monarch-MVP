@@ -176,3 +176,38 @@ export function isMediaPlaceholder(
 ): boolean {
   return mediaUrl(slot, source) === MEDIA_SLOTS[slot].placeholder
 }
+
+// ------------------------------------------------------------- receipts
+
+/**
+ * The directory receipt photographs are served from.
+ *
+ * DECLARED ONCE SO NO COMPONENT WRITES A LITERAL `/media/...` PATH — the rule
+ * this file states at the top, honoured for a case the slot model cannot
+ * express.
+ */
+const RECEIPT_DIR = '/media/receipts'
+
+/**
+ * Resolve a receipt's stored `filename` to a public URL.
+ *
+ * RECEIPTS ARE NOT A MEDIA SLOT, AND WIDENING `MediaSlot` TO INCLUDE THEM WOULD
+ * BE A CATEGORY ERROR. A slot is ONE logical name resolving to ONE url that a
+ * future customisation flow can swap — `profile`, `banner`, `academy`. Receipts
+ * are ten files whose identity is product data: each `Receipt` record names its
+ * own file, and there is no "the receipt image" for a slot to point at. Adding
+ * `receipts` to the union would give it a `placeholder`, a `consumable` flag and
+ * a `mediaUrl()` entry, none of which mean anything for a collection.
+ *
+ * So this is a plain resolver rather than a slot: it owns the prefix, takes the
+ * bare filename the record stores, and returns something renderable.
+ *
+ * NO PLACEHOLDER AND NO FALLBACK, DELIBERATELY. A slot falls back because it can
+ * legitimately be unset. A receipt whose file is missing is a DATA DEFECT — a
+ * record pointing at bytes that are not there — and quietly substituting a
+ * placeholder would hide it. It fails the way `media.ts` already documents for
+ * a mistyped slot path: a broken image at runtime, with a green build.
+ */
+export function receiptUrl(filename: string): string {
+  return `${RECEIPT_DIR}/${filename}`
+}

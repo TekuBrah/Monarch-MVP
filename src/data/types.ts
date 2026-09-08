@@ -130,8 +130,22 @@ export interface Transaction {
   /** ISO 8601 local timestamp. Formatting is `format.ts`'s job, not the data's. */
   occurredAt: string
   category: TransactionCategoryId
-  /** Drives `ListItem`'s `hasReceiptIcon`. Becomes writable state in Flow 9 (W2). */
-  hasReceipt: boolean
+  /**
+   * NO `hasReceipt` FIELD. IT WAS HERE UNTIL GATE 48 AND ITS ABSENCE IS THE
+   * POINT — do not add it back.
+   *
+   * It was a stored boolean on 10 of 23 rows, and nothing anywhere kept it in
+   * step with the receipt collection that is the actual evidence. Two copies of
+   * one fact: a row asserting "I have a receipt", and a `Receipt` asserting "I
+   * belong to that row". Delete a receipt and the row goes on drawing the glyph;
+   * add one and the row does not.
+   *
+   * `transactionHasReceipt(receipts, id)` in `derive.ts` answers it from the
+   * receipts instead, which is inventory §6's rule ("a figure that is computable
+   * from another figure is not stored") applied to a boolean rather than to a
+   * total. The render path is unchanged — `ListItem.hasReceiptIcon` still takes
+   * a boolean; it is now computed at the call site rather than read off the row.
+   */
   /**
    * Which account the row moved through.
    *
@@ -143,10 +157,17 @@ export interface Transaction {
    * drill-down. Recorded rather than invented: the alternative was attributing a
    * crypto movement to a savings account, which is false.
    *
-   * Added by Flow 7 so a bank holding's drill-down can show its own rows. It is
-   * an ATTRIBUTION of the existing ledger, not new transactions: no merchant,
-   * amount, date or category below changed, and `categoryTotal()` is unfiltered
-   * so the Groceries chain still computes RM 1,800.00 exactly as before.
+   * Added by Flow 7 so a bank holding's drill-down can show its own rows. It
+   * was an ATTRIBUTION of the existing ledger, not new transactions: no
+   * merchant, amount, date or category changed at THAT flow.
+   *
+   * THE "GROCERIES STILL SUMS TO RM 1,800.00" CLAUSE THAT USED TO END THIS
+   * PARAGRAPH IS GONE, BECAUSE GATE 48 BROKE IT DELIBERATELY. Reconciling every
+   * linked row's amount to its receipt's printed total moved four of the five
+   * groceries rows, and `categoryTotal('groceries')` now computes 1118.46. See
+   * the Gate 48 block in `transactions.ts`. The figure is no longer a check on
+   * anything, and quoting 1,800 anywhere is quoting a fact that stopped being
+   * true.
    */
   accountId: string
 }
@@ -407,4 +428,91 @@ export interface PromoMessage {
   title: string
   subtitle: string
   linkLabel: string
+}
+
+// ------------------------------------------------------------- receipts
+
+/**
+ * One line on a receipt, as PRINTED — not as reinterpreted.
+ *
+ * `quantity` IS A STRING, DELIBERATELY, AND IT IS THE FIELD MOST LIKELY TO BE
+ * "FIXED" INTO A NUMBER BY A LATER SESSION. A receipt prints a quantity the way
+ * the till printed it, and across the ten delivered images that is sometimes a
+ * count (`1`) and sometimes a count carrying the unit that gives it meaning
+ * (`1` against `Basmathi Rice 5kg`, where the 5kg belongs to the item name).
+ * Typing it as a number forces every future weight-priced line — `0.482 kg @
+ * RM 34.90` — either to lose its unit or to sprout a second field beside it.
+ *
+ * NOTHING COMPUTES FROM IT, which is what makes the string safe. `total` is the
+ * stored figure the ledger follows; the line items are transcription, and the
+ * app does not multiply quantity by price anywhere. See `Receipt.total` for why
+ * the sum is not derived from these.
+ */
+export interface ReceiptLineItem {
+  /** As printed — "Nestle Milo 2kg", "Classic Ribs (Half)". */
+  name: string
+  /** As printed. See the note above for why this is not a number. */
+  quantity: string
+  /** The line's price in MYR, positive. A receipt prints no signs. */
+  price: Amount
+}
+
+/**
+ * A captured receipt.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `filename` AND `displayName` ARE TWO DIFFERENT FACTS AND MUST NOT BE COLLAPSED.
+ *
+ * `filename` is where the bytes are: `receipt_aeonbig01.jpg`, resolved through
+ * `receiptUrl()` in `src/config/media.ts`. It is a developer-authored path and
+ * a user never sees it.
+ *
+ * `displayName` is what the CARD PRINTS: `IMG_4821.jpg`. It is what a phone's
+ * camera roll would have called the capture, which is what Figma draws and what
+ * a user would recognise. Storing one and deriving the other is not possible in
+ * either direction — `receipt_aeonbig01` cannot produce `IMG_4821`, and
+ * `IMG_4821` cannot find the file — so both are stored.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE LINK IS A TRANSACTION ID, AND IT IS THE ONLY COPY OF THAT FACT.
+ *
+ * `Transaction.hasReceipt` USED TO BE A STORED BOOLEAN ON THE LEDGER and was
+ * deleted at Gate 48. It was the same fact written twice — a row saying "I have
+ * a receipt" and a receipt saying "I belong to that row" — with nothing keeping
+ * them in step, so a receipt deleted here would have left a ledger row still
+ * drawing the glyph. `transactionHasReceipt()` in `derive.ts` answers the
+ * question from this collection instead, which is the §6 rule ("a figure that is
+ * computable from another figure is not stored") applied to a boolean.
+ *
+ * `null` IS A REAL STATE, NOT A PLACEHOLDER. Figma draws `Item/receipts` in two
+ * variants, `Linked=Yes` and `Linked=No`, and the unlinked one is what a capture
+ * looks like before it has been matched. All ten records ship LINKED at Gate 48;
+ * the type admits `null` because the variant exists and Gate 51's unlink action
+ * needs somewhere to put the result.
+ */
+export interface Receipt {
+  id: string
+  /** The file in `public/media/receipts/`. Bare name — no path, no leading `/`. */
+  filename: string
+  /** What the card prints, camera-roll style. See the note above. */
+  displayName: string
+  /** ISO 8601 local timestamp, transcribed from the receipt's own printed date. */
+  capturedAt: string
+  /** The merchant as the receipt's own letterhead prints it. */
+  merchant: string
+  /**
+   * The receipt's printed TOTAL, positive, in MYR.
+   *
+   * STORED RATHER THAN SUMMED FROM `lineItems`, AND THAT IS NOT A BREACH OF THE
+   * DERIVE RULE — it is the rule applied honestly. A till total is not the sum
+   * of the line prices: it is subtotal plus SST, and on several of the delivered
+   * images the printed subtotal does not equal the printed lines either (see
+   * `receipts.ts`, which records each discrepancy rather than papering over it).
+   * Deriving would mean INVENTING a number the paper does not show. What IS
+   * derived from this is the linked transaction's amount — see `receipts.ts`.
+   */
+  total: Amount
+  currency: CurrencyCode
+  lineItems: ReceiptLineItem[]
+  /** `Transaction.id`, or `null` for an unlinked capture. */
+  transactionId: string | null
 }

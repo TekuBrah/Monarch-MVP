@@ -6,6 +6,7 @@ import type {
   FixedDepositHolding,
   GoldHolding,
   Holding,
+  Receipt,
   Transaction,
   TransactionCategoryId,
   TransactionMethod,
@@ -67,9 +68,15 @@ export function cryptoWalletChange(holdings: CryptoHolding[]): {
 /**
  * §6d — the data spine. Transactions roll up to their category total.
  *
- * The five Groceries rows return exactly 1800 — the figure that appears
- * independently in two unrelated Sections of the design and is the only
- * hand-authored total in the file that survives being recomputed.
+ * THE FIVE GROCERIES ROWS RETURNED EXACTLY 1800 UNTIL GATE 48 AND NOW RETURN
+ * 1118.46. That figure appears independently in two unrelated Sections of the
+ * design and was the only hand-authored total in the file that survived being
+ * recomputed — until the receipt reconciliation moved four of the five rows to
+ * follow their own photographed totals (see `transactions.ts`).
+ *
+ * IT IS RETIRED, NOT BROKEN, AND THIS FUNCTION HAS NO RUNTIME CONSUMER — it is
+ * exported and read by no screen. Do not chase 1,800 by editing an amount away
+ * from its receipt.
  *
  * Returned as a positive magnitude: a category total is "how much was spent",
  * while the ledger stores outflows as negative.
@@ -469,10 +476,21 @@ export const TRANSACTION_FILTER_ALL: TransactionFilter = {
 /**
  * The filter `Finance_Transaction01` opens with — Figma's four applied chips.
  *
- * Payee All, Type All, This Month, RM 0-500. Applied to the ledger this returns
- * 15 rows, which is the number Figma's own button prints ("Apply Filter (15)",
- * inventory A14 — recorded there as unverifiable from a static frame, and now
- * computed), and whose first nine ARE the nine rows the frame draws.
+ * Payee All, Type All, This Month, RM 0-500.
+ *
+ * APPLIED TO THE LEDGER THIS RETURNS 16 ROWS. It returned 15 from Gate 41 until
+ * Gate 48, and 15 is the number Figma's own button prints ("Apply Filter (15)",
+ * inventory A14 — recorded there as unverifiable from a static frame, and then
+ * computed). THAT CORRESPONDENCE IS NOW BROKEN, deliberately: Gate 48
+ * reconciled every receipt-linked amount to the receipt's printed total, and
+ * Jaya Grocer fell from 529.75 to 263.20, crossing under this filter's RM 500
+ * cap and entering the set.
+ *
+ * THE FRAME IS THE STALE PARTY, NOT THIS CONSTANT. The nine rows the frame
+ * draws are still the first nine of this result under a date-descending sort;
+ * a tenth row now also qualifies. Do not restore 15 by moving an amount away
+ * from its receipt, and do not narrow the cap to exclude a row that genuinely
+ * falls inside it.
  */
 export const TRANSACTION_FILTER_APPLIED: TransactionFilter = {
   payees: null,
@@ -757,4 +775,123 @@ export function clearFacet(
         amountMax: TRANSACTION_FILTER_ALL.amountMax,
       }
   }
+}
+
+// ============================================================ Flow 9 — receipts
+
+/**
+ * Does this transaction have a receipt?
+ *
+ * THE REPLACEMENT FOR `Transaction.hasReceipt`, WHICH GATE 48 DELETED. The flag
+ * was a stored boolean on 10 of the 23 rows and nothing kept it in step with the
+ * receipt collection that is the actual evidence — so a receipt deleted from
+ * `receipts.ts` left a ledger row still drawing the glyph, and a receipt added
+ * left a row that did not. Two copies of one fact, with no reconciler.
+ *
+ * This is inventory §6's rule ("a figure that is computable from another figure
+ * is not stored") applied to a boolean rather than to a total, and it is the
+ * same move `categoryTotal` and `netWorth` already make.
+ *
+ * THE RENDER PATH IS UNCHANGED. `ListItem.hasReceiptIcon` still takes a boolean;
+ * it is now computed at the call site instead of read off the row.
+ *
+ * LINEAR SCAN, DELIBERATELY, AND IT IS NOT A PERFORMANCE OVERSIGHT. Ten receipts
+ * against 23 rows is 230 comparisons for a whole ledger render. An index would
+ * be a second structure to build, memoise and keep in step — the exact shape of
+ * the problem this function exists to remove. Build one when a measurement says
+ * to, not before.
+ */
+export function transactionHasReceipt(
+  receipts: Receipt[],
+  transactionId: string,
+): boolean {
+  return receipts.some((r) => r.transactionId === transactionId)
+}
+
+/** The receipt linked to a transaction, or `undefined`. */
+export function receiptForTransaction(
+  receipts: Receipt[],
+  transactionId: string,
+): Receipt | undefined {
+  return receipts.find((r) => r.transactionId === transactionId)
+}
+
+/**
+ * Receipts newest-capture-first — the order the Receipts tab renders in.
+ *
+ * SORTED ON `capturedAt`, NEVER ON `displayName`. The camera-roll numbers
+ * happen to rise with capture date today (see `receipts.ts`), and sorting on
+ * them would be sorting on a coincidence that the next authored receipt could
+ * break silently. The timestamp is the fact.
+ */
+export function receiptsNewestFirst(receipts: Receipt[]): Receipt[] {
+  return [...receipts].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
+}
+
+/**
+ * One month's worth of receipts, with the heading that month prints.
+ *
+ * Figma's Receipts tab groups by month under a section heading. The groups are
+ * DERIVED from `capturedAt` rather than stored on the record, for the reason a
+ * month is not a property of a receipt: it is a property of how this one screen
+ * chooses to slice them, and a second screen slicing by merchant would have to
+ * ignore a stored field.
+ */
+export interface ReceiptMonthGroup {
+  /** `2025-09` — stable, sortable, and never rendered. */
+  key: string
+  /** `September 2025` — what the section heading prints. */
+  label: string
+  receipts: Receipt[]
+}
+
+/**
+ * Group receipts into months, newest month first, newest receipt first inside.
+ *
+ * THE LABEL IS FORMATTED HERE RATHER THAN IN `format.ts` BECAUSE IT IS NOT A
+ * MONEY OR TIMESTAMP FORMAT — it is this grouping's own heading, and it has
+ * exactly one consumer. If a second surface ever needs "September 2025", move it
+ * then.
+ *
+ * `en-GB` AND AN EXPLICIT LOCALE, NOT THE HOST DEFAULT. The harness pins the
+ * browser locale (`playwright.config.ts`), but the app also runs in a real
+ * browser where the default is the visitor's; a month name that changed language
+ * per visitor would be a baseline that only agrees by luck. Every other formatter
+ * in this app already passes a locale for the same reason.
+ */
+export function groupReceiptsByMonth(receipts: Receipt[]): ReceiptMonthGroup[] {
+  const groups = new Map<string, Receipt[]>()
+  for (const receipt of receiptsNewestFirst(receipts)) {
+    const key = receipt.capturedAt.slice(0, 7)
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(receipt)
+    else groups.set(key, [receipt])
+  }
+  return [...groups.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, items]) => ({
+      key,
+      label: new Date(`${key}-01T00:00:00`).toLocaleDateString('en-GB', {
+        month: 'long',
+        year: 'numeric',
+      }),
+      receipts: items,
+    }))
+}
+
+/**
+ * Receipts matching a free-text needle — the Receipts tab's search box.
+ *
+ * MATCHES `displayName` AND `merchant`, and deliberately NOT `filename`. The
+ * filename is a developer path a user has never seen (`receipt_aeonbig01.jpg`);
+ * letting it match would make the box find things for reasons the user cannot
+ * see on screen. Same shape as the ledger's search, which matches merchant and
+ * method — the two things its rows actually print.
+ */
+export function filterReceipts(receipts: Receipt[], search = ''): Receipt[] {
+  const needle = search.trim().toLowerCase()
+  if (!needle) return receipts
+  return receipts.filter((r) =>
+    `${r.displayName} ${r.merchant}`.toLowerCase().includes(needle),
+  )
 }

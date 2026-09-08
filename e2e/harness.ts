@@ -630,17 +630,26 @@ export const OVERLAY_STATES: WalkState[] = [
   // IT LANDS EXACTLY ON `TRANSACTION_FILTER_APPLIED`, WHICH IS THE POINT
   // rather than a coincidence: this walks the sheet to Figma's own applied
   // filter — This Month, RM 0-500 — over the same 23-row ledger, and the
-  // prepare steps' own assertions prove it arrived. The Apply button reads
-  // "15 results" before it is pressed, and 15 is the number Figma's frame
-  // prints and the count `TRANSACTION_FILTER_APPLIED` produces. So the
-  // constant is still exercised end to end; what changed is that the app no
-  // longer starts there.
+  // prepare steps' own assertions prove it arrived.
+  //
+  // THE BUTTON READS "16 results", AND IT READ "15" UNTIL GATE 48. 15 is what
+  // Figma's frame prints, and the two agreed until that gate reconciled every
+  // receipt-linked amount to its receipt's printed total: Jaya Grocer fell from
+  // 529.75 to 263.20 and crossed under the RM 500 cap. The count is still
+  // exactly what `TRANSACTION_FILTER_APPLIED` produces over the ledger — that
+  // constant is still exercised end to end — but it no longer matches the
+  // frame. See the Gate 48 block in `src/data/transactions.ts`.
   //
   // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 23 rows at open, 18
-  // after This Month (the five August rows drop out), 15 after the RM 500 cap
-  // (three September rows over it drop out). A step that silently failed would
+  // after This Month (the five August rows drop out), 16 after the RM 500 cap
+  // (two September rows over it drop out). A step that silently failed would
   // land on the wrong rung and fail there rather than minting a baseline of a
   // filter nobody asked for.
+  //
+  // THE THIRD RUNG WAS 15 AND THE CAP EXCLUDED THREE ROWS UNTIL GATE 48. Only
+  // that rung moved: the 23 and the 18 are date facts, and Gate 48 moved no
+  // date. THESE NUMBERS ARE DERIVED, NOT DECORATIVE — re-derive them against
+  // `filterTransactions` rather than editing them to make a run go green.
   //
   // IT CONFIRMS, SO NO DIALOG IS OPEN AT CAPTURE — the same shape as the toast
   // state above, and `assertOverlayMatchesState` already expects an empty
@@ -676,12 +685,12 @@ export const OVERLAY_STATES: WalkState[] = [
           action: 'fill',
           value: '500',
           settlesOn: '.mn-sheet__actions .mn-btn',
-          settlesText: 'Apply Filter · 15 results',
+          settlesText: 'Apply Filter · 16 results',
         },
       ],
       confirm: {
         control: '.mn-sheet__actions .mn-btn',
-        controlLabel: 'Apply Filter · 15 results',
+        controlLabel: 'Apply Filter · 16 results',
         // THE CHIP ROW IS THE SETTLE TARGET, DELIBERATELY. The ledger's row
         // count is not directly assertable as text, but the chip row is — and
         // it is also the thing this state exists to cover. Two chips and only
@@ -714,9 +723,14 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 4 OVERLAY_STATES = 25.
-  // (Gate 43 added the fourth, the Transactions filter sheet; it was 3 = 24
-  // from Gate α through Gate 41.)
+  // each, from ROUTES) + 7 non-default tab states + 5 OVERLAY_STATES = 26.
+  // (Gate 43 added the fourth, the Transactions filter sheet, and Gate 44 the
+  // fifth, the filtered ledger; it was 3 = 24 from Gate α through Gate 41.)
+  //
+  // THE CODE HAS BEEN RIGHT SINCE GATE 44 AND THIS COMMENT SAID 4 = 25 UNTIL
+  // GATE 48 — `OVERLAY_STATES` is spread, so the arithmetic was never read by
+  // anything. Re-derive it rather than trusting it:
+  //   awk '/^export const OVERLAY_STATES/,/^]/' e2e/harness.ts | grep -c "^    overlay: {"
   ...OVERLAY_STATES,
 ]
 

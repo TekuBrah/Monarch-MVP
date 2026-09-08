@@ -8,6 +8,7 @@ import {
   clearFacet,
   filterChips,
   filterTransactions,
+  transactionHasReceipt,
 } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
 
@@ -17,9 +18,11 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * THE NINE ROWS FIGMA DRAWS ARE AN OUTPUT, NOT A LIST, AND THAT IS STILL TRUE —
  * WHAT CHANGED AT GATE 44 IS WHEN THE SCREEN IS IN THAT STATE. Every row here
  * comes from `filterTransactions()` over the whole 23-row ledger, and Figma's
- * nine are simply the first nine of the 15 that match `TRANSACTION_FILTER_APPLIED`
- * under an ordinary date-descending sort. Nothing is hand-picked, which is what
- * makes the filter a filter rather than a caption over a fixed list.
+ * nine are simply the first nine of the SIXTEEN that match
+ * `TRANSACTION_FILTER_APPLIED` under an ordinary date-descending sort — it was
+ * 15 until Gate 48 reconciled the receipt-linked amounts and Jaya Grocer fell
+ * under the RM 500 cap. Nothing is hand-picked, which is what makes the filter a
+ * filter rather than a caption over a fixed list.
  *
  * BUT THE SCREEN NO LONGER OPENS THERE. Gate 44 reversed the earlier ruling
  * that it should: the initial filter is `TRANSACTION_FILTER_ALL`, all 23 rows
@@ -43,7 +46,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
-  const { transactions } = useAccounts()
+  const { transactions, receipts } = useAccounts()
   const [search, setSearch] = useState('')
 
   // THE SCREEN OPENS UNFILTERED, AS OF GATE 44. This was
@@ -228,7 +231,8 @@ export function TransactionsLedger() {
               titleInfo={txn.method}
               amount={formatSignedMyr(txn.amount)}
               amountInfo={formatTimestamp(txn.occurredAt)}
-              hasReceiptIcon={txn.hasReceipt}
+              /* DERIVED (Gate 48) — see `HomepageFiat` for the full note. */
+              hasReceiptIcon={transactionHasReceipt(receipts, txn.id)}
             />
           </li>
         ))}

@@ -766,3 +766,202 @@
   color: inherit;
   cursor: pointer;
 }
+
+/* =========================================================================
+   Flow 9 — the Receipts tab and its card (Gate 48)
+
+   LAYOUT ONLY. Every visual inside is a DS export and owns its own appearance;
+   these rules place things. No raw colour, radius, spacing or font value
+   (CLAUDE.md rule 2) — the two `--shadow-*` and `--mapped-*` reads below are
+   token consumption, not invention.
+   ========================================================================= */
+
+/*
+  THE TAB BODY. Structurally the same three-part stack the Transactions tab
+  uses — search, chip row, content — and it takes the same 8px gap for the same
+  reason: Figma's content frame sits flush against the tab band, which owns the
+  separation itself (see `.mvp-transactions` above for the measurement).
+*/
+.mvp-receipts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+}
+
+/*
+  Same shape as `.mvp-transactions__filter-btn`, and for the same reason: reset
+  to nothing so the DS `Field` owns every visual, and the MVP supplies only a
+  hit target and an accessible name.
+
+  IT IS INERT ON THIS TAB (see `ReceiptsTab.tsx`). It still gets the cursor and
+  the reset, because a control that will be wired in a later gate should not
+  change appearance on the day it is wired.
+*/
+.mvp-receipts__filter-btn {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/*
+  The chip row. IDENTICAL MECHANICS TO `.mvp-transactions__chips`, deliberately
+  duplicated rather than shared: the two rows differ in what they mean (that one
+  is derived from an applied filter, this one is decorative) and merging them
+  would create a shared rule whose two consumers are expected to diverge the
+  moment a receipt filter model lands.
+
+  The gutter arrives as padding through `.mvp-column--bleed`, so this rule
+  declares no horizontal padding of its own — a `padding` shorthand here would
+  land later in source order at equal specificity and collapse the class's
+  longhands (the Gate 14 hazard).
+*/
+.mvp-receipts__chips {
+  display: flex;
+  gap: var(--spacing-200);
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.mvp-receipts__chips > li {
+  /* `flex` so the item hugs the chip — a block `li` would box the inline-flex
+     chip in a line box and silently inflate the row. Same measurement as the
+     ledger's chip row. */
+  display: flex;
+  flex: 0 0 auto;
+}
+
+/*
+  ONE MONTH. The heading row and its cards.
+
+  16px between the heading and the first card, which is what the mockup draws
+  and is also what puts the inline "+ Add Receipts" affordance 16px above the
+  list — the placement this gate was required to honour.
+*/
+.mvp-receipts__month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  /* The month heading is content, so it sits on the content column. The cards
+     inside inherit the column from this same box. */
+  padding-left: var(--mvp-gutter);
+  padding-right: var(--mvp-gutter);
+}
+
+/*
+  16px between cards — Figma's gap on the receipts list.
+
+  A SECOND FLEX COLUMN INSIDE THE MONTH RATHER THAN ONE FLAT LIST, because the
+  heading-to-list gap and the card-to-card gap are both 16 today and are not the
+  same measurement. Collapsing them into a single `gap` on the month would make
+  a later change to one silently change the other.
+*/
+.mvp-receipts__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/*
+  Figma `Item/receipts` — the card.
+
+  Every value here is read off the design's own bindings: surface
+  `elevation/default`, padding Scale/200 (8), gap Scale/200 (8), radius `md` =
+  Scale/200 (8), and `Dropshadow_subtlest`.
+
+  `--shadow-subtlest` IS THE TOKEN FOR THAT SHADOW AND IT IS ALREADY IN USE —
+  `.mn-filter-chip` and `.mn-card-balance` both consume it, and the DS's own
+  comment on the FilterChip rule records it as exact against Figma. This is not
+  a new value; it is the same one, read from the same place.
+*/
+.mvp-receipt-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  padding: var(--spacing-200);
+  border-radius: var(--brand-scale-200);
+  background: var(--mapped-surface-elevation-default);
+  box-shadow: var(--shadow-subtlest);
+}
+
+/* The photo + filename + badge row. 48 tall, so the unlinked card is
+   8 + 48 + 8 = 64 — exactly the height Figma draws for `Linked=No`. */
+.mvp-receipt-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+}
+
+/*
+  48x48, radius `sm` = Scale/100 (4), `object-fit: cover`.
+
+  `flex-shrink: 0` IS LOAD-BEARING, not defensive: the filename beside it can be
+  arbitrarily long, and without this the flex row would take the space out of
+  the thumbnail rather than out of the text — which is the wrong element to
+  compress, and would break the 64px card height the design specifies.
+*/
+.mvp-receipt-card__thumb {
+  flex-shrink: 0;
+  width: var(--brand-scale-1100);
+  height: var(--brand-scale-1100);
+  border-radius: var(--brand-scale-100);
+  object-fit: cover;
+}
+
+/*
+  The two text lines. `min-width: 0` so a long filename ellipsises instead of
+  forcing the row wider than the card — a flex item's default `min-width: auto`
+  refuses to shrink below its content, which is the same trap the DS's own
+  `Tabs` note records.
+*/
+.mvp-receipt-card__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mvp-receipt-card__name {
+  color: var(--mapped-text-default-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mvp-receipt-card__date {
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  The divider row: two rules flanking the `link` glyph.
+
+  THE RULES FLEX RATHER THAN CARRYING A WIDTH. Figma draws them as two 145.5-wide
+  rectangles rotated into place, which is how a fixed-width rule gets centred in
+  a fixed-width frame — a construction artifact of a static file, not a visual.
+  `flex: 1 1 0` reproduces the drawn result and survives a viewport change; a
+  transcribed 145.5 would be correct at exactly one width and wrong at 430.
+
+  `.mn-divider--horizontal` is `width: 100%`, so it fills whatever basis the
+  flex line gives it and needs no override — this rule sizes the ITEM, not the
+  component, which is the same distinction `sizing="fill"` draws elsewhere.
+*/
+.mvp-receipt-card__rule {
+  display: flex;
+  align-items: center;
+  /* 10px — Figma's row gap on this divider row. `--brand-scale-250` and NOT a
+     `--spacing-*` alias, because the DS ramp declares no `--spacing-250`: it goes
+     200, 300, 400. Reaching past the alias for a step it does not carry is the
+     precedent `.mvp-transactions__list` already set (`--brand-scale-700`, 28px)
+     and `.mvp-shell__fab` before it. The missing alias is logged DS-side. */
+  gap: var(--brand-scale-250);
+  color: var(--mapped-icon-default-default);
+}
+
+.mvp-receipt-card__rule > .mn-divider {
+  flex: 1 1 0;
+}

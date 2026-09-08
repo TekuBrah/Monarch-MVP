@@ -3023,19 +3023,43 @@ that Gate 13 removed on measurement. **G16** — the DS `Icon` registry has no
 `storefront`/`store` for the trigger's leading slot, which is left empty rather
 than filled with a near-miss glyph.
 
-### The local Figma tools cannot address instance-child nodes
+### Reading an instance child — CORRECTED at Gate 47-B
 
-**`mcp__figma-local__*` constrains `nodeId` to `^\d+[:-]\d+$`**, which rejects
-the `I1266:14329;825:6148` form; only the remote server's schema accepts it, and
-the remote is prohibited. So "read the sheet's child nodes individually" is not
-available locally — sub-node reads go through the DESKTOP SELECTION (call with
-no `nodeId`), and reading one specific child requires Teku to select it.
+**THE GATE 43 VERSION OF THIS SECTION WAS WRONG AND IS SUPERSEDED.** It read
+that `mcp__figma-local__*` "constrains `nodeId` to `^\d+[:-]\d+$`, which rejects
+the `I1266:14329;825:6148` form", concluded that "read the sheet's child nodes
+individually is not available locally", and sent sub-node reads through the
+DESKTOP SELECTION — requiring Teku to select each child by hand.
 
-**THE WHOLE-FRAME READ DID NOT CRASH THE APP; IT OVERFLOWED THE TOOL.**
-`get_design_context` on the selection returned 91,097 characters and was spilled
-to a file rather than into context — which is the SAFE outcome and the one to
-plan for. Extract from that file with `node -e` and `grep`; **`python` is not on
-PATH on this machine** and `npx tsx` must not be used.
+**THE PATTERN IS ADDRESSABLE, AND THE KEY IS WHAT THE TWO HALVES OF THAT ID
+MEAN.** `I<instance path>;<child>` names a child of an instance: the part BEFORE
+the semicolon is the instance chain, and the part AFTER it is the child's node id
+IN THE MAIN COMPONENT — a plain, ordinary `1033:11226` that the local schema
+accepts unchanged. So `I1266:14281;1033:11226` is read by asking for
+**`1033:11226`**, with no selection and no remote server.
+
+**AND THE PAYLOAD FEAR DID NOT MATERIALISE.** Gate 43 recorded a whole-frame
+`get_design_context` returning 91,097 characters and spilling to a file. A
+main-component child is a far smaller node: reads at Gate 47-B stayed well inside
+the tool's limit and returned into context normally.
+
+**WHAT IT DOES NOT BUY.** The main component is not the instance, so anything the
+INSTANCE overrides — a swapped text value, a variant property, a hidden child —
+is not visible this way. For an overridden value the desktop selection is still
+the route. Read geometry, bindings and structure from the main component; read
+overrides from the selection.
+
+**STILL TRUE FROM THE GATE 43 NOTE, and unchanged:** the remote Figma server is
+prohibited; a whole-frame read can overflow the tool and spill to a file, which
+is the SAFE outcome; extract from such a file with `node -e` and `grep`, because
+**`python` is not on PATH on this machine** and `npx tsx` must not be used.
+
+**BOTH MCP FIGMA PATHS CAN BE DOWN AT ONCE, AND GATE 48 RAN THAT WAY.** The local
+server failed to connect (`ConnectionRefused`) and the remote is prohibited, so
+that gate had NO Figma access of any kind and said so rather than reporting
+figures it could not re-derive. A gate that cannot reach Figma can still build
+from a spec someone else read out of it — but it must not claim to have verified
+the spec against the file.
 
 ## Flow 8 part 3 — polish, and two device-level rules (Gate 44)
 
@@ -3714,6 +3738,232 @@ untouched — `theme_color`, `background_color`, `display` and the absent
 pin; the bottom reserve, tap highlight, scrollbars, chip model and Apply copy,
 all shipped at Gate 44; and the three AA shortfalls on the net-worth card ruled
 on at Gate 31.
+
+## Flow 9 part 1 — receipts, and two retired invariants (Gate 48)
+
+No DS re-pin — **v2.2.0 throughout**. Three changes, and the third is the one a
+future session will trip over. **104 baselines -> 104. 28 changed, ZERO added,
+ZERO deleted. The suite stays at 218 tests and |WALK| stays at 26.**
+
+### THE RECEIPTS TAB ADDED NO WALK STATE, AND THE PROMPT PREDICTED IT WOULD
+
+**`/finance [tab:receipts]` HAS BEEN ONE OF THE 26 SINCE THE TAB LIST HAD FIVE
+ENTRIES**, with four committed baselines drawing `ComingSoon`. Flow 9 replaced
+what that state RENDERS; it did not create the state. So the Gate α arithmetic —
+one added walk state costs 4 baseline files and 8 tests — **did not apply here at
+all**, and the gate's own prediction of |WALK| 26 -> 27, 218 -> 226 tests and 4
+minted files was wrong in every term.
+
+The general rule, because this will recur for Budget and Plans: **replacing a
+`ComingSoon` stub CHANGES baselines and ADDS none.** Only a genuinely new route,
+tab or overlay entry moves |WALK|. Re-derive from `--list` rather than assuming
+that new screen work implies new tests:
+
+```bash
+npx playwright test --list --reporter=json
+```
+
+### The pairing was derived from the images, not from the supplied table
+
+A provisional receipt-to-transaction table came with the artwork, flagged as not
+ground truth. It was not used as input. **Every one of the ten receipts prints
+its own DATE AND TIME, and every one matches its transaction's `occurredAt` to
+the MINUTE** — so the join is a timestamp match, and the table was checked
+against it rather than the other way round. Zero disagreements in either
+direction, and the same ten rows that carried the old `hasReceipt: true`.
+
+**THE THREE IKEA RECEIPTS ARE NOT SEPARABLE FROM THEIR FILENAMES.**
+`receipt_ikea01/02/03` carry nothing but an ordinal. They are separated by their
+printed dates — 08 Sept, 06 Sept, 15 Aug. Note the ordinal is NOT chronological,
+which is exactly why guessing from it would have been a coin toss.
+
+**NOTHING MATCHES ON AMOUNT, AND THE LEDGER CONTAINS THE ROW THAT PROVES WHY.**
+`txn-caring-0913` and `txn-kfc-0912` were both exactly -25.50 — a pharmacy and a
+fried-chicken shop, indistinguishable by total. Do not write a matcher that pairs
+by amount.
+
+### `Transaction.hasReceipt` IS DELETED. Derive it.
+
+It was a stored boolean on 10 of 23 rows with nothing reconciling it against the
+receipts that are the actual evidence. `transactionHasReceipt(receipts, id)` in
+`derive.ts` answers it now; `ListItem.hasReceiptIcon` still takes a boolean and
+the call sites compute it. Two render sites moved: `HomepageFiat` and
+`TransactionsLedger`.
+
+### TWO INVARIANTS WERE RETIRED ON PURPOSE. DO NOT RESTORE EITHER.
+
+Reconciling every linked amount to its receipt's printed total moved **nine of
+the ten** rows (`txn-aia-0825` was already -320.00). Both consequences below were
+computed BEFORE the edit, not discovered after.
+
+**1 · THE RM 1,800.00 GROCERIES CHAIN IS GONE. `categoryTotal('groceries')` NOW
+RETURNS 1118.46.** That was the one hand-authored Figma total that survived being
+recomputed, cited in four files. Four of its five rows moved.
+
+**IT HAS NO RUNTIME CONSUMER — checked, not assumed.** `categoryTotal` is
+exported and read by no screen, so nothing renders differently. What was lost is
+a documented check, not a pixel.
+
+**2 · `TRANSACTION_FILTER_APPLIED` NOW MATCHES 16 ROWS, NOT 15.**
+`txn-jaya-0901` fell from -529.75 to -263.20 and crossed under that filter's
+RM 500 cap, entering a set it used to sit just outside. **Figma's own button
+prints "Apply Filter (15)", so the code and the frame no longer agree — and the
+FRAME is the stale party.** The nine rows the frame draws are still the top nine;
+a tenth now also qualifies.
+
+**THE HARNESS LADDER MOVED WITH IT.** `OVERLAY_STATES`' `applied` entry asserts
+23 -> 18 -> 16; only the third rung moved, because the first two are date facts
+and this gate moved no date. Those numbers are DERIVED — re-derive them against
+`filterTransactions` rather than editing them to make a run go green.
+
+**Neither may be restored by moving an amount away from its receipt.** The
+receipts are photographs of what was paid; the ledger figures were authored at
+Gate 41 before any receipt existed.
+
+### `Item/receipts` measures 140 tall, not the 132 that was predicted
+
+Measured through a Playwright-launched Chromium at pinned viewport and DPR 2,
+animations finished. Identical at 375 and 430, in both themes:
+
+| variant | measured |
+|---|---|
+| `Linked=No` | **343 x 64** — exactly Figma's spec |
+| `Linked=Yes` | **343 x 140** |
+
+The linked card decomposes exactly, and the sum is the point:
+
+```
+8 pad + 48 head + 8 gap + 16 rule + 8 gap + 44 ListItem + 8 pad = 140
+```
+
+**THE PREDICTED 132 CAME FROM Figma's 124 PLUS THE 8px THE FULL-SIZE `ListItem`
+ADDS (44 - 36). THAT ARITHMETIC REQUIRES FIGMA'S DIVIDER ROW TO BE 8 TALL, AND
+THE ROW CONTAINS A 16x16 GLYPH.** One of the two is wrong and this gate could not
+adjudicate it: **both MCP Figma paths were down** — the local server refused the
+connection and the remote is prohibited — so 124 could not be re-decomposed
+against the file. 140 is what the stated spec produces; if 132 is wanted, the
+missing 8px is in the divider row and someone with Figma access has to say where.
+
+**THE UNLINKED VARIANT IS UNREACHABLE FROM THE DATA** — all ten receipts ship
+linked — so its 64 was measured by suppressing the two linked-only children of a
+real card in the DOM. `display: none` removes them from layout exactly as the
+conditional does. No source file was touched to take that reading.
+
+**THE 145.5-WIDE RULES REPRODUCED THEMSELVES.** Figma draws the two dividers as
+145.5-wide rectangles rotated into place; here they are ordinary flex children at
+`flex: 1 1 0`, and at 375 they render **145.5 each** — `(327 - 16 glyph - 20 gaps)
+/ 2`. The rotation in the file is a construction artifact of a fixed-width frame,
+not a visual, and the flex version also survives 430 (173 each) where a
+transcribed 145.5 would not.
+
+**THE `ListItem` IS THE SHIPPED ONE AT FULL SIZE, PER THE RULING.** Figma draws a
+detached 36-tall lookalike with a 32px mark; it is not reproduced. No `density`
+prop was proposed to the DS, no `.mn-item` internals were touched, no local copy
+was made.
+
+### `hasReceiptIcon` DEFAULTS TO TRUE, AND OMITTING IT DRAWS THE GLYPH
+
+`ListItem.tsx:51`. The nested transaction row inside a receipt card was drawing a
+`receipt_long` mark — restating the card it sits in — because the prop was
+omitted rather than set. **Caught by looking at the render, not by reading the
+type**: `hasReceiptIcon?: boolean` says nothing about the default.
+
+This is the third instance of the same trap in this repo. `SectionHeader` records
+the first: omitting `Link`'s `iconBefore` drew an `open_in_new` glyph nobody
+asked for. **A default parameter fires on `undefined`, and "I did not pass it" IS
+`undefined`.** When a DS prop is optional and the design says the thing is
+absent, pass the value; do not omit the prop.
+
+### `AccountsProvider` holds two collections and one unused mutator
+
+`transactions` became `useState`, `receipts` joined it as a **peer collection in
+the same provider**, and `addTransaction` exists with **zero call sites**.
+
+**RECEIPTS ARE A PEER RATHER THAN A THIRD PROVIDER because nearly every Flow 9
+surface reads BOTH** — the Receipts tab pairs a receipt with its transaction, and
+every ledger row asks whether one exists. They join on `Transaction.id`, and a
+provider boundary running through the middle of a join is a boundary in the wrong
+place.
+
+**THE ZERO-CALLER MUTATOR IS DELIBERATE AND IS NOT DEAD CODE TO BE SWEPT.** It is
+the seam Flow 9's later gates write through; building it beside its first caller
+is how a provider grows mutators nobody designed the shape of. It appends and
+does nothing else — no sort, no id generation, no validation.
+
+**IT IS STILL NOT A STORE.** No reducer, no action vocabulary, no persistence, no
+undo. The day a flow needs two collections to change together — create a
+transaction AND link a receipt in one action — is the day this becomes a reducer,
+and every screen still reads `useAccounts()` so no screen moves.
+
+### Receipts are not a media SLOT, and `MediaSlot` was not widened
+
+`src/config/media.ts` models a slot as ONE logical name resolving to ONE url a
+customisation flow can swap. Receipts are ten files whose identity is product
+data — each record names its own — so there is no "the receipt image" to point a
+slot at. Widening the union would have given it a `placeholder`, a `consumable`
+flag and a `mediaUrl()` entry, none of which mean anything for a collection.
+
+`receiptUrl(filename)` is a plain resolver that owns the `/media/receipts/`
+prefix, so the file's own rule — **no component writes a literal `/media/...`
+path** — holds without bending the slot model.
+
+**NO PLACEHOLDER AND NO FALLBACK, DELIBERATELY.** A slot falls back because it can
+legitimately be unset. A receipt whose file is missing is a DATA DEFECT, and
+substituting a placeholder would hide it.
+
+### The assets — measured, and the brief's figure was out by 2.3x
+
+Ten JPEGs, **511,554 bytes total (499.6 KB)**, long edge **513–531px**, largest
+file 54.9 KB. The guidance accompanying them said ~1200px long edge and under
+~300 KB each; the size half was met with room to spare and **the resolution half
+was wrong** — they are less than half the stated size. Nothing was resized.
+
+**AMPLE FOR THE 48x48 THUMBNAIL (96 device px at DPR 2, ~3x oversupply) AND
+UNDER-RESOLVED FOR A FULL-BLEED VIEWER** (860 device px needed at 430, ~2.9x
+short). If Gate 50's bulk modal or a later viewer shows a receipt full-screen,
+these must be re-exported from source — an artwork step, not a build step. See
+`public/media/receipts/README.md`.
+
+**`*.jpg binary` WAS ADDED TO `.gitattributes`.** These are the repo's first
+tracked JPEGs. Git's content heuristic classifies them correctly under
+`* text=auto` today — measured — but that is a detection rather than a
+declaration, and the whole point of that block is that the baselines and media
+must not depend on one.
+
+### What this gate changed
+
+`src/data/types.ts` (`Receipt`, `ReceiptLineItem`, `hasReceipt` removed),
+`src/data/receipts.ts` (new), `src/data/transactions.ts` (nine amounts, the flag
+gone), `src/data/derive.ts` (five receipt functions, two corrected comment
+blocks), `src/config/media.ts` (`receiptUrl`),
+`src/accounts/AccountsProvider.tsx`, `src/flows/finance/ReceiptsTab.tsx` (new),
+`src/flows/finance/components/ReceiptCard.tsx` (new),
+`src/flows/finance/FinanceScreen.tsx` (the stub swapped),
+`src/flows/finance/finance.css` (+9 rules), `src/flows/homepage/HomepageFiat.tsx`
+and `src/flows/finance/TransactionsLedger.tsx` (the derived glyph),
+`e2e/harness.ts` (the ladder, and the stale `WALK` comment), `.gitattributes`,
+ten assets plus a README, and 28 re-minted baselines.
+
+**No spec was added and no test count moved.** `lint:tokens` scans 46 files (was
+41) and reports the same **3** pre-existing exemptions — no new raw value entered
+the tree.
+
+### Deliberately not in scope
+
+The bulk-add modal (Gate 50) — "+ Add Receipts" is wired to NOTHING and says so;
+unlink/relink and the `link_off` glyph (Gate 51, already registered); a receipt
+FILTER model — the two chips this screen draws are labels, and when a filter
+arrives they become derived the way the ledger's are rather than growing a second
+bespoke model; an empty state, which the mockup does not draw; the two hidden
+chip slots; the DS repo and the pin; branch deletion; and the three AA shortfalls
+on the net-worth card ruled on at Gate 31.
+
+**ONE DIVERGENCE MEASURED AND LEFT ALONE:** the inline "+ Add Receipts" renders
+**106.23 x 16** against the brief's 116 x 20. It is `SectionHeader`'s `Link`,
+which exposes no `size` — deliberately, per that component's own note — and it
+serves six other call sites. Changing it there would move headings across the
+app; overriding it here would be the equal-specificity override on DS geometry
+that Gate 13 removed on measurement. Registered, not fixed.
 
 ## Known conditions of this setup
 

@@ -9,7 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { mediaUrl } from '../../config/media'
-import { recentTransactions } from '../../data/derive'
+import { recentTransactions, transactionHasReceipt } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
 import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insights'
 import { SectionHeader } from '../../components/SectionHeader'
@@ -30,7 +30,7 @@ import { BalanceCard } from './components/BalanceCard'
  */
 export function HomepageFiat() {
   const navigate = useNavigate()
-  const { primaryAccount, transactions } = useAccounts()
+  const { primaryAccount, transactions, receipts } = useAccounts()
 
   // A slice of the one ledger, newest first — not a second hand-authored list.
   const recent = recentTransactions(transactions, 2)
@@ -59,7 +59,15 @@ export function HomepageFiat() {
                 titleInfo={txn.method}
                 amount={formatSignedMyr(txn.amount)}
                 amountInfo={formatTimestamp(txn.occurredAt)}
-                hasReceiptIcon={txn.hasReceipt}
+                /*
+                  DERIVED, NOT READ OFF THE ROW (Gate 48).
+                  `Transaction.hasReceipt` was a stored boolean and is gone; the
+                  receipt collection is the only statement of this fact now, so
+                  a receipt added or removed in `receipts.ts` changes this glyph
+                  with nothing else to update. See `types.ts` where the field
+                  used to be declared.
+                */
+                hasReceiptIcon={transactionHasReceipt(receipts, txn.id)}
               />
             </li>
           ))}

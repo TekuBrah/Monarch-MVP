@@ -42,3 +42,21 @@
 
 *.png  binary
 *.webp binary
+
+# GATE 48 — `*.jpg`, the first JPEGs this repo has tracked.
+#
+# Ten receipt photographs under `public/media/receipts/`. Before this line they
+# were governed by `* text=auto` alone, which relies on git's CONTENT heuristic
+# to notice they are binary. That heuristic is correct today — measured:
+# `git check-attr` reported `text: auto` and git did not convert them — but it
+# is a detection, not a declaration, and the whole point of the block above is
+# that the baselines and the media must not depend on one.
+#
+# Census re-derived at Gate 48 (`git ls-files`), superseding the Gate 25 numbers
+# above rather than contradicting them — the repo has grown since:
+#   *.png   109  (104 e2e baselines + 4 app icons + public/media/academy/...)
+#   *.webp    2  (public/media)
+#   *.jpg    10  (public/media/receipts) — NEW
+# `*.svg` is still deliberately absent, for the reason stated above.
+
+*.jpg  binary

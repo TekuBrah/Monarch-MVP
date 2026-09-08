@@ -4,6 +4,7 @@ import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
 import { mediaUrl } from '../../config/media'
 import { FinanceOverview } from './FinanceOverview'
+import { ReceiptsTab } from './ReceiptsTab'
 import { TransactionsLedger } from './TransactionsLedger'
 import './finance.css'
 
@@ -103,13 +104,14 @@ export function FinanceScreen() {
           icon="icon_automatic_savings"
         />
       )}
-      {selected === 'receipts' && (
-        <ComingSoon
-          title="Receipts"
-          description="Receipts captured and matched to your transactions."
-          icon="receipt_long"
-        />
-      )}
+      {/*
+        Flow 9 (Gate 48) replaced this tab's `ComingSoon` stub. THE WALK STATE
+        WAS ALREADY THERE — `/finance [tab:receipts]` has been one of the 26 since
+        the tab list did, with four committed baselines — so this gate CHANGES
+        four baselines and adds none. `ComingSoon` is still imported and still
+        used by Budget and Plans above.
+      */}
+      {selected === 'receipts' && <ReceiptsTab />}
     </div>
   )
 }
