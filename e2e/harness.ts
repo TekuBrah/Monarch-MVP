@@ -702,6 +702,71 @@ export const OVERLAY_STATES: WalkState[] = [
       },
     },
   },
+  // ─────────────────────────────────────────────────────────────── Gate 49 ──
+  // THE TRANSACTION DETAIL SHEET, IN BOTH ITS STATES.
+  //
+  // TWO ENTRIES AND NOT ONE, because the two states differ in DATA, not in
+  // interaction: the sheet renders its receipt block when a receipt is linked to
+  // the row that opened it and its prompt block when none is. There is no
+  // control that toggles between them, so the only way to reach both is to open
+  // the sheet from two different rows — which is exactly what an enumerated
+  // overlay list is for, and is the same argument that made overlay an
+  // enumeration rather than an axis in the first place.
+  //
+  // THE CONTROL IS THE LEDGER ROW ITSELF. `ListItem` renders a real `<button>`
+  // when it is given `onClick` (`ListItem.tsx:113`), so this opens the sheet the
+  // way a user does rather than by setting `detailId` — the discipline that makes
+  // `gotoRoute` click the theme toggle instead of writing `data-theme`.
+  //
+  // THE ROWS ARE SELECTED BY THEIR AMOUNT, NOT BY `nth-child`. All 23 amounts in
+  // the ledger are distinct (checked), so `:has-text("RM 250.75")` names exactly
+  // one row and goes on naming it if the sort order or the row count changes. An
+  // index would silently open a different row the day a transaction is added
+  // above it; this fails on the accessible-name assertion instead.
+  //
+  // `controlLabel` IS THE ROW'S WHOLE ANNOUNCED NAME, and it is long because that
+  // is genuinely what a screen reader reads out — `ListItem` exposes no
+  // `ariaLabel`, so the name is computed from the four text nodes it renders.
+  // Asserting it in full is a stronger check than asserting a slug would be: it
+  // proves the right row opened AND that the row still prints what it printed
+  // when the baseline was minted. Both strings were MEASURED off the live DOM,
+  // not assembled from the formatters.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'detail',
+      // `txn-aeon-0915` — Aeon Big, -250.75, 15 Sept. NO RECEIPT, and its
+      // absence is derived: `receipts.ts` holds no record pointing at this id,
+      // so `transactionHasReceipt` answers false and the sheet draws its prompt
+      // block. It also SHARES A MERCHANT with `txn-aeon-0904` below, which is
+      // what makes the two baselines a controlled pair — they differ by the
+      // receipt and by nothing else, not even the merchant mark.
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+    },
+  },
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'detail-linked',
+      // `txn-aeon-0904` — Aeon Big, -429.19, 4 Sept, linked to
+      // `receipt-aeonbig01`. Eight line items, so this is also the state that
+      // proves the panel caps at the viewport and its content scrolls: Figma
+      // draws this frame 966 tall and no phone is.
+      //
+      // IT IS ALSO THE WORST OF THE SIX RECEIPTS WHOSE PRINTED SUBTOTAL DOES NOT
+      // EQUAL ITS OWN LINE ITEMS — 204.80 derived against a printed 404.90 — so
+      // this baseline records a Subtotal + Sales Tax that visibly misses the
+      // Total by RM 200.10. That is the artwork defect made visible, not a
+      // rendering bug; see `TransactionDetailSheet.tsx` and `receipts.ts`.
+      control: '.mvp-transactions__list > li:has-text("RM 429.19") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 429.19 04 Sept, 13:45',
+      title: 'Transaction details',
+    },
+  },
 ]
 
 /**
@@ -723,9 +788,10 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 5 OVERLAY_STATES = 26.
-  // (Gate 43 added the fourth, the Transactions filter sheet, and Gate 44 the
-  // fifth, the filtered ledger; it was 3 = 24 from Gate α through Gate 41.)
+  // each, from ROUTES) + 7 non-default tab states + 7 OVERLAY_STATES = 28.
+  // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
+  // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
+  // sheet in each of its two states. It was 3 = 24 from Gate α through Gate 41.)
   //
   // THE CODE HAS BEEN RIGHT SINCE GATE 44 AND THIS COMMENT SAID 4 = 25 UNTIL
   // GATE 48 — `OVERLAY_STATES` is spread, so the arithmetic was never read by
@@ -1040,6 +1106,52 @@ export async function assertPointerIsParked(page: Page, where: string): Promise<
 }
 
 /**
+ * Return the page to the top of the document — Gate 49.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY AN OVERLAY STATE HAS TO DO THIS, AND WHY NO EARLIER ONE NEEDED TO.
+ *
+ * `openOverlay` clicks a real control, and Playwright SCROLLS A CONTROL INTO
+ * VIEW before clicking it. Every overlay control up to Gate 48 sat above the
+ * fold — three buttons in a fixed actions bar and one icon inside the search
+ * field — so the page was still at scroll 0 when the baseline was taken, and
+ * nothing had to say so.
+ *
+ * GATE 49’S CONTROL IS A LEDGER ROW, AND ONE OF THE TWO IS THE FOURTEENTH.
+ * Measured across all seven overlay states at 375: six capture at `scrollY` 0
+ * and `detail-linked` captured at **790**.
+ *
+ * THAT MATTERS BECAUSE THE CAPTURE IS `fullPage`. A `position: fixed` panel is
+ * composited at the CURRENT scroll offset, so the sheet landed 790px down a
+ * 2026-tall image with half the ledger undimmed above it — and, worse, the
+ * baseline then depended on the rendered height of all thirteen rows above the
+ * control. A row above changing height would move the sheet in a baseline that
+ * has nothing to do with that row.
+ *
+ * IT IS A NO-OP FOR THE SIX, MEASURED RATHER THAN ASSERTED — all six already
+ * read `scrollY` 0 before this existed, so this reset cannot move their
+ * baselines and did not.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CALLED AT BOTH EXITS, for exactly the reason `parkPointer` is: a state with
+ * no confirm step returns early. Nothing between the two calls can scroll the
+ * window — every `prepare` and `confirm` control lives inside a fixed dialog —
+ * but the second call costs nothing and removes the need to keep believing that.
+ *
+ * NOT A REPLACEMENT FOR SCROLLING THE APP. This scrolls the DOCUMENT, which is
+ * the surface the overlay is drawn over. A sheet’s own internal scroll region
+ * is untouched, and a future state that wants to capture one mid-scroll should
+ * declare a `prepare` step rather than lean on this.
+ */
+async function resetPageScroll(page: Page): Promise<void> {
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await expect(
+    await page.evaluate(() => window.scrollY),
+    'the document would not return to the top, so this overlay’s fullPage capture ' +
+      'would composite its fixed panel at an arbitrary offset',
+  ).toBe(0)
+}
+
+/**
  * Navigate to a route in a given theme, with time pinned and fonts settled.
  *
  * THEME IS SET THROUGH THE APP'S OWN TOGGLE, not by writing `data-theme` on
@@ -1227,6 +1339,7 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
   // park at the end would miss the first; one at the top would be undone by
   // the confirm click.
   await parkPointer(page)
+  await resetPageScroll(page)
 
   /*
     THE PREPARE STEPS. Each one locates a real control, asserts it carries the
@@ -1319,6 +1432,7 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
   await page.waitForFunction(() => document.fonts.status === 'loaded')
 
   await parkPointer(page)
+  await resetPageScroll(page)
 }
 
 /**

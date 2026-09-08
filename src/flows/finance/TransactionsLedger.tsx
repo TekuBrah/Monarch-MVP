@@ -3,11 +3,13 @@ import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import { TransactionFilterSheet } from './TransactionFilterSheet'
+import { TransactionDetailSheet } from './components/TransactionDetailSheet'
 import {
   TRANSACTION_FILTER_ALL,
   clearFacet,
   filterChips,
   filterTransactions,
+  receiptForTransaction,
   transactionHasReceipt,
 } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
@@ -46,7 +48,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
-  const { transactions, receipts } = useAccounts()
+  const { transactions, receipts, unlinkReceipt } = useAccounts()
   const [search, setSearch] = useState('')
 
   // THE SCREEN OPENS UNFILTERED, AS OF GATE 44. This was
@@ -75,6 +77,24 @@ export function TransactionsLedger() {
 
   // Whether the sheet is on screen. It holds NO filter value of its own.
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+
+  /*
+    WHICH ROW'S DETAIL SHEET IS OPEN — AN ID, NEVER THE TRANSACTION OBJECT.
+
+    Holding the row itself would freeze a COPY of it at the moment it was
+    tapped, and the sheet writes: unlinking a receipt re-renders the provider,
+    and a captured object would go on describing the pre-unlink world behind an
+    open sheet. The id is re-resolved against the live `transactions` on every
+    render, so the sheet always shows the row as it currently is.
+
+    IT IS RESOLVED AGAINST THE WHOLE LEDGER, NOT AGAINST `rows`. A future gate
+    that lets the sheet edit something the filter reads — an amount, a date —
+    would otherwise unmount the open sheet the instant the row stopped matching.
+    `transactions` cannot do that.
+  */
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const detail = detailId ? transactions.find((t) => t.id === detailId) : undefined
+  const detailReceipt = detail ? receiptForTransaction(receipts, detail.id) : undefined
 
   const rows = useMemo(
     () => filterTransactions(transactions, filter, search),
@@ -233,6 +253,24 @@ export function TransactionsLedger() {
               amountInfo={formatTimestamp(txn.occurredAt)}
               /* DERIVED (Gate 48) — see `HomepageFiat` for the full note. */
               hasReceiptIcon={transactionHasReceipt(receipts, txn.id)}
+              /*
+                GATE 49 — THE ROW OPENS THE DETAIL SHEET, AND `ListItem` ALREADY
+                MODELS THAT. Passing `onClick` makes the DS render a `<button>`
+                instead of a `<div>`; no wrapper, no `role`, no `tabIndex` and no
+                keydown handler is written here, because a real button is
+                focusable, Enter- and Space-activated and announced already.
+
+                THE ROW IS THE ONLY AFFORDANCE. Figma draws no chevron on these
+                rows and `ListItem` only offers one on its `profile` type, so
+                adding one would be inventing an affordance the design does not
+                have — and `hasChevron` is silently ignored on `default` anyway.
+
+                THE HOMEPAGE'S TWO-ROW SLICE IS DELIBERATELY NOT WIRED. Flow 1's
+                rows are a summary, the sheet belongs to the ledger, and giving
+                the Homepage a second entry point would change a screen this
+                gate has no mandate over — and would move four more baselines.
+              */
+              onClick={() => setDetailId(txn.id)}
             />
           </li>
         ))}
@@ -260,6 +298,30 @@ export function TransactionsLedger() {
           search={search}
           onApply={(next) => setFilter(() => next)}
           onClose={() => setIsFilterOpen(false)}
+        />
+      )}
+
+      {/*
+        THE DETAIL SHEET, MOUNTED ONLY WHILE A ROW IS SELECTED — the same shape
+        as the filter sheet above, and for one of the same two reasons. The
+        filter sheet mounts conditionally because a fresh mount is what seeds its
+        draft; this one holds no draft, but `Sheet` restores focus to the
+        previously-focused element on UNMOUNT, so mounting per-selection is what
+        returns the user to the row they opened rather than to wherever focus
+        happened to be.
+
+        THE TWO SHEETS CANNOT BOTH BE OPEN. Opening the detail sheet requires
+        clicking a ledger row, and while the filter sheet is open its scrim
+        covers them — so this is a property of the interaction, not a rule
+        enforced here. If a later gate opens a sheet from inside another, that
+        is the point to model a stack rather than two booleans.
+      */}
+      {detail && (
+        <TransactionDetailSheet
+          transaction={detail}
+          receipt={detailReceipt}
+          onUnlink={unlinkReceipt}
+          onClose={() => setDetailId(null)}
         />
       )}
     </div>

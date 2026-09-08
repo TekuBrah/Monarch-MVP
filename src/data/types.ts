@@ -511,6 +511,30 @@ export interface Receipt {
    * derived from this is the linked transaction's amount — see `receipts.ts`.
    */
   total: Amount
+  /**
+   * The receipt's printed SST line, positive, in MYR — or `null` where the
+   * paper prints no tax line at all (AIA, the one insurance receipt).
+   *
+   * TRANSCRIBED, LIKE `total`, AND FOR THE SAME REASON. It is a figure the
+   * till printed, not one the app is entitled to compute: deriving it as
+   * `total - subtotal` would produce a number the paper does not show, and on
+   * the six receipts whose lines do not sum to their printed subtotal it
+   * would produce a visibly non-6% "6% SST".
+   *
+   * THE SUBTOTAL IS THE OPPOSITE CASE AND IS **NOT** STORED. It is the sum of
+   * `lineItems`, computed by `receiptSubtotal()` in `derive.ts` — the §6 rule
+   * applied where it genuinely applies. Storing a printed subtotal beside the
+   * lines it is supposed to be the sum of is the same fact written twice,
+   * which is exactly what `Transaction.hasReceipt` was.
+   *
+   * SO THE THREE FIGURES DO NOT CLOSE ON SIX OF THE TEN, AND AS OF GATE 49
+   * THAT IS VISIBLE ON SCREEN. `receipts.ts` records every discrepancy; the
+   * detail sheet renders derived subtotal, printed tax and printed total one
+   * under the other, so an artwork defect that was previously unreachable is
+   * now something a reader can see. That is a deliberate consequence of the
+   * derive ruling, not an oversight — see `TransactionDetailSheet.tsx`.
+   */
+  tax: Amount | null
   currency: CurrencyCode
   lineItems: ReceiptLineItem[]
   /** `Transaction.id`, or `null` for an unlinked capture. */

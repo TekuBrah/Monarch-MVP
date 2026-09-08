@@ -3965,6 +3965,379 @@ serves six other call sites. Changing it there would move headings across the
 app; overriding it here would be the equal-specificity override on DS geometry
 that Gate 13 removed on measurement. Registered, not fixed.
 
+## Flow 9 part 2 — the transaction detail sheet (Gate 49)
+
+No DS re-pin — **v2.2.0 throughout**. One new overlay, in two states, plus the
+first mutator in this app that a user can actually fire. **|WALK| 26 -> 28,
+baselines 104 -> 112 (8 added, ZERO changed, ZERO deleted), tests 218 -> 236.**
+
+### The suite arithmetic held exactly, and it was derived three ways
+
+Gate 48's prediction was wrong in every term because it assumed a walk state
+that already existed. This one was derived from disk before the run and the
+three identities agree:
+
+| | |
+|---|---|
+| `awk` over the `OVERLAY_STATES` block, `grep -c "^    overlay: {"` | **7** |
+| so \|WALK\| = 14 routes + 7 non-default tabs + 7 overlays | **28** |
+| `visual.spec.ts` from `--list` = \|WALK\| x 2 viewports x 2 themes | **112** = 28 x 4 |
+| `routes` = \|WALK\| x 2 + 1 | **57** |
+| `section-headers` = \|WALK\| x 2 + 2 | **58** |
+| `baselines` / `frame-cap` / `tile-fill` / **`unlink`** | 3 / 2 / 2 / **2** |
+| | **236** |
+
+**TWO ADDED WALK STATES COST 8 BASELINE FILES AND 16 TESTS**, which is the Gate α
+table's per-state figure (4 files, 8 tests) doubled — its third independent
+confirmation.
+
+**`unlink.spec.ts` IS THE ONLY TERM THE GATE α TABLE DOES NOT PREDICT.** It is a
+new spec file with no walk axis and no baseline, the same shape as
+`frame-cap.spec.ts` and `tile-fill.spec.ts`. 236 = 234 + 2.
+
+### Two overlay states, because the two states differ in DATA
+
+`OVERLAY_STATES` went 5 -> 7. Both entries open the same component; what makes
+them two states is which ROW opened it, because the sheet renders its receipt
+block when a receipt is linked to that row and its prompt block when none is.
+**There is no control that toggles between them**, so no `prepare` step could
+reach the second from the first — which is the same argument that made overlay
+an enumeration rather than an axis in the first place.
+
+| id | row | why |
+|---|---|---|
+| `detail` | `txn-aeon-0915`, -250.75, 15 Sept | no receipt — derived, not flagged |
+| `detail-linked` | `txn-aeon-0904`, -429.19, 4 Sept | `receipt-aeonbig01`, 8 line items |
+
+**THEY SHARE A MERCHANT ON PURPOSE.** Both rows are Aeon Big, so the two
+baselines differ by the receipt and by nothing else — not the mark, not the
+method, not the merchant string. A controlled pair rather than two screens.
+
+**THE ROWS ARE SELECTED BY AMOUNT, NOT BY `nth-child`.** All 23 amounts in the
+ledger are distinct, so `:has-text("RM 429.19")` names exactly one row and goes
+on naming it if the sort order or the row count changes. An index would silently
+open a different row the day a transaction is added above it.
+
+**THE CONTROL IS THE LEDGER ROW ITSELF**, opened by a real click.
+`ListItem` renders a `<button>` when given `onClick`, so `controlLabel` is the
+row's whole computed accessible name — `Aeon Big Card Payment -RM 429.19 04
+Sept, 13:45`. Both strings were MEASURED off the live DOM via `ariaSnapshot()`,
+not assembled from the formatters, and the first attempt got one wrong: the date
+renders `04 Sept`, not `4 Sept`.
+
+### THE POINTER WAS PARKED; THE SCROLL POSITION WAS NOT
+
+**THIS IS THE GATE 38B FINDING IN A SECOND DIMENSION, AND IT IS THE MOST
+REUSABLE THING HERE.** Playwright scrolls a control into view before clicking
+it. Every overlay control up to Gate 48 sat above the fold — three buttons in a
+fixed actions bar and one icon in a search field — so the page was still at
+scroll 0 at capture and nothing had to say so.
+
+`detail-linked`'s control is the **fourteenth ledger row**. Measured across all
+seven overlay states at 375: six capture at `scrollY` **0**, that one at **790**.
+
+**A `fullPage` CAPTURE COMPOSITES A `position: fixed` PANEL AT THE CURRENT
+SCROLL OFFSET.** So the first mint of those four baselines put the sheet 790px
+down a 2026-tall image, with half the ledger undimmed above it — and made the
+baseline depend on the rendered height of all thirteen rows above the control. A
+row above changing height would have moved a sheet that has nothing to do with
+that row.
+
+`resetPageScroll(page)` in `e2e/harness.ts` closes it, called at **both exits of
+`openOverlay`** for exactly the reason `parkPointer` is: a state with no confirm
+step returns early. **It is a no-op for the six, measured rather than asserted** —
+all six already read 0 — and the four `detail-linked` baselines were re-minted
+under it. After the fix all seven read 0.
+
+**IT SCROLLS THE DOCUMENT, NOT THE SHEET.** A sheet's own internal scroll region
+is untouched, and a future state wanting to capture one mid-scroll should
+declare a `prepare` step rather than lean on this.
+
+### The panel caps at the viewport and scrolls internally — with NO CSS
+
+Figma draws the linked frame **966 tall**: panel at y=69, height 897, home
+indicator travelling to y=941 while the Blanket stays 812 (register S2). That is
+a drawing convention for "taller than one screen", not a spec for a 966px phone.
+
+**`Sheet` ALREADY DOES BOTH AND NO PROP WAS PASSED.** `.mn-sheet__panel` caps at
+`calc(100dvh - var(--brand-scale-1100))` and `.mn-sheet__content` is the one
+scroll region with the bar hidden in both spellings. The DEFAULT `sizing="hug"`
+therefore gives the short state its natural height and the tall one the cap.
+**`sizing="fill"` would have forced the SHORT state to the cap too**, which is
+the opposite of what Figma draws — so the sibling sheet's prop is exactly the
+wrong thing to copy here.
+
+Measured through a Playwright-launched Chromium at DPR 2, animations settled.
+**Every figure identical in light and dark:**
+
+| | 375 | 430 |
+|---|---|---|
+| `detail` panel top / height | 198 / **614** | 222 / **590** |
+| `detail` content client / scroll | 491 / **491** — no overflow | 467 / **467** — no overflow |
+| `detail-linked` panel top / height | 48 / **764** | 48 / **764** |
+| `detail-linked` content client / scroll | 641 / **775** | 641 / **775** |
+| `scrollTop = 200` clamps to | **134** | **134** |
+| `offsetWidth - clientWidth` | **0** | **0** |
+
+764 is the cap exactly: 812 − `--brand-scale-1100` (48). The overflow is
+775 − 641 = **134**, and setting `scrollTop` past it clamps there, which is what
+proves the region genuinely scrolls rather than merely reporting a tall
+`scrollHeight`.
+
+**THE ZERO SCROLLBAR WIDTH IS NOT EVIDENCE ABOUT A REAL DEVICE.** Headless
+Chromium reserves no gutter at any `scrollbar-width` (Gate 44 measured both
+configurations at 0), so this number would read 0 either way. The declaration is
+what is in force, twice over — `src/index.css` on `*`, and `Sheet.css` on its
+own content region.
+
+**THE UNLINKED STATE'S 614 IS 35px SHORTER THAN FIGMA'S 649.** Divergence
+recorded, not chased: it is a hug height, so it is whatever the DS's own paddings
+and the real copy produce, and forcing it would mean inventing a height.
+
+### `ListItem` needed nothing to become a button — proven by control
+
+Passing `onClick` switches the root from `<div>` to `<button>`. **No MVP-local
+reset was written and none is needed**: `.mn-list-item` already declares
+`background: none`, `border: none`, `padding: 0`, `font-family: inherit`,
+`text-align: left` and `width: 100%`, plus a `:focus-visible` ring, and Gate 44
+kills the tap flash globally on `html`.
+
+**A `width: 100%` RULE WAS WRITTEN HERE AND THEN DELETED.** The reasoning — a
+`<button>` is `width: auto` where a `<div>` is a filled block — is true of a bare
+button and false of this one, because `ListItem.css:5` sets `width: 100%` on the
+base class and that is not scoped to a tag. The rule would have been an
+equal-VALUE MVP override on DS geometry: invisible while the two agree and a
+silent mask over any future DS change, which is the exact rule Gate 13 removed on
+measurement.
+
+**THE CONTROL, both viewports, both themes:** with and without `onClick`, the
+row's width (343 / 398), height (44), top (238), left (16), the last row's bottom
+(1866), the document height (2026), padding, border, background, font-family and
+text-align were **identical**. The sole delta is the container's computed
+`font-size`, **16px -> 13.333px** — the UA button default — and it paints nothing
+because every text node inside carries an explicit `type-*` class. Predicted zero
+existing baselines would move; **zero did**.
+
+### The subtotal is derived, and on six of ten receipts it visibly does not close
+
+`receiptSubtotal()` sums `lineItems`. `tax` — new on `Receipt` this gate — and
+`total` are transcribed from what each receipt prints.
+
+**`receipt-aeonbig01` IS IN A PERMANENT BASELINE SHOWING RM 204.80 + RM 24.29
+AGAINST A TOTAL OF RM 429.19.** That is RM 200.10 apart and it is on screen.
+
+**IT IS THE RULING WORKING, NOT A RENDERING BUG, AND THE ALTERNATIVE WAS
+WORSE.** Storing each receipt's printed subtotal would make the arithmetic close
+by writing down a number the line items directly beneath it contradict — the same
+two-sources-for-one-fact shape that killed `Transaction.hasReceipt` at Gate 48.
+`receipts.ts` has recorded all six discrepancies since Gate 48; what changed is
+that they are now reachable.
+
+**THE STALE CLAIM IN `receipts.ts` WAS CORRECTED RATHER THAN LEFT.** Its header
+read that "nothing in the app sums `lineItems`, so no screen can surface the
+discrepancy". True when written, false as of this gate.
+
+**THE WORST CASE WAS CHOSEN FOR THE BASELINE DELIBERATELY.** Three receipts
+reconcile exactly (Caring, IKEA 01 and 02) and binding the linked state to one of
+them would have shown a case that closes while the six that do not went unseen —
+the "a sample is not a bound" error this project keeps re-recording. **Reversing
+it is one `accountId`-shaped edit** (change which row the overlay state opens and
+re-mint 4 files), so it is a judgment call rather than a blocker.
+
+### The flow inventory's §6b is STALE against shipped code, and is NOT being edited
+
+**RECORDED HERE ON 2026-09-09 BECAUSE `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` IS
+RULED LEFT ALONE, PERMANENTLY.** That document records what the FIGMA says, not
+what was built. Gate 49 edited it, and the edit was reverted in full — the file
+is byte-identical to `230d51a` and `git status` shows it clean. The finding
+survives here instead, which is the only place a divergence between the mockup
+and the code belongs.
+
+**§6b, "Every figure that must be computed", carries these three rows verbatim:**
+
+```
+| Receipt subtotal | `sum(items)`     | F9 A2 — **makes it structurally impossible** |
+| Receipt tax      | `subtotal × rate`| F9 A2 |
+| Receipt total    | `subtotal + tax` | F9 A2 |
+```
+
+**TWO OF THE THREE ARE NOW CONTRADICTED BY SHIPPED CODE, AND THE REASON
+GENERALISES.** That table's rule is "a figure computable from another figure is
+not stored". A receipt breaks the premise: it is not an internal computation, it
+is a TRANSCRIPTION OF A PHOTOGRAPH, and the paper prints its own subtotal, its
+own SST line and its own total. Deriving `total` as `subtotal + tax` — or `tax`
+as `subtotal × 0.06` — would mean putting a number on screen that the
+photographed receipt does not show.
+
+| §6b row | shipped | where |
+|---|---|---|
+| Receipt subtotal | **DERIVED, as written** | `receiptSubtotal()`, Gate 49 |
+| Receipt tax | **STORED** — contradicts §6b | `Receipt.tax`, Gate 49 |
+| Receipt total | **STORED** — contradicts §6b | `Receipt.total`, Gate 48 |
+
+`subtotal` stayed derived and that asymmetry is the whole point: the app HAS the
+line items, so summing them is honest, whereas it has no authority to compute a
+tax or a total.
+
+**THE CONSEQUENCE IS VISIBLE AND IS ACCEPTED.** Six of the ten delivered receipts
+print a subtotal their own line items do not sum to — inventory F9 A2, measured
+to the cent in `receipts.ts` — so on those six the detail sheet shows a Subtotal
+plus a Sales Tax that does not reach the Total. On `receipt-aeonbig01`, which is
+in a committed baseline, the gap is **RM 200.10**. That is the artwork defect
+made reachable, not a rendering bug, and closing it means re-transcribing the
+images.
+
+**DO NOT "FIX" §6b.** It is not wrong about the design; it is a statement about
+the mockup that the build later diverged from, which is exactly the kind of
+history that document exists to hold. This note is the reconciliation.
+
+### Three further mockup divergences, recorded here for the same reason
+
+All three were found by BUILDING `1266:14278` / `1266:14279` rather than by
+reading them. **None was written into the flow inventory** — same ruling as above.
+
+| | what Figma draws | what shipped |
+|---|---|---|
+| **"Monarch Trust"** | the Payment Method row's value | **not a name in this app's data.** Every bank holding carries `bank: 'Monarch Bank'`. `transactionAccount()` derives the real institution; see the section below |
+| **an unconfigured `Field`** | at the foot of the Content region in BOTH frames (`1029:9930`, `1033:11475`, 343x44) | **NOT BUILT.** Its placeholder is the literal string `Placeholder`, it has no label and nothing refers to it — a dropped instance. Reproducing it would put an inert, unlabelled text input in a detail sheet |
+| **`list_alt` and `credit_card`** | the two Transaction info glyphs | **absent from the DS registry** (register G26/G27). Both rows draw the glyph the DATA already carries. When the assets ship, which glyph to use is a DESIGN CALL — Figma's names the FIELD, the shipped one names the VALUE |
+
+**`tax` IS `Amount | null`.** `receipt-aia01` prints one premium and one total
+and no SST line, so it carries `null` and the sheet omits the row rather than
+printing "RM 0.00" — a zero the paper does not assert. All nine transcribed
+figures were checked against 6% of that receipt's own printed subtotal and agree
+to the cent.
+
+### The unlink write, and why it earned a spec of its own
+
+`unlinkReceipt(receiptId)` is the **first mutator in `AccountsProvider` with a
+caller**. `addTransaction` is still the zero-caller seam Gate 48 built; do not
+sweep it as dead code.
+
+**IT SETS `transactionId` TO `null` AND DELETES NOTHING.** The capture keeps its
+image, its name and its line items and stays in the library — rendering
+`ReceiptCard`'s already-typed `Linked=No` variant for the first time, since no
+record in `receipts.ts` ships unlinked.
+
+**THE AMOUNT DOES NOT REVERT, BY RULING.** Gate 48 corrected every linked amount
+to its receipt's printed total because the receipt is a photograph of what was
+actually paid. Unlinking does not un-photograph it.
+
+**THE SHEET FLIPS IN PLACE RATHER THAN CLOSING.** `TransactionsLedger` holds the
+selected row as an **id**, not as the transaction object, and re-resolves both
+the row and its receipt from the live collections on every render — so the open
+sheet becomes the no-receipt state and the user sees what their click did. A
+captured object would have gone on describing the pre-unlink world behind an open
+sheet.
+
+**`e2e/unlink.spec.ts` (2 tests, no baseline) IS THE DERIVED RULING'S ONLY LOAD
+TEST.** Gate 48 deleted `Transaction.hasReceipt` on the argument that one fact
+stored twice will eventually disagree with itself, and **nothing exercised that
+argument, because nothing wrote to `receipts`**. This is the first moment it
+could be vindicated or shown to be theatre. Under the old stored flag the test
+fails unless the mutator also writes the ledger.
+
+What it asserts, in both themes, through real controls only: 23 rows and **10**
+receipt glyphs before; the linked row draws one and the same-merchant unlinked
+row does not; the sheet opens on its linked state; after the click the sheet
+re-renders as the prompt state and still prints **-RM 429.19**; the row's glyph
+is gone, the total is **9**, the row count is still 23; and on the Receipts tab
+the card is still present with no "Linked" pill and no nested row. **A screenshot
+cannot express "and then a different screen changed", which is why this is a
+spec and not a walk state.**
+
+### Three new DS gaps, all missing icons — G25, G26, G27
+
+All `component-gap`, the same shape as the now-closed G16, and one DS commit
+closes all three. Registry counted at **103** entries under the pinned v2.2.0,
+derived rather than quoted.
+
+| | glyph | disposition here |
+|---|---|---|
+| **G25** | `link_off` | **"Unlink receipt" ships TEXT-ONLY.** `link` exists and MUST NOT be substituted — it states the OPPOSITE of what the button does |
+| **G26** | `list_alt` | the Category row draws the category's own `TRANSACTION_CATEGORIES[].icon` |
+| **G27** | `credit_card` | the Payment Method row draws the bank holding's own `icon` (`icon_bank`) |
+
+**THE TWO DISPOSITIONS DIFFER BECAUSE THE CASES DO.** For G25 nothing in the app
+means "unlink", so anything placed there is a guess. For G26/G27 the app already
+stores an icon for the thing the row is about, so the row is drawn from data —
+which is not the "near-miss glyph" G16 forbade. What is forbidden is picking a
+lookalike for the DRAWN glyph, not deriving a correct one from the record.
+
+**THE PROMPT FOR THIS GATE SAID THE `link_off` GAP WAS "ALREADY REGISTERED". IT
+WAS NOT** — grep over the register returned zero matches for `link_off` and zero
+for "Unlink". All three were opened here.
+
+**THEY START AT G25, AND G24 IS DELIBERATELY SKIPPED.** G24 was reserved at Gate
+46 for the applied-chip row, measured, found not to be a gap, and RELEASED — and
+it stays released. Gate 49 first took it and that was reverted: a number that the
+register records as "never allocated" must not be quietly re-used, because the
+sentence explaining why it is absent is itself the evidence that the chip row was
+checked. Reusing it would delete that evidence. **So the register's numbering has
+a permanent hole at 24**, and the next entry after this gate is G28.
+
+**`TRANSACTION_CATEGORIES` HAS ITS FIRST CONSUMER**, after being exported unused
+since Gate 41.
+
+### Figma's "Monarch Trust" is a name this app does not have
+
+The Payment Method row prints an institution. Every bank holding here carries
+`bank: 'Monarch Bank'`; nothing anywhere is called Monarch Trust. So
+`transactionAccount()` derives the real institution — bank holding first (it is
+the only source that knows the institution rather than the account nickname
+"Main"), then the crypto wallet's own name for the two `marg` rows. Transcribing
+Figma's string would have put a name on screen that the rest of the app
+contradicts.
+
+### Two things in the mockup were deliberately not built
+
+- **A bare `Field` at the bottom of the Content region in BOTH frames**
+  (`1029:9930` / `1033:11475`, 343x44). Its placeholder is the literal string
+  `Placeholder` and it has no label and no configured content — an
+  un-customised component instance the designer dropped in. Reproducing it would
+  put an inert, unlabelled text input in a detail sheet.
+- **The trailing `<dd>` values are as drawn; the ROW HEIGHTS are padding, not a
+  fixed 40.** Figma centres 24px of content in a 40-tall row; `padding: 8px 0`
+  reproduces it and lets a value that wraps grow the row instead of overflowing.
+
+### What this gate changed
+
+`src/data/types.ts` (`Receipt.tax`), `src/data/receipts.ts` (ten transcribed
+`tax` values plus a corrected header claim), `src/data/derive.ts`
+(`receiptSubtotal`, `transactionCategory`, `transactionAccount`),
+`src/accounts/AccountsProvider.tsx` (`unlinkReceipt`),
+`src/flows/finance/components/TransactionDetailSheet.tsx` (new),
+`src/flows/finance/TransactionsLedger.tsx` (the row `onClick` and the mount),
+`src/flows/finance/finance.css` (+22 rules), `e2e/harness.ts` (two overlay
+states, `resetPageScroll` and its two call sites), `e2e/unlink.spec.ts` (new),
+the gap register (G25-G27 and the tally), and 8 minted baselines.
+
+`lint:tokens` scans 47 files (was 46) and reports the same **3** pre-existing
+exemptions — **no new exemption entered the tree.** A first draft of the card
+border wrote a raw `1px` with a `token-exempt` marker claiming the ramp had no
+1px step; the linter caught it (Gate 18 scoping — the marker must sit on the
+literal's own line) and re-reading the ramp showed the claim was simply false.
+`--brand-scale-25` is 1px.
+
+**THE BASELINE GUARD'S ARM 1 IS RED AT THIS GATE'S CLOSE AND THAT IS CORRECT.**
+Eight untracked baselines, so the suite closes at **235 passed / 1 failed**.
+Arm 2 stays green because nothing was renamed or deleted (the Gate α correction),
+and arm 3 stays green because every file on disk is a name the walk asks for.
+Staging is Teku's.
+
+### Deliberately not in scope
+
+The action sheet behind "Add Receipt" (Gate 50, register G2 — the only fully
+uncomponentised interactive surface in the five flows); the receipt viewer behind
+"View" (Gate 51); RELINKING an unlinked receipt (Gate 51 — `unlinkReceipt` is
+one-way and there is no UI that could produce a relink target); **G14, the
+absent background scroll lock** — still open, the ledger still scrolls behind an
+open sheet, and it is deferred because `overflow: hidden` on `<body>` interacts
+with the full-page screenshot harness and the fix is DS-side anyway; the
+Homepage's two-row transaction slice, which is a summary and is deliberately not
+a second entry point to this sheet; persistence; the DS repo and the pin; and the
+three AA shortfalls on the net-worth card ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

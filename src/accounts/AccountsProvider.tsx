@@ -63,11 +63,16 @@ import type {
  * The two collections join on `Transaction.id`; a provider boundary running
  * through the middle of a join is a boundary in the wrong place.
  *
- * IT IS `useState` TOO, AND FOR ONE STATED REASON. Gate 51 unlinks and relinks a
- * receipt, which writes `Receipt.transactionId`. Seeding it as state now costs
- * nothing and means that gate adds a mutator rather than restructuring the
- * provider — the same argument as `addTransaction`, and it is why no receipt
- * mutator is written here either.
+ * IT IS `useState` TOO, AND THAT BET PAID OFF ONE GATE EARLY. The reason given
+ * at Gate 48 was that Gate 51 would need to write `Receipt.transactionId`, so
+ * seeding it as state then meant that gate would add a mutator rather than
+ * restructure the provider. GATE 49 IS THE GATE THAT NEEDED IT: the detail
+ * sheet's "Unlink receipt" writes exactly that field, and it cost one
+ * `useCallback` and one line in the value object. Nothing else moved.
+ *
+ * SO THERE ARE NOW TWO MUTATORS AND THEY ARE NOT IN THE SAME STATE.
+ * `unlinkReceipt` has a caller; `addTransaction` still has none and is still
+ * the seam described above. Do not sweep it as dead code.
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT IS STILL NOT SOLVED, stated so it is not mistaken for solved. This is a
  * provider holding two arrays, not a store. There is no reducer, no action
@@ -121,6 +126,35 @@ interface AccountsContextValue {
    * owns identity), no validation.
    */
   addTransaction: (transaction: Transaction) => void
+  /**
+   * Break a receipt’s link to its transaction. Gate 49.
+   *
+   * THE FIRST MUTATOR IN THIS PROVIDER WITH A CALLER — `addTransaction` above
+   * is still the seam it was built as. The detail sheet’s "Unlink receipt"
+   * button is the only call site.
+   *
+   * IT SETS `transactionId` TO `null` AND DELETES NOTHING. The capture still
+   * exists, still has its image and its line items, and still appears on the
+   * Receipts tab — as the `Linked=No` variant `ReceiptCard` already draws and
+   * `Receipt.transactionId` was already typed for. Unlinking is not deleting.
+   *
+   * THE TRANSACTION’S AMOUNT DOES NOT MOVE, BY RULING. Gate 48 corrected every
+   * linked amount to its receipt’s printed total on the argument that the
+   * receipt is a photograph of what was actually paid. Unlinking does not
+   * un-photograph it, so reverting the amount would be re-asserting a figure
+   * that was authored before any receipt existed and is known to be wrong.
+   *
+   * WHAT DOES CHANGE, AND IT IS THE WHOLE POINT OF THE DERIVED RULING: every
+   * surface that asks `transactionHasReceipt(receipts, id)` re-answers on the
+   * next render with nothing else updated. The ledger row’s `receipt_long`
+   * glyph disappears because the question is asked of this collection, not of
+   * a boolean on the row. Under the pre-Gate-48 stored flag this mutator would
+   * have had to write BOTH collections and would have been one forgotten line
+   * away from a row claiming a receipt that no longer claims it.
+   *
+   * NOT PERSISTED. Reload restores the seed, like every other write here.
+   */
+  unlinkReceipt: (receiptId: string) => void
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
@@ -130,13 +164,24 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   // once per mount, so `TRANSACTIONS` and `RECEIPTS` remain the single authored
   // source and this holds the live version of each.
   const [transactions, setTransactions] = useState<Transaction[]>(TRANSACTIONS)
-  const [receipts] = useState<Receipt[]>(RECEIPTS)
+  const [receipts, setReceipts] = useState<Receipt[]>(RECEIPTS)
 
   // `useCallback` so the context value's identity is stable across renders that
   // do not change the ledger — without it the memo below rebuilds every render
   // and every consumer re-renders with it.
   const addTransaction = useCallback((transaction: Transaction) => {
     setTransactions((current) => [...current, transaction])
+  }, [])
+
+  // IMMUTABLE UPDATE, AND THE `map` IS NOT STYLE. Mutating the record in place
+  // would leave the array identity unchanged, so the `useMemo` below would not
+  // rebuild and no consumer would re-render — the write would land in the data
+  // and never reach a pixel. Replacing the one record and the array is what
+  // makes the ledger row’s glyph disappear.
+  const unlinkReceipt = useCallback((receiptId: string) => {
+    setReceipts((current) =>
+      current.map((r) => (r.id === receiptId ? { ...r, transactionId: null } : r)),
+    )
   }, [])
 
   const value = useMemo<AccountsContextValue>(() => {
@@ -156,8 +201,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       netWorthSeries: netWorthSeries(HOLDINGS, CRYPTO_HOLDINGS),
       receipts,
       addTransaction,
+      unlinkReceipt,
     }
-  }, [transactions, receipts, addTransaction])
+  }, [transactions, receipts, addTransaction, unlinkReceipt])
 
   return (
     <AccountsContext.Provider value={value}>{children}</AccountsContext.Provider>

@@ -928,6 +928,88 @@ and 309px in the other. Gate 41's scroll provision is real and simply is not
 needed at two payees; it would engage at a higher count, which is not a defect
 today and was not fabricated into one.
 
+---
+
+### Three further entries — G25, G26 and G27, all `Icon`, opened at MVP Gate 49 building the transaction detail sheet
+
+**ALL THREE ARE THE SAME SHAPE AS G16 — AN ASSET GAP, NOT A PROP GAP.** The
+composition point exists in every case; there is simply nothing in the registry
+to put in it. G16 (`storefront`) is the precedent and it closed in one DS
+release by adding one SVG.
+
+**THE REGISTRY WAS COUNTED, NOT QUOTED.** 103 entries at the pinned v2.2.0,
+derived by counting the `ICONS` object's own assignment-shaped keys rather than
+trusting a prose figure — the correction G16 already records against its own
+stale 101/102:
+
+```bash
+git show v2.2.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"
+```
+
+| # | Component | Demand | Tag | Flows | Evidence |
+|---|---|---|---|---|---|
+| **G25** | `Icon` | **`link_off`** — the "Unlink receipt" affordance's leading glyph. | `component-gap` | **9** | Figma draws `link_off` on the second of the two buttons on the receipt card (`1266:14279`, Frame 544). The registry carries **`link` and no `link_off`** (grep over `Icon/icons.ts`: 1 and 0). **`link` MUST NOT BE SUBSTITUTED** — it is not a near-miss, it states the OPPOSITE of what the button does, which is worse on a destructive-ish control than no glyph at all. Shipped TEXT-ONLY at Gate 49; the sibling "View" button keeps its `visibility` glyph, which does exist |
+| **G26** | `Icon` | **`list_alt`** — the Transaction info block's Category row. | `component-gap` | **9** | Figma binds it at `I1266:14278;1028:10035`, read directly as main-component node `1028:10035` -> child `list_alt`. Zero matches in the registry. **WORKED AROUND FROM DATA, NOT SUBSTITUTED**: the row draws the CATEGORY'S OWN glyph off `TRANSACTION_CATEGORIES[].icon` (`icon_grocery` for the walked row), which this app already stores for exactly this purpose. The divergence is that Figma's glyph names the FIELD and this one names the VALUE |
+| **G27** | `Icon` | **`credit_card`** — the Transaction info block's Payment Method row. | `component-gap` | **9** | Figma binds it at `I1266:14278;1028:10048` -> `1028:10048` -> child `credit_card`. Zero matches. Worked around the same way as G26: the row draws the bank holding's own `icon` field, which is `icon_bank`. Note the same row's VALUE also diverges — Figma prints "Monarch Trust", a name that exists nowhere in this app's data, and the app derives `bank` (`"Monarch Bank"`) instead. That half is a Figma-side copy defect, not a DS gap |
+
+#### The reason all three are `component-gap` and none is `prop-gap`
+
+`Icon` exposes `name` and `size` and nothing else, and `IconName` is
+`keyof typeof ICONS` — so an absent asset is not a prop that is missing, it is a
+NAME THAT DOES NOT TYPE-CHECK. There is no seam a consumer could take, and no
+`className`, `style` or slot through which one could be supplied from here.
+That is what makes the MVP-side answer "leave it out or derive a real one",
+never "inject one".
+
+#### Two dispositions, and the difference is deliberate
+
+**G25 SHIPS WITH THE SLOT EMPTY. G26 AND G27 SHIP WITH A DERIVED GLYPH.** That
+is not inconsistency; the two cases differ in whether the app already holds a
+true answer.
+
+- For **G25** there is no other glyph in the app that means "unlink". Anything
+  put there would be a guess, and the nearest candidate actively misleads.
+- For **G26** and **G27** the app already stores an icon for the thing the row
+  is about — `TRANSACTION_CATEGORIES[].icon` and `BankHolding.icon` — so the row
+  can be drawn from data rather than from a substitution table. That is the
+  distinction G16 drew when it refused a "near-miss glyph": what is forbidden is
+  picking a lookalike for the DRAWN one, not deriving a correct one from the
+  record the row describes.
+
+**WHEN THE THREE ASSETS SHIP, ONLY G25 CHANGES THE MVP.** G26 and G27 would then
+be a design call — keep the data-derived glyph, which names the VALUE, or switch
+to Figma's generic one, which names the FIELD.
+
+**THAT CALL IS RECORDED IN `CLAUDE.md`, NOT IN THE FLOW INVENTORY.** Gate 49 wrote
+it into `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` and the edit was REVERTED IN FULL:
+that document records what the Figma says, not what was built, and is ruled left
+alone permanently. A divergence between the mockup and the code belongs in
+`CLAUDE.md`.
+
+#### Not registered, because it is not a gap
+
+**`Sheet` NEEDED NOTHING FOR THE 966-TALL FRAME.** Figma's linked state is drawn
+897 of panel on an 812 Blanket (register **S2**), and the ruling was to cap at
+the viewport and scroll internally. `Sheet` already does both, with no prop
+passed: `.mn-sheet__panel` caps at `calc(100dvh - var(--brand-scale-1100))` and
+`.mn-sheet__content` is the one scroll region with the bar hidden in both
+spellings. Measured at Gate 49 through a Playwright-launched Chromium at DPR 2,
+identical in both themes and at both viewports — panel **764** (= 812 − 48, the
+cap exactly), content `clientHeight` **641** against `scrollHeight` **775**,
+`scrollTop = 200` clamping to **134**, and `offsetWidth − clientWidth` = **0**.
+The unlinked state hugs at **614** (375) / **590** (430) and does not overflow.
+
+**`ListItem` NEEDED NOTHING TO BECOME A BUTTON EITHER.** `onClick` already
+switches the root element, and `.mn-list-item` already carries the whole reset —
+`background: none`, `border: none`, `padding: 0`, `font-family: inherit`,
+`text-align: left`, `width: 100%` — plus a `:focus-visible` ring. Proven by
+negative control at Gate 49: with and without `onClick`, every geometric and
+painted property of the row was identical at both viewports in both themes, the
+sole delta being the container's computed `font-size` (16px -> 13.333px), which
+paints nothing because every text node inside carries an explicit `type-*` class.
+An MVP-local `width: 100%` was written, measured against `ListItem.css:5`, found
+redundant and deleted.
+
 ## Summary
 
 - **28 of 28 screens read.** **40 DS components read in source**, `.tsx` and `.css`.
@@ -962,19 +1044,37 @@ today and was not fabricated into one.
   | + G21 (`prop-gap`) | 21 | 2 | 16 | 1 | 2 |
   | + G22 (`prop-gap`) | 22 | 2 | 17 | 1 | 2 |
   | + G23 (`prop-gap`) | **23** | **2** | **18** | **1** | **2** |
+  | + G25 (`component-gap`), Gate 49 | 24 | 3 | 18 | 1 | 2 |
+  | + G26 (`component-gap`), Gate 49 | 25 | 4 | 18 | 1 | 2 |
+  | + G27 (`component-gap`), Gate 49 | **26** | **5** | **18** | **1** | **2** |
 
-  2 + 18 + 1 + 2 = **23** ✓. Closures do not decrement these columns — a closed
-  entry keeps its tag and its number, so **G16** is 1 of the 2 `component-gap`,
+  5 + 18 + 1 + 2 = **26** ✓. Closures do not decrement these columns — a closed
+  entry keeps its tag and its number, so **G16** is 1 of the 5 `component-gap`,
   **G15** 1 of the 18 `prop-gap`, and **G18** 1 of the 2 `shape-mismatch`.
-  Open by tag: 1 `component-gap`, 17 `prop-gap`, 1 `token-gap`, 1
-  `shape-mismatch` = **20 open**, and 20 + 3 closed = 23 ✓.
+  Open by tag: 4 `component-gap`, 17 `prop-gap`, 1 `token-gap`, 1
+  `shape-mismatch` = **23 open**, and 23 + 3 closed = 26 ✓.
 
-  **THERE IS NO G24, AND THE NUMBER IS NOT MISSING — IT WAS NEVER ALLOCATED.**
-  A G24 was provisionally reserved at Gate 46 for the applied-chip row, on the
-  expectation that a two-merchant chip would overflow it. **It was measured and
+  **THE `component-gap` COLUMN WENT 2 -> 5 IN ONE GATE, AND ALL THREE ARE
+  MISSING ICONS.** That is worth reading as a single item rather than three:
+  G25, G26 and G27 are three SVGs, the same shape as the now-closed G16, and one
+  DS commit closes all of them. The column's other two members — G1 (a
+  bottom-anchored sheet, closed) and G2 (the iOS action sheet, still open and
+  blocking Gate 50) — are real components and are not comparable in size.
+
+  **THE ENTRY COUNT IS 26 AND THE HIGHEST NUMBER IS G27, BECAUSE 24 IS A
+  PERMANENT HOLE.** G24 was reserved at Gate 46 for the applied-chip row, on the
+  expectation that a two-merchant chip would overflow it; **it was measured and
   it does not** — 375/375 and 430/430, `scrollLeft` capped at 0, row height
-  unchanged, dismiss affordance hit-tested and fully named. The evidence is
-  written up under G23 above. **The next entry opened is G24**, not G25.
+  unchanged, dismiss affordance hit-tested and fully named. That evidence is
+  written up under G23 above, and the paragraph four sections up recording that
+  there is no G24 STAYS TRUE.
+
+  **GATE 49 FIRST TOOK G24 AND THAT WAS REVERTED.** Re-using a released number
+  looks tidy and is not: the sentence explaining why 24 is absent is itself the
+  evidence that the chip row was checked and cleared, and re-allocating the
+  number deletes that evidence. So the numbering skips it, the entry count and
+  the highest number differ by one from here on, and **the next entry opened is
+  G28**.
 
   **FIVE OF THE SIX ENTRIES ADDED THIS GATE ARE `Select` OR ITS RELATIVES** —
   G19 (`SelectTransfer`/`SelectWalletAccount` width), G21 (`aria-expanded`),

@@ -1,13 +1,17 @@
-import type { TrendDirection } from '@monarch/design-system'
+import type { IconName, TrendDirection } from '@monarch/design-system'
 import { TODAY, addMonths, addYears, daysInMonth, yearsBetween } from './today'
+import { TRANSACTION_CATEGORIES } from './transactions'
 import type {
   Amount,
   CryptoHolding,
   FixedDepositHolding,
   GoldHolding,
   Holding,
+  BankHolding,
+  CryptoWallet,
   Receipt,
   Transaction,
+  TransactionCategory,
   TransactionCategoryId,
   TransactionMethod,
 } from './types'
@@ -894,4 +898,103 @@ export function filterReceipts(receipts: Receipt[], search = ''): Receipt[] {
   return receipts.filter((r) =>
     `${r.displayName} ${r.merchant}`.toLowerCase().includes(needle),
   )
+}
+
+/* ────────────────────────────────────────────────────────────── Gate 49 ──
+   THE TRANSACTION DETAIL SHEET'S DERIVATIONS.
+
+   Every figure the sheet prints that is not read straight off a record comes
+   from this block. None of them is stored anywhere, which is the point: a
+   subtotal beside the lines it sums, or an account name beside the account id
+   it names, is the same fact written twice.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * A receipt's subtotal — THE SUM OF ITS OWN LINE ITEMS, never a stored figure.
+ *
+ * SIX OF THE TEN DELIVERED RECEIPTS PRINT A SUBTOTAL THIS DOES NOT EQUAL, and
+ * that disagreement is the reason to derive rather than transcribe. See the
+ * header of `receipts.ts`, which records every discrepancy to the cent: the
+ * printed subtotals are artwork, the line items are the only itemisation the
+ * app has, and a screen that showed a subtotal contradicted by the lines
+ * directly beneath it would be worse than one that shows an honest sum.
+ *
+ * ROUNDED TO THE CENT ON THE WAY OUT. Adding 8 float prices produces the usual
+ * binary residue — 204.79999999999998 on `receipt-aeonbig01`, measured — and
+ * `formatMyr` would render it correctly anyway, but a function that returns an
+ * `Amount` should return one a caller can compare. Every price in the data has
+ * at most two decimals, so cent-rounding loses nothing real.
+ *
+ * QUANTITY IS NOT A MULTIPLIER. `ReceiptLineItem.quantity` is a printed string
+ * ("1", and one day "0.482 kg @ RM 34.90"), and `price` is the LINE total the
+ * till printed — see the note on the type. Multiplying here would double-count
+ * every line.
+ */
+export function receiptSubtotal(receipt: Receipt): Amount {
+  const sum = receipt.lineItems.reduce((acc, item) => acc + item.price, 0)
+  return Math.round(sum * 100) / 100
+}
+
+/**
+ * The category record a transaction belongs to.
+ *
+ * RETURNS THE RECORD, NOT THE LABEL, because the detail sheet needs both halves
+ * — the label for the value column and `icon` for the row's leading glyph. A
+ * function per field would look up the same row twice.
+ *
+ * `TRANSACTION_CATEGORIES` HAD ZERO CONSUMERS UNTIL THIS GATE. It was exported
+ * at Gate 41 and read by nothing, which CLAUDE.md recorded as an open thread;
+ * the detail sheet is its first.
+ */
+export function transactionCategory(
+  categoryId: TransactionCategoryId,
+): TransactionCategory | undefined {
+  return TRANSACTION_CATEGORIES.find((c) => c.id === categoryId)
+}
+
+/**
+ * What the detail sheet's "Payment Method" row prints, and the glyph beside it.
+ *
+ * FIGMA PRINTS "Monarch Trust", WHICH IS NOT A NAME IN THIS APP'S DATA. Every
+ * bank holding here carries `bank: 'Monarch Bank'`; nothing anywhere is called
+ * Monarch Trust. So the string is a mockup invention and this derives the real
+ * institution instead of transcribing a name the rest of the app would
+ * contradict.
+ *
+ * THREE SOURCES, TRIED IN ORDER, AND THE ORDER IS NOT ARBITRARY:
+ *
+ *   1. a BANK holding whose `accountId` matches   -> its `bank` + its own `icon`
+ *   2. a CRYPTO WALLET whose id matches           -> its `name`
+ *   3. nothing matches                            -> `undefined`
+ *
+ * A bank holding is tried first because it is the only source that knows the
+ * INSTITUTION as opposed to the account's nickname ("Main"), and the row is
+ * labelled by the institution in the design. The two crypto rows in the ledger
+ * (`accountId: 'marg'`) fall to the wallet, which is the wallet's own name.
+ *
+ * THE GLYPH COMES FROM THE HOLDING'S OWN `icon` FIELD, not from a mapping
+ * written here. Figma draws `credit_card`, which the DS registry does not
+ * carry (register G27); the bank holding already declares `icon_bank`, so the
+ * data answers the question rather than a substitution table guessing at it.
+ * Wallets carry a `logo`, not an `icon`, so they take `icon_wallet` — the DS's
+ * own name for exactly that thing, and the name `CRYPTO_WALLETS` would use if
+ * the type had the field.
+ */
+export function transactionAccount(
+  holdings: Holding[],
+  wallets: CryptoWallet[],
+  accountId: string,
+): { label: string; icon: IconName } | undefined {
+  // THE DISCRIMINANT, NOT A DUCK-TYPE CHECK. `BankHolding` is the only member
+  // of the `Holding` union carrying `accountId` and `bank`, and `type` is what
+  // the union discriminates on — so narrowing on it gives the compiler the
+  // same guarantee the predicate asserts, instead of asking it to trust one.
+  const bank = holdings.find(
+    (h): h is BankHolding =>
+      (h.type === 'bank' || h.type === 'joint') && h.accountId === accountId,
+  )
+  if (bank) return { label: bank.bank, icon: bank.icon }
+  const wallet = wallets.find((w) => w.id === accountId)
+  if (wallet) return { label: wallet.name, icon: 'icon_wallet' }
+  return undefined
 }

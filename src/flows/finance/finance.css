@@ -965,3 +965,294 @@
 .mvp-receipt-card__rule > .mn-divider {
   flex: 1 1 0;
 }
+
+/* ─────────────────────────────────────────────────────────── Gate 49 ──
+   THE TRANSACTION DETAIL SHEET.
+
+   LAYOUT ONLY. Every surface, border, radius and type ramp below is a DS token
+   or a DS `type-*` utility; nothing here paints an appearance the DS could
+   paint. The sheet itself — its viewport cap, its scroll region and its hidden
+   scrollbar — is `Sheet`'s, and no rule in this block touches `.mn-sheet*`.
+
+   NO WIDTH IS DECLARED ANYWHERE IN IT. Figma draws the content at 343 inside a
+   375 frame, which is `.mn-sheet__content`'s own 16px padding doing the work;
+   transcribing 343 would be correct at exactly one viewport and wrong at 430 —
+   the mistake `ReceiptCard`'s 145.5 dividers already record.
+   ────────────────────────────────────────────────────────────────────── */
+
+/*
+  THE SUMMARY. Figma Frame 529 is 343×124: a 56-tall identity row, a 16px gap,
+  and a 52-tall amount box.
+*/
+.mvp-txn-detail__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+.mvp-txn-detail__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-300);
+}
+
+/*
+  `min-width: 0` so a long merchant name ellipsises instead of forcing the row
+  wider than the sheet — a flex item's default `min-width: auto` refuses to
+  shrink below its content, the same trap `.mvp-receipt-card__meta` records.
+*/
+.mvp-txn-detail__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mvp-txn-detail__merchant {
+  color: var(--mapped-text-default-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mvp-txn-detail__method {
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  THE AMOUNT BOX, THE PROMPT CARD AND THE RECEIPT CARD ARE ONE SHAPE, AND IT IS
+  DECLARED ONCE FOR ALL THREE RATHER THAN ABSTRACTED INTO A CLASS. All three are
+  `surface/subtlest` on a 1px `border/default` at radius `md`. Grouping the
+  selectors keeps the four declarations in one place without inventing a name
+  for "box" — a shared class is the kind of abstraction that grows a modifier
+  the first time one of the three diverges, and they hold entirely different
+  content.
+*/
+.mvp-txn-detail__amount-box,
+.mvp-txn-detail__prompt,
+.mvp-txn-detail__receipt {
+  background: var(--mapped-surface-subtlest-default);
+  /* `--brand-scale-25` IS 1px, and the first draft of this rule wrote a raw
+     `1px` with a `token-exempt` marker claiming the ramp had no such step. The
+     linter caught it (Gate 18: the marker must sit on the literal’s own line),
+     and re-reading the ramp showed the claim was simply false — 25/50/100 are
+     1/2/4px. No exemption is needed and none is taken. */
+  border: var(--brand-scale-25) solid var(--mapped-border-default-default);
+  border-radius: var(--brand-scale-200);
+}
+
+.mvp-txn-detail__amount-box {
+  padding: var(--spacing-300);
+}
+
+.mvp-txn-detail__amount {
+  color: var(--mapped-text-default-default);
+}
+
+/* The prompt card: title, subline, button — Figma's 12px inset and 8px gaps. */
+.mvp-txn-detail__prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  padding: var(--spacing-300);
+}
+
+/*
+  `margin: 0` because these are real `<p>` elements and the UA sheet gives them
+  a block margin that the flex `gap` would then be added to. This app ships no
+  CSS reset of its own, so each text element that needs it says so.
+*/
+.mvp-txn-detail__prompt-title {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-txn-detail__prompt-body {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+/* ── Transaction info ──────────────────────────────────────────────────── */
+
+.mvp-txn-detail__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+.mvp-txn-detail__info-heading {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+/* `margin: 0` for the same UA-sheet reason as the paragraphs above. */
+.mvp-txn-detail__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+/*
+  Figma draws each row 40 tall with its 24px content vertically centred — 8px
+  above and below. `padding` rather than a `height`, so a value that wraps at a
+  narrower column grows the row instead of overflowing it.
+*/
+.mvp-txn-detail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+  padding: var(--spacing-200) 0;
+}
+
+/*
+  THE GLYPH AND THE LABEL ARE ONE FLEX LINE INSIDE THE `<dt>`. Figma's gap is
+  28 − 20 = 8. `icon/subtle/default` and `text/subtle/default` are the same
+  value, so one `color` on the `<dt>` serves both — the DS `Icon` renders its
+  SVG `fill="currentColor"`.
+*/
+.mvp-txn-detail__row-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  `margin-inline-start: 0` resets the UA sheet's 40px `<dd>` indent. It is
+  invisible in a `space-between` row until the row gets tight, which is exactly
+  the kind of thing that shows up at one viewport and not the other.
+*/
+.mvp-txn-detail__row-value {
+  margin-inline-start: 0;
+  color: var(--mapped-text-default-default);
+  text-align: right;
+}
+
+/* ── The receipt card ──────────────────────────────────────────────────── */
+
+.mvp-txn-detail__receipt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  padding: var(--spacing-300);
+}
+
+.mvp-txn-detail__receipt-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-200);
+}
+
+/*
+  48×48 at radius `sm`, exactly as `.mvp-receipt-card__thumb`. `object-fit:
+  cover` because the source images are portrait (long edge 513–531, measured at
+  Gate 48) and would otherwise letterbox inside a square box.
+*/
+.mvp-txn-detail__receipt-thumb {
+  flex-shrink: 0;
+  width: var(--brand-scale-1100);
+  height: var(--brand-scale-1100);
+  border-radius: var(--brand-scale-100);
+  object-fit: cover;
+}
+
+.mvp-txn-detail__receipt-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mvp-txn-detail__receipt-name {
+  color: var(--mapped-text-default-default);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mvp-txn-detail__receipt-date {
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-txn-detail__items-heading {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+/*
+  `padding: 0` and `list-style: none` — the UA sheet's own bullets and 40px
+  indent would sit beside the bullets the design draws in the text itself.
+*/
+.mvp-txn-detail__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mvp-txn-detail__item,
+.mvp-txn-detail__total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+  color: var(--mapped-text-subtle-default);
+}
+
+/* The price column never wraps or shrinks; the name column absorbs the slack. */
+.mvp-txn-detail__item-price {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.mvp-txn-detail__total-row--grand {
+  color: var(--mapped-text-default-default);
+}
+
+/* "Incl 6% SST" sits beside "Total" at the subtle colour, as drawn. */
+.mvp-txn-detail__total-note {
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  THE TWO BUTTONS. `flex: 1 1 0` goes on the CHILDREN, not on `.mn-btn` — this
+  rule sizes the flex items, not the DS component, which is the same distinction
+  `sizing="fill"` draws elsewhere and the reason no DS class is named here.
+
+  10px gap — `--brand-scale-250`, and NOT a `--spacing-*` alias, because the DS
+  ramp declares no `--spacing-250`: it goes 200, 300, 400. Reaching past the
+  alias for a step it does not carry is the precedent `.mvp-receipt-card__rule`
+  already set. Figma's gap is 164.5 − 154.5 = 10.
+*/
+.mvp-txn-detail__receipt-actions {
+  display: flex;
+  gap: var(--brand-scale-250);
+  margin-top: var(--spacing-100);
+}
+
+.mvp-txn-detail__receipt-actions > * {
+  flex: 1 1 0;
+}
+
+/*
+  THE LEDGER ROW BECAME A `<button>` AT GATE 49 AND NEEDED NO RULE AT ALL.
+
+  Passing `onClick` makes `ListItem` render `<button>` where it rendered `<div>`,
+  and `.mn-list-item` already carries the whole reset for that branch —
+  `background: none`, `border: none`, `padding: 0`, `font-family: inherit`,
+  `text-align: left`, and `width: 100%`. The app kills the tap flash globally on
+  `html` (Gate 44) and the DS supplies the `:focus-visible` ring. So this block
+  declares nothing, and that is the finding rather than an omission.
+
+  A `width: 100%` RULE WAS WRITTEN HERE AND THEN DELETED, on the reasoning that a
+  `<button>` is `width: auto` where a `<div>` is a filled block. That is true of a
+  bare button and false of this one: `ListItem.css:5` sets `width: 100%` on the
+  base class, which is not scoped to a tag and therefore already reaches the
+  button branch. The rule would have been an equal-VALUE MVP override sitting on
+  top of DS geometry — invisible while the two agree and a silent mask over any
+  future DS change, which is precisely the rule Gate 13 removed on measurement.
+  Do not add it back.
+*/

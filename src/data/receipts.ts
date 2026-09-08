@@ -62,9 +62,32 @@ import type { Receipt } from './types'
  *   receipt-tonyroma02     92.60 vs    92.70     -0.10
  *
  * Those are artifacts of the mock artwork and they are RECORDED RATHER THAN
- * CORRECTED. Nothing in the app sums `lineItems`, so no screen can surface the
- * discrepancy; inventing line items to close it would be inventing product data,
- * and adjusting a total would break the ledger reconciliation below.
+ * CORRECTED. Inventing line items to close them would be inventing product
+ * data, and adjusting a total would break the ledger reconciliation below.
+ *
+ * ⚠️ THE SECOND HALF OF THIS NOTE WAS TRUE UNTIL GATE 49 AND IS NOW FALSE.
+ * It read that "nothing in the app sums `lineItems`, so no screen can surface
+ * the discrepancy". The transaction detail sheet sums them — `receiptSubtotal()`
+ * in `derive.ts` — and prints the result directly above the transcribed SST and
+ * the transcribed total. So on those six receipts the three figures visibly do
+ * not add up, and on `receipt-aeonbig01` they miss by RM 200.10:
+ *
+ *   Subtotal (derived, 8 lines)   RM   204.80
+ *   Sales Tax (6% SST, printed)   RM    24.29
+ *   Total (printed)               RM   429.19      204.80 + 24.29 = 229.09
+ *
+ * THAT IS THE DERIVE RULING WORKING, NOT FAILING. Gate 49 was instructed to
+ * derive the subtotal and never transcribe one, and to report rather than
+ * paper over any disagreement. Storing the printed 404.90 would have made the
+ * sheet add up by writing down a number contradicted by the very lines beside
+ * it — the ledger-vs-receipt conflict that killed `hasReceipt`, in miniature.
+ * Do NOT close the gap by inventing a ninth line item, and do NOT close it by
+ * storing a subtotal. The images are the defect; fixing them is artwork work.
+ *
+ * `tax` IS THE PRINTED SST LINE, TRANSCRIBED HERE FROM THE SAME COMMENTS THAT
+ * RECORD THE DISCREPANCIES ABOVE. Nine receipts print one; AIA does not, and
+ * carries `null`. Each transcribed figure was checked against 6% of that
+ * receipt’s own PRINTED subtotal and agrees to the cent on all nine.
  * ─────────────────────────────────────────────────────────────────────────────
  * THE LEDGER FOLLOWS THE RECEIPT, NOT THE OTHER WAY ROUND (Gate 48).
  *
@@ -112,6 +135,7 @@ export const RECEIPTS: Receipt[] = [
     // The eight line items sum to 204.80, i.e. 200.10 short of the printed
     // subtotal — the largest discrepancy in the set. Recorded, not corrected.
     total: 429.19,
+    tax: 24.29,
     currency: 'MYR',
     lineItems: [
       { name: "Munchy's Oat Krunch 416g", quantity: '1', price: 10.5 },
@@ -135,6 +159,8 @@ export const RECEIPTS: Receipt[] = [
     // total, and they agree exactly. Also the only one whose transaction amount
     // did not have to move — it was already -320.00.
     total: 320,
+    // no SST line on the paper — one premium, one total.
+    tax: null,
     currency: 'MYR',
     lineItems: [{ name: 'AIA Vitality Premium', quantity: '1', price: 320 }],
     transactionId: 'txn-aia-0825',
@@ -148,6 +174,7 @@ export const RECEIPTS: Receipt[] = [
     // RECONCILES EXACTLY: 12.90 + 11.90 = 24.80 subtotal, SST (6%) 1.49,
     // total 26.29. One of the three that add up.
     total: 26.29,
+    tax: 1.49,
     currency: 'MYR',
     lineItems: [
       { name: "Panadol 500mg 20's", quantity: '1', price: 12.9 },
@@ -164,6 +191,7 @@ export const RECEIPTS: Receipt[] = [
     // Printed subtotal 74.70, SST (6%) 4.48, total 79.18. The nine lines sum to
     // 74.60 — 0.10 under.
     total: 79.18,
+    tax: 4.48,
     currency: 'MYR',
     lineItems: [
       { name: 'Dutch Lady Full Cream Milk 1L', quantity: '1', price: 6.9 },
@@ -187,6 +215,7 @@ export const RECEIPTS: Receipt[] = [
     // RECONCILES EXACTLY: the four lines sum to 783.80 = the printed subtotal.
     // SST (6%) 47.03, total 830.83.
     total: 830.83,
+    tax: 47.03,
     currency: 'MYR',
     lineItems: [
       { name: 'KALLAX Shelf Unit', quantity: '1', price: 399 },
@@ -206,6 +235,7 @@ export const RECEIPTS: Receipt[] = [
     // total 137.59. The smallest of the three IKEA receipts, and the only one
     // whose ledger row sits inside the applied filter.
     total: 137.59,
+    tax: 7.79,
     currency: 'MYR',
     lineItems: [
       { name: 'BLÅHAJ Soft Toy', quantity: '1', price: 79.9 },
@@ -223,6 +253,7 @@ export const RECEIPTS: Receipt[] = [
     // lines sum to 2,496.80 — 1.00 under. THE LARGEST RECEIPT IN THE SET, and
     // the one that moves its ledger row furthest: -1250.00 -> -2647.67.
     total: 2647.67,
+    tax: 149.87,
     currency: 'MYR',
     lineItems: [
       { name: 'MALM Bed Frame (Queen)', quantity: '1', price: 999 },
@@ -246,6 +277,7 @@ export const RECEIPTS: Receipt[] = [
     // 529.75 -> 263.20 and crossed under the RM 500 cap, taking
     // `TRANSACTION_FILTER_APPLIED` from 15 rows to 16.
     total: 263.2,
+    tax: 14.9,
     currency: 'MYR',
     lineItems: [
       { name: 'Australian Ribeye Steak 300g', quantity: '1', price: 89.9 },
@@ -268,6 +300,7 @@ export const RECEIPTS: Receipt[] = [
     // Printed subtotal 90.70, SST (6%) 5.44, total 96.14. The nine lines sum to
     // 90.60 — 0.10 under.
     total: 96.14,
+    tax: 5.44,
     currency: 'MYR',
     lineItems: [
       { name: 'Sunquick Orange 840ml', quantity: '1', price: 12.9 },
@@ -297,6 +330,7 @@ export const RECEIPTS: Receipt[] = [
     // delivered; there are ten files and ten records, so nothing is missing
     // from this gate's point of view.
     total: 98.26,
+    tax: 5.56,
     currency: 'MYR',
     lineItems: [
       { name: 'Classic Ribs (Half)', quantity: '1', price: 59.9 },
