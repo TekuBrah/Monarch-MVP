@@ -602,7 +602,7 @@ Recorded at the time of the fix: Playwright **1.62.1**, bundled Chromium
 ### Logged, not acted on
 
 - **The JS bundle is 5.75 MB** (3.78 MB gzipped), driven by the DS
-  `dist/index.js` at 5.59 MB — most likely the 103 icons bundled rather than
+  `dist/index.js` at 5.59 MB — most likely the 106 icons bundled rather than
   tree-shaken. Worth a DS-side look; not an MVP fix.
 - **`npm run dev` leaves orphaned Vite servers — THREE of the last four gate
   pre-flights.** DS on 5173 at Gate 4; MVP on 5174 at Gate 16; MVP on 5174 at
@@ -4338,6 +4338,263 @@ Homepage's two-row transaction slice, which is a summary and is deliberately not
 a second entry point to this sheet; persistence; the DS repo and the pin; and the
 three AA shortfalls on the net-worth card ruled on at Gate 31.
 
+## The v2.3.0 re-pin, three glyphs, and the two-dialog harness (Gate 50-A)
+
+Three changes, one branch, and they must be read apart. The pin moved `v2.2.0`
+(`d757168544ca`) -> `v2.3.0` (`586c8598ace9`) and **moved zero pixels**. The
+harness widening **also moved zero**, proven separately, which is the whole
+reason this gate is split from the capture surfaces it exists to enable. The
+three glyph adoptions are the entire visible change: **8 of 112 baselines,
+0 added, 0 deleted. The suite stays at 236 tests and |WALK| stays at 28.**
+
+`lint:linkage` PASS with all four sources agreeing: manifest pin
+`github:TekuBrah/Monarch-Design-System#v2.3.0`, `node_modules` 2.3.0, lock
+`resolved` `586c8598ace9`, DS working tree HEAD `586c8598ace9` (tag v2.3.0).
+
+### The re-pin's entire delta is six lines of icon registry
+
+By `git diff --name-only v2.2.0 v2.3.0` in the DS: seven files, of which
+`src/components/Icon/icons.ts` (**+6**) is the only one under `src/`.
+`globals.css` untouched, no component changed, no token moved. The other six are
+`package.json`, `package-lock.json`, `MONARCH-BUILD-ROADMAP.md`,
+`docs/component-tokens.md`, `showcase/App.tsx` and `Icon.test.tsx` — and
+`showcase/` is not part of the package, for the same reason
+`@fontsource/poppins` is an MVP responsibility.
+
+**SO THE SUITE PASSING 236/0 AGAINST v2.2.0-MINTED BASELINES WAS GUARANTEED BY
+CONSTRUCTION, NOT OBSERVED BY LUCK.** Re-derive that from the two-tag diff rather
+than from a changelog. `npm run build:package` exit 0 — the standing re-pin gate,
+which is the only command that compiles what production compiles.
+
+### The registry is 106, the material subset is 70, and they are DIFFERENT COMMANDS
+
+103 -> 106: `link_off`, `list_alt`, `credit_card`, all three from
+`@material-design-icons/svg/round/`, so the custom-asset count is unmoved at 36
+and 106 − 70 = 36 closes. Counted in BOTH resolution paths, because the Vite
+alias compiles the sibling source while `tsc` reads the pinned dist — sibling
+`icons.ts` 106 keys, dist `icons.d.ts` 106 DISTINCT `readonly` keys.
+
+**FOUR LIVE SITES IN THIS REPO CARRIED THE STALE 103, AND TWO OF THEM ARE NOT
+DOCUMENTATION.** `CLAUDE.md` twice, **`vite.config.ts:35`** (the svgr comment)
+and **`src/flows/finance/TransactionFilterSheet.tsx`** (the G16 closure note).
+All four corrected. Historical figures dated to a tag were left alone; a number
+that states a CURRENT fact is what rots.
+
+**AND `CLAUDE.md` CARRIED A MISLABELLED DERIVATION COMMAND, WHICH IS THE WORSE
+DEFECT.** It described one command as "a per-line grep for assignment-shaped
+lines" and attached the figure **67** to it. Run as written against v2.2.0 it
+returns **103** — measured. It counts the `ICONS` object's KEYS; 67 was never its
+output, being the count of a different thing entirely. **This is the
+"count KEYS, not assignment-shaped lines" trap landing in the DOCUMENTATION**,
+which is the one place it had not yet appeared. Both commands are now written out
+separately with the third identity (keys − material = 36) as the cross-check.
+
+### The three info-row glyphs are ONE GRAMMAR, and the rows name the FIELD
+
+Teku's decision B at the Gate 49 close. A calendar, a list, a card — each naming
+the FIELD its row is about, never the VALUE in the right-hand column. So the
+Category row draws a list whatever the category is, and Payment Method draws a
+card whatever the institution is. **Do not reintroduce value glyphs**: a shopping
+cart beside "Category" breaks the pattern the calendar sets one row above.
+
+Gates 41–49 shipped those two rows drawing the VALUE's own glyph
+(`TRANSACTION_CATEGORIES[].icon`, the holding's `icon`) because the registry
+carried neither name. **That was the right call while it stood** and is not a
+mistake being corrected — deriving a correct glyph from data the app already
+holds is categorically different from picking a lookalike for the drawn one,
+which is what G16 forbade. What changed is that the real glyphs exist.
+
+`link_off` is Teku's reversal on device photographs: a text-only
+`variant="tertiary"` Button inside a card reads as a text LINK rather than an
+action, and the glyph is what makes it register as a button. It shipped
+text-only at Gate 49 rather than taking `link`, which states the OPPOSITE of what
+the button does.
+
+### `link_off` HAS EXACTLY ONE RENDER CALL SITE, NOT TWO
+
+Established from the tree, not carried: **`TransactionDetailSheet.tsx`, the
+"Unlink receipt" `Button` inside `ReceiptBlock`** — one JSX site, patterned
+character-for-character on the sibling "View" button two lines above
+(`leadingIcon={<Icon name="visibility" size="m" />}`). `ReceiptBlock` has one
+call site and `TransactionDetailSheet` one mount site
+(`TransactionsLedger.tsx:320`).
+
+Everything else that mentions unlinking is prose or a test locator:
+`AccountsProvider.tsx` comments, `types.ts`, `ReceiptCard.tsx`, and
+`e2e/unlink.spec.ts:100` which locates the button `getByRole('button', { name:
+'Unlink receipt' })`. **A test locator is not a render call site**, and counting
+one as such is how "two" arises.
+
+### A STATE CAN ADOPT A GLYPH AND NOT PHOTOGRAPH IT
+
+**THE 8 MOVED BASELINES DO NOT SPLIT THE WAY THE ADOPTIONS DO**, and this is the
+finding worth carrying. Decoded in a Playwright-launched Chromium via
+`createImageBitmap` + `OffscreenCanvas` — the Gate 31 instrument — each new
+capture against its committed predecessor:
+
+| baselines | differing px | bbox @375 | row runs | cause |
+|---|---|---|---|---|
+| `finance-transactions-detail-{375,430}-{light,dark}` | 446 light / 444 dark | `[17, 678, 34, 734]` | **two** | `list_alt` + `credit_card` ONLY |
+| `finance-transactions-detail-linked-{375,430}-{light,dark}` | 1066 / 1069 | `[209, 669, 330, 685]` | **one** | `link_off` ONLY |
+
+**THE LINKED STATE ADOPTS ALL THREE GLYPHS AND CAPTURES ONE.** Its panel is at
+the viewport cap (Gate 49: 764 tall, content 641 against scrollHeight 775) and
+the Transaction info rows sit BELOW the scroll fold, so the info-row glyph column
+at x 17–34 **does not appear in that diff at all**. The two `detail` files are
+the mirror image: no `ReceiptBlock`, so no `link_off`.
+
+The single row run on the linked pair also proves the Unlink label did **not**
+wrap when the button gained a leading icon — a wrap would have produced two runs
+and a taller bbox. At 430 the bbox shifts x by 42 (`flex: 1 1 0` in a wider
+panel) and is otherwise identical.
+
+**THE FILE-SET PREDICTION HELD EXACTLY AND THE CAUSAL ONE DID NOT.** 8 predicted,
+8 observed, the same 8 — but the gate predicted all three glyphs would reach the
+linked baselines. Measurement says two of them do not. Predicting WHICH FILES
+move is not the same as predicting WHY, and only the second needs a decoder.
+
+### The overlay contract is a LIST now, and that is not a loosening
+
+`e2e/harness.ts`'s `OverlayState` was built around "exactly one
+`[role="dialog"][aria-modal="true"]`". Flow 9 breaks that on two independent
+grounds, neither of which is a leak: **(a)** "add receipt" renders TWO complete
+overlay stacks — two Blankets, two panels, the transaction sheet fully visible
+behind — and **(b)** the Camera surface is a FULL SCREEN carrying no dialog at
+all.
+
+**THE NEW INVARIANT: THE OPEN DIALOGS, BY ACCESSIBLE NAME IN DOM ORDER, EQUAL
+EXACTLY WHAT THE STATE DECLARES.** It catches everything the old one did, at
+every arity:
+
+- a **leaked** overlay makes the list longer than declared;
+- an overlay that **failed to open** makes it shorter;
+- the **wrong** overlay renames an entry;
+- a dialog that opened **non-modally** mismatches on `ariaModal` — the read is
+  over bare `[role="dialog"]` and reports modality rather than filtering on it,
+  so "opened non-modally" and "did not open" stay distinguishable.
+
+**`>= 1` WAS THE OBVIOUS WAY TO ADMIT TWO STACKS AND IT IS EXACTLY THE LOOSENING
+THIS MUST NOT MAKE.** A count cannot tell two intended stacks from one intended
+stack plus a leak. Naming them keeps the check exact where relaxing the arity
+would have thrown the leak detection away — the same shape as `threshold: 0.2`
+looking like a tolerance while being a blindfold.
+
+#### Two fields, because the two moments are different
+
+**COLLAPSING THEM WAS TRIED FIRST AND IS WRONG.** `prepare` steps run AFTER the
+opening settle, so a state whose second stack is opened by a prepare step has ONE
+dialog open when the settle assertion fires and TWO at capture. A single field
+would have to be true at both moments, i.e. loose.
+
+| field | the moment | default |
+|---|---|---|
+| `opens?: string[]` | immediately after the opening click | `[title]` |
+| `dialogs?: string[]` | at capture | `opens`, or `[]` when `confirm` is set |
+
+All seven existing states declare neither, so `dialogsOnOpen()` and
+`expectedDialogs()` both derive `[title]` for them and **not one line of
+`OVERLAY_STATES` was restated.**
+
+`settlesOn?: string` is promoted to the top level for the (b) case — the same job
+`confirm.settlesOn` does, for a surface that was never a dialog rather than one a
+confirm click closed. **An empty expectation with no `settlesOn` THROWS before
+the browser is touched**, because "no dialog is open" is also true of a blank
+screen.
+
+#### The at-capture check had to go in `openOverlay`, not only in the assert
+
+`assertOverlayMatchesState` is called by **`routes.spec.ts` and nothing else** —
+checked, not assumed. `visual.spec.ts` reaches a state through `gotoState`, which
+does not call it. So a second stack opened by a `prepare` step would have been
+unasserted at the exact moment it is photographed. `openOverlay` now re-checks
+`expectedDialogs` after its prepare loop, on the non-confirm branch.
+
+#### One read, not two agreeing expressions
+
+`readOpenDialogs()` is shared by the settle and the assert. Both previously read
+the dialog's name their own way — `toHaveAccessibleName` against
+`.mn-modal__title` — and Gate 43 records them disagreeing on a correctly-named
+`Sheet`: the open check passed and the state check reported "(no title)". The
+shared read is `aria-labelledby` -> that element's text, falling back to
+`aria-label`, which `Modal.tsx` and `Sheet.tsx` use character-for-character.
+`expect.poll` supplies the retry the old matchers had.
+
+#### Mutation-proved, three ways, each restored and hash-verified
+
+A documented control that has never been executed is worse than none.
+
+| mutation | expectation | result |
+|---|---|---|
+| declare a second dialog on `detail` that does not open | arity arm, **at arity 2 — unreachable by the old `toHaveCount(1)`** | **exit 1**, 8 failed, all on the mutated state, failing at the new `.toEqual(dialogExpectation(atCapture))` |
+| declare a wrong dialog name | identity arm | **exit 1**, `Expected "Not the detail sheet"` / `Received "Transaction details"` |
+| `opens: []` with no `settlesOn` | declaration guard, before the browser | **exit 1**, the thrown message, at the guard |
+
+Harness restored byte-identical after each (`6224b8ef…`), `test-results/`
+removed, `git status` back to the four expected `M` lines.
+
+**THE HARNESS CHANGE ALONE MOVED ZERO BASELINES, PROVEN BY ISOLATION.** The glyph
+edits were backed out by pure filesystem copy — no `git stash`, no git write —
+and the suite run against re-pin + harness only reported **236 passed / 0
+failed** with all 112 baselines byte-identical by SHA-256 to the start manifest.
+
+**ONE ARTIFACT OF THAT ISOLATION, WORTH KNOWING BEFORE REPEATING IT.**
+`git show HEAD:<file>` emits the INDEX form, which is LF; the working tree is
+CRLF under `core.autocrlf=true`. So a file restored that way is byte-identical in
+CONTENT and still reads as ` M` to `git status`. Restore from a working-tree copy
+(`cp` before the edit) if you need the status line to be clean too.
+
+### The batches were DISJOINT and they sum
+
+Two batches — harness + re-pin (**0** moved) and the glyph adoptions (**8**
+moved) — and 0 + 8 = 8, which is exactly the start-manifest reconciliation: **8
+changed, 104 byte-identical, 0 added, 0 deleted, 112 total.** Contrast Gate 44,
+whose batches overlapped and did not sum. Say which case applies rather than
+adding the rows.
+
+All three arms of `baselines.spec.ts` stayed green throughout, per the Gate α
+correction: every change is a modification to an already-tracked path, so nothing
+was renamed, added or deleted.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT BEFORE MINTING** —
+the Gate 49 refinement, now standard. 112 files, byte-identical to the start
+manifest, after a run that reported 8 failed. `updateSnapshots: 'none'` honoured.
+
+### What this gate changed
+
+`package.json` + `package-lock.json` (the pin);
+`src/flows/finance/components/TransactionDetailSheet.tsx` (three glyphs and their
+comment blocks); `src/flows/finance/TransactionFilterSheet.tsx` and
+`vite.config.ts` (stale 103); `e2e/harness.ts` (`opens`, `dialogs`, `settlesOn`,
+`dialogsOnOpen`, `expectedDialogs`, `readOpenDialogs`, `dialogExpectation`, and
+the rewired settle / assert); the gap register (G25–G27 closed, plus the derived
+census that corrects its tally); `CLAUDE.md`; and 8 re-minted baselines.
+
+**No spec was added and no test count moved.** `lint:tokens` scans 47 files and
+reports the same **3** pre-existing exemptions — no new raw value entered the
+tree.
+
+### Deliberately not in scope
+
+The capture surfaces themselves — the "add receipt" two-stack overlay and the
+Camera full screen — which are what the harness was widened FOR and which arrive
+with their own walk states; **G2**, the iOS action sheet, still the only open
+`component-gap` and still blocking that flow; G13, G14, G17's prop half, G19–G23
+— all still registered, still deferred, and no MVP-local override added for any;
+**`npm audit`, which now reports 1 high-severity finding where Gate 39 measured
+zero** — recorded, NOT fixed, because this gate had a predicted baseline set to
+hold and a dependency move is its own change. Characterised so the next gate is
+one step: **`js-yaml` 4.3.1**, GHSA-2883-xcg3-v3hh (`maxTotalMergeKeys` does not
+limit CPU use for empty merge sources), reached only as
+`vite-plugin-svgr -> @svgr/core -> cosmiconfig -> js-yaml`. **It never reaches
+production code** — `vite-plugin-svgr` is a build-time devDependency and
+`grep -c "js-yaml\|jsYaml" dist/assets/*.js` returns **0**. Same shape as the
+Gate 39 `nanoid` finding: the severity label suggests exposure the dependency
+path does not have. It also illustrates the Gate 39 lesson exactly — an audit
+paragraph rots faster than anything else here, and "zero" was a measurement of
+one moment rather than a property of the repo;
+the DS repo; branch deletion; and the three AA shortfalls on the net-worth card
+ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
@@ -4568,7 +4825,7 @@ reflexively, since it also means typechecking unbuilt source.
 
 ### Local-alias mode requires the DS's `node_modules` to be installed
 
-The DS's `Icon` imports 103 SVGs in `?react` form, 67 of them from
+The DS's `Icon` imports 106 SVGs in `?react` form, 70 of them from
 `@material-design-icons/svg` and 36 custom Monarch assets. The package ones are
 resolved by walking **up from the DS source file's own location** — i.e. into
 the DS's `node_modules`, not this repo's. A DS checkout without `npm install`
@@ -4577,15 +4834,35 @@ produces a confusing resolution error that appears to come from the MVP.
 **THE SPLIT MATTERS AND THE OLD WORDING HID IT.** This line read "imports 101
 SVGs from `@material-design-icons/svg`" until Gate 46, which was wrong twice:
 the count was stale (101 was a Gate 4 prose figure, never re-derived; it was
-102 before v2.2.0 added `storefront`, and is 103 now), and it attributed the
-WHOLE set to the package when a third of it is custom Monarch artwork. Only the
-67 are affected by the missing-`node_modules` failure this section describes.
-Re-derive rather than trust, by counting the `ICONS` object's own keys — a
-per-line grep for assignment-shaped lines returns 67 and looks plausible:
+102 before v2.2.0 added `storefront`, 103 after it, and is **106** since v2.3.0
+added `link_off`, `list_alt` and `credit_card`), and it attributed the WHOLE set
+to the package when a third of it is custom Monarch artwork. Only the 70 are
+affected by the missing-`node_modules` failure this section describes.
+
+**THE TWO NUMBERS COME FROM TWO DIFFERENT COMMANDS, AND THIS PARAGRAPH USED TO
+CONFLATE THEM — corrected at Gate 50-A.** It named one command, described it as
+"a per-line grep for assignment-shaped lines", and attached the figure **67** to
+it. All three parts disagreed: the command counts the `ICONS` object's KEYS, and
+run as written against v2.2.0 it returns **103** — measured, not reasoned. 67 was
+never its output; it is the count of a different thing entirely, the imports from
+the material package. **This is the "count KEYS, not assignment-shaped lines"
+trap landing in the documentation rather than in a gate**, which is the only
+place it had not yet appeared.
+
+Re-derive both rather than trusting either. Substitute the tag you are asking
+about; `HEAD` reads the sibling working tree:
 
 ```bash
-git show v2.2.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"
+git show v2.3.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"
 ```
+
+```bash
+git show v2.3.0:src/components/Icon/icons.ts | grep -c "@material-design-icons/svg"
+```
+
+At v2.3.0 those return **106** and **70**, and 106 − 70 = 36 custom assets —
+which is the third identity worth checking, because it is the one that fails
+loudly if either command silently starts matching the wrong thing.
 
 ### The `styles.css` subpath alias hardcodes an internal DS path
 

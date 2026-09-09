@@ -513,8 +513,11 @@ export function TransactionFilterSheet({
               G16 IS CLOSED TOO — the `storefront` glyph shipped in the same
               release and now fills the trigger's leading slot, which Figma
               draws and which was previously left EMPTY rather than filled with
-              a near-miss. Confirmed present in the shipped registry (103
-              entries) rather than assumed from the release note.
+              a near-miss. Confirmed present in the shipped registry rather than
+              assumed from the release note — 103 entries at the v2.2.0 that
+              closed G16, 106 at the currently pinned v2.3.0. The COUNT is dated
+              to a tag on purpose; it moves on every DS release that adds a
+              glyph, and a bare number here goes stale silently.
 
               THE TRIGGER PUSHES; IT DOES NOT DROP DOWN. `isOpen` is pinned
               false and `onOpenChange` is intercepted, so both the field and the

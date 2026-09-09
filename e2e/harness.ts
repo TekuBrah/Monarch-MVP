@@ -428,8 +428,74 @@ export interface OverlayState {
   /**
    * The dialog's accessible name. Asserted AFTER it opens, which is what makes
    * this a check that the RIGHT overlay opened rather than merely that one did.
+   *
+   * IT IS THE DIALOG THE CONTROL OPENS, NOT NECESSARILY THE ONLY ONE OPEN AT
+   * CAPTURE — see `opens` and `dialogs`, which are the two lists this scalar is
+   * the default for.
    */
   title: string
+  /**
+   * THE DIALOGS EXPECTED IMMEDIATELY AFTER THE OPENING CLICK, in DOM order, by
+   * accessible name. Optional; absent means `[title]`.
+   *
+   * `[]` declares that the control opens a surface that is NOT a dialog — the
+   * full-screen (b) case below — and requires `settlesOn`.
+   *
+   * THIS IS A SEPARATE FIELD FROM `dialogs` BECAUSE THE TWO ARE READ AT
+   * DIFFERENT MOMENTS, and collapsing them was the first thing tried here and
+   * was wrong. `prepare` steps run AFTER the opening settle, so a state whose
+   * second stack is opened by a prepare step has ONE dialog open when the settle
+   * assertion runs and TWO at capture. One field would have had to be loose
+   * enough to be true at both moments, which is precisely the loosening this
+   * whole change must not make.
+   */
+  opens?: string[]
+  /**
+   * THE ACCESSIBLE NAMES OF EVERY `[role="dialog"]` EXPECTED OPEN AT CAPTURE, in
+   * DOM order.
+   *
+   * Optional. Absent means `opens` — i.e. `[title]` — which is the shape all
+   * seven states before Gate 50-A had and the shape `expectedDialogs()` still
+   * derives for them, so nothing was restated to widen this.
+   *
+   * ── WHY A LIST AND NOT A COUNT ──────────────────────────────────────────────
+   *
+   * The old contract was "EXACTLY ONE modal dialog", and it existed to catch a
+   * LEAKED overlay: one left open by an earlier interaction, or one the app
+   * opens on mount, which no other assertion in the suite can see and which
+   * would quietly appear in a baseline as though it belonged. Flow 9 breaks the
+   * count on two INDEPENDENT grounds, and neither is a leak:
+   *
+   *   (a) "add receipt" renders TWO complete overlay stacks — two Blankets, two
+   *       panels, the transaction sheet's content fully visible behind the
+   *       second. A faithful implementation genuinely has two open dialogs.
+   *   (b) The Camera surface is a FULL SCREEN carrying no dialog at all, so its
+   *       honest expectation is ZERO — which the old contract cannot express
+   *       either, since `toHaveCount(0)` is what it uses to mean "no overlay
+   *       state here".
+   *
+   * A count would admit (a) by being loosened to `>= 1`, and that is exactly the
+   * loosening this must not be: `>= 1` cannot tell two intended stacks from one
+   * intended stack plus one leak. Naming the dialogs keeps the invariant EXACT
+   * in both directions at every arity — see `expectedDialogs`.
+   *
+   * `[]` IS LEGAL AND REQUIRES `settlesOn`. A state expecting no dialog would
+   * otherwise pass on a blank screen, which is the failure `confirm.settlesOn`
+   * already exists to prevent for confirmed states. Enforced, not documented:
+   * `openOverlay` throws on an empty expectation with no `settlesOn`.
+   */
+  dialogs?: string[]
+  /**
+   * WHAT MUST BE PRESENT EXACTLY ONCE when the expected dialog list is EMPTY and
+   * there is no `confirm`.
+   *
+   * The full-screen (b) case above. It is the same job `confirm.settlesOn` does
+   * — assert the surface the state exists to capture is actually there — for a
+   * surface that was never a dialog rather than one a confirm click closed.
+   * Required in that case and ignored in every other, because a state that names
+   * its dialogs has already asserted its surface by naming it.
+   */
+  settlesOn?: string
   /**
    * OPTIONAL SECOND CLICK, and the state it leaves behind.
    *
@@ -1244,6 +1310,73 @@ export async function activateTab(page: Page, tab: TabState): Promise<void> {
 }
 
 /**
+ * THE TWO DERIVATIONS OF "WHICH DIALOGS SHOULD BE OPEN" — one for the moment
+ * after the opening click (`dialogsOnOpen`, used by `openOverlay`'s settle) and
+ * one for the moment of capture (`expectedDialogs`, used by BOTH `openOverlay`'s
+ * post-prepare check and `assertOverlayMatchesState`).
+ *
+ * They differ only for a state whose `prepare` steps open a second stack. Every
+ * state that declares neither `opens` nor `dialogs` gets `[title]` from both,
+ * which is why widening this restated nothing in `OVERLAY_STATES`.
+ *
+ * IT IS ONE FUNCTION AND NOT TWO AGREEING EXPRESSIONS, for the reason
+ * `playwright.config.ts` IMPORTS `DEFAULT_VIEWPORT` rather than spelling 375:
+ * two literals that agree today is the shape of every drift this project has
+ * been bitten by, and these two call sites have already disagreed once. Gate 43
+ * records it — `openOverlay` asserted the name via `toHaveAccessibleName` while
+ * `assertOverlayMatchesState` read `.mn-modal__title`, so the open check passed
+ * and the state check reported "(no title)" on the same correctly-named dialog.
+ *
+ * A CONFIRMED OVERLAY EXPECTS NONE. Its dialog is the ROUTE to the surface
+ * rather than the surface itself — confirming closes it — so `confirm` wins over
+ * `dialogs` and over `title`, unchanged from before this gate.
+ */
+export function dialogsOnOpen(overlay: OverlayState): string[] {
+  return overlay.opens ?? [overlay.title]
+}
+
+export function expectedDialogs(overlay: OverlayState): string[] {
+  if (overlay.confirm) return []
+  return overlay.dialogs ?? dialogsOnOpen(overlay)
+}
+
+/**
+ * EVERY `[role="dialog"]` IN THE PAGE, WITH ITS MODALITY AND ITS ACCESSIBLE NAME.
+ *
+ * THE NAME IS READ OFF THE ARIA WIRING, NOT OFF A COMPONENT'S CLASS NAME —
+ * `aria-labelledby` -> that element's text, falling back to `aria-label`, which
+ * is the same wiring `Modal.tsx` and `Sheet.tsx` use character-for-character. A
+ * class-name read is what broke at Gate 43 when the first non-`Modal` overlay
+ * arrived; the aria read is DS-agnostic and survives whatever component ships an
+ * overlay next.
+ *
+ * `[role="dialog"]` AND NOT `[role="dialog"][aria-modal="true"]`, DELIBERATELY.
+ * The modality is reported rather than filtered on, so a dialog that opened
+ * NON-modally shows up as a mismatch instead of vanishing from the list and
+ * reading as "nothing opened". Filtering here would make the two failures
+ * indistinguishable.
+ */
+async function readOpenDialogs(
+  page: Page,
+): Promise<Array<{ ariaModal: string | null; title: string }>> {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('[role="dialog"]')).map((el) => {
+      const labelledBy = el.getAttribute('aria-labelledby')
+      const labelledText = labelledBy ? document.getElementById(labelledBy)?.textContent : null
+      return {
+        ariaModal: el.getAttribute('aria-modal'),
+        title: labelledText ?? el.getAttribute('aria-label') ?? '(no title)',
+      }
+    }),
+  )
+}
+
+/** The shape `readOpenDialogs` must return for a given expectation. */
+function dialogExpectation(titles: string[]): Array<{ ariaModal: string; title: string }> {
+  return titles.map((title) => ({ ariaModal: 'true', title }))
+}
+
+/**
  * Open an overlay THROUGH ITS OWN CONTROL, and wait for it to settle.
  *
  * Deliberately the same shape as `activateTab` rather than a parallel
@@ -1257,15 +1390,29 @@ export async function activateTab(page: Page, tab: TabState): Promise<void> {
  *     false, so an already-present dialog means this walk state is not the new
  *     state it claims to be — the overlay-open case of `activateTab`'s
  *     "already selected" guard.
- *  2. `[role="dialog"][aria-modal="true"]` present, and EXACTLY ONE of them.
- *     `Modal` renders its portal only from `isOpen`, so the node existing IS
- *     the proof React committed, not a proxy for it. Two would mean a second
- *     overlay was left open by an earlier step.
- *  3. THE ACCESSIBLE NAME MATCHES. This is the assertion that distinguishes
- *     "an overlay opened" from "the RIGHT overlay opened", and it is not
- *     decorative here: the two controls sit in the same bar and differ only by
- *     `mn-btn--primary` / `mn-btn--secondary`, so a swapped selector would open
- *     a real dialog and settle cleanly.
+ *  2 AND 3, WHICH ARE NOW ONE ASSERTION — widened at Gate 50-A. The open
+ *     dialogs, read by accessible name in DOM order, must EQUAL what
+ *     `expectedDialogs()` derives. That subsumes the two separate checks this
+ *     contract used to list — "exactly one `[aria-modal="true"]`" and "its
+ *     accessible name matches" — and keeps both of the properties they had:
+ *
+ *       · COUNT. A leaked overlay makes the list longer than declared; a
+ *         missing one makes it shorter. Equality catches both at every arity,
+ *         where the old `toHaveCount(1)` could only ever catch them at one.
+ *       · IDENTITY. "An overlay opened" is still distinguished from "the RIGHT
+ *         overlay opened", which is not decorative: the two preset-modal
+ *         controls sit in the same bar and differ only by `mn-btn--primary` /
+ *         `mn-btn--secondary`, so a swapped selector opens a real dialog and
+ *         settles cleanly. A title mismatch is now a list mismatch.
+ *
+ *     Modality is asserted rather than filtered on, so a dialog that opened
+ *     non-modally fails as a mismatch instead of disappearing from the list.
+ *     `Modal` renders its portal only from `isOpen`, so a node existing IS
+ *     proof React committed, not a proxy for it.
+ *
+ *     WHEN THE EXPECTATION IS EMPTY — a full-screen surface carrying no dialog
+ *     — `settlesOn` is asserted present exactly once instead, because "no
+ *     dialog is open" is also true of a blank screen.
  *  4. Every `<img>` complete, and fonts still loaded — same reasoning as
  *     `activateTab`. `Modal` mounts fresh content into a portal.
  *
@@ -1275,6 +1422,30 @@ export async function activateTab(page: Page, tab: TabState): Promise<void> {
  */
 export async function openOverlay(page: Page, overlay: OverlayState): Promise<void> {
   const control = page.locator(overlay.control)
+  const onOpen = dialogsOnOpen(overlay)
+  const atCapture = expectedDialogs(overlay)
+
+  /*
+    A DECLARATION ERROR, RAISED BEFORE THE BROWSER IS TOUCHED. A state that
+    expects no dialog and names no surface would pass on a blank screen — the
+    exact failure `confirm.settlesOn` exists to prevent. Thrown rather than
+    documented, because a comment saying "you must also set settlesOn" is a
+    comment, and this is a rule.
+  */
+  if (onOpen.length === 0 && !overlay.settlesOn) {
+    throw new Error(
+      `overlay state "${overlay.id}" declares opens: [] but no settlesOn. A control that ` +
+        `opens no dialog must name the surface it opens, or the settle assertion passes on ` +
+        `a blank screen.`,
+    )
+  }
+  if (atCapture.length === 0 && !overlay.confirm && !overlay.settlesOn) {
+    throw new Error(
+      `overlay state "${overlay.id}" declares dialogs: [] but no settlesOn. A state that ` +
+        `expects no dialog must name the surface it exists to capture, or it passes on a ` +
+        `blank screen.`,
+    )
+  }
 
   await expect(
     page.locator('[role="dialog"]'),
@@ -1319,16 +1490,31 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
 
   await control.click()
 
-  const dialog = page.locator('[role="dialog"][aria-modal="true"]')
-  await expect(
-    dialog,
-    `clicking "${overlay.controlLabel}" did not open exactly one modal dialog`,
-  ).toHaveCount(1)
-  await expect(
-    dialog,
-    `the dialog that opened is not "${overlay.title}" — the control selector reaches a ` +
-      `different overlay than this state declares`,
-  ).toHaveAccessibleName(overlay.title)
+  /*
+    ONE EQUALITY, RETRIED. `expect.poll` supplies the auto-retry the old
+    `toHaveCount` / `toHaveAccessibleName` pair had; the read itself is
+    `readOpenDialogs`, the SAME read `assertOverlayMatchesState` makes, so the
+    open check and the state check can no longer disagree about what a dialog
+    is called. Gate 43 is the record of them doing exactly that.
+  */
+  await expect
+    .poll(() => readOpenDialogs(page), {
+      message:
+        `clicking "${overlay.controlLabel}" did not leave exactly the dialogs "${overlay.id}" ` +
+        `declares open at that moment (${JSON.stringify(onOpen)}). Too many means an overlay ` +
+        `leaked or a second stack opened unbidden; too few means one did not open; a name ` +
+        `mismatch means the control selector reaches a different overlay than this state ` +
+        `declares.`,
+    })
+    .toEqual(dialogExpectation(onOpen))
+
+  if (onOpen.length === 0 && overlay.settlesOn) {
+    await expect(
+      page.locator(overlay.settlesOn),
+      `"${overlay.id}" opens no dialog, so its surface ("${overlay.settlesOn}") is the only ` +
+        `thing proving anything opened at all — and it is not present exactly once`,
+    ).toHaveCount(1)
+  }
 
   await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
   await page.waitForFunction(() => document.fonts.status === 'loaded')
@@ -1390,7 +1576,40 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
     await parkPointer(page)
   }
 
-  if (!overlay.confirm) return
+  if (!overlay.confirm) {
+    /*
+      THE AT-CAPTURE INVARIANT, AND IT HAS TO BE HERE RATHER THAN ONLY IN
+      `assertOverlayMatchesState`.
+
+      That function is called by `routes.spec.ts` and by NOTHING ELSE — checked,
+      not assumed. `visual.spec.ts` reaches a state through `gotoState`, which
+      does not call it. So for a state whose `prepare` steps open a SECOND stack,
+      the settle above (which asserts `dialogsOnOpen`) is the last dialog check
+      the screenshot path would make, and the second stack would go unasserted at
+      the exact moment it is photographed.
+
+      Skipped for a confirmed state because its own branch below asserts the
+      dialog GONE and its surface present — a stronger pair, and asserting an
+      empty list here would run before the confirm click that empties it.
+    */
+    await expect
+      .poll(() => readOpenDialogs(page), {
+        message:
+          `after "${overlay.id}" settled and ran its prepare steps, the open dialogs are not ` +
+          `what it declares for capture (${JSON.stringify(atCapture)}). A longer list is a ` +
+          `leaked overlay; a shorter one is a stack that did not open or closed early.`,
+      })
+      .toEqual(dialogExpectation(atCapture))
+
+    if (atCapture.length === 0 && overlay.settlesOn) {
+      await expect(
+        page.locator(overlay.settlesOn),
+        `"${overlay.id}" captures no dialog, so its surface ("${overlay.settlesOn}") is the ` +
+          `only thing proving anything is on screen — and it is not present exactly once`,
+      ).toHaveCount(1)
+    }
+    return
+  }
 
   // THE CONFIRM STEP. Same discipline as the open: the control is asserted to
   // exist and to carry its declared label BEFORE it is clicked, so a selector
@@ -1442,8 +1661,13 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
  * `OVERLAY_STATES` is hand-enumerated by ruling, so nothing derives it and
  * nothing can catch it drifting — except the DOM. Stated against the WALK
  * STATE and in BOTH directions, exactly as the tab-selection check is: a state
- * that declares an overlay must have exactly that one open, and a state that
- * declares none must have NOTHING open.
+ * that declares an overlay must have exactly the dialogs it names open, and a
+ * state that declares none must have NOTHING open.
+ *
+ * "EXACTLY THE DIALOGS IT NAMES" was "exactly that ONE" until Gate 50-A. The
+ * arity moved; the invariant did not. See `expectedDialogs` for why a list
+ * rather than a count, and why `>= 1` would have been the loosening this must
+ * not make.
  *
  * The second direction is the one that earns its keep. A modal left open by an
  * earlier interaction, or one the app opens by itself on mount, would be
@@ -1471,49 +1695,63 @@ export async function assertOverlayMatchesState(page: Page, state: WalkState): P
     (`toHaveAccessibleName`), which is what made the two disagree in the first
     place: the open check passed and this one failed on the same dialog.
   */
-  const dialogs = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('[role="dialog"]')).map((el) => {
-      const labelledBy = el.getAttribute('aria-labelledby')
-      const labelledText = labelledBy
-        ? document.getElementById(labelledBy)?.textContent
-        : null
-      return {
-        ariaModal: el.getAttribute('aria-modal'),
-        title: labelledText ?? el.getAttribute('aria-label') ?? '(no title)',
-      }
-    }),
-  )
+  const dialogs = await readOpenDialogs(page)
 
-  // A CONFIRMED OVERLAY ENDS WITH NO DIALOG. Its dialog is the ROUTE to the
-  // surface rather than the surface itself — confirming closes it — so those
-  // states expect the same empty list a no-overlay state does, and the surface
-  // that must be there instead is asserted separately below.
-  const expectsDialog = Boolean(state.overlay && !state.overlay.confirm)
+  /*
+    THE EXPECTATION COMES FROM `expectedDialogs`, NOT FROM A SECOND READING OF
+    THE SAME FIELDS — widened at Gate 50-A.
+
+    A state with no overlay expects `[]`. A state WITH one expects exactly what
+    it declares: `[title]` by default, its `dialogs` list if it names one, and
+    `[]` if it confirms its dialog away.
+
+    THE INVARIANT IS EQUALITY, AND THAT IS WHAT PRESERVES THE LEAK CHECK. The
+    assertion this replaces was "exactly one, titled X", and its whole reason
+    for existing was the second direction — a modal left open by an earlier
+    interaction, or one the app opens on mount, is invisible to every other
+    assertion in the suite and would quietly appear in a baseline as though it
+    belonged. Equality against a NAMED LIST keeps that at every arity: a leak
+    lengthens the list, a failure to open shortens it, and a wrong overlay
+    renames an entry. Relaxing to a count — even `>= 1`, which is what admitting
+    two stacks naively looks like — would have thrown the leak check away,
+    because `>= 1` cannot tell two intended stacks from one stack plus a leak.
+  */
+  const expected = state.overlay ? expectedDialogs(state.overlay) : []
 
   expect(
     dialogs,
-    expectsDialog
-      ? `${stateTitle(state)}: exactly one modal dialog must be open, titled ` +
-          `"${state.overlay!.title}"`
-      : state.overlay
-        ? `${stateTitle(state)}: this state confirms its dialog away, so no [role="dialog"] ` +
-            `may remain. One is still open, so the confirm step did not close it and this ` +
-            `state's baseline would record the modal instead of the surface.`
-        : `${stateTitle(state)}: this state declares NO overlay, so no [role="dialog"] may be ` +
-            `open. Something opened one — an earlier interaction that did not dismiss, or the ` +
-            `app opening it on mount. Either way this state's baseline would record it.`,
-  ).toEqual(
-    expectsDialog ? [{ ariaModal: 'true', title: state.overlay!.title }] : [],
-  )
+    !state.overlay
+      ? `${stateTitle(state)}: this state declares NO overlay, so no [role="dialog"] may be ` +
+          `open. Something opened one — an earlier interaction that did not dismiss, or the ` +
+          `app opening it on mount. Either way this state's baseline would record it.`
+      : expected.length > 0
+        ? `${stateTitle(state)}: exactly these dialogs must be open, by accessible name and ` +
+            `in DOM order: ${JSON.stringify(expected)}. A longer list is a leaked overlay; a ` +
+            `shorter one is an overlay that did not open; a renamed entry is the wrong overlay.`
+        : state.overlay.confirm
+          ? `${stateTitle(state)}: this state confirms its dialog away, so no [role="dialog"] ` +
+              `may remain. One is still open, so the confirm step did not close it and this ` +
+              `state's baseline would record the modal instead of the surface.`
+          : `${stateTitle(state)}: this state declares dialogs: [], so its surface carries no ` +
+              `[role="dialog"] at all. One is open, so the baseline would record an overlay ` +
+              `this state says is not there.`,
+  ).toEqual(dialogExpectation(expected))
 
-  // THE SECOND DIRECTION FOR A CONFIRMED STATE. Without it, a confirm that
-  // silently produced nothing would satisfy the empty-dialog check above and
-  // mint a baseline of a bare screen.
-  if (state.overlay?.confirm) {
+  /*
+    THE SECOND DIRECTION FOR EVERY STATE THAT EXPECTS NO DIALOG. Without it, a
+    confirm that silently produced nothing — or a full-screen surface that never
+    mounted — satisfies the empty-list check above and mints a baseline of a
+    bare screen.
+
+    `confirm.settlesOn` and the top-level `settlesOn` are the same assertion for
+    the two ways of arriving at no dialog: one closed, one never was.
+  */
+  const surface = state.overlay?.confirm?.settlesOn ?? state.overlay?.settlesOn
+  if (surface) {
     await expect(
-      page.locator(state.overlay.confirm.settlesOn),
+      page.locator(surface),
       `${stateTitle(state)}: the surface this state exists to capture ` +
-        `("${state.overlay.confirm.settlesOn}") is not present exactly once`,
+        `("${surface}") is not present exactly once`,
     ).toHaveCount(1)
   }
 }

@@ -980,6 +980,63 @@ true answer.
 be a design call — keep the data-derived glyph, which names the VALUE, or switch
 to Figma's generic one, which names the FIELD.
 
+**THAT PREDICTION WAS HALF RIGHT AND THE ASSETS HAVE NOW SHIPPED — see the
+closure block immediately below.** G25 did change the MVP, as predicted. The
+design call on G26/G27 was put to Teku at the Gate 49 close and answered
+"Figma's generic one", so **all three changed the MVP**, not one. The prediction
+was not wrong about the mechanics; it simply could not know which way the call
+would go, and it should not have implied the default was to keep what shipped.
+
+#### All three CLOSED at MVP Gate 50-A — DS v2.3.0 shipped all three, adopted here at v2.3.0
+
+| # | Status | What closed it | Verified in this repo |
+|---|---|---|---|
+| **G25** | **CLOSED** | `link_off` added to the `Icon` registry | Present in BOTH resolution paths, checked separately because the Vite alias compiles the sibling SOURCE while `tsc` reads the pinned DIST: sibling `src/components/Icon/icons.ts:179`, and `dist/components/Icon/icons.d.ts:326`. Adopted as `leadingIcon={<Icon name="link_off" size="m" />}` on the "Unlink receipt" `Button` in `TransactionDetailSheet.tsx` — the ONE render call site, established by grepping `src/` rather than taken from a carried list. The slot was EMPTY before, never filled with `link` |
+| **G26** | **CLOSED** | `list_alt` added to the `Icon` registry | Sibling source `icons.ts:180`, dist `icons.d.ts:332`. Adopted as a LITERAL `icon="list_alt"` on the Transaction info Category row, replacing the data-derived `category.icon` (`icon_grocery` on the walked rows) |
+| **G27** | **CLOSED** | `credit_card` added to the `Icon` registry | Sibling source `icons.ts:187`, dist `icons.d.ts:362`. Adopted as a LITERAL `icon="credit_card"` on the Payment Method row, replacing the data-derived `account.icon` (`icon_bank`). The row's VALUE divergence is UNCHANGED and is not closed by this — Figma still prints "Monarch Trust" and the app still derives `bank` (`"Monarch Bank"`), which was always a Figma-side copy defect rather than a DS gap |
+
+**THE REGISTRY WENT 103 → 106, COUNTED IN BOTH PATHS AND NOT QUOTED.** The
+sibling source and the pinned dist agree, and the dist count is over DISTINCT
+keys so a duplicated entry could not inflate it:
+
+```bash
+git show v2.2.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"   # 103
+git show v2.3.0:src/components/Icon/icons.ts | awk '/^export const ICONS/,/^\}/' | grep -cE "^  [A-Za-z0-9_]+:"   # 106
+grep -oE "^\s+readonly [A-Za-z0-9_]+:" node_modules/@monarch/design-system/dist/components/Icon/icons.d.ts | sort -u | wc -l   # 106
+```
+
+**THE MATERIAL SUBSET WENT 67 → 70, AND IT IS A DIFFERENT COMMAND.** All three
+new glyphs are `@material-design-icons/svg/round/*`, so the custom-asset count is
+unmoved at 36 and 106 − 70 = 36 closes. Conflating the two counts is a real trap
+that had propagated into `CLAUDE.md`; it is corrected there at this gate.
+
+**G26 AND G27 WERE THE DESIGN CALL, AND IT WENT TO THE FIELD READING.** Teku
+ruled at the Gate 49 close that the three info rows are ONE GRAMMAR — a calendar,
+a list, a card, each naming its FIELD — and that a shopping cart beside
+"Category" breaks the pattern the calendar sets one row above. So the workaround
+was not merely replaced, it was REVERSED: the rows now pass literals where they
+passed expressions reading the record. **Do not reintroduce value glyphs.**
+
+**THE WORKAROUND WAS STILL THE RIGHT CALL WHILE IT STOOD**, and that is worth
+keeping rather than tidying away. It drew a correct glyph from data the app
+already held, which is categorically different from picking a lookalike for the
+drawn one — the distinction G16 established. A gap worked around from data
+leaves nothing misleading on screen while it is open.
+
+**PIXEL CONSEQUENCE, MEASURED RATHER THAN ASSUMED, AND IT SPLIT BY STATE.** The
+adoptions moved exactly 8 of 112 baselines, and decoding each capture against its
+predecessor shows the three glyphs do NOT all reach both states:
+
+| baselines | differing px | bbox @375 | cause |
+|---|---|---|---|
+| `finance-transactions-detail-{375,430}-{light,dark}` | 446 / 444 | `[17, 678, 34, 734]`, two row runs | **G26 + G27 only.** An 18px-wide column at the left gutter, in two runs — the two glyph slots. The unchanged Date calendar sits above and is correctly absent |
+| `finance-transactions-detail-linked-{375,430}-{light,dark}` | 1066 / 1069 | `[209, 669, 330, 685]`, ONE row run | **G25 only.** The info-row glyph column (x 17–34) does not appear in this diff at all, because the linked panel is at its viewport cap and the info rows sit BELOW the scroll fold — so `list_alt` and `credit_card` are not in that capture |
+
+That second row is the non-obvious one: a state can adopt a glyph and not
+photograph it. The single row run also proves the Unlink label did not wrap when
+the button gained a leading icon — a wrap would have produced two runs and a
+taller bbox.
+
 **THAT CALL IS RECORDED IN `CLAUDE.md`, NOT IN THE FLOW INVENTORY.** Gate 49 wrote
 it into `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` and the edit was REVERTED IN FULL:
 that document records what the Figma says, not what was built, and is ruled left
@@ -1049,10 +1106,73 @@ redundant and deleted.
   | + G27 (`component-gap`), Gate 49 | **26** | **5** | **18** | **1** | **2** |
 
   5 + 18 + 1 + 2 = **26** ✓. Closures do not decrement these columns — a closed
-  entry keeps its tag and its number, so **G16** is 1 of the 5 `component-gap`,
-  **G15** 1 of the 18 `prop-gap`, and **G18** 1 of the 2 `shape-mismatch`.
-  Open by tag: 4 `component-gap`, 17 `prop-gap`, 1 `token-gap`, 1
-  `shape-mismatch` = **23 open**, and 23 + 3 closed = 26 ✓.
+  entry keeps its tag and its number, so **G16** is 1 of the `component-gap`,
+  **G15** 1 of the `prop-gap`, and **G18** 1 of the 2 `shape-mismatch`.
+
+  **TWO OF THE NUMBERS IN THAT TABLE ARE WRONG, AND THE TABLE'S OWN PROSE IS
+  WHAT CONTRADICTS THEM — found at Gate 50-A by deriving from the entry set
+  rather than continuing the tally.** The `component-gap` column reads 5 while
+  the paragraph two below it names **six** members: G16, plus G1 and G2 ("the
+  column's other two members"), plus G25/G26/G27. `prop-gap` absorbs the missing
+  one and reads 18 against a derived 17. The SUM was right at every step, which
+  is exactly why it survived: a running tally that is checked only against its
+  own total cannot see a unit moved between two of its columns.
+
+  The error predates the three additions — it is already present in the Gate
+  44-B baseline row, which reads `component-gap` 2 when G1, G2 and G16 were all
+  open and all tagged `component-gap`. **The rows above are left as written**,
+  because they are the record of what each gate believed; the corrected figures
+  are below.
+
+  ### GATE 50-A, DERIVED FROM THE ENTRY SET
+
+  Not carried forward from the tally. Every `| **Gn** |` row that is an ENTRY
+  row (i.e. not a `**CLOSED**` closure row), deduplicated by G-number, with its
+  tag read out of the same row:
+
+  | | count | which |
+  |---|---|---|
+  | **entries** | **26** | G1–G23 and G25–G27 |
+  | `component-gap` | **6** | G1, G2, G16, G25, G26, G27 |
+  | `prop-gap` | **17** | G3–G9, G11–G15, G17, G19, G21, G22, G23 |
+  | `token-gap` | **1** | G10 |
+  | `shape-mismatch` | **2** | G18, G20 |
+
+  6 + 17 + 1 + 2 = **26** ✓.
+
+  **CLOSED IS 9, NOT THE 6 A GATE-49-PLUS-THREE COUNT GIVES.** Derived by
+  collecting every G-number carrying a `**CLOSED**` marker, across BOTH table
+  shapes the document uses plus the one closure written as a heading:
+
+  | closed | where the closure is recorded | shape |
+  |---|---|---|
+  | **G1**, **G9**, **G10** | the §2a closure table | `\| **Gn** \| tag — summary \| **CLOSED** \|` |
+  | **G15**, **G16** | the Gate 46 closure table | `\| **Gn** \| **CLOSED** \| what closed it \|` |
+  | **G18** | a `####` heading, no table row at all | heading |
+  | **G25**, **G26**, **G27** | the Gate 50-A closure table above | `\| **Gn** \| **CLOSED** \| … \|` |
+
+  **THE THREE SHAPES ARE WHY A SINGLE GREP UNDERCOUNTS**, and both plausible
+  greps undercount differently: one anchored on `\| **Gn** \| **CLOSED**` returns
+  **5** (it misses the §2a shape, where CLOSED is in the THIRD column, and misses
+  G18 entirely), and one that only reads tables returns **8** (it misses G18's
+  heading). The number is **9**, and it is only reachable by enumerating the
+  shapes first. The count-KEYS-not-lines rule again, on a document instead of on
+  a state list.
+
+  So: **26 entries, 9 closed, 17 open.** Open by tag: 1 `component-gap` (G2),
+  15 `prop-gap`, 0 `token-gap`, 1 `shape-mismatch` (G20) = **17 open**, and
+  17 + 9 = 26 ✓.
+
+  **`token-gap` IS NOW ZERO OPEN**, which no previous tally could show, because
+  its only member G10 has been closed since §2a and the running tally never
+  counted the §2a closures at all. The Gate 46 line "3 are CLOSED and 20 are
+  open" was an undercount for the same reason: G1, G9 and G10 are closures of
+  register entries recorded in this document, and there were six, not three.
+
+  **G2 IS THE ONLY OPEN `component-gap` LEFT**, and it is the iOS action sheet
+  blocking Gate 50's capture flow. The column went 2 → 5 → 6 and is now back to
+  1 open in a single gate, because all three additions were missing SVGs and one
+  DS release closed all three.
 
   **THE `component-gap` COLUMN WENT 2 -> 5 IN ONE GATE, AND ALL THREE ARE
   MISSING ICONS.** That is worth reading as a single item rather than three:
@@ -1060,6 +1180,13 @@ redundant and deleted.
   DS commit closes all of them. The column's other two members — G1 (a
   bottom-anchored sheet, closed) and G2 (the iOS action sheet, still open and
   blocking Gate 50) — are real components and are not comparable in size.
+
+  **THAT PREDICTION WAS TESTED AND HELD EXACTLY: DS v2.3.0 CLOSED ALL THREE IN
+  ONE RELEASE**, whose entire delta outside tests and showcase is six lines in
+  `src/components/Icon/icons.ts`. It is the strongest evidence yet for the
+  register's own thesis — that an asset gap is cheap to close and expensive only
+  to notice. It is also the paragraph whose arithmetic ("2 -> 5") is off by one;
+  see the derived census above.
 
   **THE ENTRY COUNT IS 26 AND THE HIGHEST NUMBER IS G27, BECAUSE 24 IS A
   PERMANENT HOLE.** G24 was reserved at Gate 46 for the applied-chip row, on the

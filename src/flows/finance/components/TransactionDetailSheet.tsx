@@ -161,36 +161,43 @@ export function TransactionDetailSheet({
           Transaction info
         </h3>
         <dl className="mvp-txn-detail__rows">
-          {/* DATE — Figma's own glyph, and the only one of the three the DS has. */}
+          {/*
+            ── THE THREE GLYPHS ARE ONE GRAMMAR, AND THE GRAMMAR IS "FIELD" ──
+
+            A calendar, a list, a card. Each names the FIELD its row is about,
+            never the VALUE in the row's right-hand column — so the Category row
+            draws a list whatever the category is, and the Payment Method row
+            draws a card whatever the institution is.
+
+            Gates 41-49 shipped the second and third rows drawing the VALUE'S own
+            glyph (`TRANSACTION_CATEGORIES[].icon`, the holding's `icon`) because
+            the DS registry carried neither `list_alt` nor `credit_card` — that
+            was a derivation from data rather than a near-miss substitution, which
+            is what G16's ruling forbids, and it was the right call while the
+            glyphs did not exist. DS v2.3.0 ships both (register G26, G27, both
+            closed) and the rows are now as drawn.
+
+            THE PATTERN THE DATE ROW SET IS WHAT THESE TWO NOW FOLLOW: a literal
+            glyph naming the field, not an expression reading the record. Do not
+            reintroduce value glyphs — a shopping cart beside "Category" breaks
+            the pattern the calendar establishes one row above.
+          */}
           <InfoRow
             icon="calendar_today"
             label="Date"
             value={formatTimestamp(transaction.occurredAt)}
           />
-          {/*
-            CATEGORY — Figma draws `list_alt`, which the DS registry does not
-            carry (register G26). The glyph here is the CATEGORY'S OWN, read off
-            `TRANSACTION_CATEGORIES`, which is data this app already holds for
-            exactly this purpose — not a near-miss substitution for the drawn
-            glyph, which is what G16's ruling forbids. It also gives that table
-            its first consumer since it was exported unused at Gate 41.
-
-            THE ONE DIVERGENCE, RECORDED RATHER THAN HIDDEN: Figma's glyph names
-            the FIELD ("a category") and this one names the VALUE ("groceries").
-            The label and the value column are as drawn.
-          */}
           {category && (
-            <InfoRow icon={category.icon} label="Category" value={category.label} />
+            <InfoRow icon="list_alt" label="Category" value={category.label} />
           )}
           {/*
             PAYMENT METHOD — Figma prints "Monarch Trust", a name that exists
             nowhere in this app's data; `transactionAccount` derives the real
             institution instead of transcribing one the rest of the app would
-            contradict. Figma draws `credit_card`, also absent from the registry
-            (register G27); the glyph comes off the holding's own `icon` field.
+            contradict. That divergence is unchanged; only the glyph moved.
           */}
           {account && (
-            <InfoRow icon={account.icon} label="Payment Method" value={account.label} />
+            <InfoRow icon="credit_card" label="Payment Method" value={account.label} />
           )}
         </dl>
       </section>
@@ -268,11 +275,18 @@ function PromptBlock() {
  * two-sources-for-one-fact shape that killed `Transaction.hasReceipt` at Gate 48.
  * The images are the defect; `receipts.ts` records all six to the cent.
  * ─────────────────────────────────────────────────────────────────────────────
- * "Unlink receipt" SHIPS TEXT-ONLY, DELIBERATELY. Figma draws `link_off`; the DS
- * registry has `link` and no `link_off` (register G25). Substituting `link` would
- * put a glyph on the button stating the OPPOSITE of what it does, which is worse
- * than no glyph, and building one here would be an MVP-local primitive (rule 3).
- * "View" keeps its `visibility` glyph, which does exist.
+ * "Unlink receipt" CARRIES `link_off`, which DS v2.3.0 added (register G25,
+ * closed). It shipped text-only at Gate 49 because the registry then held `link`
+ * and no `link_off`, and substituting `link` would have put a glyph on the button
+ * stating the OPPOSITE of what it does — worse than no glyph.
+ *
+ * THE GLYPH IS NOT DECORATION HERE. Read off device photographs, a text-only
+ * `variant="tertiary"` Button sitting inside a card reads as a text LINK rather
+ * than as an action; the glyph is what makes it register as a button. That is
+ * why this waited for the real glyph instead of shipping a near miss.
+ *
+ * "View" keeps its `visibility` glyph, and this row now matches it exactly:
+ * both are `tertiary`/`s` with a `size="m"` leading glyph.
  */
 function ReceiptBlock({
   receipt,
@@ -399,6 +413,7 @@ function ReceiptBlock({
           variant="tertiary"
           size="s"
           label="Unlink receipt"
+          leadingIcon={<Icon name="link_off" size="m" />}
           onClick={onUnlink}
         />
       </div>
