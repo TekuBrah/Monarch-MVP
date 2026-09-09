@@ -1256,3 +1256,231 @@
   future DS change, which is precisely the rule Gate 13 removed on measurement.
   Do not add it back.
 */
+
+/* ───────────────────────────────────────────────────────── Gate 50 ──────────
+   THE CAPTURE SURFACES.
+
+   Layout only, as always. Every colour, radius, spacing and type value below is
+   a DS token; nothing here paints an appearance the DS could own.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/*
+  THE SOURCE PICKER — `ReceiptSourcePicker`.
+
+  The outer layer mirrors `.mn-sheet` exactly (fixed, inset 0, z-index 100,
+  column, justified to the end) rather than inventing a positioning scheme: this
+  overlay stacks WITH DS overlays, so it has to agree with them about what a
+  fixed overlay layer is. Its panel sits at 101 for the same reason `.mn-sheet__panel`
+  and `.mn-modal__card` do — above the Blanket that is its own sibling.
+
+  IT TAKES NO FRAME INSET, DELIBERATELY, and that is consistency rather than an
+  oversight. Gate D's five fixed elements are the app's own chrome — nav, scrim,
+  FAB, theme switch, toast — and every DS overlay (`Sheet`, `Modal`) is
+  `inset: 0` against the viewport. An MVP overlay that centred itself in the
+  430 frame while the sheet behind it spanned the viewport would be the only
+  surface in the app doing so.
+*/
+.mvp-source-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-sizing: border-box;
+}
+
+/*
+  10px EACH SIDE AND 10px BETWEEN THE GROUPS — both `--brand-scale-250`, a real
+  ramp step, so Figma's margins are transcribed exactly rather than rounded.
+
+  32 AT THE FOOT IS FIGMA'S 34 ROUNDED TO THE RAMP (`--brand-scale-800`), plus
+  whatever safe-area inset the device actually grants. 34 is iOS's home-indicator
+  zone and is off the ramp; rounding to the nearest step is the DS's own move
+  (StatusBar 5->4, BottomNavigation 62->64, Sheet 44->48) rather than a new
+  permanent literal. The inset resolves to 0 in the harness (Gate 44), so the
+  baselines record the 32.
+*/
+.mvp-source-picker__panel {
+  position: relative;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-250);
+  box-sizing: border-box;
+  margin: 0 var(--brand-scale-250)
+    calc(var(--brand-scale-800) + env(safe-area-inset-bottom, 0px));
+}
+
+.mvp-source-picker__group {
+  display: flex;
+  flex-direction: column;
+  background: var(--mapped-surface-elevation-default);
+  /* Apple's 10 -> Monarch's Border Radius/md. */
+  border-radius: var(--brand-scale-200);
+  overflow: clip;
+}
+
+/*
+  THE ROW. 20px padding is Figma's, exactly; the height that results is 64
+  rather than 61 because Poppins' `body/m` line box is 24 where SF Pro Text's
+  was 21. Every number is a token or a type metric — see the component header.
+*/
+.mvp-source-picker__row {
+  appearance: none;
+  background: none;
+  border: none;
+  width: 100%;
+  padding: var(--brand-scale-500) var(--brand-scale-400);
+  font-family: inherit;
+  color: var(--mapped-text-primary-default);
+  text-align: center;
+  cursor: pointer;
+}
+
+/*
+  THE HAIRLINE IS A BORDER ON THE SECOND ROW, NOT A THIRD ELEMENT. Figma draws it
+  as a separate 355-wide line; as a `border-top` it cannot outlive either row it
+  separates, and it needs no width of its own to keep in step with the group's.
+*/
+.mvp-source-picker__row--ruled {
+  border-top: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+}
+
+/*
+  THE BULK MODAL — `AddReceiptsModal`. The panel, header and footer are all the
+  DS `Modal`'s own and are measured to match Figma exactly; only the content
+  region's layout is here.
+*/
+.mvp-add-receipts__sources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-200);
+}
+
+/* Full-width, matching the footer's own stack. */
+.mvp-add-receipts__sources > * {
+  width: 100%;
+}
+
+/*
+  `repeat(3, 1fr)` AND NOT 98px. Three 98s plus two 8s is 310 in a 311 content
+  box, so Figma's own row leaves a pixel of slack; `1fr` fills the column and
+  resolves to 98.33 at 375 and 116.33 at 430. See the component header for why
+  the drawn number is an artifact of a fixed-width frame.
+*/
+.mvp-add-receipts__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--brand-scale-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mvp-add-receipts__tile {
+  position: relative;
+  /* Square, from the column width rather than from a second literal. */
+  aspect-ratio: 1;
+  border-radius: var(--brand-scale-200);
+  overflow: clip;
+}
+
+.mvp-add-receipts__thumb {
+  width: 100%;
+  height: 100%;
+  /* COVER, NOT CONTAIN. Figma's tiles crop a 98x130 image into a 98 square. */
+  object-fit: cover;
+  display: block;
+}
+
+/*
+  3px IN FIGMA, 4 HERE — the nearest ramp step (`--brand-scale-100`), for the
+  same reason the picker's 34 becomes 32. Both the remove affordance and the type
+  badge take the same inset, which is what Figma draws.
+*/
+.mvp-add-receipts__remove {
+  position: absolute;
+  top: var(--brand-scale-100);
+  right: var(--brand-scale-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--brand-scale-100);
+  border: none;
+  /*
+    THE MVP-LOCAL CORRECTION. Figma binds no background variable on this node at
+    all — its fill is a raw literal — while the type badge on the same tile binds
+    `surface/Overlay/default`. Binding both to the same token is what the tile
+    evidently means.
+  */
+  background: var(--mapped-surface-overlay-default);
+  border-radius: var(--brand-scale-100);
+  color: var(--mapped-text-primary-on-color);
+  cursor: pointer;
+}
+
+.mvp-add-receipts__badge {
+  position: absolute;
+  left: var(--brand-scale-100);
+  bottom: var(--brand-scale-100);
+}
+
+/*
+  "ADD MORE" — a slot, so a dashed edge. It is the LAST GRID CELL rather than a
+  control below the grid, which is where Figma puts it (`1050:10957` at the
+  sixth cell), so it flows with the tiles as they accumulate.
+*/
+.mvp-add-receipts__tile--more {
+  border: var(--brand-scale-25) dashed var(--mapped-border-subtle-default);
+}
+
+.mvp-add-receipts__more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Figma: icon bottom 53, label top 61. */
+  gap: var(--brand-scale-200);
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: var(--mapped-text-subtle-default);
+  cursor: pointer;
+}
+
+/* Figma's 32x32 "icon / button" — `--brand-scale-800` exactly. */
+.mvp-add-receipts__more-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--brand-scale-800);
+  height: var(--brand-scale-800);
+  background: var(--mapped-surface-subtlest-default);
+  border-radius: var(--brand-scale-200);
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  THE PROCESSING MOMENT — `CapturingBlock`. Shared by the modal and the detail
+  sheet, so it centres in whatever box it is given rather than sizing itself.
+  The vertical padding is what stops it collapsing to the loader's own 32px
+  inside the sheet, where it replaces a 144-tall prompt block.
+*/
+.mvp-capturing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--brand-scale-400);
+  padding: var(--brand-scale-1000) 0;
+}
+
+.mvp-capturing__label {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+  text-align: center;
+}

@@ -1159,9 +1159,32 @@ redundant and deleted.
   shapes first. The count-KEYS-not-lines rule again, on a document instead of on
   a state list.
 
-  So: **26 entries, 9 closed, 17 open.** Open by tag: 1 `component-gap` (G2),
-  15 `prop-gap`, 0 `token-gap`, 1 `shape-mismatch` (G20) = **17 open**, and
-  17 + 9 = 26 ✓.
+  **SUPERSEDED AT GATE 50: THERE ARE NOW FOUR CLOSURE SHAPES AND THE NUMBER IS
+  10.** §2h closes **G2** in a shape none of the three rows above describes — a
+  key/value block whose G-number sits on an `\| entry \|` row while `**CLOSED**`
+  sits on a *different* row, `\| status \|`. **Every anchor named above misses
+  it**, because all three assume the G-number and the CLOSED marker share a
+  line. Re-derived at Gate 50 by enumerating shapes first, as this block
+  instructs: A -> G15 G16 G25 G26 G27, B -> G1 G9 G10, C -> G18 (plus the five
+  from A), **D -> G2**. Union = **10**.
+
+  **AND THERE IS NOW A SECOND *ENTRY* SHAPE TOO, WHICH THIS BLOCK NEVER HAD TO
+  CONSIDER.** §2h declares **G28** in the same key/value form, so its tag lives
+  on a following `\| tag \|` row rather than in a tag CELL of the entry row. A
+  census that reads the tag out of the entry row finds 26 entries and stops at
+  G27 — measured, that is exactly what a first pass at Gate 50 returned before
+  the shape was accounted for.
+
+  **THE GATE 50-A FIGURES ABOVE ARE LEFT AS THE DATED RECORD** — they were right
+  when written. What rotted is that they sit under `## Summary`, which reads as a
+  statement of the CURRENT state; this note is the correction, and §2h's own
+  count section carries the live numbers.
+
+  So, **AT GATE 50-A: 26 entries, 9 closed, 17 open.** Open by tag: 1
+  `component-gap` (G2), 15 `prop-gap`, 0 `token-gap`, 1 `shape-mismatch` (G20) =
+  **17 open**, and 17 + 9 = 26 ✓. **Superseded at Gate 50 — see the note above
+  and §2h: 27 / 10 / 17.** The open TOTAL is unchanged at 17 by coincidence, not
+  by nothing having happened: G2 closed and G28 opened in the same gate.
 
   **`token-gap` IS NOW ZERO OPEN**, which no previous tally could show, because
   its only member G10 has been closed since §2a and the running tally never
@@ -1228,3 +1251,178 @@ redundant and deleted.
 
 **Nothing was fixed. Nothing was staged, committed, pushed or tagged. No branch
 was created.**
+
+---
+
+## 2h. Status at MVP Gate 50 (2026-09-09) — the capture surfaces
+
+**Two entries move and one is opened. The register goes 26 entries -> 27, with
+`component-gap` reaching ZERO OPEN for the first time in this document's
+history.**
+
+### G2 is CLOSED — as MVP-LOCAL COMPOSITION, not as a DS component
+
+**AND THAT IS A DIFFERENT KIND OF CLOSURE FROM EVERY OTHER ONE IN THIS
+REGISTER.** G25–G27 closed because the DS grew three SVGs; G15 and G16 closed
+because the DS grew a prop and a glyph; G18 closed on a re-pin. **G2 closes
+because the answer to "should the DS ship this?" turned out to be NO.**
+
+| | |
+|---|---|
+| entry | **G2** — the iOS action sheet on F9 `add receipt` |
+| status | **CLOSED — built MVP-local at Gate 50** |
+| where | `src/flows/finance/components/ReceiptSourcePicker.tsx` |
+| ruling | Teku's decision C, settled. Do not reopen |
+
+**THE EVIDENCE THAT DECIDED IT WAS A VARIABLE READ, AND IT IS DECISIVE.**
+`get_variable_defs` on the whole overlay `1033:11135` returns **exactly one**
+binding — `Blanket/default/default` — and on the grouped rows `1033:11226` it
+returns **`{}`**, nothing at all. Every fill, radius, font and colour in that
+node is a raw literal. G2's own original entry already said as much
+structurally ("drawn entirely as `Group 2/3/4/5`, `Rectangle 3/4`, `Line 1` and
+bare `text`"); the variable read confirms it at the token level. **It is a
+pasted Apple asset, and a design system does not ship one.**
+
+**WHAT SURVIVED AND WHAT DID NOT.** The SHAPE is a real design decision and was
+kept: two source rows joined by a hairline, then a **gap**, then Cancel standing
+alone — the gap is what says Cancel is not a third source, and it is what
+distinguishes a source picker from a menu. The SKIN is Apple's and was replaced:
+
+| | Figma (raw literal) | shipped (token) |
+|---|---|---|
+| font | SF Pro Text 17 | Poppins, `type-body-m` / `-semibold` |
+| tint | `#007aff` | `--mapped-text-primary-default` |
+| panel | `rgba(255,255,255,.8/.9)` + `backdrop-blur(25px)` | `--mapped-surface-elevation-default`, no blur |
+| radius | 10 | `--brand-scale-200` (8) |
+| hairline | a 1px SVG line | `--brand-scale-25` border |
+
+**THE TINT IS NOT `#046eff`, WHICH THE GATE BRIEF ASKED FOR.** `#046eff` is
+`--brand-blue-500`, a RAW brand primitive: it breaches rule 2, and — the
+substantive objection — **a raw brand value cannot dark-flip**, so the picker
+would have painted mid-blue text on a near-black panel. `--mapped-text-primary-default`
+is the semantic token for primary-tinted text and resolves to blue-600 light /
+blue-300 dark. The intent survives; the mechanism is the one that survives a
+theme.
+
+**SF PRO TEXT DOES NOT EXIST ON THE ANDROID DEVICE THIS APP IS TESTED ON**, so
+transcribing the font was never even faithful there — it was a silent fallback
+to whatever Android has.
+
+**MEASURED, at 375, DPR 2, through the harness:** panel `x=10, w=355` —
+**exactly** Figma's 10/355 — rows **64** against Figma's 61, group
+`64 + 1 + 64 = 129`, gap 10, panel bottom 32 from the viewport foot. The rows
+are the only divergence and every number in it is a token or a type metric: 61
+decomposes as `20 + 21 + 20`, and **20 IS a ramp step** (`--brand-scale-500`),
+so the padding is transcribed exactly while Poppins' `body/m` line box is 24
+where SF Pro Text's is 21. **The +3 is the type substitution showing through,
+not a rounding.**
+
+Two values WERE rounded to the ramp, and both are named: Figma's **34** at the
+foot -> **32** (`--brand-scale-800`), and the tile insets **3** -> **4**
+(`--brand-scale-100`). Rounding to the nearest step is the DS's own established
+move (StatusBar 5->4, BottomNavigation 62->64, Sheet 44->48).
+
+**THE RAMP HAS NO 44 AND NO 50 BUT IT DOES HAVE 10 AND 20** — `--brand-scale-250`
+and `-500`. Both were checked before use rather than assumed absent, which is why
+the two 10px figures are exact rather than rounded.
+
+### U3 is ANSWERED, and the answer is the one it proposed
+
+> **U3** — G2: is the action sheet a DS primitive at all? It could legitimately
+> be an MVP rule-4 composition over `Blanket`. It appears on exactly one screen.
+> Building a DS primitive for a single use may be the wrong trade.
+
+**YES — it is a rule-4 composition over `Blanket`, and that is exactly what
+shipped.** The question anticipated the ruling a full four gates before it was
+made, on the "one screen" argument alone; the variable read then supplied a
+second, independent reason that the original question did not have.
+
+### G28 is OPENED — `Modal` hugs where Figma fixes, twice over
+
+| | |
+|---|---|
+| **G28** | `Modal` — header and footer heights |
+| tag | **`shape-mismatch`** — a design call, not a code fix |
+| flow | 9 |
+
+**MEASURED at 375, DPR 2, animations settled, against Figma `1048:10593`:**
+
+| | Figma | rendered | |
+|---|---|---|---|
+| card | x=16, w=343 | **x=16, w=343** | ✓ exact |
+| content inset | 16 | **16** | ✓ exact |
+| header | 64 | **74** | ✗ **+10** |
+| footer | 152 | **128** (74 when empty) | ✗ **−24** |
+
+**THE TWO THAT MATCH ARE THE TWO THAT SETTLE THE MODAL-VERSUS-SHEET QUESTION**,
+and they are exact to the pixel. The inner Figma node is NAMED "Bottom Sheet";
+its geometry says Modal — 343 wide at x=16, all four corners rounded, no home
+indicator — and geometry wins. **The name is the trap**, and this is the second
+time in Flow 9 that a Figma layer name has pointed the wrong way.
+
+**ONE CAUSE, TWO DIRECTIONS: Figma FIXES both heights and the DS HUGS them.**
+The header is TALLER because the DS's close `IconButton` renders 34 where
+Figma's 64-tall header allows a 24px line box; the footer is SHORTER because
+`Button` renders ~34 (~38 with a leading icon) where Figma draws 48.
+
+**NO PROP CLOSES IT — enumerated rather than assumed.** `ButtonSize` is
+`'s' | 'm' | 'l'` at paddings 4 / 8 / 12, so `l` tops out around 42 and cannot
+reach 48. `Modal` exposes no header or footer height.
+
+**THIS IS G18's QUESTION A SECOND TIME.** G18 records `Header/bg` rendering 22px
+shorter for exactly this reason. Two instances make it a systemic question —
+which geometry does Monarch want, Figma's fixed rows or the DS's hugs? — rather
+than two transcription slips. Register them together.
+
+**NOT FIXED HERE, AND NO OVERRIDE WAS WRITTEN.** Forcing either height would be
+an MVP-local geometry override on a DS component — the equal-specificity
+override Gate 13 removed on measurement.
+
+### One more measured divergence, deliberately NOT registered
+
+**`.mn-modal__card` CAPS AT `max-width: 375px`, so at the 430 viewport the card
+renders 375 wide at x=27.5 rather than 398 at x=16.** Measured both ways.
+
+It is not a gap, for two reasons that G15 did not have: **the DS names the
+override itself** — `Modal.css`'s own comment reads "Figma frame width;
+caller-controllable via className/style" — so a supported seam exists, where
+`.mn-select`'s hard 320px had none. And **Figma authors this app exclusively at
+375**, so there is no drawn authority for what the card should be at 430;
+picking 398 would be inventing a number. Left as the DS ships it, recorded so
+the next reader knows it was measured rather than missed.
+
+### The count
+
+**27 entries, 10 closed, 17 open.** `component-gap` **0 open** — G2 was the
+last, and it closed by being ruled out of the DS rather than into it.
+`shape-mismatch` goes 1 open -> 2 (G20, G28). `prop-gap` unchanged at 15.
+`token-gap` still 0. 17 + 10 = 27 ✓.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 | 6 | **0** |
+| `prop-gap` | 17 | 2 | **15** |
+| `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
+| `token-gap` | 1 | 1 | **0** |
+| | **27** | **10** | **17** |
+
+**DERIVED FROM THE ENTRY SET BY ENUMERATING SHAPES FIRST, NOT BY CONTINUING THE
+PREVIOUS TALLY** — and this gate is the reason that instruction exists, because
+§2h introduced **two new shapes at once** and a census written against the old
+ones silently returns *26 entries, 9 closed, highest G27*:
+
+- a fourth CLOSURE shape — the `\| entry \|` / `\| status \| **CLOSED** \|`
+  key/value block that closes **G2**, where the G-number and the CLOSED marker
+  are on DIFFERENT rows;
+- a second ENTRY shape — the same key/value form declaring **G28**, whose tag
+  sits on a following `\| tag \|` row instead of in a tag cell.
+
+Both are recorded against the `## Summary` shape table above, which enumerated
+three closure shapes and one entry shape and is now annotated rather than
+rewritten. **A count that agrees with the previous count is not evidence; a
+count that re-enumerates the shapes is.**
+
+**THE HIGHEST NUMBER IS G28 AND 24 IS STILL A PERMANENT HOLE.** G28 follows G27
+directly; the released G24 was not re-used, for the reason recorded at Gate 49.
+
+**Nothing was fixed DS-side. Nothing was staged, committed, pushed or tagged.**

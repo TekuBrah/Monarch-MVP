@@ -4595,6 +4595,507 @@ one moment rather than a property of the repo;
 the DS repo; branch deletion; and the three AA shortfalls on the net-worth card
 ruled on at Gate 31.
 
+## Flow 9 part 3 — the capture surfaces (Gate 50)
+
+No DS re-pin — **v2.3.0 throughout**. Four new walk states, the first two-stack
+overlay in the suite, and a full-screen Figma frame deliberately not built.
+**|WALK| 28 -> 32, baselines 112 -> 128 (16 added, ZERO changed, ZERO deleted),
+tests 236 -> 268.**
+
+### THE CAMERA SCREEN IS RETIRED — recorded 2026-09-09
+
+**Figma `1266:14282` DRAWS A FULL-SCREEN CAMERA — a back arrow, a viewfinder, a
+shutter — AND IT IS NOT BUILT.** Teku's ruling. The frame is deliberately left
+alone in the file, the same treatment "Watson" and "Monarch Trust" already have;
+this note is the record, not an edit to Figma.
+
+**THE REASON IS THAT MONARCH IS A WEB APP AND CANNOT OWN THE DEVICE CAMERA.** An
+`<input capture="environment">` summons the phone's OWN camera app, so the drawn
+screen could never show a live viewfinder — only a button that summons one. It
+would cost a tap for a screen that can never do the thing it depicts. The Camera
+row therefore fires the file input DIRECTLY, on every device.
+
+**`getUserMedia` WAS THE ALTERNATIVE AND WAS REJECTED ON THE HARNESS.** A live
+video feed is a different image every frame, so it could never hold a baseline —
+the surface would be permanently outside the visual net, which is the one thing
+this project does not accept of a user-facing screen.
+
+**SO FLOW 9 HAS NO FULL-SCREEN SURFACE AT ALL**, and Figma draws three capture
+frames where the app has two.
+
+### THE OS FILE PICKER GETS NO BASELINE, AND THAT GAP IS PERMANENT
+
+Stated out loud rather than left silent. The picker is OS chrome: it is not in
+the page, no harness can reach it, and no screenshot can contain it. What the
+suite covers is everything on either side of it — the surface that opens it
+(`[overlay:add-source]`, `[overlay:add]`) and the surface that receives its
+files (`[overlay:add-grid]`).
+
+**IT IS STILL EXERCISED, THROUGH THE REAL CLICK PATH.** `openOverlay`'s new
+`chooseFiles` action clicks the visible button and intercepts the resulting
+`filechooser` event, so the wiring between button and input is under test even
+though the dialog never opens. See the harness note below for why that is
+stronger than `setInputFiles` on the input.
+
+### `Modal` EXISTS — the Phase 0 halt check, and the name that nearly caused one
+
+**THE INNER FIGMA FRAME IS NAMED "Bottom Sheet" AND ITS GEOMETRY SAYS MODAL.**
+`1048:10593` is **343 wide at x=16** — inset 16 both sides, all four corners
+rounded, no home indicator — where a DS `Sheet` is full-bleed with top-only
+radius and a home-indicator region. **Geometry wins; the name is the trap**, and
+this is the second time in Flow 9 that a Figma layer name has pointed the wrong
+way (the first was `list/chart legend` used as key-value metadata).
+
+**`Modal` SHIPS IN BOTH RESOLUTION PATHS, CHECKED SEPARATELY** because the Vite
+alias compiles the sibling SOURCE while `tsc` reads the pinned DIST: sibling
+`src/components/Modal/{Modal.tsx,Modal.css}`, dist
+`dist/components/Modal/Modal.d.ts`, and `export * from './components/Modal'` at
+`src/index.ts:31`. An inherited API summary that omitted it was simply
+incomplete — it also omitted `Blanket`, `Link`, `Label`, `Avatar` and
+`IconButton`, all of which ship.
+
+Its real props, read from source: `isOpen`, `onClose`, `title?`,
+`headerIconLeft?`, `children?`, `footer?`, `closeOnScrimClick?` (default true),
+`ariaLabel?`, `id?`, `className?`. It portals to `document.body`, renders
+`role="dialog" aria-modal="true"` wired by `aria-labelledby` to an `<h2>`, traps
+Tab, closes on Escape and on the scrim, and **always renders a ✕** — there is no
+`showCloseButton` prop, unlike `Sheet`.
+
+**`Loader` AND `ProgressRing` BOTH SHIP. `Loader` IS THE ONE USED**, and the
+choice is semantic rather than aesthetic: `ProgressRing` is DETERMINATE — it
+takes `value: number` 0-100 and prints a percentage — and extraction has no
+progress to report. Feeding it a number would be drawing a figure the app does
+not know.
+
+### Four surfaces, four walk states — and the arithmetic was derived, not carried
+
+**GATE 48's LESSON DID NOT APPLY HERE AND WAS CHECKED RATHER THAN ASSUMED.**
+That gate predicted 226 tests and got 218, because `/finance [tab:receipts]` was
+already a walk state drawing `ComingSoon` — replacing a stub changes baselines
+and adds none. **Gate 50 is the opposite case:** an overlay on an existing tab
+is a state the walk did not previously visit, so all four are additions.
+
+The Gate α per-state figure held exactly, for the fourth time — 4 baseline files
+and 8 tests per state:
+
+| | before | after |
+|---|---|---|
+| `OVERLAY_STATES` | 7 | **11** |
+| \|WALK\| | 28 | **32** |
+| `visual.spec.ts` | 112 | **128** |
+| `routes.spec.ts` | 57 | **65** |
+| `section-headers.spec.ts` | 58 | **66** |
+| suite | 236 | **268** |
+
+Re-derived three independent ways and all three agree on 32: the anchored
+`awk`/`grep -c "^    overlay: {"` returns **11**; `14 + 7 + 11 = 32`; and
+`--list` gives visual 128 = 32 x 4, routes 65 = 32 x 2 + 1, section-headers
+66 = 32 x 2 + 2.
+
+**THE BARE `id:` COUNT RETURNS 19**, and the command is written out because a
+figure without the command that produced it is exactly what this document keeps
+getting bitten by. The over-counting form, unchanged since Gate 43 recorded it:
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "id: '"
+```
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "^    tab: { id:"
+```
+
+Executed off disk at Gate 50: **19** and **8**. It counts the 11 overlay ids
+**plus 8 nested `tab: { id: ... }` keys** — all three of the new `receipts`
+states and the new `transactions` one carry a tab, on top of the four that
+already did, and `11 + 8 = 19` closes. The carried claim that this over-count
+was "9, not 7" at Gate 50-A was itself wrong by two: **four** overlay states
+carried a nested tab there, not two, so the bare count returned **11** at that
+gate and returns **19** now.
+
+**THE GATE 50 SECTION FIRST SHIPPED THE NUMBER WITHOUT EITHER COMMAND**, which
+is the same defect one degree milder than the mislabelled command Gate 50-A
+found in this file: a bare figure cannot be re-derived and cannot be falsified.
+Both commands are here now, and both were run rather than reasoned.
+
+**THE OVER-COUNT GROWS FASTER THAN THE THING BEING COUNTED**, which is the
+durable point: it was +1 at Gate 43, +2 at Gate 44, +4 at Gate 50-A and is +8
+now, because every new overlay state added since has carried a tab. Only the
+anchored command counts what its label claims — which is exactly why it was
+anchored, and why this class of failure has bitten this project repeatedly.
+
+### The state mapping, and why two of the four share a dialog name
+
+| state | route / tab | what it captures |
+|---|---|---|
+| `add-source` | `/finance [tab:transactions]` | the source picker OVER the detail sheet |
+| `add` | `/finance [tab:receipts]` | the bulk modal, EMPTY (two source buttons) |
+| `add-grid` | `/finance [tab:receipts]` | the bulk modal, POPULATED (thumbnail grid) |
+| `add-saving` | `/finance [tab:receipts]` | the processing moment |
+
+**THE THREE `receipts` STATES ALL DECLARE THE DIALOG "Add receipts", AND THAT IS
+CORRECT RATHER THAN LAZY.** The modal transforms IN PLACE — one overlay, one
+scrim, one dismiss gesture, which is Teku's settled shape — and a dialog's
+accessible name does not change when its content does. The three are told apart
+by their `prepare` steps, not by their dialog list.
+
+**`add-source` OPENS THE SAME LEDGER ROW AS `detail`, DELIBERATELY.** Figma
+`I1266:14281;1033:10844` draws the picker over the UNLINKED detail sheet — Aeon
+Big, -RM 250.75, the "Add a receipt to track what you bought" prompt — so the
+two baselines differ by the picker and by nothing else. A controlled pair, the
+same construction Gate 49 used for `detail` / `detail-linked`.
+
+### The two-stack state — the first consumer of the Gate 50-A fields
+
+`add-source` is exactly the shape those fields were built for, and it uses them
+exactly as that gate predicted: the second stack is opened by a **prepare** step,
+so ONE dialog is open at the settle and TWO at capture.
+
+```
+opens    ['Transaction details']
+dialogs  ['Transaction details', 'Add a receipt']
+```
+
+**ONE FIELD COULD NOT HAVE EXPRESSED THIS.** A single list would have had to be
+true at both moments, i.e. loose — which is the loosening Gate 50-A refused.
+
+**IN DOM ORDER, AND THAT IS NOT AN ARBITRARY CONVENTION.** Both surfaces portal
+to `document.body`; the picker mounts second, so it is appended second and paints
+on top at the same z-index. The list reads bottom-of-stack first. **Measured
+live** rather than reasoned: a probe read `['labelledby', 'Add a receipt']` —
+the sheet (labelled by its `<h2>`) then the picker (labelled by `aria-label`).
+
+**NO COUNT WAS RELAXED.** `>= 1` would have admitted this state and would
+equally have admitted one intended stack plus a leak.
+
+**`settlesOn` WAS NOT NEEDED BY ANY OF THE FOUR.** Its case is a surface that is
+not a dialog at all, and that case was the Camera screen — which is retired. So
+the `(b)` half of Gate 50-A's widening still has **zero adopters**, and is
+recorded as such rather than quietly presented as exercised.
+
+### The source picker — G2 closed as MVP-LOCAL, U3 answered
+
+`src/flows/finance/components/ReceiptSourcePicker.tsx`. Full evidence is in the
+gap register's section 2h; the short form:
+
+**`get_variable_defs` ON THE WHOLE OVERLAY `1033:11135` RETURNS EXACTLY ONE
+BINDING — the Blanket — AND ON THE GROUPED ROWS `1033:11226` IT RETURNS `{}`.**
+Every fill, radius, font and colour in that node is a raw literal. It is a pasted
+Apple asset, and a design system does not ship one. **G2 is CLOSED as MVP-local
+composition and U3 is ANSWERED. Do not reopen either.**
+
+The SHAPE survived — two rows joined by a hairline, a **gap**, then Cancel alone,
+because the gap is what says Cancel is not a third source. The SKIN did not:
+SF Pro Text -> Poppins, `#007aff` -> `--mapped-text-primary-default`,
+`rgba(255,255,255,.8/.9)` + `backdrop-blur(25px)` ->
+`--mapped-surface-elevation-default` with no blur, radius 10 -> 8.
+
+**THE TINT IS NOT `#046eff`, WHICH THE GATE BRIEF ASKED FOR, AND THE DEPARTURE
+IS DELIBERATE.** `#046eff` is `--brand-blue-500`, a RAW brand primitive: it
+breaches rule 2, and — the substantive objection — **a raw brand value cannot
+dark-flip**, so the picker would have painted mid-blue text on a near-black
+panel. The mapped token resolves to blue-600 light / blue-300 dark.
+
+**MEASURED at 375, DPR 2: panel `x=10, w=355` — EXACTLY Figma's 10/355 — rows
+64 against Figma's 61.** The rows are the only geometric divergence and every
+number in it is a token or a type metric: 61 decomposes as `20 + 21 + 20`, and
+**20 IS a ramp step** (`--brand-scale-500`), so the padding is transcribed
+exactly while Poppins' `body/m` line box is 24 where SF Pro Text's is 21. The +3
+is the type substitution showing through, not a rounding.
+
+**THE RAMP HAS NO 44 AND NO 50 BUT IT DOES HAVE 10 AND 20.** Both 10px figures —
+the side margins and the separating gap — are `--brand-scale-250` and are
+therefore transcribed exactly rather than rounded. Check the ramp before assuming
+a value is absent from it.
+
+### One new gap — G28, `Modal` hugs where Figma fixes
+
+**AND THE WAY IT WAS FOUND IS THE PART WORTH KEEPING.** A first draft of the
+`AddReceiptsModal` header comment asserted FOUR exact matches against Figma,
+derived by adding up `Modal.css`'s paddings. **Two of the four were wrong**, and
+only a real measurement through the harness found it.
+
+| | Figma | rendered @375 | |
+|---|---|---|---|
+| card | x=16, w=343 | **x=16, w=343** | exact |
+| content inset | 16 | **16** | exact |
+| header | 64 | **74** | **+10** |
+| footer | 152 | **128** | **-24** |
+
+One cause, two directions: Figma FIXES both heights, the DS HUGS them. The header
+is taller because the close `IconButton` renders 34 in a 64-tall header; the
+footer is shorter because `Button` renders ~34 (~38 with a leading icon) against
+Figma's 48 — and **no `ButtonSize` reaches 48**, since `s`/`m`/`l` are 4/8/12px
+paddings and `l` tops out near 42. Registered as **G28**, `shape-mismatch`, the
+same question **G18** already asks of `Header/bg`.
+
+**ARITHMETIC OVER A STYLESHEET IS NOT A MEASUREMENT OF A RENDER.** That is the
+general lesson, and it is the same shape as every other one in this file: a
+number that is *computed* from what the CSS says looks exactly like a number
+that was *observed*, right up until it is wrong.
+
+**THE TWO FIGURES THAT DO MATCH ARE THE TWO THE CLASSIFICATION RESTS ON**, and
+they are exact to the pixel — which is what settles Modal-versus-Sheet.
+
+### `.mn-modal__card` caps at 375, so the card does not grow at 430
+
+Measured: 375 viewport -> card `x=16, w=343`; 430 viewport -> card
+**`x=27.5, w=375`**, not 398 at x=16.
+
+**NOT REGISTERED AS A GAP, AND THE REASON DISTINGUISHES IT FROM G15.** The DS
+names the override itself — `Modal.css`'s own comment reads "Figma frame width;
+caller-controllable via className/style" — so a supported seam exists, where
+`.mn-select`'s hard 320px had none. And Figma authors this app exclusively at
+375, so there is **no drawn authority** for what the card should be at 430;
+picking 398 would be inventing a number. Left as the DS ships it.
+
+### The grid — `1fr`, not 98px
+
+Figma puts tiles at x = 16 / 122 / 228, each 98 wide: pitch 106, gap 8. But
+`3 x 98 + 2 x 8 = 310` in a content box that is `343 - 32 = 311`, so **Figma's
+own row leaves a pixel of slack**. `repeat(3, 1fr)` fills the column and resolves
+to **98.33 at 375** and **109 at 430** (measured) — the same reading Gate 41
+applied to the receipt card's two 145.5-wide rules, where the drawn number was an
+artifact of a fixed-width frame.
+
+**THE REMOVE AFFORDANCE'S FILL IS AN MVP-LOCAL CORRECTION, NOT A GAP.**
+`get_variable_defs` on `1048:10888` returns an icon colour, a padding and a
+radius and **no background binding at all** — its fill is a raw literal. It is
+bound here to `--mapped-surface-overlay-default`, which is what the type badge
+two corners away on the same tile ALREADY binds (`1052:11038`). Not a
+substitution of taste: it gives two chips on one tile the same surface.
+
+Both the affordance and the badge sit **3px** in in Figma, rounded to **4**
+(`--brand-scale-100`) — the DS's own established move (StatusBar 5->4,
+BottomNavigation 62->64, Sheet 44->48).
+
+**ONE DRAWN VARIANT IS NOT BUILT.** Hidden node `1048:10925` draws a PDF tile —
+no thumbnail, an icon and a truncated filename — and the screenshot shows a `pdf`
+badge on the fifth tile. This surface declares `accept="image/*"`, so a PDF
+cannot be staged and the variant is **unreachable**. Building it would be
+shipping dead code whose only consumer is a gate that may never come. Widening
+`accept` is the change that brings it.
+
+### Save is ABSENT when the grid is empty — not disabled
+
+The Gate 44 chip ruling applied again: a control that is drawn, focusable and
+announced while being unable to do anything is worse than one that is not there.
+With nothing staged the modal's CONTENT is the two source buttons, so a greyed
+Save would add a second, duller call to action beneath the real one.
+
+**THE EMPTY PHASE IS ENTIRELY THIS REPO'S DESIGN.** Figma draws only the
+populated frame, and annotation `1266:14280` — *"In gallery multi select > multi
+added > Save"*, the only statement anywhere of how this surface is reached —
+describes accumulate-then-commit and nothing about the starting state. The two
+source buttons are peers at `variant="secondary"`; elevating one to primary would
+assert a preference the design does not state.
+
+### The `extractReceipt()` seam
+
+`src/data/extract.ts`. One function, one entry point, both capture surfaces
+behind it:
+
+```
+extractReceipt(file: File): Promise<ExtractedReceipt>
+```
+
+`ExtractedReceipt` is `{ merchant, capturedAt, total, tax, currency, lineItems }`
+— and it is **deliberately not a `Receipt`**. A `Receipt` carries an `id`, a
+`transactionId` and a `displayName`: three facts extraction cannot know, because
+identity is the caller's, linkage is the CAPTURE CONTEXT's, and the display name
+comes from the file the user chose. Returning a `Receipt` would have forced this
+function to invent all three.
+
+**THE STUB'S PLACEHOLDER FIELDS ARE BARE ON PURPOSE.** `total` is `0` and
+`lineItems` is `[]` rather than something plausible: a fabricated total is a
+number that could be believed, and inventing line items would put purchases on a
+user's screen that they did not make. No walk state renders any of it — all four
+photograph the surface BEFORE extraction answers.
+
+**HOW THE HARNESS STUBS IT — and why the indirection reads at CALL time.**
+`extractReceipt` reads `window.__monarchExtractReceipt` at call time and falls
+back to its own implementation; `installExtractionStub(page)` installs a
+never-settling implementation in an init script before the app's first render, on
+**every** walk state.
+
+A module-level `const impl = window.__monarchExtractReceipt ?? fallback` would
+bake in whatever was present when the module first evaluated — the same
+substitution-at-declaration hazard `--mvp-gutter` records for custom properties:
+where a value is READ is not where it is DECLARED.
+
+**IT MUST NEVER SETTLE, AND THAT IS THE WHOLE POINT.** `[overlay:add-saving]`
+photographs a surface that exists only WHILE extraction is outstanding. Against
+anything that eventually answers — including this repo's own 900 ms stub — the
+capture either wins or loses depending on how busy the machine is. That is the
+timing dependence Gate 17 named "a tolerance wearing a fix's clothes". A promise
+that cannot resolve makes the state permanent and the capture exact.
+
+**IT IS INSTALLED FOR EVERY STATE, NOT JUST THAT ONE.** The contract is "walk
+states never invoke a real engine"; a per-state opt-in means the first state
+someone forgets to annotate silently starts running Gate 50-B's real work.
+
+### `finishAnimations` now PAUSES what it cannot finish
+
+**THE `catch` BRANCH USED TO BE EMPTY, AND THAT WAS CORRECT UNTIL THIS GATE.**
+An infinite animation cannot `finish()`, so it was skipped — harmless while the
+app had none.
+
+`.mn-loader` is `animation: loader-spin 0.8s linear infinite` and is the **ONLY
+CSS animation in either repo** (grep: one match in the DS, zero in MVP `src/`).
+Skipped, its rotation at capture is whatever the wall clock happened to be, and
+the baseline differs every run.
+
+It is now `pause()` then `currentTime = 0` — deterministic, and the animation's
+own first frame, so the baseline records a real render rather than a doctored
+one. **Pausing without setting the time would pin it to an arbitrary frame
+instead**, which is the same non-determinism one step later.
+
+**PROVABLY INERT FOR EVERY PRE-EXISTING BASELINE, AND MEASURED TWICE.** The
+branch is reachable only by an infinite animation, and a probe over the four new
+states reports `document.getAnimations()` as **empty on three of them and
+exactly one `{state: "paused", currentTime: 0}` on `add-saving`**. All 112
+committed baselines came back byte-identical across the change.
+
+### `chooseFiles` — a new `PrepareStep` action, and why it clicks a button
+
+The obvious implementation — locate the `<input type="file">` and call
+`setInputFiles` — was rejected for two reasons, and the second decided it:
+
+1. The input is `hidden`, so it is out of the accessibility tree and carries no
+   accessible name for `controlName` to assert. Every other prepare step proves
+   it reached the right control before operating it; that one could not.
+2. **IT WOULD SKIP THE WIRING.** The thing under test is that pressing "Photo
+   Gallery" reaches the input at all. Poking the input directly asserts the
+   handler while bypassing the button meant to invoke it — so the surface could
+   stop opening the picker entirely and the suite would still pass.
+
+`page.waitForEvent('filechooser')` intercepts the picker the real click raises.
+**The listener is armed BEFORE the click and that ordering is the mechanism** —
+Chromium raises the event synchronously with the input's click, so attaching the
+wait afterwards would race it and hang. `Promise.all` is what guarantees the wait
+is already pending. Playwright only intercepts when something is listening, so
+the OS dialog never actually opens — which matters beyond tidiness, because a
+real dialog is not in the page and could not be dismissed by the harness.
+
+**THE FIXTURE IS `e2e/fixtures/receipt-capture.jpg`**, a byte-identical copy of
+`public/media/receipts/receipt_ikea02.jpg` (sha256 `0da24891...13289`, both
+sides) — not a re-export and not a resize. It lives outside `public/` because it
+is test input rather than product data: the baseline then depends on a file that
+exists solely to be that input, and no future product decision about the seeded
+receipt set can move it. **This duplicates ~47 KB deliberately**, choosing
+baseline isolation over byte thrift.
+
+### `Receipt.sourceUrl` — an optional override, not a tagged union
+
+A captured receipt's bytes are an `URL.createObjectURL` blob, not a file under
+`public/media/receipts/`. `Receipt` gains `sourceUrl?: string` and
+`receiptImageUrl(receipt)` in `config/media.ts` is the one place that decides.
+
+**A DELIBERATE DEPARTURE FROM THE `TransactionLogo` PRECEDENT.** That one is a
+union because its branches render through DIFFERENT DS components with disjoint
+inputs. Here both branches produce ONE string and render through the SAME
+`<img>`: this is one fact — where the bytes are — with two resolution paths. A
+union would have touched all ten seeded records and every read site to express
+nothing extra. **Inert for all ten**: none carries `sourceUrl`, so every one
+resolves through `receiptUrl(filename)` exactly as before.
+
+### `addReceipt` — the second mutator with a caller
+
+`addTransaction` is **still** the zero-caller seam Gate 48 built. Do not sweep it
+as dead code on the strength of this one arriving.
+
+**LINKAGE IS THE CALLER'S.** A receipt captured FROM a transaction arrives with
+`transactionId` already set — it is linked by definition; one captured from the
+Receipts tab arrives `null` and auto-match (Gate 50-C) decides later. A mutator
+that tried to decide would have to guess the context it was called from.
+
+Still not a store: no reducer, no action vocabulary, no persistence, no undo.
+**And for a captured receipt, "not persisted" is more than a convention** — its
+image is a blob url that does not survive the document that made it.
+
+### Baselines — predicted before the run, and the prediction held exactly
+
+**PREDICTED: 16 added, 0 modified.** The zero was the interesting half, and it
+was argued from measurement rather than hope:
+
+- `Button` passes `onClick` straight through and changes no class and no
+  attribute when it is absent -> the four `detail` baselines cannot move.
+- `SectionHeader` **already** passed an `onClick` to its `Link` whether or not
+  `onLinkClick` was supplied -> the four `receipts` baselines cannot move. **The
+  gate brief expected these to move** on the theory that a section-header row was
+  gaining a trailing child; it was not — "+ Add Receipts" has been rendered and
+  captured since Gate 48, and only its handler changed.
+- Both new overlays are mounted conditionally -> nothing of them is in the DOM
+  while closed.
+- `receiptImageUrl` returns identical urls for all ten seeded receipts.
+- The `finishAnimations` branch is reachable only by an infinite animation, and
+  the app had none.
+
+**ACTUAL, reconciled against a SHA-256 manifest taken outside the repo before the
+first change:**
+
+| | |
+|---|---|
+| start total | **112** |
+| added | **16** |
+| modified | **0** |
+| byte-identical | **112** |
+| deleted | **0** |
+| end total | **128** |
+
+**THE BATCHES WERE DISJOINT AND THEY SUM.** Every change in this gate belongs to
+one batch — the capture surfaces — and 16 + 0 = 16. Contrast Gate 44, whose
+batches overlapped and did not sum.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT BEFORE MINTING.**
+The pre-mint run reported **252 passed / 16 failed**, naming exactly the 16
+predicted files, and the manifest was byte-identical to the start manifest
+afterwards with zero untracked files in the snapshot directory.
+`updateSnapshots: 'none'` honoured.
+
+**ARM 1 OF THE BASELINE GUARD IS RED AT THIS GATE'S CLOSE AND THAT IS CORRECT.**
+16 untracked baselines, so the suite closes at **267 passed / 1 failed**. Arm 2
+stays green because nothing was renamed or deleted (the Gate alpha correction),
+and arm 3 stays green because every file on disk is a name the walk asks for.
+Staging is Teku's. Do not read it as a regression and do not relax the guard.
+
+**THREE CLEAN RUNS: 267 / 1 each**, 8.4-8.6 minutes, with all 128 baselines
+byte-identical across all three.
+
+### What this gate changed
+
+`src/data/extract.ts`, `src/flows/finance/receiptCapture.ts`, and
+`src/flows/finance/components/{ReceiptSourcePicker,ReceiptFileInput,CapturingBlock,AddReceiptsModal}.tsx`
+(six new files); `src/data/types.ts` (`Receipt.sourceUrl`);
+`src/config/media.ts` (`receiptImageUrl`); `src/accounts/AccountsProvider.tsx`
+(`addReceipt`); `src/flows/finance/{TransactionsLedger,ReceiptsTab}.tsx` and
+`components/{TransactionDetailSheet,ReceiptCard}.tsx` (the wiring);
+`src/flows/finance/finance.css` (+13 rules); `e2e/harness.ts` (the four states,
+`installExtractionStub`, the `chooseFiles` action, the `finishAnimations` pin);
+`e2e/fixtures/receipt-capture.jpg` (new); the gap register (section 2h — G2
+closed, U3 answered, G28 opened); and 16 minted baselines.
+
+**No spec file was added.** `lint:tokens` scans **53** files (was 47) and reports
+the same **3** pre-existing exemptions — **no new exemption entered the tree**,
+and no fourth appeared.
+
+**THREE STALE COMMENTS WERE CORRECTED RATHER THAN LEFT BESIDE THE NEW CODE**, all
+three being predictions this gate collected on: `TransactionDetailSheet`'s
+*"Add Receipt — Wired to NOTHING"*, and two claims in `ReceiptsTab`'s header
+(*"NO BULK-ADD MODAL"*, and a walk-state arithmetic that was Gate 48's and is no
+longer this screen's).
+
+### Deliberately not in scope
+
+The Camera full-screen frame `1266:14282` (retired — see above, and the Figma
+frame is left alone); auto-match (Gate 50-C) — captures from the Receipts tab
+land unlinked and nothing tries to pair them; the receipt viewer behind "View"
+(Gate 51), still the one inert control in the detail sheet; relinking; the PDF
+tile variant; persistence; a receipt FILTER model — the two chips on that tab are
+still labels; G13, G14, G17's prop half, G19-G23, G28 — all registered, all
+deferred, and **no MVP-local override was added for any**; the DS repo and the
+pin; branch deletion; and the three AA shortfalls on the net-worth card ruled on
+at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

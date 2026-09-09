@@ -491,8 +491,40 @@ export interface ReceiptLineItem {
  */
 export interface Receipt {
   id: string
-  /** The file in `public/media/receipts/`. Bare name — no path, no leading `/`. */
+  /**
+   * The file's own name — "receipt_ikea01.jpg". Bare, no path, no leading `/`.
+   *
+   * FOR A SEEDED RECEIPT THIS IS ALSO ITS LOCATION, under
+   * `public/media/receipts/`. For one CAPTURED in-app (Gate 50) it is the name
+   * of the file the user chose and nothing more — the bytes live in memory and
+   * `sourceUrl` says where. Both are printed by the type badge and both are the
+   * honest answer to "what is this file called", which is why capture did not
+   * need a second field for the name.
+   */
   filename: string
+  /**
+   * An ALREADY-RESOLVED url for this capture's image, or absent.
+   *
+   * ABSENT IS THE NORMAL CASE and is what all ten seeded records carry: their
+   * bytes are shipped, so `receiptUrl(filename)` locates them. A receipt
+   * captured through a file input has no shipped bytes at all — its image is an
+   * `URL.createObjectURL` blob — so it carries the url outright and
+   * `receiptImageUrl()` prefers it.
+   *
+   * AN OPTIONAL OVERRIDE RATHER THAN A TAGGED UNION, AND THAT IS A DELIBERATE
+   * DEPARTURE FROM THE `TransactionLogo` PRECEDENT. That one is a union because
+   * its branches render through DIFFERENT DS components with disjoint inputs, so
+   * a `{ logo?, initials? }` pair would admit both-set and neither-set. Here both
+   * branches produce ONE string and render through the SAME `<img>`: this is one
+   * fact — where the bytes are — with two resolution paths, and a single
+   * resolver is the place that decides between them. A union would have touched
+   * all ten records and every read site to express nothing extra.
+   *
+   * IT IS NOT PERSISTED AND CANNOT BE. A blob url is valid only for the document
+   * that created it; a reload restores the seed, like every other write in
+   * `AccountsProvider`.
+   */
+  sourceUrl?: string
   /** What the card prints, camera-roll style. See the note above. */
   displayName: string
   /** ISO 8601 local timestamp, transcribed from the receipt's own printed date. */

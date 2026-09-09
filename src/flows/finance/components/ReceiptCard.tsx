@@ -1,5 +1,5 @@
 import { Chips, Divider, Icon, ListItem } from '@monarch/design-system'
-import { receiptUrl } from '../../../config/media'
+import { receiptImageUrl } from '../../../config/media'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { formatSignedMyr, formatTimestamp } from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
@@ -72,7 +72,7 @@ export function ReceiptCard({
         */}
         <img
           className="mvp-receipt-card__thumb"
-          src={receiptUrl(receipt.filename)}
+          src={receiptImageUrl(receipt)}
           alt=""
         />
         <div className="mvp-receipt-card__meta">

@@ -155,6 +155,29 @@ interface AccountsContextValue {
    * NOT PERSISTED. Reload restores the seed, like every other write here.
    */
   unlinkReceipt: (receiptId: string) => void
+  /**
+   * Add a captured receipt to the library. Gate 50.
+   *
+   * THE SECOND MUTATOR WITH A CALLER, and `addTransaction` above is STILL the
+   * zero-caller seam Gate 48 built — do not sweep it as dead code on the
+   * strength of this one arriving.
+   *
+   * LINKAGE IS THE CALLER'S, NOT THIS FUNCTION'S, and that is the capture-context
+   * ruling made concrete: a receipt captured FROM a transaction arrives with
+   * `transactionId` already set, because it is linked to that transaction by
+   * definition; one captured from the Receipts tab arrives with `null` and
+   * auto-match decides later (Gate 50-C). A mutator that tried to decide would
+   * have to guess at the context it was called from.
+   *
+   * IT APPENDS AND DOES NOTHING ELSE — no sorting (`groupReceiptsByMonth` sorts),
+   * no id generation (the caller owns identity), no validation, no de-duplication.
+   * The same contract `addTransaction` documents.
+   *
+   * NOT PERSISTED. Reload restores the seed — and for a captured receipt that is
+   * more than a convention: its image is a blob url that does not survive the
+   * document that made it. See `Receipt.sourceUrl`.
+   */
+  addReceipt: (receipt: Receipt) => void
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
@@ -178,6 +201,13 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   // rebuild and no consumer would re-render — the write would land in the data
   // and never reach a pixel. Replacing the one record and the array is what
   // makes the ledger row’s glyph disappear.
+  // APPEND, SAME SHAPE AS `addTransaction`. The array identity changes, which
+  // is what makes the `useMemo` below rebuild and the Receipts tab re-render —
+  // see `unlinkReceipt` for the same point made about mutating in place.
+  const addReceipt = useCallback((receipt: Receipt) => {
+    setReceipts((current) => [...current, receipt])
+  }, [])
+
   const unlinkReceipt = useCallback((receiptId: string) => {
     setReceipts((current) =>
       current.map((r) => (r.id === receiptId ? { ...r, transactionId: null } : r)),
@@ -202,8 +232,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       receipts,
       addTransaction,
       unlinkReceipt,
+      addReceipt,
     }
-  }, [transactions, receipts, addTransaction, unlinkReceipt])
+  }, [transactions, receipts, addTransaction, unlinkReceipt, addReceipt])
 
   return (
     <AccountsContext.Provider value={value}>{children}</AccountsContext.Provider>

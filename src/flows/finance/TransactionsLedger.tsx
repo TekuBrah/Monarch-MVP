@@ -1,9 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import { TransactionFilterSheet } from './TransactionFilterSheet'
 import { TransactionDetailSheet } from './components/TransactionDetailSheet'
+import { ReceiptSourcePicker } from './components/ReceiptSourcePicker'
+import {
+  ReceiptFileInput,
+  type ReceiptFileInputHandle,
+  type ReceiptSource,
+} from './components/ReceiptFileInput'
+import { captureToReceipt } from './receiptCapture'
 import {
   TRANSACTION_FILTER_ALL,
   clearFacet,
@@ -48,7 +55,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
-  const { transactions, receipts, unlinkReceipt } = useAccounts()
+  const { transactions, receipts, unlinkReceipt, addReceipt } = useAccounts()
   const [search, setSearch] = useState('')
 
   // THE SCREEN OPENS UNFILTERED, AS OF GATE 44. This was
@@ -95,6 +102,65 @@ export function TransactionsLedger() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const detail = detailId ? transactions.find((t) => t.id === detailId) : undefined
   const detailReceipt = detail ? receiptForTransaction(receipts, detail.id) : undefined
+
+  /*
+    ── CAPTURE STATE (Gate 50) ───────────────────────────────────────────────
+
+    Two booleans and a ref, and they live HERE rather than in the sheet for the
+    same reason `detailId` does: the sheet is rendered from data and holds none
+    of its own, so a state that must survive the sheet re-rendering — or, in the
+    file input's case, must survive the PICKER unmounting — belongs on the
+    screen.
+
+    `isCapturing` IS A BOOLEAN AND NOT THE CAPTURED FILE. Nothing on screen
+    during extraction depends on which file it is; the sheet shows one
+    indeterminate loader either way. Holding the file here would be holding a
+    second copy of something the closure already has.
+  */
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
+  const [isCapturing, setIsCapturing] = useState(false)
+  const fileInputRef = useRef<ReceiptFileInputHandle>(null)
+
+  /*
+    THE PICKER DISMISSES THE MOMENT A SOURCE IS CHOSEN, BEFORE the OS picker
+    opens. Leaving it up would put an action sheet behind a system dialog, and it
+    would still be there when the user came back — asking them to choose a source
+    they have already chosen.
+  */
+  const pick = (source: ReceiptSource) => {
+    setIsPickerOpen(false)
+    fileInputRef.current?.open(source)
+  }
+
+  /*
+    CAPTURE FROM A TRANSACTION LINKS BY DEFINITION — the settled ruling, and the
+    whole reason `captureToReceipt` takes the transaction id from its caller
+    rather than deciding for itself. Auto-match (Gate 50-C) is for the OTHER
+    entry point, where there is no transaction in view to link to.
+
+    ONLY THE FIRST FILE IS USED. This entry point attaches a receipt to ONE
+    transaction; the camera returns one frame anyway, and the gallery's
+    `multiple` is what the BULK surface needs. Silently linking five images to
+    one transaction would be inventing a relationship the design does not draw.
+
+    THE ID IS READ FROM `detailId`, NOT FROM `detail`. The user cannot close the
+    sheet while the OS picker is up, but a guard that reads the id at RESOLUTION
+    time rather than at click time is the one that stays correct if they ever
+    can.
+  */
+  const captureForTransaction = async (files: File[]) => {
+    const file = files[0]
+    const targetId = detailId
+    if (!file || !targetId) return
+    setIsCapturing(true)
+    const receipt = await captureToReceipt(
+      file,
+      URL.createObjectURL(file),
+      targetId,
+    )
+    addReceipt(receipt)
+    setIsCapturing(false)
+  }
 
   const rows = useMemo(
     () => filterTransactions(transactions, filter, search),
@@ -321,7 +387,45 @@ export function TransactionsLedger() {
           transaction={detail}
           receipt={detailReceipt}
           onUnlink={unlinkReceipt}
+          onAddReceipt={() => setIsPickerOpen(true)}
+          isCapturing={isCapturing}
           onClose={() => setDetailId(null)}
+        />
+      )}
+
+      {/*
+        ── THE CAPTURE SOURCE PICKER (Gate 50) ─────────────────────────────────
+
+        THE SECOND STACK, AND IT IS DELIBERATELY A SECOND ONE. The sheet stays
+        open and fully rendered behind it: the user is choosing a source FOR the
+        transaction they are looking at, and taking that transaction off screen
+        while they choose would drop the context the choice is about. Figma draws
+        it the same way — `I1266:14281;1033:11135` puts a second Blanket over a
+        fully-rendered detail sheet.
+
+        THIS IS THE STATE THE GATE 50-A HARNESS FIELDS EXIST FOR — two Blankets,
+        two panels, two `[role="dialog"]` nodes. `openOverlay` asserts the exact
+        LIST of open dialogs by accessible name, so "two stacks" is checked as
+        precisely as "one" was, rather than by relaxing a count to `>= 1`.
+
+        IT MOUNTS CONDITIONALLY, like both sheets above, so nothing of it exists
+        in the DOM while it is closed — which is what makes the four existing
+        `detail` and `detail-linked` baselines provably unaffected by its
+        addition.
+
+        THE FILE INPUT LIVES HERE, NOT IN THE PICKER. The picker is a chooser: it
+        reports which source the user wanted and unmounts. If it owned the input,
+        the input would unmount with it — before the OS picker had returned a
+        file. Keeping it on the screen that outlives the choice is what makes the
+        callback survive.
+      */}
+      <ReceiptFileInput ref={fileInputRef} onFiles={captureForTransaction} />
+
+      {isPickerOpen && detail && (
+        <ReceiptSourcePicker
+          onGallery={() => pick('gallery')}
+          onCamera={() => pick('camera')}
+          onClose={() => setIsPickerOpen(false)}
         />
       )}
     </div>

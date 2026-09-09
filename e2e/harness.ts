@@ -399,9 +399,36 @@ export interface PrepareStep {
   control: string
   /** The accessible name it must carry. Asserted BEFORE it is operated. */
   controlName: string
-  /** `click` presses it; `fill` types `value` into it. */
-  action: 'click' | 'fill'
-  /** The text to type. Required for `fill`, meaningless for `click`. */
+  /**
+   * `click` presses it; `fill` types `value` into it; `chooseFiles` presses it
+   * and answers the OS file picker it raises with `value`.
+   *
+   * ── WHY `chooseFiles` CLICKS A BUTTON RATHER THAN TOUCHING THE INPUT ───────
+   *
+   * Gate 50 added it, and the obvious implementation — locate the
+   * `<input type="file">` and call `setInputFiles` on it — was rejected. Two
+   * reasons, and the second is the one that decided it:
+   *
+   *  1. The input is `hidden`, so it is out of the accessibility tree and
+   *     carries no accessible name for `controlName` to assert. Every other
+   *     prepare step proves it reached the right control before operating it;
+   *     that one could not.
+   *  2. IT WOULD SKIP THE WIRING. The thing under test is that pressing "Photo
+   *     Gallery" reaches the file input at all. Poking the input directly
+   *     asserts the handler while bypassing the button that is supposed to
+   *     invoke it — so the surface could stop opening the picker entirely and
+   *     the suite would still pass.
+   *
+   * `page.waitForEvent('filechooser')` intercepts the picker the real click
+   * raises, so the harness exercises the user's own path and the OS dialog —
+   * which is not in the page and cannot be screenshotted by anything — never
+   * actually opens.
+   */
+  action: 'click' | 'fill' | 'chooseFiles'
+  /**
+   * The text to type (`fill`), or the repo-relative path of the file to hand to
+   * the picker (`chooseFiles`). Meaningless for `click`.
+   */
   value?: string
   /** What must exist afterwards — asserted present EXACTLY once. */
   settlesOn: string
@@ -833,6 +860,187 @@ export const OVERLAY_STATES: WalkState[] = [
       title: 'Transaction details',
     },
   },
+  // ─────────────────────────────────────────────────────────────── Gate 50 ──
+  // THE CAPTURE SURFACES. Four states, and they are NOT four frames: Figma draws
+  // three (the source picker, the bulk modal, and a camera screen that is
+  // RETIRED — see `ReceiptFileInput` for why), and the fourth here is the
+  // processing moment, which the mockup draws no frame for at all.
+  //
+  // ── 1 · THE SOURCE PICKER, THE FIRST TWO-STACK STATE IN THIS SUITE ─────────
+  //
+  // THIS IS THE STATE THE GATE 50-A FIELDS WERE BUILT FOR, and it uses them in
+  // exactly the shape that gate predicted: the second stack is opened by a
+  // PREPARE step, so one dialog is open at the settle and two at capture, and
+  // one field could not have been true at both moments.
+  //
+  //   opens    ['Transaction details']                      — after the row click
+  //   dialogs  ['Transaction details', 'Add a receipt']      — at capture
+  //
+  // IN DOM ORDER, which is not an arbitrary convention here: both surfaces
+  // portal to `document.body`, so the picker — mounted second — is appended
+  // second and paints on top. The list therefore reads bottom-of-stack first.
+  //
+  // NO COUNT WAS RELAXED TO ADMIT IT. `>= 1` would have accepted this state and
+  // would equally have accepted one intended stack plus a leak; naming both
+  // keeps the invariant exact at arity two.
+  //
+  // IT OPENS THE SAME ROW AS `detail`, DELIBERATELY. Figma's frame
+  // `I1266:14281;1033:10844` draws the picker over the UNLINKED detail sheet —
+  // Aeon Big, -RM 250.75, the "Add a receipt to track what you bought" prompt —
+  // so this is that exact state with one more surface on top, and the two
+  // baselines differ by the picker and by nothing else.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'add-source',
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+      opens: ['Transaction details'],
+      dialogs: ['Transaction details', 'Add a receipt'],
+      prepare: [
+        {
+          // THE PROMPT BLOCK'S OWN BUTTON, SCOPED. `.mn-btn` alone matches the
+          // sheet's close button and more besides; scoping to the prompt block
+          // resolves it to one.
+          control: '.mvp-txn-detail__prompt .mn-btn',
+          controlName: 'Add Receipt',
+          action: 'click',
+          // THE PANEL, NOT THE LAYER. `.mvp-source-picker` is the fixed layer
+          // and would be present even if the panel failed to render; the panel
+          // is the thing this step exists to bring on screen.
+          settlesOn: '.mvp-source-picker__panel',
+          // THREE ROWS, CONCATENATED — which is simultaneously the proof that
+          // the picker opened, that it drew both sources, and that Cancel is
+          // present as the separated third. A picker missing a row fails here.
+          settlesText: 'Photo GalleryCameraCancel',
+        },
+      ],
+    },
+  },
+  // ── 2 · THE BULK MODAL, EMPTY ─────────────────────────────────────────────
+  //
+  // A DIFFERENT ENTRY PATH FROM THE PICKER'S, and that is the whole reason it is
+  // a separate state rather than another prepare step: this surface is reached
+  // from the RECEIPTS tab's inline "+ Add Receipts", with no transaction in view
+  // — which is also what makes its captures land UNLINKED.
+  //
+  // `:first-of-type` RESOLVES THE TWO AFFORDANCES TO ONE. The add link repeats
+  // per month heading and the fixture spans two months (September and August),
+  // so a bare `.mn-link` matches two and `toHaveCount(1)` fails. Both open the
+  // same modal; the first is chosen because it is the one on screen at rest.
+  //
+  // NO `opens` AND NO `dialogs`. One stack, so the defaults derive `[title]` for
+  // both — nothing was restated to widen anything.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'add',
+      control: '.mvp-receipts__month:first-of-type .mn-link',
+      controlLabel: '+ Add Receipts',
+      title: 'Add receipts',
+    },
+  },
+  // ── 3 · THE BULK MODAL, POPULATED ─────────────────────────────────────────
+  //
+  // THE SAME OVERLAY, TRANSFORMED IN PLACE — one modal, one scrim, one dismiss
+  // gesture, which is Teku's settled shape. So this declares the SAME `title`
+  // and the same single dialog as the state above; what differs is that a file
+  // has been staged, and the dialog's accessible name does not change when its
+  // content does. That is the correct behaviour and it is why the two states are
+  // told apart by their prepare steps rather than by their dialog list.
+  //
+  // THE FIXTURE IS COMMITTED, AND IT IS OUTSIDE `public/`. `e2e/fixtures/` is
+  // test input; putting it under `public/` would ship a test asset to users.
+  // It is a byte-identical copy of `receipt_ikea02.jpg` (sha256 0da24891…) —
+  // not a re-export and not a resize, so it inherits that image's provenance
+  // while being decoupled from any future product decision about the seeded set.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'add-grid',
+      control: '.mvp-receipts__month:first-of-type .mn-link',
+      controlLabel: '+ Add Receipts',
+      title: 'Add receipts',
+      prepare: [
+        {
+          // `:has-text()` AND NOT `:text-is()` — the Gate 44 finding, unchanged:
+          // `Button` renders its label in a child `<span>`, and `:text-is`
+          // matches an element's own immediate text, so it returns zero.
+          control: '.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")',
+          controlName: 'Photo Gallery',
+          action: 'chooseFiles',
+          value: 'e2e/fixtures/receipt-capture.jpg',
+          // THE TYPE BADGE, AND IT IS THE STRONGEST AVAILABLE SETTLE TARGET.
+          // Asserting it present EXACTLY ONCE proves exactly one tile staged —
+          // a step that double-fired, or a `multiple` that admitted the file
+          // twice, fails here rather than minting a grid nobody asked for. Its
+          // text proves the badge is derived from the file's own name.
+          settlesOn: '.mvp-add-receipts__badge',
+          settlesText: 'jpg',
+        },
+      ],
+    },
+  },
+  // ── 4 · THE PROCESSING MOMENT ─────────────────────────────────────────────
+  //
+  // THE ONLY ONE OF THE FOUR THAT FIGMA DRAWS NO FRAME FOR. The mockup goes
+  // straight from capture to "Receipt added"; a flow that shows the user nothing
+  // while it works is a defect in the flow, and the DS ships `Loader`, so this
+  // is a MOCKUP gap rather than a component gap and is built rather than
+  // registered.
+  //
+  // IT IS DETERMINISTIC BECAUSE OF TWO SEPARATE FIXES, and neither alone is
+  // enough:
+  //
+  //   `installExtractionStub`  — the seam never settles, so the surface is
+  //                              permanent instead of being a race against a
+  //                              real implementation.
+  //   `finishAnimations`       — the spinner is an INFINITE animation, so it is
+  //                              pinned to its own first frame instead of being
+  //                              skipped and rendering at an arbitrary angle.
+  //
+  // Without the first the state would flicker past; without the second the
+  // baseline would differ every run. Both are documented where they live.
+  //
+  // NO `confirm`, AND THAT IS NOT AN OVERSIGHT. `confirm` asserts the dialog is
+  // GONE afterwards; pressing Save here leaves the modal open and swaps its
+  // content, so the second prepare step is the honest expression and `dialogs`
+  // stays `['Add receipts']`.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'add-saving',
+      control: '.mvp-receipts__month:first-of-type .mn-link',
+      controlLabel: '+ Add Receipts',
+      title: 'Add receipts',
+      prepare: [
+        {
+          control: '.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")',
+          controlName: 'Photo Gallery',
+          action: 'chooseFiles',
+          value: 'e2e/fixtures/receipt-capture.jpg',
+          settlesOn: '.mvp-add-receipts__badge',
+          settlesText: 'jpg',
+        },
+        {
+          // SAVE EXISTS ONLY ONCE SOMETHING IS STAGED — it is ABSENT, not
+          // disabled, when the grid is empty (the Gate 44 chip ruling). So this
+          // step is only reachable after the one above, and the footer holds
+          // exactly one primary button at that point.
+          control: '.mn-modal__footer .mn-btn--primary',
+          controlName: 'Save',
+          action: 'click',
+          settlesOn: '.mvp-capturing__label',
+          settlesText: 'Reading your receipt…',
+        },
+      ],
+    },
+  },
 ]
 
 /**
@@ -854,10 +1062,11 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 7 OVERLAY_STATES = 28.
+  // each, from ROUTES) + 7 non-default tab states + 11 OVERLAY_STATES = 32.
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
-  // sheet in each of its two states. It was 3 = 24 from Gate α through Gate 41.)
+  // sheet in each of its two states; Gate 50 the eighth through eleventh, the
+  // four capture surfaces. It was 3 = 24 from Gate α through Gate 41.)
   //
   // THE CODE HAS BEEN RIGHT SINCE GATE 44 AND THIS COMMENT SAID 4 = 25 UNTIL
   // GATE 48 — `OVERLAY_STATES` is spread, so the arithmetic was never read by
@@ -1225,9 +1434,49 @@ async function resetPageScroll(page: Page): Promise<void> {
  * React state; a test that pokes the DOM would be verifying a state the app
  * does not think it is in.
  */
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PIN THE EXTRACTION SEAM SO THE PROCESSING MOMENT IS A FACT, NOT A RACE.
+ *
+ * `src/data/extract.ts` reads `window.__monarchExtractReceipt` at CALL TIME and
+ * falls back to its own stub. This installs an implementation that NEVER
+ * SETTLES, before the app's first render, on every walk state.
+ *
+ * WHY IT MUST NEVER SETTLE. `[overlay:add-saving]` photographs the surface that
+ * exists only WHILE extraction is outstanding. Against any implementation that
+ * eventually answers — including this repo's own 900ms stub — the capture either
+ * wins or loses depending on how busy the machine is. That is the timing
+ * dependence this project refuses everywhere else; Gate 17 named a
+ * `waitForTimeout` in this position "a tolerance wearing a fix's clothes".
+ * A promise that cannot resolve makes the state permanent and the capture exact.
+ *
+ * IT IS INSTALLED FOR EVERY STATE, NOT JUST THAT ONE, AND THAT IS THE POINT.
+ * The contract is "walk states never invoke a real engine" — Gate 50-B puts real
+ * work behind this seam, and a per-state opt-in would mean the first state
+ * someone forgot to annotate would silently start running it.
+ *
+ * NOTHING ELSE IN THE WALK CALLS IT, checked: extraction is reached only by
+ * pressing Save in the bulk modal or choosing a file from the detail sheet, and
+ * `[overlay:add-saving]` is the only state that does either. The other three
+ * capture states photograph surfaces BEFORE extraction is requested.
+ *
+ * WHEN A GATE NEEDS THE POST-EXTRACTION STATE, this is what it changes — and it
+ * should resolve to a FIXED value here rather than let the app's own stub run,
+ * for the same determinism reason.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export async function installExtractionStub(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(window as any).__monarchExtractReceipt = () => new Promise(() => {})
+  })
+}
+
 export async function gotoRoute(page: Page, route: string, theme: Theme): Promise<void> {
   // Must precede navigation — `TODAY` is evaluated when the module loads.
   await page.clock.setFixedTime(PINNED_NOW)
+
+  await installExtractionStub(page)
 
   await page.goto(route, { waitUntil: 'networkidle' })
 
@@ -1558,6 +1807,30 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
       // what a user editing a pre-filled amount does, and it fires the input
       // event React's onChange listens for.
       await target.fill(step.value ?? '')
+    } else if (step.action === 'chooseFiles') {
+      if (!step.value) {
+        throw new Error(
+          `prepare step "${step.controlName}" declares chooseFiles but no value — ` +
+            `there is no file to hand to the picker.`,
+        )
+      }
+      /*
+        THE LISTENER IS ARMED BEFORE THE CLICK, AND THAT ORDERING IS THE WHOLE
+        MECHANISM. Chromium raises `filechooser` synchronously with the input's
+        click; attaching the wait afterwards would race the event and hang until
+        the test timed out. `Promise.all` is what guarantees the wait is already
+        pending when the click lands.
+
+        Playwright only INTERCEPTS the chooser when something is listening, so
+        with this in place the OS dialog never opens — which matters beyond
+        tidiness, because a real dialog is not in the page, cannot be dismissed
+        by the harness, and would block the run.
+      */
+      const [chooser] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        target.click(),
+      ])
+      await chooser.setFiles(step.value)
     } else {
       await target.click()
     }
@@ -1793,7 +2066,39 @@ export async function finishAnimations(page: Page): Promise<void> {
       try {
         a.finish()
       } catch {
-        /* infinite animations cannot finish; skip, do not abort */
+        /*
+          AN INFINITE ANIMATION CANNOT FINISH — SO IT IS PINNED, NOT SKIPPED.
+          Corrected at Gate 50.
+
+          This branch used to be empty, with the comment "skip, do not abort".
+          That was correct as long as nothing in the app animated forever, and
+          `.mn-loader` — the processing spinner, and the ONLY CSS animation in
+          either repo (grep: one match in the DS, zero in MVP `src/`) — is
+          exactly that: `animation: loader-spin 0.8s linear infinite`. Skipped,
+          its rotation at capture is whatever the wall clock happened to be, and
+          the baseline differs every run.
+
+          `pause()` THEN `currentTime = 0` PINS IT TO ITS OWN FIRST FRAME. That
+          is a real render of a real state, not a doctored one — the same
+          discipline as finishing a transition rather than widening a tolerance
+          to absorb it. Pausing without setting the time would pin it to an
+          arbitrary frame instead, which is the same non-determinism one step
+          later.
+
+          PROVABLY INERT FOR EVERY BASELINE THAT EXISTED BEFORE GATE 50, because
+          this branch could only ever be reached by an infinite animation and
+          the app had none until `Loader` was first used here. The 112 committed
+          baselines were verified byte-identical across this change.
+
+          The `try` is still needed on the pin itself: `currentTime` throws on an
+          animation with no active timeline.
+        */
+        try {
+          a.pause()
+          a.currentTime = 0
+        } catch {
+          /* nothing further can be done for this animation; do not abort */
+        }
       }
     })
   })

@@ -211,3 +211,22 @@ const RECEIPT_DIR = '/media/receipts'
 export function receiptUrl(filename: string): string {
   return `${RECEIPT_DIR}/${filename}`
 }
+
+/**
+ * The url to render for a receipt, whichever way its bytes got here.
+ *
+ * THE ONE PLACE THAT DECIDES between a shipped file and an in-memory capture —
+ * see `Receipt.sourceUrl` for why that is an optional override rather than a
+ * tagged union. Every render site calls this; none calls `receiptUrl` directly
+ * any more, because a site that did would draw a 404 for a captured receipt and
+ * would do it silently.
+ *
+ * INERT FOR ALL TEN SEEDED RECORDS: none carries `sourceUrl`, so every one of
+ * them resolves through `receiptUrl(filename)` exactly as before Gate 50.
+ */
+export function receiptImageUrl(receipt: {
+  filename: string
+  sourceUrl?: string
+}): string {
+  return receipt.sourceUrl ?? receiptUrl(receipt.filename)
+}

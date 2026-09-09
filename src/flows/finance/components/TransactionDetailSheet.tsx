@@ -3,7 +3,8 @@ import type { IconName } from '@monarch/design-system'
 import { CRYPTO_WALLETS } from '../../../data/accounts'
 import { HOLDINGS } from '../../../data/holdings'
 import { TransactionMark } from '../../../components/TransactionMark'
-import { receiptUrl } from '../../../config/media'
+import { receiptImageUrl } from '../../../config/media'
+import { CapturingBlock } from './CapturingBlock'
 import {
   receiptSubtotal,
   transactionAccount,
@@ -57,21 +58,45 @@ import type { Receipt, Transaction } from '../../../data/types'
  * on `<body>` interacts with the full-page screenshot harness, and the fix is
  * DS-side in any case.
  * ─────────────────────────────────────────────────────────────────────────────
- * WHAT IS INERT AT GATE 49, STATED SO NOTHING READS AS BROKEN:
+ * WHAT IS INERT, STATED SO NOTHING READS AS BROKEN — CORRECTED AT GATE 50:
  *
- *   "Add Receipt"    — the capture action sheet is Gate 50. Wired to NOTHING.
- *   "View"           — the full-screen receipt viewer is Gate 51. Wired to NOTHING.
- *   "Unlink receipt" — FUNCTIONAL. See `ReceiptBlock`.
+ *   "Add Receipt"    — FUNCTIONAL as of Gate 50. Opens `ReceiptSourcePicker`.
+ *   "View"           — the receipt viewer is Gate 51. Still wired to NOTHING.
+ *   "Unlink receipt" — FUNCTIONAL since Gate 49. See `ReceiptBlock`.
  *
- * Both inert controls are real `Button`s carrying real labels, for the reason
- * Gate 41 left the filter trigger in place: the gate that wires them replaces a
- * handler rather than rebuilding the markup.
+ * THE PREDICTION GATE 49 MADE ABOUT THIS HELD EXACTLY: it left "Add Receipt" as
+ * a real `Button` with a real label precisely so that Gate 50 would replace a
+ * HANDLER rather than the markup, and that is all Gate 50 did — one `onClick`,
+ * no change to the element, its label or its position, and the four `detail`
+ * baselines did not move. The same bet Gate 41 made on the filter trigger and
+ * Gate 43 collected on.
+ *
+ * ONE INERT CONTROL REMAINS. "View" is still a real `Button` carrying a real
+ * label, for the same reason.
  */
 export interface TransactionDetailSheetProps {
   transaction: Transaction
   /** The linked receipt, or `undefined` — which IS the state distinction. */
   receipt?: Receipt
   onUnlink: (receiptId: string) => void
+  /**
+   * Open the capture source picker. Gate 50.
+   *
+   * THIS GATE REPLACED A HANDLER, NOT THE MARKUP — which is exactly what Gate 49
+   * left it in place for, and what Gate 41 did for the filter trigger before
+   * that. The "Add Receipt" button, its label and its position are unchanged.
+   */
+  onAddReceipt: () => void
+  /**
+   * TRUE while extraction has not answered for this transaction's capture.
+   *
+   * The prompt block is replaced by the processing block IN PLACE: the sheet
+   * does not close, no second surface opens, and the summary and info rows above
+   * and below it do not move. The state lives in `TransactionsLedger` beside the
+   * selected row, not here, because this component is rendered from data and
+   * holds none of its own.
+   */
+  isCapturing: boolean
   onClose: () => void
 }
 
@@ -79,6 +104,8 @@ export function TransactionDetailSheet({
   transaction,
   receipt,
   onUnlink,
+  onAddReceipt,
+  isCapturing,
   onClose,
 }: TransactionDetailSheetProps) {
   const category = transactionCategory(transaction.category)
@@ -133,10 +160,19 @@ export function TransactionDetailSheet({
         </div>
       </div>
 
-      {receipt ? (
+      {/*
+        THREE-WAY, AND THE ORDER MATTERS. Capturing is checked FIRST because it
+        is a state either of the other two can be in the middle of: the user can
+        capture from the prompt block, and a later gate will let them replace a
+        receipt from the linked block. Checking `receipt` first would leave the
+        prompt on screen while extraction ran.
+      */}
+      {isCapturing ? (
+        <CapturingBlock count={1} />
+      ) : receipt ? (
         <ReceiptBlock receipt={receipt} onUnlink={() => onUnlink(receipt.id)} />
       ) : (
-        <PromptBlock />
+        <PromptBlock onAddReceipt={onAddReceipt} />
       )}
 
       {/*
@@ -244,7 +280,7 @@ function InfoRow({
  * `Button` with no handler is what Gate 41 left for the filter trigger, and that
  * gate replaced a handler rather than the markup.
  */
-function PromptBlock() {
+function PromptBlock({ onAddReceipt }: { onAddReceipt: () => void }) {
   return (
     <div className="mvp-txn-detail__prompt">
       <p className="mvp-txn-detail__prompt-title type-body-m-semibold">
@@ -253,7 +289,13 @@ function PromptBlock() {
       <p className="mvp-txn-detail__prompt-body type-body-sm">
         This helps Monarch find savings on things you buy often.
       </p>
-      <Button variant="primary" label="Add Receipt" />
+      {/*
+        WIRED AT GATE 50. `Button` passes `onClick` straight through to the
+        `<button>` and changes no class and no attribute when it is absent, so
+        adding the handler is provably inert visually — which is why the four
+        `detail` baselines were predicted not to move, and did not.
+      */}
+      <Button variant="primary" label="Add Receipt" onClick={onAddReceipt} />
     </div>
   )
 }
@@ -312,7 +354,7 @@ function ReceiptBlock({
         {/* `alt=""` — decoration for the filename beside it, per `ReceiptCard`. */}
         <img
           className="mvp-txn-detail__receipt-thumb"
-          src={receiptUrl(receipt.filename)}
+          src={receiptImageUrl(receipt)}
           alt=""
         />
         <div className="mvp-txn-detail__receipt-meta">

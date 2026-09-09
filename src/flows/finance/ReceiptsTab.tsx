@@ -3,6 +3,7 @@ import { Field, FilterChip, Icon } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { ReceiptCard } from './components/ReceiptCard'
+import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
 
 /**
@@ -14,11 +15,20 @@ import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
  * This component is the fifth tab's body, and it replaces the `ComingSoon` stub
  * that has stood there since Gate 7.
  *
- * BECAUSE THE TAB ALREADY EXISTED, THIS GATE ADDS NO WALK STATE.
+ * GATE 48 ADDED NO WALK STATE, BECAUSE THE TAB ALREADY EXISTED.
  * `/finance [tab:receipts]` has been in `WALK` and has had four committed
- * baselines since the tab list did. Those four baselines CHANGE here; none is
- * added, |WALK| stays 26, and the suite stays at 218 tests. A gate that expected
- * to mint four new files should re-derive before running.
+ * baselines since the tab list did, drawing `ComingSoon`. Those four baselines
+ * CHANGED at Gate 48; none was added, and the suite stayed at 218 tests. The
+ * general rule, which Budget and Plans will hit next: REPLACING A `ComingSoon`
+ * STUB CHANGES BASELINES AND ADDS NONE.
+ *
+ * GATE 50 IS THE OPPOSITE CASE AND ADDS TWO — `[overlay:add]` and
+ * `[overlay:add-grid]` — because an overlay on this tab is a state the walk did
+ * not previously visit. The RESTING tab is unchanged and its four baselines did
+ * not move: the modal is mounted conditionally, so nothing of it is in the DOM
+ * while it is closed, and `SectionHeader` already passed an `onClick` to its
+ * `Link` whether or not `onLinkClick` was supplied — so wiring the affordance
+ * changed no attribute and no class.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * FLOW 9 ADDS NO VIEWPORT-FIXED ELEMENT. THE APP'S FIXED SET STAYS AT FIVE.
@@ -40,11 +50,11 @@ import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
  *    a state the design has not specified.
  *  - NO SECOND CHIP PAIR. Figma draws two chips, "All" and "This Month", with
  *    two further slots hidden. The hidden ones are not built.
- *  - NO BULK-ADD MODAL. "+ Add Receipts" is INERT this gate — it is wired to
- *    nothing at all, deliberately, and Gate 50 supplies the modal behind it. It
- *    is a real `Link` with a real accessible name so that gate replaces a
- *    handler rather than the markup, which is exactly what Gate 41 did for the
- *    filter button and Gate 43 then benefited from.
+ *  - THE BULK-ADD MODAL LANDED AT GATE 50, and the bet Gate 48 made on it paid
+ *    off exactly: "+ Add Receipts" was left as a real `Link` with a real
+ *    accessible name so that gate would replace a HANDLER rather than the
+ *    markup, and that is all it did — one `onLinkClick`. Same bet Gate 41 made
+ *    on the filter button and Gate 43 collected on.
  * ─────────────────────────────────────────────────────────────────────────────
  * THE CHIPS ARE DECORATIVE THIS GATE, AND THAT IS STATED RATHER THAN HIDDEN.
  *
@@ -68,8 +78,27 @@ import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
 const RECEIPT_CHIPS = ['All', 'This Month']
 
 export function ReceiptsTab() {
-  const { receipts, transactions } = useAccounts()
+  const { receipts, transactions, addReceipt } = useAccounts()
   const [search, setSearch] = useState('')
+
+  /*
+    ── THE BULK ADD MODAL (Gate 50) ──────────────────────────────────────────
+
+    ONE boolean for the whole screen, not one per month. The "+ Add Receipts"
+    affordance repeats per month heading (see the header note), but all of them
+    open the SAME surface: the modal is a way to add receipts to the library, not
+    to a particular month, and its captures are dated by extraction rather than
+    by which heading was pressed. A per-section state would have made the two
+    links mean two different things while looking identical.
+
+    CAPTURES FROM HERE LAND UNLINKED. There is no transaction in view to link
+    them to, which is the whole difference from the detail sheet's entry point;
+    `AddReceiptsModal` passes `null` and auto-match (Gate 50-C) decides later.
+    Until it does, a captured receipt renders as `ReceiptCard`'s `Linked=No`
+    variant — the variant Gate 49 first reached by UNLINKING, and which no seeded
+    record ships in.
+  */
+  const [isAddOpen, setIsAddOpen] = useState(false)
 
   // GROUPED FROM `capturedAt`, NEVER FROM A STORED MONTH — see
   // `groupReceiptsByMonth`. Search narrows BEFORE grouping so a month whose
@@ -155,7 +184,11 @@ export function ReceiptsTab() {
             reads as two adds; if a later gate rules it should be screen-level,
             that is a layout change, not a data one.
           */}
-          <SectionHeader label={group.label} linkLabel="+ Add Receipts" />
+          <SectionHeader
+            label={group.label}
+            linkLabel="+ Add Receipts"
+            onLinkClick={() => setIsAddOpen(true)}
+          />
           <div className="mvp-receipts__list">
             {group.receipts.map((receipt) => (
               <ReceiptCard
@@ -171,6 +204,22 @@ export function ReceiptsTab() {
           </div>
         </section>
       ))}
+
+      {/*
+        MOUNTED CONDITIONALLY, so nothing of it exists in the DOM while it is
+        closed — which is what makes the four existing `/finance [tab:receipts]`
+        baselines provably unaffected by its addition. It also re-seeds its own
+        staged list per open, the same property Gate 43's filter sheet gets from
+        being mounted conditionally: reopening after a cancel starts empty rather
+        than showing whatever was staged last time.
+      */}
+      {isAddOpen && (
+        <AddReceiptsModal
+          isOpen
+          onClose={() => setIsAddOpen(false)}
+          onSave={(captured) => captured.forEach(addReceipt)}
+        />
+      )}
     </div>
   )
 }
