@@ -39,7 +39,14 @@ npm run preview         # serve the production build
 npm run lint:tokens     # token guardrail — scripts/check-tokens.mjs
 npm run test:e2e        # Playwright browser suite (Gate 7)
 npm run test:e2e:update # rewrite the visual baselines — deliberate act, see below
+npm run sync:ocr-lang   # copy the OCR language model into public/ — Gate 50-B
 ```
+
+**`sync:ocr-lang` IS WIRED AS A `pre` HOOK ON `dev`, `build`, `build:package`,
+`preview` AND BOTH SUITE SCRIPTS, so it should never need running by hand.** It
+copies one gitignored 2.82 MB file out of a pinned dependency; see
+"On-device OCR (Gate 50-B)" below for why the language model cannot be a Vite
+`?url` asset like the OCR worker and engine are.
 
 **THE MVP HAS A TEST SUITE AS OF GATE 7.** Any earlier instruction that this
 repo has no test script and that one must not be created is superseded and
@@ -5095,6 +5102,793 @@ still labels; G13, G14, G17's prop half, G19-G23, G28 — all registered, all
 deferred, and **no MVP-local override was added for any**; the DS repo and the
 pin; branch deletion; and the three AA shortfalls on the net-worth card ruled on
 at Gate 31.
+
+## On-device OCR (Gate 50-B)
+
+Gate 50 shipped the capture surfaces with `extractReceipt()` resolving to
+placeholder data. This gate replaced what lives behind that seam with real
+optical character recognition and a real parser. **It touched no screen the
+visual net can reach and moved no baseline: all 128 byte-identical by SHA-256,
+0 added, 0 modified, 0 deleted** — the two manifests, taken outside the repo
+before the first change and after the last, have the same digest
+(`4164f903…6b1a63`). The suite went **268 -> 269 tests**; `|WALK|` stays at
+**32** and `OVERLAY_STATES` at **11**.
+
+**THE SEAM'S SIGNATURE DID NOT CHANGE.** `extractReceipt(file: File):
+Promise<ExtractedReceipt>` is character-for-character what Gate 50 wrote, and
+`ExtractedReceipt` still carries exactly `{ merchant, capturedAt, total, tax,
+currency, lineItems }`. That is what let the engine be swapped without a
+component being edited — the property the seam existed for, now collected on.
+
+### What Tesseract.js is, since the name suggests three wrong things
+
+**IT IS AN ORDINARY npm PACKAGE CARRYING GOOGLE'S TESSERACT OCR ENGINE COMPILED
+TO WEBASSEMBLY.** It is NOT a plugin, NOT a wrapper around a hosted API, and NOT
+a service with a key. Everything it needs — the engine, the language model, the
+worker script — is a file.
+
+**IT RUNS CLIENT-SIDE, IN A WEB WORKER, IN THE SAME TAB.** No server component
+exists on this path and none is to be added.
+
+**THE IMAGE NEVER LEAVES THE DEVICE.** Locked roadmap decision D9, and the whole
+case-study argument for doing OCR this way at all: no upload, no API call, no
+key, no proxy, no telemetry. The bytes go from the `File` the user picked into a
+worker and nowhere else. A future gate that adds a network hop here breaks D9 —
+that is a ruling, not a performance-tuning decision to be taken quietly.
+
+### The dependencies, pinned exact
+
+| package | version | where | why exact |
+|---|---|---|---|
+| `tesseract.js` | **7.0.0** | `dependencies` | this file reads line numbers and control flow out of its source; a caret would let an ordinary `npm install` invalidate that |
+| `pdfjs-dist` | **6.3.289** | `dependencies` | same, plus it ships its own worker whose API surface is version-coupled |
+| `@tesseract.js-data/eng` | **1.0.0** | `dependencies` | the language model is a shipped asset; its bytes must not move under a re-install |
+
+**THREE EXACT SPECIFIERS JOIN `@playwright/test`, WHICH WAS THE ONLY ONE UNTIL
+THIS GATE.** The asymmetry with the rest of the manifest is the same one Gate 39
+recorded and is deliberate for the same reason: these are the entries whose
+behaviour this document describes in detail.
+
+`@tesseract.js-data/eng` is in `dependencies` rather than `devDependencies`
+following the `@fontsource/poppins` precedent — a build-time asset import that
+the shipped app cannot do without.
+
+**THE INSTALL COST IS 13.9 MB OF `node_modules` FOR A 2.82 MB FILE**, because
+that package ships both models (see the table further down). It is a
+dev-machine and CI cost, never a user cost, and it buys provenance: the shipped
+model is derived from a pinned version rather than being a committed binary
+nothing keeps in step.
+
+**`npm audit` IS UNCHANGED BY ALL THREE.** Still exactly the one pre-existing
+high-severity `js-yaml` advisory (GHSA-2883-xcg3-v3hh) reached only through
+`vite-plugin-svgr -> @svgr/core -> cosmiconfig`, characterised at Gate 50-A and
+still not reaching `dist`. `npm audit fix` was NOT run — dependency remediation
+is the hygiene round's, and this gate had a predicted baseline set to hold.
+
+### The engine and the language model are NOT in the entry chunk
+
+**LAZY, AND THE PROOF IS A CHUNK LISTING RATHER THAN A GREP.** Every import in
+`extract.ts`'s OCR path is dynamic, and no module under `src/data/ocr/` is
+reachable from a static import anywhere in `src/`.
+
+Measured through `npm run build:package`, the only command that compiles what
+production compiles:
+
+| | before | after |
+|---|---|---|
+| entry chunk | 5,782,571 | **5,784,337** (+1,766) |
+| `dist/` total | 7,876,321 | **16,611,415** |
+| `dist/` files | 53 | **62** |
+
+**THE CORRECTION ROUND'S OWN CHANGE RE-CONFIRMED THE BOUNDARY BY ACCIDENT, and
+it is the cleanest evidence in this section.** Adding
+`assertLanguageModelIsServed` to `recognise.ts` grew `dist/` by exactly **651
+bytes** — all of it in the lazy `recognise-*.js` chunk (727 -> 1,378) — and left
+the entry chunk at **5,784,337, unchanged to the byte**. New code in the OCR path
+cannot reach the entry chunk, and that was observed rather than argued.
+
+**THE +1,766 IS THE DYNAMIC-IMPORT GLUE PLUS `looksLikePdf`, NOT THE ENGINE**,
+and what proves it is that the entry chunk names none of the four heavy assets.
+Re-derive with the entry name from `index.html` and then the payload:
+
+```bash
+grep -oE 'src="/assets/[^"]+"' dist/index.html
+```
+
+```bash
+find dist -type f \( -name "tesseract-core-*" -o -name "worker.min-*" -o -name "pdf.worker.min-*" -o -name "eng.traineddata.gz" \) -printf "%10s  %p\n" | sort -rn
+```
+
+At this gate those returned the entry at **5,784,337 bytes** — its hash renames
+on any change to the emitted code, which is exactly why the command is quoted
+and the filename is not; it was `index-DnP5WoWB.js` when the gate first built
+and `index-D_E2G5hq.js` after the correction round, on the same entry chunk of
+the same size — and:
+
+```
+   3899472  dist/assets/tesseract-core-simd-lstm.wasm-D4IWHdQk.js
+   2952873  dist/ocr/eng.traineddata.gz
+   1265413  dist/assets/pdf.worker.min-Dswkl-cV.mjs
+    111307  dist/assets/worker.min-32WLk7pY.js
+```
+
+**AND THE LIBRARY CHUNKS, WHICH THE FIRST DRAFT OF THIS SECTION LEFT OUT.** The
+four assets above are the bulk, but the tesseract.js API and pdfjs's main module
+are code chunks of their own and they matter to the claim:
+
+| chunk | bytes | holds |
+|---|---|---|
+| `index-*.js` (the SECOND one, not the entry) | **15,829** | the tesseract.js API — `createWorker` |
+| `pdf-*.js` | **483,141** | pdfjs's main module — `GlobalWorkerOptions`, `getDocument` |
+| `recognise-*.js` / `parseReceipt-*.js` / `rasterise-*.js` | 1,378 / 2,829 / 910 | this repo's own OCR modules |
+
+**BOTH LIBRARY CHUNKS SIT TWO DYNAMIC HOPS DOWN, AND THE IMPORT GRAPH WAS READ
+OFF THE EMITTED CODE RATHER THAN ARGUED.** Distinguishing `import"./x"` from
+`import("./x")` in each chunk gives:
+
+```
+index.html          -> ONE script (the entry) + one stylesheet, ZERO modulepreload
+entry               static: []        dynamic: [recognise, parseReceipt, rasterise]
+recognise-*.js      static: [entry]   dynamic: [index-*.js   <- tesseract API]
+rasterise-*.js      static: [entry]   dynamic: [pdf-*.js     <- pdfjs main]
+tesseract API       static: []        dynamic: []
+pdfjs main          static: []        dynamic: []
+```
+
+**THE `modulepreload` COUNT OF ZERO IS THE LOAD-BEARING HALF.** Vite emits a
+`<link rel="modulepreload">` for chunks the entry statically depends on, so a
+static import would show up in `index.html` and be fetched on first paint. There
+are none: the browser is told to load exactly one script.
+
+Note the two chunks both named `index-*` — the entry and the tesseract API — for
+the dull reason that tesseract.js's own entry file is `src/index.js`. **Tell them
+apart by which one `index.html` names**, never by the prefix.
+
+**DISK SIZE IS NOT WIRE SIZE, AND CONFLATING THEM WOULD MISREAD THIS GATE'S
+COST.** `dist/` grew **+8,735,094 bytes**, and a visitor who never photographs a
+receipt downloads **none of it**. A visitor who does downloads, once,
+gzip-encoded: worker 33,578 + engine 1,462,459 + model 2,952,873 (already gzip,
+incompressible) ≈ **4.45 MB**, and Tesseract caches the model in IndexedDB so a
+second receipt costs ~1.5 MB. A PDF adds the pdfjs worker (374,166 gz) only if
+one is actually chosen.
+
+### No third-party runtime fetch — all three defaults are overridden
+
+Tesseract.js reaches for a CDN three separate times if you let it, from three
+different files:
+
+| option | its default | served instead from |
+|---|---|---|
+| `workerPath` | `cdn.jsdelivr.net/npm/tesseract.js@v7.0.0/dist/worker.min.js` | a Vite `?url` asset on this origin |
+| `corePath` | `cdn.jsdelivr.net/npm/tesseract.js-core@v7.0.0` | a Vite `?url` asset on this origin |
+| `langPath` | `cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int` | `/ocr` on this origin — see below |
+
+`pdfjs-dist` makes a fourth: `GlobalWorkerOptions.workerSrc` defaults to nothing
+and its documented fix points at a CDN. It too is a `?url` asset here.
+
+**WHY NOT A CDN:** it tells a party the user did not choose that a receipt is
+being read, and it adds a domain that can fail or change independently of this
+deploy.
+
+**⚠️ THIS APP DOES NOT WORK OFFLINE, AND OWN-ORIGIN DELIVERY DOES NOT MAKE IT.**
+The first draft of this section argued the CDN case partly on offline capability
+and that was simply false. **There is NO SERVICE WORKER** — measured at the
+Gate 50-B correction round: zero `serviceWorker` registrations in `src/` or
+`index.html`, zero PWA/workbox plugins in `package.json`, zero service-worker
+files tracked by git, and zero occurrences of `serviceWorker` in any of the eight
+emitted JS chunks. `manifest.webmanifest` makes the app INSTALLABLE; it does not
+make it available offline. The only `*sw*` file in `dist/` is
+`pdf.worker.min-*.mjs`, which is a Web Worker and not a service worker.
+
+So with no network the app does not load at all, OCR included, and serving the
+engine from this origin changes nothing about that. **What own-origin delivery
+actually buys is privacy and independence, plus the PRECONDITION for offline
+should a service worker ever be added** — a CDN dependency could not be
+precached from this origin, so it would foreclose that option. State it that
+way; do not claim the capability.
+
+**AND THE ABSENCE IS WHAT MAKES THE "NOTHING IS DOWNLOADED UNTIL A RECEIPT IS
+READ" CLAIM TRUE.** A service worker with a precache manifest would fetch the
+4.45 MB of engine and model at INSTALL time for every installer, whether or not
+they ever photograph a receipt — which would falsify the wire-cost table above.
+If one is ever added, the OCR assets must be explicitly EXCLUDED from its
+precache, and that table re-derived.
+
+**THE SHIPPED BUNDLE STILL CONTAINS THREE `jsdelivr` STRINGS AND THAT IS NOT A
+LEAK.** They are the library's own default expressions, in code that the
+overrides prevent from being evaluated:
+
+```bash
+grep -ro "jsdelivr" dist/ | wc -l
+```
+
+At this gate: **3**. Two are in the Tesseract worker (the `langPath` and
+`corePath` defaults) and one in the library chunk (the `workerPath` default).
+
+**"UNREACHABLE" READ OFF MINIFIED CONTROL FLOW IS A CLAIM, NOT A PROOF, SO IT IS
+MEASURED.** `e2e/ocr.spec.ts` counts every request the browser context makes
+from navigation through recognition and asserts that not one is cross-origin —
+and separately that the worker, the engine and the model really were fetched, so
+the census cannot pass vacuously. **The census listens on the CONTEXT, not the
+page:** Tesseract pulls the engine in with `importScripts` from inside a Web
+Worker, and page-level request events do not reliably cover a worker's own
+fetches — a page-level census would be blind to exactly the three requests it
+exists to check.
+
+### The language model cannot be a `?url` asset — the asymmetry is forced
+
+**DO NOT "TIDY" `sync-ocr-lang.mjs` AWAY BY MAKING THE MODEL A `?url` IMPORT
+LIKE THE OTHER TWO.** It was tried first and it cannot work:
+
+- `langPath` is a **DIRECTORY**; the worker appends `<lang>.traineddata.gz` to
+  it. A `?url` asset carries a **content hash** in its filename, so no directory
+  in `dist/` ever holds a file by the name the worker asks for.
+- **The documented way round that is broken upstream in tesseract.js 7.0.0.**
+  `createWorker` accepts `Lang[]` — `{ code, data }` — which needs no path at
+  all. In `src/worker-script/index.js`, `loadLanguage` reads `l.code` and loads
+  the model correctly; `initialize`, in the same file, reads **`l.data`**. So
+  the engine is initialised with the raw `Uint8Array` stringified as its
+  language NAME. Measured in the browser at this gate: `Error opening data file
+  ./24,0,0,0,255,255,...`, then `Tesseract couldn't load any languages!`, and
+  `createWorker` rejects with `initialization failed`. The model had loaded
+  fine; only the name was wrong.
+
+So the model is copied to `public/ocr/eng.traineddata.gz` — **gitignored**,
+generated from the pinned dependency, wired as a `pre` hook on every script that
+serves or builds the app. Netlify's build command is `npm run build:package`, so
+the deploy is covered by `prebuild:package`.
+
+**BOTH HALVES OF THAT FILENAME ARE TESSERACT'S CONVENTION, NOT THIS APP'S.**
+`langPath` is `/ocr` and the worker composes the rest; rename either and the
+fetch 404s, surfacing as "Tesseract couldn't load any languages!" rather than as
+a missing file. `gzip: true` is passed explicitly even though it is also the
+worker's destructuring default, because it is what decides whether the fetched
+name ends `.traineddata` or `.traineddata.gz`.
+
+**IT IS GENERATED RATHER THAN COMMITTED** because its only source of truth is
+the pinned package version, and a second copy in this repo's history is a copy
+nothing keeps in step. `e2e/ocr.spec.ts` asserts the model was actually fetched,
+so a skipped sync reddens the suite instead of degrading OCR quietly.
+
+**IF A FUTURE TESSERACT RELEASE FIXES `initialize`, the `Lang[]` route becomes
+available again and the script can go.** That is the thing to check on an
+upgrade, and it is the only thing that would retire this whole mechanism.
+
+#### How it exists on a FRESH CLONE — both paths proven from empty
+
+**A GITIGNORED RUNTIME ASSET IS A DEPLOY DEFECT UNLESS THE LIFECYCLE MAKES IT,
+so it was proven rather than reasoned.** `public/ocr/` was DELETED and each path
+run from nothing:
+
+| | command | result |
+|---|---|---|
+| build | `npm run build` | `prebuild` fired -> `ocr language model synced … (2952873 bytes)` -> `dist/ocr/eng.traineddata.gz` **2,952,873 bytes** |
+| **deploy** | `npm run build:package` | `prebuild:package` fired -> same, and the shipped file is **SHA-256-identical** to the package's (`45b4cb34…fcff91`) |
+| suite | `npx playwright test e2e/ocr.spec.ts` | **1 passed**, and `public/ocr/` existed again afterwards |
+
+**NETLIFY'S BUILD COMMAND IS `npm run build:package`** — declared at
+`netlify.toml:18` — so the deploy is covered by `prebuild:package` and nothing
+has to be remembered.
+
+**THE SUITE CASE IS THE INTERESTING ONE, because `npx playwright test` bypasses
+npm scripts entirely** and so never runs `pretest:e2e`. It works anyway because
+`playwright.config.ts`'s `webServer.command` is `npm run dev`, which fires
+`predev`. That is the whole chain: no server was listening, the file did not
+exist, and after the run it did.
+
+Six hooks cover every npm entry point:
+
+```bash
+node -e "const p=require('./package.json').scripts; for (const [k,v] of Object.entries(p)) if (v.includes('sync:ocr-lang') && k!=='sync:ocr-lang') console.log(k+' -> '+v)"
+```
+
+`predev`, `prebuild`, `prebuild:package`, `prepreview`, `pretest:e2e`,
+`pretest:e2e:update`.
+
+**THE ONE UNCOVERED ENTRY IS A SERVER STARTED OUTSIDE npm** — `npx vite` — and
+that is what `assertLanguageModelIsServed` in `recognise.ts` exists for. See the
+next subsection: without it that case cost **three silent minutes**.
+
+#### A MISSING MODEL RETURNS 200 WITH THE APP'S OWN HTML, NOT A 404
+
+**THIS IS THE GATE 24 `robots.txt` MECHANISM IN A NEW PLACE, AND IT MADE THE
+FIRST VERSION OF THE GUARD INERT.** Two different systems produce it and they
+agree:
+
+| environment | mechanism |
+|---|---|
+| dev | Vite's SPA fallback serves `index.html` for an unknown path |
+| production | `netlify.toml`'s `/*` -> `/index.html`, **status 200** |
+
+Measured on the dev server with `public/ocr/` deleted:
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html
+```
+
+body `<!doctype html>`. So **`response.ok` is TRUE** and a guard written against
+it passes straight through — which is exactly what happened: the first draft
+checked `ok`, and the spec still died on the full 180-second Playwright timeout
+naming `page.evaluate`, a line with nothing to do with the cause.
+
+**TESSERACT DOES NOT REJECT ON THIS EITHER.** `loadLanguage` throws
+`Network error while fetching <url>`, but that rejection never propagates out of
+`createWorker`, so the promise simply never settles. A missing model is a HANG,
+not an error.
+
+**THE GUARD THEREFORE CHECKS THE CONTENT TYPE.** Measured after the fix, same
+absent-model state: **180 s -> 2.0 s**, with
+
+> the OCR language model is not being served at /ocr/eng.traineddata.gz — got
+> 200 text/html. … Run `npm run sync:ocr-lang` …
+
+It is a `HEAD`, not a timer — the Gate 17 rule. And it accepts the real file,
+which Vite serves with an EMPTY content-type (`Content-Length: 2952873`,
+`Content-Type:` blank), because the predicate rejects only `text/html`.
+
+**THE GENERAL LESSON: UNDER AN SPA REWRITE, "THE RESPONSE WAS OK" IS NOT
+EVIDENCE THAT A FILE EXISTS.** Any future check for a static asset in this app
+has to look at what came back, not at the status.
+
+**THE PREDICATE IS A DENYLIST AND MUST STAY ONE. DO NOT TURN IT INTO A LIST OF
+ACCEPTED TYPES.** It is `response.ok && !/^text\/html/i.test(type)` — reject a
+non-2xx, reject the app's index page, **accept anything else**. The question it
+asks is "is this the SPA fallback", never "is this a type I expected".
+
+**AN ALLOWLIST WOULD BE A LATENT PRODUCTION BUG WITH NO INSTRUMENT ON IT.**
+Nothing in the suite loads the deployed build, so a CDN serving the `.gz` under
+an unlisted type would make this guard reject a perfectly good model and OCR
+would fail for every user with the whole suite green. And the obvious allowlist
+entry is **already wrong today** — measured on both local servers, neither sends
+a content type for this file at all:
+
+| server | status | content-type | content-length |
+|---|---|---|---|
+| `vite` (dev) | 200 | *(empty)* | 2,952,873 |
+| `vite preview` (dist) | 200 | *(empty)* | 2,952,873 |
+
+So `application/gzip` on an allowlist would have rejected the real model on the
+dev server the spec runs against. The truth table, over every case that matters:
+
+| ok | content-type | verdict |
+|---|---|---|
+| true | *(empty)* | **accept** — Vite dev and preview |
+| true | `application/gzip` / `application/octet-stream` / anything else | **accept** |
+| true | `text/html` (with or without a charset) | **reject** — the SPA fallback |
+| false | anything, including a good type | **reject** |
+
+Both live directions re-proven by hand after the wording was corrected: model
+absent on a non-npm server -> **exit 1 in 2.6 s** with the named message; model
+restored on the same server -> **1 passed in 3.2 s**.
+
+### `4.0.0_best_int` and not `4.0.0` — the difference is 8 MB
+
+| model | size | contains |
+|---|---|---|
+| `4.0.0` | 10,923,060 | legacy **and** LSTM engines |
+| **`4.0.0_best_int`** | **2,952,873** | LSTM only — shipped |
+
+The app initialises with `OEM.LSTM_ONLY` and never calls `worker.detect`, which
+is the only thing needing the legacy model. The larger file would have been
+7.6 MB of model that cannot be reached. It is also what Tesseract's own default
+would fetch for an LSTM-only worker, so this is the same model the library would
+have chosen, served from here.
+
+### One engine build, and the one floor it raises
+
+`tesseract.js-core` ships six builds; only the three `-lstm` ones can ever be
+requested here, and they are within 0.1% of each other in size — so the choice
+is purely which instruction set the device must support. **`corePath` names a
+specific FILE, which is what makes shipping one possible:** Tesseract runs its
+own feature detection only when `corePath` names a directory, and a directory
+would have to hold all three or 404 on the devices whose variant is missing.
+
+`tesseract-core-simd-lstm.wasm.js` is shipped. **The honest cost:** WASM SIMD
+needs Safari 16.4, and this app's existing `:has()` rule (`src/index.css:270`)
+needs only Safari 15.4 — so **on Safari alone this raises the floor by about a
+year**. On Chrome and Firefox it raises nothing, because `:has()` already
+requires Chrome 105 and Firefox 121, both later than SIMD's 91 and 89. Relaxed
+SIMD would raise the floor much further on every engine and is deliberately not
+used. The universal fallback is one import line in `recognise.ts`
+(`tesseract-core-lstm.wasm.js`, 3 KB smaller, works everywhere, slower).
+
+### `pdfjs-dist` rasterises PAGE ONE ONLY
+
+**WHY RASTERISE AT ALL: TESSERACT READS PIXELS, NOT DOCUMENTS.** A photographed
+receipt is already an image; an emailed one is a PDF, which is a description of
+glyph positions rather than a bitmap. Handing a PDF straight to the engine reads
+nothing — not an error, just an empty page.
+
+**PAGE ONE, because a receipt is one page.** A multi-page PDF reaching this path
+is a statement or an invoice bundle, and reading page four of it would produce a
+confident parse of the wrong document. The rest are ignored — not summed, not
+concatenated, and not an error, because a receipt with a terms page after it is
+still a receipt.
+
+**IT IS NOT A TEXT EXTRACTOR, DELIBERATELY.** `pdfjs-dist` can pull the embedded
+text layer out directly, which for a machine-generated receipt would be exact
+rather than merely accurate. Not used: a PDF and a photograph would then travel
+through two pipelines producing two differently-shaped results, and the parser
+would have to be right about both. One pipeline, one parser, one set of failure
+modes. A later gate may add the text-layer fast path as a measured improvement
+over this baseline — not as a second code path bolted on.
+
+The canvas is filled **white** before rendering, and that must not become a
+design token: a canvas starts transparent, a PDF page usually paints no
+background, and transparent pixels flatten to BLACK on encode — giving the
+engine black-on-black. `--mapped-surface-page` would dark-flip and reintroduce
+exactly that.
+
+### The PDF path, proven BY HAND — no spec covers it
+
+**NOTHING IN THE SUITE EXERCISES `rasterise.ts`.** `e2e/ocr.spec.ts`'s fixture is
+a JPEG, so until the second correction round the only evidence the PDF branch
+worked was a typecheck — and the typecheck had already caught one real error in
+it (`destroy()` called on the document proxy, which lives on the loading task).
+A branch whose sole evidence is that it compiles is a branch nobody has run.
+
+**IT WORKS. Measured, once, through the dev server, the way the spec does.**
+
+**THE FIXTURE WAS BUILT OUTSIDE THE REPO WITH NO NEW DEPENDENCY.** A one-page
+PDF wrapping `e2e/fixtures/receipt-capture.jpg` as a `DCTDecode` image XObject —
+the JPEG's own bytes, unmodified, plus ~600 bytes of PDF structure, with real
+byte offsets in the xref table. Node builtins only (`fs`, `crypto`); the page box
+comes from the JPEG's own SOF marker (287 x 517) rather than being guessed.
+
+| | |
+|---|---|
+| bytes | **48,381** |
+| sha256 | `60e54e1dab539f7a60f44c2e95cf776320cb9c41db61ff74cc72d1f2717790d1` |
+| JPEG embedded verbatim | yes |
+
+**THE PARSE, beside the JPEG's from the SAME browser session:**
+
+| field | JPEG | PDF | |
+|---|---|---|---|
+| merchant | `IKEA Southeast Asia` | `KEA Southeast Asia` | the leading `I` is lost |
+| capturedAt | `2025-09-06T08:00:00` | `2025-03-06T08:00:00` | month misread 09 -> 03 |
+| total | **137.59** | **137.59** | same |
+| tax | 7.19 | 1.79 | a DIFFERENT misread; the paper prints 7.79 |
+| currency | MYR | MYR | same |
+| lineItems | 2 — 79.90, 49.90 | **2 — 79.90, 49.90** | **identical**, names included |
+| derived subtotal | 129.80 | **129.80** | same |
+
+**THE THREE DIFFERENCES ARE OCR MISREADS AND THE PARSER WAS NOT TOUCHED.**
+Rasterising changes the pixels, so identical output was never the bar; a parsed
+receipt with line items was, and both line items came through with their names
+and prices exact. **Do not tune the parser to close those three** — that would be
+fitting it to one hand-made fixture.
+
+**WHY THE PDF READS SLIGHTLY WORSE HERE, AND WHY THAT IS AN ARTIFACT OF THE
+FIXTURE RATHER THAN OF THE DESIGN.** `TARGET_LONG_EDGE` is 2000 and the scale is
+`max(1, 2000 / longEdge)`, so this 517-point page is drawn at **3.87x**. Upscaling
+a small RASTER adds no detail — it interpolates — so the engine sees a blurrier
+version of the same photograph. A genuine emailed receipt is VECTOR text, where
+the same 3.87x renders real additional glyph detail and should read BETTER than a
+photograph, not worse. This fixture is therefore the pessimistic case: it is a
+raster wrapped in a PDF, which is the one input for which upscaling cannot help.
+The measurement bounds the branch's correctness, not its accuracy ceiling.
+
+**THE REQUEST CENSUS FROM THE SAME RUN.** During the PDF extraction only:
+
+```
+/src/data/ocr/rasterise.ts
+/node_modules/pdfjs-dist/build/pdf.worker.min.mjs?url
+/node_modules/.vite/deps/pdfjs-dist.js
+/node_modules/pdfjs-dist/build/pdf.worker.min.mjs      <- the worker itself
+/ocr/eng.traineddata.gz
+blob:http://localhost:5174/…                            <- the rasterised page
+/node_modules/tesseract.js/dist/worker.min.js
+/node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js
+```
+
+**Foreign requests: `[]`. Page errors: `[]`.** `pdf.worker.min.mjs` came from this
+origin, which is the fourth CDN default (`GlobalWorkerOptions.workerSrc`) closed
+— and the only one the JPEG path never exercises.
+
+**THE TILE FALLBACK, READ OFF THE DOM after staging that PDF in the bulk modal:**
+
+| | |
+|---|---|
+| `<img>` elements in the tile | **0** |
+| `.mvp-add-receipts__thumb` tag | `SPAN` |
+| its class | `mvp-add-receipts__thumb mvp-add-receipts__thumb--file` |
+| SVGs inside the thumb | 1 |
+| badge text | **`pdf`** |
+| remove button's accessible name | `Remove receipt-capture.pdf` |
+
+**THE GLYPH IS `icon_pdf` AND THAT WAS VERIFIED RATHER THAN ASSUMED.** Its first
+path (`M7.80038 14.948C7.59338 …`) appears in exactly **one** file across the DS's
+36 custom assets — `Assets/icons-custom/icon_pdf.svg` — so the rendered glyph is
+identified by its own geometry, not by the prop that asked for it.
+
+**THIS PROOF IS BY HAND AND IS NOT IN THE SUITE.** The probe spec was deleted
+after the run. Re-running it means rebuilding the PDF and re-writing the probe;
+the procedure above is the record. A standing spec would cost a second real OCR
+run — the cost the one-test decision was made to avoid — and would need a
+committed PDF fixture, which is a product-data decision nobody has made.
+
+### The parser is hand-written. Regex and heuristics, never an LLM.
+
+**THERE IS NO API KEY IN THIS REPO AND NONE IS TO BE ADDED FOR THIS.** An LLM
+parser would send the OCR text of a user's receipt to a third party — breaking
+D9 in spirit even though it is the text and not the image that travels — and
+would make extraction non-deterministic, so it could not hold an assertion.
+
+`src/data/ocr/parseReceipt.ts` is **pure**: it takes an `OcrResult` and returns
+a value, touching no browser API, no clock and no network. That is what lets a
+spec assert on it and what lets the engine be swapped without touching it.
+
+**IT WAS WRITTEN AGAINST REAL ENGINE OUTPUT FOR ALL TEN SEEDED RECEIPTS, NOT
+AGAINST THE IMAGES**, which is why it tolerates the specific ways this engine
+fails on this artwork. Verbatim measured examples:
+
+```
+"1 BLAHAJ Soft Toy 79.90"      the accent in BLÅHAJ is lost
+"SST (6%) 7.19"                the printed figure is 7.79
+"Total (RM) 7908 |"            the decimal point is gone, plus junk
+"1 Dettol Body Wash 950m 2890" the price lost its decimal point
+"3 Subtotal 74.70 o>"          a summary row that STARTS WITH A DIGIT
+"Die: 02/09/2025 12:55"        the word "Date" is not reliable
+"KER Southeast Asi Sen Bh"     the letterhead is not reliable either
+```
+
+Consequences of those, each a design decision rather than an accident:
+
+- **A PRICE IS ONLY A PRICE IF THE PAGE SHOWS AN EXPLICIT DECIMAL POINT.** So
+  `2890` is not read as 28.90 and its line is DROPPED rather than guessed at —
+  the same class of error as inventing a line item, and wrong exactly when a
+  receipt genuinely prints a whole-ringgit price. The cost is measured:
+  **27 of 51 ground-truth line items recovered, 52.9%**.
+- **Summary rows are rejected by their TEXT, not their shape**, because
+  `3 Subtotal 74.70 o>` begins with a digit and would otherwise parse as three
+  Subtotals.
+- **The date is found by SHAPE, not by the word "Date"**, which the engine reads
+  as `Die:`, `oate` and `oq oate`. Read **day-first**: these are Malaysian
+  receipts, both orderings are ambiguous for the first twelve days of a month,
+  and the locale is the only available evidence.
+- **The merchant comes from the legal-name line, not the first line**, because
+  a logo OCRs as noise (`zon (BIG)`, `ri? GROCER`, `= LW 2`, `al is`). It
+  therefore yields the LEGAL name — "IKEA Southeast Asia", where the ledger's
+  payee is "IKEA" — and no rule reading the page can shorten one to the other
+  without a merchant lexicon, which would be fitting the parser to the ten
+  receipts that happen to be seeded. **It is the field most in need of human
+  correction**, which is the concrete argument for an edit affordance.
+
+### `subtotal` is DERIVED; `tax` and `total` are as PRINTED
+
+Unchanged from Gate 49 and re-stated because the parser is now what produces
+them. `receiptSubtotal()` sums `lineItems`; `tax` and `total` follow the paper.
+
+**THIS CONTRADICTS THE FLOW INVENTORY'S §6b, WHICH IS STALE, RULED
+NEVER-EDITED, AND ALREADY CARRIES A DATED NOTE ENDING "DO NOT 'fix' §6b."** The
+premise that table rests on — a figure computable from another is not stored —
+does not survive a receipt, which is a transcription of a photograph that prints
+its own subtotal, its own SST line and its own total. Deriving `total` as
+`subtotal + tax` would put a number on screen the photograph does not show.
+
+The visible consequence is unchanged and still accepted: six of the ten seeded
+receipts print subtotals their own line items do not sum to, and the detail
+sheet has shown that disagreement since Gate 49. **A parser that quietly
+balanced the books would be hiding the one thing worth seeing.** Under the
+strictness rule above, dropped lines make the derived subtotal lower still —
+consistent with a surface that already shows its disagreements.
+
+### Confidence flagging: OPTION B COLLAPSED TO OPTION A, on measurement
+
+The ruling in force was option B — mark low-confidence fields and offer an
+inline edit. It rested on ONE falsifiable assumption, that Tesseract's per-word
+confidence discriminates correct reads from incorrect ones. **This gate measured
+it and IT DOES NOT.** Taking the recorded fallback is the correct outcome here,
+not a failure.
+
+Method: run the shipped parser over all ten seeded receipts and compare every
+parsed field against the ground truth in `receipts.ts`, recording the minimum
+word confidence of the words that produced each field.
+
+| population | n | min | p25 | median | p75 | max | mean |
+|---|---|---|---|---|---|---|---|
+| correct | 54 | 0 | 59 | **77** | 89 | 96 | 69.8 |
+| **incorrect** | 9 | 0 | 35 | **72** | 77 | 89 | 55.7 |
+
+`AUC = 0.642` over 486 pairs, where 0.5 is chance. The distributions overlap
+almost completely, and **no threshold is usable** — precision never exceeds
+**0.231**, so more than three of every four fields any marker highlights are in
+fact correct:
+
+| threshold | errors caught / 9 | correct fields falsely flagged / 54 | precision |
+|---|---|---|---|
+| 50 | 3 | 10 | 0.231 |
+| 70 | 4 | 20 | 0.167 |
+| 80 | 7 | 31 | 0.184 |
+| 90 | **9** | **42** | 0.176 |
+
+Catching all nine errors needs 90, which flags 51 of 63 fields. **A marker on
+four fifths of the page tells the user nothing.**
+
+**THE DECISIVE CASE IS ON THIS REPO'S OWN FIXTURE.** `receipt_ikea02` prints an
+SST of 7.79 and the engine reads **7.19** — a wrong figure in the field a user
+is most likely to trust — and it scores **77, exactly the median of the CORRECT
+population**. Meanwhile a correct total of 429.19 scores 73, a correct date
+scores 47, and two correct merchant reads score 0. The wrong value is more
+confident than many right ones; a threshold cannot separate what is not
+separated.
+
+**SO: PARSE EVERYTHING, MARK NOTHING, AND LET A HUMAN CORRECT ANY FIELD.** That
+affordance is a screen change and therefore not this gate's. `ParsedReceipt`
+still carries the `confidence` block — internal to OCR, never projected through
+the seam — because it is what makes the question re-measurable rather than
+re-arguable, and **that is why the seam did not need widening.**
+
+**WHAT DOES CARRY SIGNAL IS THE PAGE-LEVEL SCORE, AND IT PREDICTS COVERAGE
+RATHER THAN CORRECTNESS.** Against the fraction of ground-truth line items
+recovered, running from 0 of 5 items at page confidence 58 to 2 of 2 at 85:
+
+| | n | Pearson r | Spearman |
+|---|---|---|---|
+| **excluding `receipt_aia01`** | 9 | **0.876** | 0.840 |
+| including it | 10 | **0.719** | 0.788 |
+
+**THE EXCLUSION IS NAMED AND ITS EFFECT IS QUOTED, because the first draft
+reported only the n=9 figure and that flattered it.** `receipt_aia01` is an
+insurance receipt: it prints no purchase rows at all. Its one ground-truth
+"item" is the line `AIA Vitality Premiun 320.00` — a description and an amount
+with **no leading integer quantity** — so `readLineItems` rejects it by
+construction, since it requires the first token to match `^[0-9]{1,3}$`. The
+engine read that line correctly at page confidence 77; the parser cannot see it
+as an item because it is not shaped like one.
+
+So its 0 of 1 is a SHAPE mismatch rather than a legibility failure, which is
+what a coverage-versus-confidence metric is trying to measure — but **the
+relationship survives either way**, and the honest thing is to quote both.
+
+So the honest use of confidence in this app is **"this photograph is too poor to
+read — take another"**, never "this number might be wrong". That is the
+affordance a later gate should build.
+
+### `accept` now admits PDFs, and the PDF tile badge became reachable
+
+`ReceiptFileInput` declares `image/*,application/pdf`. `image/*` keeps its
+wildcard so a device's own formats (HEIC, WebP) are admitted without being
+enumerated; `application/pdf` has to be named because no wildcard covers it.
+`capture="environment"` stays on the camera row — it is a hint about which
+picker to prefer, not a filter on what comes back.
+
+**GATE 50 RECORDED THE BULK MODAL'S `pdf` BADGE VARIANT AS UNREACHABLE BECAUSE
+`accept` WAS IMAGE-ONLY. IT IS REACHABLE AS OF THIS GATE**, and that note in
+`AddReceiptsModal.tsx` has been corrected rather than left to mislead.
+
+**WHAT SHIPPED IS THE THUMBNAIL FALLBACK, NOT FIGMA'S WHOLE DRAWN VARIANT.** A
+non-image file gets the `icon_pdf` glyph where the `<img>` would go, because an
+`<img>` pointed at PDF bytes paints NOTHING — widening `accept` without this
+would have shipped an empty tile, which is a defect and not a simplification.
+`icon_pdf` is already in the DS registry (confirmed in both resolution paths),
+so this is not a rule-3 gap. Figma's truncated-filename treatment is NOT
+reproduced: the badge already names the type, the remove button already carries
+the filename, and inventing a truncation rule is a design call nobody has made.
+
+**NO WALK STATE STAGES A PDF** — the harness stages `receipt-capture.jpg` and
+nothing else — so this branch is outside the visual net, and the zero-baseline
+result was confirmed by hash rather than assumed.
+
+### `e2e/ocr.spec.ts` — one test, one OCR run
+
+**THE ONE PLACE IN THE SUITE WHERE `installExtractionStub` IS NOT INSTALLED**,
+which is why it does its own navigation instead of calling `gotoRoute`. The
+harness stub is **unchanged** — still a never-settling promise installed before
+first render on all 32 walk states, because `[overlay:add-saving]` photographs a
+surface that exists only while extraction is outstanding. **Do not weaken it to
+a resolving stub.**
+
+**ONE TEST, BECAUSE ONE OCR RUN.** The structural assertions and the network
+census describe the same recognition, so splitting them would run the slowest
+thing in the suite twice to assert the same two things.
+
+It asserts merchant, `capturedAt`, total, tax, currency, item count, both item
+names, both prices, and the DERIVED subtotal — then the request census. **No
+baseline and no pixel assertion of any kind**, so the suite went 268 -> 269 with
+128 baselines untouched.
+
+**IT REQUIRES THE VITE DEV SERVER, AND THAT IS A STATED LIMITATION.** The
+assertions need the extractor's return value, and **`Receipt.merchant` is
+rendered NOWHERE in this app** — checked at this gate, the only reader in `src/`
+is the receipt search predicate at `derive.ts:899` — so a DOM-only assertion on
+the parsed merchant is impossible. `playwright.config.ts` starts `npm run dev`,
+so `/src/data/extract.ts` is importable by the page. It is not importable from a
+`vite preview` build, so **Gate 22's dual-build comparison will fail this one
+test with an explanatory message** rather than mysteriously. A loud, explained
+failure beats a silent skip that quietly stops covering the engine.
+
+**THE EXPECTATIONS RECORD WHAT THE ENGINE PRODUCES, INCLUDING ITS ONE ERROR.**
+`tax` is asserted as **7.19** where the paper prints 7.79. If that ever starts
+failing with 7.79 the engine got better and the fix is to update the number —
+**not to widen the assertion into a range**, which would stop the spec noticing
+that OCR quality had moved at all, in either direction.
+
+**MUTATION-PROVED ON BOTH ARMS, each restored and hash-verified**
+(`446fcf56…83b3e` before and after):
+
+| mutation | result |
+|---|---|
+| `EXPECTED.total` 137.59 -> 137.60 | **exit 1**, `Expected: 137.6 / Received: 137.59` |
+| census origin -> `http://localhost:9999` | **exit 1**, the census arm fires and all **399** same-origin requests are reported as foreign |
+
+The second mutation also reddens `npx tsc -b --force` (`baseURL` becomes unused),
+so that arm has two independent detections.
+
+#### WHAT THE SPEC PROVES, AND THE PRODUCTION PATH NOTHING COVERS
+
+**IT EXERCISES THE DEV SERVER, NOT THE BUILT `dist/`.** It imports
+`/src/data/extract.ts`, i.e. unbundled TypeScript transformed by Vite on the fly,
+and the assets it loads carry dev URLs. Measured on both sides:
+
+| | dev (what the spec loads) | production (what no test loads) |
+|---|---|---|
+| Tesseract worker | `/node_modules/tesseract.js/dist/worker.min.js?url` | `/assets/worker.min-32WLk7pY.js` |
+| WASM engine | `/node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url` | `/assets/tesseract-core-simd-lstm.wasm-D4IWHdQk.js` |
+| language model | `/ocr/eng.traineddata.gz` | `/ocr/eng.traineddata.gz` — **the one path that is the same** |
+
+So what is UNCOVERED is the hashed-`?url` production delivery: whether Vite's
+emitted asset names resolve on Netlify, and whether the CDN serves a `.gz` with
+a content type the guard accepts. The MECHANISM is proven; the production URLs
+are not. `npm run build:package` confirms the assets are emitted, which is a
+weaker claim than confirming they are fetchable.
+
+**"ITS GATE 22 LIMITATION", CONCRETELY.** Gate 22's dual-build comparison serves
+`dist-default/` and `dist-package/` through `vite preview` and attaches the
+suite. Under `vite preview` there is no `/src/…` module — so **the one spec that
+exercises the real engine is the one spec that cannot run in the configuration
+that validates the production build.**
+
+**AND IT FAILS EXPLAINED RATHER THAN MYSTERIOUSLY — proven, not asserted.** Run
+against a live `vite preview` on 5174 it failed in **1.3 s** with this spec's own
+message and the underlying cause attached:
+
+> could not import /src/data/extract.ts — this spec needs the Vite dev server …
+> Underlying error: TypeError: Failed to fetch dynamically imported module
+
+**NOTE THE MECHANISM IS A MIME REJECTION, NOT A 404.** `vite preview` answers
+`/src/data/extract.ts` with **200 `text/html`** — the same SPA fallback recorded
+above — so the browser refuses it as a module rather than reporting it missing.
+The `catch` fires either way, which is why the message is written about the
+CONFIGURATION rather than about the status code.
+
+### `optimizeDeps.include` was added, and it is dev-server only
+
+Both packages are reached only through a dynamic `import()`, so Vite's
+dependency scan does not find them at server boot; it discovers them the first
+time a user reads a receipt and can answer the in-flight request with a
+`504 Outdated Optimize Dep` or force a page reload. **`routes.spec.ts` fails the
+suite on any response >= 400**, and Gate A already spent a probe on a mid-run
+Vite cache rebuild as a candidate for an 846-second outlier. Naming the two
+packages moves that work to server start. `optimizeDeps` does not participate in
+`vite build`, so it cannot reach the shipped bundle or move a baseline.
+
+### One hazard worth knowing before running the engine in Node
+
+**RUNNING `tesseract.js` FROM NODE IN THIS REPO'S ROOT LEAVES A 5.2 MB
+`eng.traineddata` IN THE WORKING DIRECTORY.** The Node adapter's cache writes to
+`cachePath || '.'`, so an ad-hoc measurement script drops an untracked binary at
+the repo root. It happened at this gate and was deleted. **The browser does not
+do this** — it caches into IndexedDB — so this is purely a hazard for
+measurement probes. Check `git status` after one.
+
+### Deliberately not in scope
+
+The confidence-marker UI and the manual edit affordance — option B collapsed on
+measurement and the fallback affordance is a screen change; the "photograph too
+poor, take another" affordance the page-level correlation argues for; **a service
+worker** — there is none, so nothing works offline, and if one is ever added the
+four OCR assets must be EXCLUDED from its precache or the wire-cost table above
+becomes false; a test that loads the BUILT `dist/` through the real engine, which
+is the one uncovered delivery path; the
+pdfjs text-layer fast path; auto-match (Gate 50-C), so a capture from the
+Receipts tab still lands unlinked; the receipt viewer behind "View" (Gate 51);
+relinking; Figma's full PDF tile variant; persistence; `npm audit fix`; the DS
+repo and the pin; branch deletion; G13, G14, G17's prop half, G19-G23, G28 — all
+still registered, all still deferred, and **no MVP-local override was added for
+any**; and the three AA shortfalls on the net-worth card ruled on at Gate 31.
 
 ## Known conditions of this setup
 

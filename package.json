@@ -4,23 +4,31 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "sync:ocr-lang": "node scripts/sync-ocr-lang.mjs",
+    "predev": "npm run sync:ocr-lang",
     "dev": "vite",
+    "prebuild": "npm run sync:ocr-lang",
     "build": "tsc -b && vite build",
+    "prebuild:package": "npm run sync:ocr-lang",
     "build:package": "tsc -b && node scripts/build-from-package.mjs",
+    "prepreview": "npm run sync:ocr-lang",
     "preview": "vite preview",
     "lint:tokens": "node scripts/check-tokens.mjs",
     "lint:linkage": "node scripts/check-ds-linkage.mjs",
-    "pretest:e2e": "npm run lint:linkage",
-    "pretest:e2e:update": "npm run lint:linkage",
+    "pretest:e2e": "npm run lint:linkage && npm run sync:ocr-lang",
+    "pretest:e2e:update": "npm run lint:linkage && npm run sync:ocr-lang",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots=all"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",
     "@monarch/design-system": "github:TekuBrah/Monarch-Design-System#v2.3.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "pdfjs-dist": "6.3.289",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.18.2"
+    "react-router-dom": "^7.18.2",
+    "tesseract.js": "7.0.0"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

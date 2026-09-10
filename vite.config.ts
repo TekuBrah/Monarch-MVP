@@ -60,6 +60,25 @@ export default defineConfig({
     // stack trace that points nowhere useful.
     dedupe: ['react', 'react-dom'],
   },
+  // GATE 50-B — PRE-BUNDLE THE OCR PACKAGES AT DEV-SERVER START.
+  //
+  // Both are reached ONLY through a dynamic `import()` (that is the whole point
+  // — see `src/data/extract.ts`), so Vite's dependency scan does not find them
+  // when the server boots. It discovers them the first time a user actually
+  // reads a receipt, optimises them at that moment, and can answer the in-flight
+  // request with a `504 Outdated Optimize Dep` or force a full page reload.
+  //
+  // THAT IS A REAL FLAKE AND THIS REPO HAS ALREADY BEEN BITTEN BY THE SHAPE OF
+  // IT: `routes.spec.ts` fails the suite on any response >= 400, and Gate A
+  // spent a probe on a mid-run Vite cache rebuild as a candidate explanation for
+  // an 846-second outlier. Naming the two packages here moves the optimisation
+  // to server start, where it costs a few seconds once and races nothing.
+  //
+  // DEV-SERVER ONLY. `optimizeDeps` does not participate in `vite build`, so
+  // this cannot reach the shipped bundle or move a baseline.
+  optimizeDeps: {
+    include: ['tesseract.js', 'pdfjs-dist'],
+  },
   server: {
     // Pinned off the design system's default 5173. From step 4.4 onward both dev
     // servers run at once — the acceptance test is editing a token in the DS and

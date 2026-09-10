@@ -111,11 +111,26 @@ import type { Receipt } from '../../../data/types'
  *
  * Hidden node `1048:10925` draws a PDF tile — no thumbnail, an icon and a
  * truncated filename ("IKEA_Receipt_13...06.pdf"), and the screenshot shows a
- * `pdf` badge on the fifth tile. THIS SURFACE IS IMAGE-ONLY: the input declares
- * `accept="image/*"`, so a PDF cannot be staged and the variant is unreachable.
- * Building an unreachable branch would be shipping dead code whose only consumer
- * is a gate that may never come. If PDFs are wanted, widening `accept` is the
- * change and this variant arrives with it.
+ * `pdf` badge on the fifth tile.
+ *
+ * ⚠️ GATE 50 RECORDED THIS AS UNREACHABLE AND GATE 50-B MADE IT REACHABLE.
+ * That note read "the input declares `accept="image/*"`, so a PDF cannot be
+ * staged". `ReceiptFileInput` now admits `application/pdf`, because
+ * `rasterise.ts` can read one — so a staged PDF is a real state of this
+ * surface as of that gate.
+ *
+ * WHAT IS BUILT IS THE THUMBNAIL FALLBACK, NOT THE WHOLE DRAWN VARIANT. A
+ * non-image file gets the `icon_pdf` glyph where the `<img>` would go, because
+ * an `<img>` pointed at PDF bytes renders NOTHING — widening `accept` without
+ * this would have shipped an empty tile, which is a defect and not a
+ * simplification. Figma's truncated-filename treatment is NOT reproduced: the
+ * badge already names the type, the remove button already carries the filename
+ * as its accessible name, and inventing a truncation rule is a design call
+ * nobody has made.
+ *
+ * NO WALK STATE STAGES A PDF — the harness stages `receipt-capture.jpg` and
+ * nothing else — so this branch is outside the visual net, and this gate
+ * confirmed it moved none of the 128 baselines rather than assuming it.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -275,11 +290,25 @@ export function AddReceiptsModal({
                 screen reader can use, and the remove button beside it carries
                 the file's name. It is decoration for a labelled control.
               */}
-              <img
-                className="mvp-add-receipts__thumb"
-                src={capture.url}
-                alt=""
-              />
+              {capture.file.type.startsWith('image/') ? (
+                <img
+                  className="mvp-add-receipts__thumb"
+                  src={capture.url}
+                  alt=""
+                />
+              ) : (
+                // THE SAME BOX, DRAWN RATHER THAN LOADED. It keeps the
+                // `__thumb` class so the tile's geometry is identical either
+                // way — the grid sizes the tile, not its contents — and
+                // `aria-hidden` for the same reason the `<img>` carries
+                // `alt=""`: the remove button beside it is the labelled control.
+                <span
+                  className="mvp-add-receipts__thumb mvp-add-receipts__thumb--file"
+                  aria-hidden="true"
+                >
+                  <Icon name="icon_pdf" size="l" />
+                </span>
+              )}
               <button
                 type="button"
                 className="mvp-add-receipts__remove"

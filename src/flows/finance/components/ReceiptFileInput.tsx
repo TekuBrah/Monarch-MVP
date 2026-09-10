@@ -7,9 +7,27 @@ import { forwardRef, useImperativeHandle, useRef } from 'react'
  * The camera, the gallery and the bulk grid all reach the device through the
  * SAME `<input type="file">`. What differs between them is two attributes:
  *
- *   camera   accept="image/*"  capture="environment"   (one image, rear camera)
- *   gallery  accept="image/*"  multiple                (several at once)
- *   bulk     accept="image/*"  multiple                (the same element again)
+ *   camera   accept=IMAGE_AND_PDF  capture="environment"  (one file, rear camera)
+ *   gallery  accept=IMAGE_AND_PDF  multiple               (several at once)
+ *   bulk     accept=IMAGE_AND_PDF  multiple               (the same element again)
+ *
+ * ──────── PDFs ARE ADMITTED AS OF GATE 50-B, AND THAT HAD A CONSEQUENCE ──────
+ *
+ * `accept` was `image/*` until real extraction existed, because nothing behind
+ * the seam could read a PDF. `rasterise.ts` now draws page one before OCR, so a
+ * PDF is a receipt this app can genuinely read — and an EMAILED receipt is a
+ * PDF, which is at least as ordinary a thing for a user to have as a photograph.
+ *
+ * THE JPG/PDF BADGE VARIANT BECAME REACHABLE THE MOMENT THIS CHANGED. Gate 50
+ * built the staged-tile badge off `fileTypeLabel(file.name)` and recorded that
+ * its "pdf" reading was unreachable, because `accept` could not admit one. It is
+ * reachable now. No committed baseline photographs a PDF tile — the walk stages
+ * `receipt-capture.jpg` and nothing else — so this moved no pixels, and that was
+ * confirmed rather than assumed.
+ *
+ * `capture="environment"` STAYS ON THE CAMERA ROW even though a camera cannot
+ * produce a PDF. It is a hint about which picker to prefer, not a filter on what
+ * comes back, and the two attributes are read independently by the browser.
  *
  * ─────────────── THE CAMERA SCREEN IS RETIRED — 2026-09-09 ───────────────────
  *
@@ -58,6 +76,16 @@ import { forwardRef, useImperativeHandle, useRef } from 'react'
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * What the picker will offer.
+ *
+ * `image/*` KEEPS THE WILDCARD rather than being expanded to a list, so a
+ * device's own formats — HEIC on an iPhone, WebP on Android — are admitted
+ * without this file having to enumerate them. `application/pdf` has to be named
+ * explicitly because it is not an image and no wildcard covers it.
+ */
+const ACCEPT_IMAGE_AND_PDF = 'image/*,application/pdf'
+
 export type ReceiptSource = 'camera' | 'gallery'
 
 export interface ReceiptFileInputHandle {
@@ -101,7 +129,7 @@ export const ReceiptFileInput = forwardRef<
     <input
       ref={inputRef}
       type="file"
-      accept="image/*"
+      accept={ACCEPT_IMAGE_AND_PDF}
       hidden
       onChange={(e) => {
         const files = Array.from(e.target.files ?? [])

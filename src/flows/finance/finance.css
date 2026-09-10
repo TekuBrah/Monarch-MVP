@@ -1395,6 +1395,30 @@
 }
 
 /*
+  THE NON-IMAGE TILE (Gate 50-B) — a PDF has no thumbnail to load.
+
+  `accept` admitted only images until this gate, so every staged tile was an
+  `<img>`; a PDF is now stageable and an `<img>` pointed at PDF bytes paints
+  nothing at all. This centres the `icon_pdf` glyph in the SAME box, so the
+  grid's geometry is untouched either way.
+
+  IT IS A MODIFIER AND NOT A SEPARATE CLASS, so the two branches cannot drift
+  apart on size — the base rule above still supplies the 100%/100% box, and
+  `object-fit` is simply inert on a `<span>`.
+
+  NO WALK STATE STAGES A PDF, so nothing here is in the visual net. That is
+  stated rather than implied because it is the reason this rule shipped in a
+  gate whose baselines had to stay byte-identical.
+*/
+.mvp-add-receipts__thumb--file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mapped-surface-subtlest-default);
+  color: var(--mapped-icon-subtle-default);
+}
+
+/*
   3px IN FIGMA, 4 HERE — the nearest ramp step (`--brand-scale-100`), for the
   same reason the picker's 34 becomes 32. Both the remove affordance and the type
   badge take the same inset, which is what Figma draws.

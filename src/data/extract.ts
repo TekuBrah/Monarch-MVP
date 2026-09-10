@@ -5,8 +5,10 @@ import type { Amount, CurrencyCode, ReceiptLineItem } from './types'
  * THE EXTRACTION SEAM (Gate 50).
  *
  * Everything a capture surface needs to know about turning a photographed
- * receipt into a `Receipt` record lives behind ONE function. This gate ships a
- * STUB behind it; Gate 50-B replaces what is behind it and touches no screen.
+ * receipt into a `Receipt` record lives behind ONE function. Gate 50 shipped a
+ * stub behind it; GATE 50-B REPLACED THAT WITH REAL OCR AND A REAL PARSER, and
+ * touched no screen and moved no baseline doing it. The signature below is
+ * character-for-character the one Gate 50 wrote.
  *
  * THAT PROPERTY IS THE WHOLE POINT AND IT IS WORTH STATING PLAINLY: the two
  * capture surfaces (`AddReceiptsModal`, and the detail sheet's "Add Receipt")
@@ -39,7 +41,7 @@ import type { Amount, CurrencyCode, ReceiptLineItem } from './types'
  *
  * IT IS NOT A FEATURE FLAG AND MUST NOT BECOME ONE. Nothing in `src/` writes
  * `window.__monarchExtractReceipt`, and nothing should: production takes the
- * fallback, always. Gate 50-B replaces `stubExtractReceipt` itself.
+ * fallback, always — and as of Gate 50-B that fallback is the real engine.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -80,56 +82,86 @@ declare global {
 }
 
 /**
- * How long the stub pretends to work.
+ * Is this file a PDF rather than an image?
  *
- * A REAL DELAY, NOT A ZERO ONE, and the reason is that a seam which resolves
- * synchronously cannot be told apart from no seam at all: every consumer would
- * appear to work while never once rendering the processing state it is supposed
- * to render, and the first real implementation would be the first time anyone
- * discovered the surface was wrong. 900ms is long enough for a human to see the
- * loader and short enough not to read as a hang.
- *
- * THE SUITE NEVER WAITS THIS OUT. The harness replaces the whole function.
+ * BOTH THE MIME TYPE AND THE EXTENSION ARE CHECKED, because neither is reliable
+ * alone. `File.type` is whatever the picker chose to report and comes back as
+ * the empty string from some Android providers; the extension is missing
+ * entirely from others (which is why `fileTypeLabel` in `receiptCapture.ts`
+ * already has an "img" fallback). Either signal is enough to route to the
+ * rasteriser, and a false positive is cheap — `getDocument` rejects and the
+ * error surfaces — where a false negative silently OCRs a blank page.
  */
-const STUB_DELAY_MS = 900
-
-/**
- * The placeholder extraction.
- *
- * EVERY FIELD HERE IS A PLACEHOLDER AND NOT A TRANSCRIPTION, which is the
- * opposite of `src/data/receipts.ts` where every figure was read off a
- * photograph. Nothing here was read off anything, so nothing here may be quoted
- * as data — in particular `total` is `0`, deliberately, rather than a plausible
- * amount: a fabricated total is a number that could be believed, and this gate
- * has no authority to produce one.
- *
- * `lineItems` IS EMPTY FOR THE SAME REASON. Inventing "Nestle Milo 2kg" would
- * put a purchase on a user's screen that they did not make. An empty list makes
- * `receiptSubtotal()` return 0, which is honest: nothing has been read yet.
- *
- * NO WALK STATE RENDERS THIS. The four capture walk states all photograph the
- * surface BEFORE extraction answers, so none of these values reaches a baseline
- * — checked, and it is why the placeholder is allowed to be this bare.
- */
-function stubExtraction(file: File): ExtractedReceipt {
-  return {
-    merchant: file.name,
-    // NOT `TODAY` and not a literal: the capture is happening now, and the
-    // harness pins the clock, so this is deterministic under test without a
-    // second source of "now" existing in the app.
-    capturedAt: new Date().toISOString().slice(0, 19),
-    total: 0,
-    tax: null,
-    currency: 'MYR',
-    lineItems: [],
-  }
+function looksLikePdf(file: File): boolean {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
 }
 
-/** The shipped implementation. Gate 50-B replaces THIS, not the export below. */
-const stubExtractReceipt: ReceiptExtractor = (file) =>
-  new Promise((resolve) => {
-    setTimeout(() => resolve(stubExtraction(file)), STUB_DELAY_MS)
-  })
+/**
+ * The shipped implementation: real OCR, real parsing, on this device.
+ *
+ * ─────────────── THE ENGINE IS LOADED LAZILY AND THAT IS ENFORCED HERE ───────
+ *
+ * Every import below is DYNAMIC, and none of those modules is reachable from a
+ * static import anywhere in `src/`. That is what keeps Tesseract, the
+ * WebAssembly engine and the 2.82 MB language model out of the entry chunk.
+ *
+ * MEASURED THROUGH `npm run build:package` AT THIS GATE, which is the only
+ * command that compiles what production compiles. The entry chunk went
+ * 5,782,571 -> 5,784,337 bytes: it grew by 1,766, and that 1,766 is the
+ * dynamic-import glue plus `looksLikePdf` — NOT the engine. What proves the
+ * engine is elsewhere is that the entry chunk names none of the four heavy
+ * assets (`tesseract-core-simd-lstm`, `eng.traineddata`, `worker.min`,
+ * `pdf.worker`), each of which sits in its own file and is fetched only when a
+ * user actually reads a receipt.
+ *
+ * A REFACTOR THAT TURNS ANY OF THESE INTO A TOP-LEVEL `import` WOULD UNDO THAT
+ * SILENTLY, because nothing about the app's behaviour would change — only every
+ * visitor's first paint would get slower. The check is a chunk listing, never a
+ * grep of the source.
+ *
+ * ─────────────── WHAT IT DOES WITH A FIELD IT COULD NOT READ ─────────────────
+ *
+ * `ExtractedReceipt` requires a merchant, a timestamp and a total, and OCR can
+ * fail to produce any of them. Each falls back to something HONEST rather than
+ * to something plausible, which is the same rule Gate 50's stub was written
+ * under and the same rule `receipts.ts` records for the seeded data:
+ *
+ *   merchant    the file's own name — what the user picked, and recognisably
+ *               not a merchant, so it reads as "unread" rather than as a claim
+ *   capturedAt  the moment of capture, which is a real fact about this receipt
+ *               even when the printed date is unreadable
+ *   total       0, never a guess. `lineItems` is likewise whatever parsed and
+ *               nothing more, so the derived subtotal is honest about how much
+ *               of the page was actually read
+ *
+ * NO FIELD IS EVER INVENTED TO MAKE THE ARITHMETIC CLOSE. Six of the ten seeded
+ * receipts already print subtotals their own line items do not sum to, and the
+ * detail sheet has shown that disagreement since Gate 49. A parser that quietly
+ * balanced the books would be hiding the one thing worth seeing.
+ */
+const ocrExtractReceipt: ReceiptExtractor = async (file) => {
+  const [{ recognise }, { parseReceipt }] = await Promise.all([
+    import('./ocr/recognise'),
+    import('./ocr/parseReceipt'),
+  ])
+
+  // A PDF IS DRAWN BEFORE IT IS READ. See `rasterise.ts` — the engine reads
+  // pixels, and a PDF carries none until something renders it.
+  const image: Blob = looksLikePdf(file)
+    ? await (await import('./ocr/rasterise')).rasterisePdfFirstPage(file)
+    : file
+
+  const parsed = parseReceipt(await recognise(image))
+
+  return {
+    merchant: parsed.merchant.length > 0 ? parsed.merchant : file.name,
+    capturedAt: parsed.capturedAt ?? new Date().toISOString().slice(0, 19),
+    total: parsed.total ?? 0,
+    tax: parsed.tax,
+    currency: parsed.currency,
+    lineItems: parsed.lineItems,
+  }
+}
 
 /**
  * Extract one captured receipt image.
@@ -139,5 +171,5 @@ const stubExtractReceipt: ReceiptExtractor = (file) =>
 export function extractReceipt(file: File): Promise<ExtractedReceipt> {
   const installed =
     typeof window !== 'undefined' ? window.__monarchExtractReceipt : undefined
-  return (installed ?? stubExtractReceipt)(file)
+  return (installed ?? ocrExtractReceipt)(file)
 }

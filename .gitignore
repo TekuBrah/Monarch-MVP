@@ -18,3 +18,17 @@ playwright-report/
 # rendered side by side. They are build OUTPUT, like dist/ above.
 dist-package/
 dist-default/
+
+# Gate 50-B. The OCR language model, copied out of the pinned
+# `@tesseract.js-data/eng` package by `scripts/sync-ocr-lang.mjs` before every
+# dev server start and every build.
+#
+# GENERATED, NOT AUTHORED, WHICH IS WHY IT IS HERE and not committed: it is
+# 2.82 MB of binary whose only source of truth is that dependency's pinned
+# version, and a second copy in this repo's history would be a copy nothing
+# keeps in step. It still DEPLOYS — `public/` is Vite's verbatim-copy directory
+# and the sync runs from `prebuild:package`, which is Netlify's build command.
+#
+# The directory is named, not the file, so a second language model added later
+# is covered without editing this.
+public/ocr/
