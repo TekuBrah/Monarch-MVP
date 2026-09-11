@@ -52,17 +52,41 @@ import type { Amount, CurrencyCode, ReceiptLineItem } from './types'
  * `transactionId` and a `displayName` — three facts extraction cannot know:
  * identity is the caller's, linkage is the CAPTURE CONTEXT's (a receipt
  * captured from a transaction is linked to it by definition; one captured from
- * the Receipts tab lands unlinked and auto-match decides later, which is Gate
- * 50-C), and the display name comes from the file the user chose. Returning a
+ * the Receipts tab lands unlinked and auto-match decides, which is Gate 50-C),
+ * and the display name comes from the file the user chose. Returning a
  * `Receipt` would have forced this function to invent all three.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ⚠️ GATE 50-C WIDENED THIS TYPE, AND THAT IS A SEAM CHANGE EVEN THOUGH THE
+ * SIGNATURE OF `extractReceipt` BELOW IS CHARACTER-FOR-CHARACTER UNCHANGED.
+ *
+ * `merchant`, `capturedAt` and `total` are `null` when the page did not yield
+ * them. Until Gate 50-C they were never null: `ocrExtractReceipt` replaced an
+ * unread merchant with the file's name, an unread date with `new Date()` and
+ * an unread total with `0`, so every consumer received a value it could not
+ * tell apart from a read one.
+ *
+ * AUTO-MATCH IS WHY THAT STOPPED BEING ACCEPTABLE. Its rule is that a field
+ * extraction could not read cannot satisfy it — and a date filled in from the
+ * device clock is exactly a value that looks read and is not. A file named
+ * `IKEA.jpg` standing in for an unread merchant is the same hazard in another
+ * field. So the seam now says "unread" out loud, and the DISPLAY fallbacks —
+ * the same three, unchanged on screen — moved to `capturedToReceipt` in
+ * `flows/finance/receiptCapture.ts`, which is where a `Receipt` (whose fields
+ * are not nullable) is built. Auto-match reads THIS value, never the filled
+ * `Receipt`. See `src/data/autoMatch.ts`.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 export interface ExtractedReceipt {
-  /** The merchant as the letterhead prints it. */
-  merchant: string
-  /** ISO 8601 local timestamp, from the receipt's own printed date. */
-  capturedAt: string
-  /** The printed TOTAL, positive. Never summed — see `Receipt.total`. */
-  total: Amount
+  /** The merchant as the letterhead prints it, or `null` when unread. */
+  merchant: string | null
+  /**
+   * ISO 8601 local timestamp from the receipt's own printed date, or `null`
+   * when the page shows no readable date. NEVER FILLED FROM A CLOCK HERE.
+   */
+  capturedAt: string | null
+  /** The printed TOTAL, positive, or `null` when unread. Never summed. */
+  total: Amount | null
   /** The printed SST line, or `null` where the paper prints none. */
   tax: Amount | null
   currency: CurrencyCode
@@ -121,18 +145,16 @@ function looksLikePdf(file: File): boolean {
  *
  * ─────────────── WHAT IT DOES WITH A FIELD IT COULD NOT READ ─────────────────
  *
- * `ExtractedReceipt` requires a merchant, a timestamp and a total, and OCR can
- * fail to produce any of them. Each falls back to something HONEST rather than
- * to something plausible, which is the same rule Gate 50's stub was written
- * under and the same rule `receipts.ts` records for the seeded data:
+ * IT RETURNS `null`, AS OF GATE 50-C. OCR can fail to produce the merchant, the
+ * timestamp or the total, and each unread one comes back `null` — see the note
+ * on `ExtractedReceipt` for why. `lineItems` is whatever parsed and nothing
+ * more, so the derived subtotal is honest about how much of the page was read.
  *
- *   merchant    the file's own name — what the user picked, and recognisably
- *               not a merchant, so it reads as "unread" rather than as a claim
- *   capturedAt  the moment of capture, which is a real fact about this receipt
- *               even when the printed date is unreadable
- *   total       0, never a guess. `lineItems` is likewise whatever parsed and
- *               nothing more, so the derived subtotal is honest about how much
- *               of the page was actually read
+ * THE HONEST DISPLAY FALLBACKS STILL EXIST AND STILL READ THE SAME ON SCREEN —
+ * the file's own name, the moment of capture, and 0 — but they are applied by
+ * `capturedToReceipt` in `flows/finance/receiptCapture.ts` when a `Receipt` is
+ * built, not here. Until Gate 50-C they were applied here, which is how a date
+ * read off the device clock became indistinguishable from one read off paper.
  *
  * NO FIELD IS EVER INVENTED TO MAKE THE ARITHMETIC CLOSE. Six of the ten seeded
  * receipts already print subtotals their own line items do not sum to, and the
@@ -153,10 +175,13 @@ const ocrExtractReceipt: ReceiptExtractor = async (file) => {
 
   const parsed = parseReceipt(await recognise(image))
 
+  // RAW, NOT FILLED. `parseReceipt` reports an unread merchant as the empty
+  // string and an unread date or total as `null`; all three reach the caller as
+  // `null`. The display fallbacks live in `capturedToReceipt`.
   return {
-    merchant: parsed.merchant.length > 0 ? parsed.merchant : file.name,
-    capturedAt: parsed.capturedAt ?? new Date().toISOString().slice(0, 19),
-    total: parsed.total ?? 0,
+    merchant: parsed.merchant.length > 0 ? parsed.merchant : null,
+    capturedAt: parsed.capturedAt,
+    total: parsed.total,
     tax: parsed.tax,
     currency: parsed.currency,
     lineItems: parsed.lineItems,

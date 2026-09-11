@@ -210,13 +210,27 @@ test.describe('section headers', () => {
   }
 
   test.afterAll(() => {
-    const tabStates = WALK.filter((s) => s.tab).length
+    // THE THREE TERMS PARTITION THE WALK, AND UNTIL GATE 50-C THEY DID NOT.
+    // `tabStates` counted every state carrying a tab, which includes the eight
+    // overlay states that sit on a tab — so those eight were counted twice and
+    // the label read "14 + 15 + 11" beside a total of 32. A tab-only state is
+    // now one with a tab and no overlay, and the sum is printed so the label
+    // shows its own arithmetic.
+    //
+    // EACH TERM IS COUNTED ON ITS OWN PREDICATE, NEVER BY SUBTRACTION. Deriving
+    // the route term as "total minus the other two" would make the printed sum
+    // close by construction and prove nothing; three independent counts that
+    // happen to add to `WALK.length` are what show the terms do not overlap.
+    const tabStates = WALK.filter((s) => s.tab && !s.overlay).length
     const overlayStates = WALK.filter((s) => s.overlay).length
+    const routeStates = WALK.filter((s) => !s.tab && !s.overlay).length
     console.log(
       `section-header sweep: ${totalHeaders} .mvp-section-header instance(s) checked across ` +
-        `${WALK.length} walk state(s) (${ROUTES.length} route(s) + ${tabStates} non-default tab ` +
-        `state(s) over ${TABBED_SCREENS.length} tabbed screen(s) + ${overlayStates} overlay ` +
-        `state(s)) x ${THEMES.length} theme(s)`,
+        `${WALK.length} walk state(s) = ${routeStates} route state(s) + ${tabStates} ` +
+        `non-default tab state(s) over ${TABBED_SCREENS.length} tabbed screen(s) + ` +
+        `${overlayStates} overlay state(s) [${routeStates} + ${tabStates} + ${overlayStates} = ` +
+        `${routeStates + tabStates + overlayStates}; ${ROUTES.length} route(s) in ROUTES] ` +
+        `x ${THEMES.length} theme(s)`,
     )
     console.log(
       `distinct headings seen (${headingsSeen.size}):\n  ` +

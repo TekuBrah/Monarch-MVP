@@ -6,8 +6,7 @@ import {
   type ReceiptFileInputHandle,
   type ReceiptSource,
 } from './ReceiptFileInput'
-import { captureToReceipt, fileTypeLabel } from '../receiptCapture'
-import type { Receipt } from '../../../data/types'
+import { extractCapture, fileTypeLabel, type CapturedFile } from '../receiptCapture'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -148,8 +147,14 @@ let stagedSeq = 0
 export interface AddReceiptsModalProps {
   isOpen: boolean
   onClose: () => void
-  /** Called once, with every extracted capture, when Save resolves. */
-  onSave: (receipts: Receipt[]) => void
+  /**
+   * Called once, with every extracted capture, when Save resolves.
+   *
+   * CAPTURES, NOT RECEIPTS, AS OF GATE 50-C. The caller decides the links —
+   * auto-match needs the raw extraction of the WHOLE batch at once — and then
+   * builds each `Receipt` itself. This surface only captures.
+   */
+  onSave: (captures: CapturedFile[]) => void
 }
 
 export function AddReceiptsModal({
@@ -210,9 +215,11 @@ export function AddReceiptsModal({
     sequential loop would make a five-image save take five times as long for no
     change to what the user sees.
 
-    THE COMMIT IS ONE CALL WITH THE WHOLE BATCH, not one per receipt. Both are
-    correct against `addReceipt`, but a batch is one state update and one
-    re-render of the Receipts tab rather than N of each.
+    THE COMMIT IS ONE CALL WITH THE WHOLE BATCH, not one per receipt — and as
+    of Gate 50-C that is load-bearing rather than tidy. Auto-match decides the
+    batch TOGETHER: a transaction two photos in one Save would both claim links
+    to neither, which can only be known with every capture in hand. So nothing
+    is linked here; the caller receives the raw captures and decides.
 
     IT DOES NOT REVOKE ON SUCCESS. The saved receipts carry these very urls as
     their `sourceUrl` — revoking here would blank every thumbnail the moment it
@@ -221,12 +228,12 @@ export function AddReceiptsModal({
   */
   const save = async () => {
     setIsSaving(true)
-    const receipts = await Promise.all(
-      staged.map((c) => captureToReceipt(c.file, c.url, null)),
+    const captures = await Promise.all(
+      staged.map((c) => extractCapture(c.file, c.url)),
     )
     setStaged([])
     setIsSaving(false)
-    onSave(receipts)
+    onSave(captures)
     onClose()
   }
 

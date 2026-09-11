@@ -72,9 +72,14 @@ const MODULE_PATH = '/src/data/extract.ts'
  *
  * IMPORTING THE REAL TYPE FROM `src/` WOULD PUT AN APP MODULE IN THIS SPEC'S
  * OWN GRAPH, which is the thing that would make the check circular: the spec
- * would then be asserting that the module agrees with itself. Restating the
- * shape means a change to the seam's signature shows up here as a type error —
- * which is exactly the alarm this gate was told to raise rather than absorb.
+ * would then be asserting that the module agrees with itself.
+ *
+ * ⚠️ CORRECTED AT GATE 50-C. This note used to claim that restating the shape
+ * "means a change to the seam's signature shows up here as a type error". It
+ * does not: nothing ties this interface to `ExtractedReceipt`, and Gate 50-C
+ * widened three of the seam's fields to `| null` while this file went on
+ * type-checking unchanged. What would catch a change is the RUNTIME assertions
+ * below, which require the merchant, date and total all to have been read.
  */
 interface ExtractedShape {
   merchant: string
@@ -233,8 +238,11 @@ test.describe('real OCR behind the extraction seam', () => {
      * That distinction matters here: the shipped bundle still CONTAINS three
      * `cdn.jsdelivr.net` strings, because they are Tesseract's own defaults for
      * `workerPath`, `corePath` and `langPath`. All three are overridden — the
-     * first two with own-origin `?url` assets, the third by handing the model
-     * in as bytes — so none is ever requested. But "unreachable" read off
+     * first two with own-origin `?url` assets, the third by pointing `langPath`
+     * at `/ocr` on this origin (corrected at Gate 50-C: this said "by handing
+     * the model in as bytes", which is the `Lang[]` route `recognise.ts`
+     * records as broken upstream in 7.0.0 and did not ship) — so none is ever
+     * requested. But "unreachable" read off
      * minified control flow is a claim; a request census is a measurement.
      *
      * EVERY request the page made, from navigation through recognition, must be

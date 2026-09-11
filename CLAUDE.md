@@ -5890,6 +5890,331 @@ repo and the pin; branch deletion; G13, G14, G17's prop half, G19-G23, G28 — a
 still registered, all still deferred, and **no MVP-local override was added for
 any**; and the three AA shortfalls on the net-worth card ruled on at Gate 31.
 
+## Auto-match (Gate 50-C)
+
+No DS re-pin — **v2.3.0 throughout**. Pure logic plus one wiring point: it
+builds no screen, adds no walk state and **moves no baseline** — all 128
+byte-identical by SHA-256 against a manifest taken outside the repo before the
+first change. The suite went **269 -> 284** (15 tests, all in one new spec,
+`e2e/automatch.spec.ts`); `|WALK|` stays **32**, `OVERLAY_STATES` **11**,
+baselines **128**. `lint:tokens` scans **57** files (was 56 — `autoMatch.ts`)
+with the same **3** exemptions.
+
+### Why no baseline can move — read off the source, not assumed
+
+`gotoRoute` installs `installExtractionStub` on every walk state, and its
+promise never settles. Auto-match runs in `ReceiptsTab`'s `saveCaptures`, which
+`AddReceiptsModal` calls only AFTER `Promise.all(... extractCapture ...)`
+resolves. Under the stub that never happens — `[overlay:add-saving]` photographs
+exactly the moment before it would. The detail sheet's capture path never calls
+auto-match at all. So no walk state can reach it, and the stub is **unchanged**:
+still a never-settling promise, read from `window.__monarchExtractReceipt` at
+call time, on every walk state.
+
+### The rule, exactly as implemented — `src/data/autoMatch.ts`
+
+A receipt links automatically ONLY when EXACTLY ONE candidate transaction agrees
+on all three:
+
+| criterion | as implemented |
+|---|---|
+| **total** | exact to the sen, in integer cents. **Only an OUTFLOW can match**, when `-amount === total` |
+| **date** | the row's calendar date within **3 days** of the receipt's printed date, both ways, **INCLUSIVE** — day 3 links, day 4 does not |
+| **merchant** | hand-written fuzzy match — see below |
+
+Zero candidates, or two or more, and the receipt stays unlinked. Unlinked is
+never an error and shows nothing.
+
+**THE SIGN CONVENTION WAS DERIVED FROM THE DATA, AND IT EXCLUDES CREDITS.** On
+every linked row in the seed the amount is the receipt total NEGATED (Gate 48).
+A credit whose magnitude equals a receipt total is therefore not a candidate:
+linking one would mean the amount could follow the receipt only by flipping
+sign, which is exactly what the "an auto-link moves no amount" ruling forbids.
+The seed has 3 credits (both Maybank rows and Rachum Greene's `+350`).
+
+**THE DATE FRAME IS WALL-CLOCK CALENDAR DAYS, AND THE TIME OF DAY IS IGNORED.**
+Both timestamps are written without a zone, so neither can be placed on the
+global timeline, and `new Date(iso)` would parse each in whatever zone the
+VIEWER's device is in. `wallClockDay` reads the date fields and indexes them
+with `Date.UTC` — pure arithmetic, no clock — so the answer cannot move with the
+device's zone or a daylight-saving boundary. A row at 13 Sept 23:59 is day 3
+from a receipt printed 10 Sept 12:00 and links, although it is 3 days 11 hours
+59 minutes away. An impossible date (`2025-13-45`, which OCR can compose) fails
+the round trip and is treated as unread.
+
+### Three rulings, with their reasons
+
+- **CANDIDATES ARE TRANSACTIONS WITHOUT A RECEIPT.** Auto-match must never
+  displace a receipt the user already linked. It reuses
+  `transactionHasReceipt` from `derive.ts`, so "has a receipt" means exactly
+  what it means to the ledger row's glyph. A second photo of an already-linked
+  receipt stays unlinked.
+- **ONE-TO-ONE IN BOTH DIRECTIONS WITHIN A SAVE.** A transaction that more than
+  one receipt in the same batch would claim links to NONE of them. A first-come
+  rule would give it to whichever photo the picker listed first; every step here
+  is a per-receipt test or a count over the whole batch, and neither can see
+  order.
+- **RUN ONCE, AT THE MOMENT A RECEIPTS-TAB RECEIPT IS ADDED.** It is a Save
+  handler, not a render-time derivation: nothing re-matches the library on a
+  re-render, and nothing re-matches after an unlink. Unlinking makes the
+  transaction receipt-less, so a re-run would find it a candidate and re-link the
+  receipt the user had just unlinked.
+
+**CAPTURE CONTEXT DECIDES WHICH PATH RUNS.** From the detail sheet,
+`TransactionsLedger`'s `captureForTransaction` calls `captureToReceipt(file,
+url, targetId)` — linked by definition, auto-match never consulted. That was
+already true at Gate 50 and was not changed. From the Receipts tab,
+`AddReceiptsModal` extracts and `ReceiptsTab.saveCaptures` decides.
+
+### "Now" enters nowhere — the carried `ledgerNow()` clause described nothing
+
+`ledgerNow()` (`derive.ts`) was read. It is the anchor the Transactions
+filter's DATE FACET measures back from, the newest row's timestamp, chosen
+because the harness clock (2026-08-15) and the ledger (September 2025) disagree
+by eleven months. Auto-match compares two RECORDED dates — the receipt's and the
+row's — so it reads neither `Date.now()` nor `ledgerNow()`. The one place a
+clock ever reached a receipt's date was `extract.ts`'s fallback, and that is
+exactly what the seam change below removed from what auto-match can see.
+
+### THE SEAM WIDENED — approved, with conditions
+
+**UNTIL THIS GATE THE SEAM NEVER RETURNED A NULL FIELD.** `ocrExtractReceipt`
+replaced an unread merchant with the file's name, an unread date with
+`new Date()` and an unread total with `0`. So "a field extraction could not read
+cannot satisfy the rule" was not implementable: a clock-filled date and a file
+named `IKEA.jpg` both look read.
+
+Reported before acting, and approved by the review thread as **option 1**:
+`ExtractedReceipt.merchant`, `.capturedAt` and `.total` are now `| null`. **The
+signature `extractReceipt(file: File): Promise<ExtractedReceipt>` is
+character-for-character unchanged — AND THIS IS STILL A SEAM CHANGE**, because
+the return contract changed. The five conditions attached, and how each was met:
+
+| condition | met by |
+|---|---|
+| record it as a prompt error | it is — see the report |
+| displayed behaviour unchanged | the three fallbacks moved verbatim into `capturedToReceipt` (`flows/finance/receiptCapture.ts`); 128 baselines byte-identical |
+| auto-match reads only the raw extraction | `saveCaptures` passes `c.extracted`; the `Receipt` is built only afterwards |
+| typecheck proves every consumer handles null | `npx tsc -b --force` exit 0; the consumers are `extract.ts` itself, `receiptCapture.ts` (`extractCapture`, `capturedToReceipt`), `AddReceiptsModal` and `ReceiptsTab` through `CapturedFile`, and `e2e/ocr.spec.ts`'s restated `ExtractedShape` |
+| `ocr.spec.ts` still reads all three non-null | no assertion changed; it passes, and its `toBe` assertions on merchant, date and total would fail on a `null` |
+
+**`ocr.spec.ts`'S RESTATED TYPE DOES NOT TRACK THE SEAM**, which its own comment
+claimed it did ("a change to the seam's signature shows up here as a type
+error"). This gate widened three fields and that file type-checked unchanged.
+The comment was corrected; the runtime assertions are what would catch a change.
+
+`receiptCapture.ts` is now two halves: `extractCapture` (extract only) and
+`capturedToReceipt` (build, applying the display fallbacks).
+`captureToReceipt` is the two back to back — the detail sheet's path.
+
+### No new mutator, and why an auto-link cannot move an amount
+
+**NONE WAS NEEDED.** The link is decided BEFORE the receipt exists, so the
+existing `addReceipt` carries it — the same call the detail sheet makes for a
+receipt that arrives already linked. `addReceipt` calls `setReceipts` and
+nothing else; no mutator in `AccountsProvider` writes the ledger except
+`addTransaction`, which still has zero callers. And `totalMatches` admits a row
+only when `-amount === total` in cents, so the invariant "a linked row's amount
+is its receipt's total, negated" holds with no write at all. A sign flip or a
+rounding step would falsify that, and neither exists. Asserted for all ten
+seeded receipts in the leave-one-out test, and from the DOM in the wiring test.
+
+### The merchant match — hand-written, and knows no merchant
+
+1. **Normalise both strings into tokens:** strip accents, lower-case, drop a
+   possessive `'s` (`Lotus's` -> `lotus`, `Tony Roma's` -> `tony roma`), drop
+   any other apostrophe, split on everything that is not a letter or digit.
+2. **Every PAYEE token must agree with some RECEIPT token** — never the other
+   way round. OCR returns the LEGAL ENTITY and the ledger the BRAND, and a legal
+   name is the brand plus words, so extra receipt words cost nothing.
+3. **Agree means equal — or, only when BOTH tokens are six letters or more, one
+   edit apart.** A single misread letter in a long word is the commonest OCR
+   error. In a short word it is not survivable: `ikea` is one edit from `idea`
+   and `kea`. So a brand of five letters or fewer must be read exactly.
+4. **A second path forgives SPACING only:** the payee with its spaces removed
+   may equal a run of consecutive receipt tokens joined (`Touch N Go` /
+   `TouchNGo`). Letters must still agree exactly.
+
+**NO TABLE MAPS ANY MERCHANT TO ANYTHING.** A table from legal names to brands
+would make the ten seeded receipts pass without the matcher working, and is
+forbidden. The design was fixed BEFORE the measurement below and was not
+changed after it; recall is reported, not tuned for.
+
+**THE PAYEE LIST IS 18: 16 MERCHANT-KIND, 2 PERSON-KIND, DERIVED BY PARSING.**
+A naive single-quote regex also returns 16 — but a DIFFERENT 16: it misses
+`Lotus's` and `Tony Roma's` (double-quoted) and includes the two persons.
+
+```bash
+node --input-type=module -e "const { TRANSACTIONS: t } = await import('./src/data/transactions.ts'); const kind = (k) => new Set(t.filter((r) => r.logo.kind === k).map((r) => r.merchant)).size; console.log(new Set(t.map((r) => r.merchant)).size, kind('merchant'), kind('person'))"
+```
+
+Returns `18 16 2` — distinct payees, merchant-kind, person-kind. Node 24 strips
+the types from `transactions.ts` itself; `npx tsx` is not needed and is not used.
+
+### The ten-receipt measurement — leave one out, two runs
+
+For each seeded receipt, its OWN receipt was taken out of the library (so its
+transaction is receipt-less, as if the photo had just been uploaded) and the
+matcher was run against all 23 rows. **Run (a)** feeds the fields transcribed in
+`receipts.ts` — the matcher alone. **Run (b)** feeds the REAL engine's output
+for that image — what production will actually feed it — obtained through the
+dev server by calling `extractReceipt` in Chromium, so the Node Tesseract adapter
+and its CWD cache were never involved (no `eng.traineddata` at the repo root,
+checked). The probe lived outside the repo and is not committed.
+
+| receipt | engine merchant (b) | payee | (a) | (b) | what failed in (b) |
+|---|---|---|---|---|---|
+| aeonbig01 | `AEON BIG` | Aeon Big | linked-correctly | **linked-correctly** | — |
+| aia01 | `ATA` | AIA | linked-correctly | unlinked | merchant — `I` read as `T`, and a 3-letter brand gets no edit |
+| caring01 | `CARING PHARMACY` | Caring Pharmacy | linked-correctly | unlinked | date — unread (`null`) |
+| giant01 | `Giant Hypermarket` | Giant | linked-correctly | **linked-correctly** | — |
+| ikea01 | `IKEA Southeast Asia` | IKEA | linked-correctly | **linked-correctly** | — |
+| ikea02 | `IKEA Southeast Asia` | IKEA | linked-correctly | **linked-correctly** | — |
+| ikea03 | `Lalan PIU 7 7 Wutira Damansara` | IKEA | linked-correctly | unlinked | merchant — an address line was taken for the letterhead |
+| jayagrocer01 | `Jaya Grocer Holdings` | Jaya Grocer | linked-correctly | unlinked | date — read `2025-03-01`, the paper prints September |
+| lotus01 | `Lotus's Stores` | Lotus's | linked-correctly | **linked-correctly** | — |
+| tonyroma02 | `Classic Ribs 59.90` | Tony Roma's | linked-correctly | unlinked | date unread AND merchant — a line item was taken for the letterhead |
+
+**LINKED-WRONGLY: 0 in (a), 0 in (b).** Recall: **10/10** in (a), **5/10** in
+(b). Foreign requests during the run: 0. Page errors: 0.
+
+**RUN (a) IS WEAKER EVIDENCE THAN IT LOOKS.** The transcribed merchants are the
+payee strings verbatim, so it exercises the total, date and candidate logic and
+barely touches the fuzzy half. Run (b) is the one that tests the merchant match,
+and in it the TOTAL was read correctly on all ten, the date on seven and a
+matchable merchant on seven. FOUR of the five misses are fields the page did
+not yield usably — two dates unread, one date misread by six months, one
+letterhead replaced by an address line and one by a line item — and no matcher
+could recover those. **THE FIFTH IS THE ONE A LOOSER MATCHER WOULD HAVE
+RECOVERED**: `ATA` for `AIA` is one edit, and forgiving one edit in a
+three-letter word would have linked it. That tolerance is withheld on purpose,
+because the same rule links `kfc` to a `kfd` and `ikea` to an `idea`, and a
+false link is the worse failure. A first draft of this paragraph said no miss
+was recoverable by loosening; that was wrong, and it is corrected here.
+
+### The ambiguity branch is tested only on constructed data
+
+After Gate 48's reconciliation no two rows share a magnitude, so "two
+candidates" cannot arise from the seed:
+
+```bash
+node --input-type=module -e "const { TRANSACTIONS: t } = await import('./src/data/transactions.ts'); const m = t.map((r) => Math.round(Math.abs(r.amount) * 100)); console.log(m.length, new Set(m).size)"
+```
+
+Returns `23 23` — 23 rows, 23 distinct magnitudes in cents. The two-candidate
+and batch-conflict tests therefore build their own rows, and say so.
+
+### `e2e/automatch.spec.ts` — 15 tests, no baseline
+
+**13 RULE TESTS RUN IN PLAYWRIGHT'S NODE CONTEXT, importing `autoMatch.ts`,
+`transactions.ts` and `receipts.ts` directly.** That works because nothing the
+matcher imports reaches the DS runtime or a browser API: `derive.ts`'s only DS
+import is `import type`, and `today.ts` reads `new Date()` and nothing else. It
+costs milliseconds, needs no dev-server module — so it also runs against
+`vite preview`, where `ocr.spec.ts`'s in-page import cannot — and the fixtures
+are the real seed, imported rather than restated. `ocr.spec.ts` restates its type
+to avoid a circular check; that argument does not transfer, because the module
+under test here IS the thing imported.
+
+The 13: exactly one candidate links; zero candidates stay unlinked; two
+candidates stay unlinked; the 3-day window both ways, day 3 links and day 4 does
+not; a null total, a null date and a null merchant each stay unlinked (three
+tests); a transaction that already has a receipt is not a candidate; two
+receipts in one batch claiming one transaction link to neither, in both orders; a
+legal-entity merchant links to its brand; a merchant with a dropped leading
+character stays unlinked; a credit whose magnitude equals the total is not a
+candidate; and leave-one-out over all ten seeded receipts, which also asserts
+the amount already follows each receipt.
+
+**2 BROWSER TESTS.** The wiring test installs its OWN resolving extraction by
+writing `window.__monarchExtractReceipt` AFTER `gotoRoute` — the call-time read
+is what makes that enough — returning fields derived from the newest
+receipt-less merchant outflow in the seed, drives "+ Add Receipts", "Photo
+Gallery" (intercepting `filechooser`, never `setInputFiles`) and Save, and
+asserts from the DOM that the capture is linked and that the ledger row's glyph
+appeared and its amount did not change. The rule-A6 test unlinks
+`receipt-aeonbig01` through the real control, runs a later Save so auto-match
+genuinely runs in that session, re-renders the tab twice, and asserts the
+unlinked receipt is still unlinked — after first asserting that its own fields
+WOULD re-link it, so the test cannot pass vacuously.
+
+**MUTATION-PROVED, BOTH, spec sha256 `2d61ecc4…09de8e` before and after:**
+
+| mutation | run alone | restored | re-run |
+|---|---|---|---|
+| wiring: the page's extraction total `+ 0.01` | **exit 1**, `and claims to be linked` — element not found | sha256 matches | exit 0 |
+| rule: the day-3 row moved to 14 Sept 23:59, still expected to link | **exit 1**, `a row at 2025-09-14T23:59:00 …` | sha256 matches | exit 0 |
+
+The count is derived from disk, not carried:
+
+```bash
+npx playwright test e2e/automatch.spec.ts --list
+```
+
+It ends `Total: 15 tests in 1 file`, and the whole suite's `--list` ends
+`Total: 284 tests in 9 files`.
+
+### Three carried items
+
+**G1 — THE SECTION-HEADER LOG LABEL DID NOT ADD UP.** It read
+`32 walk state(s) (14 route(s) + 15 non-default tab state(s) … + 11 overlay
+state(s))` — 14 + 15 + 11 = 40. The 15 was `WALK.filter((s) => s.tab)`, i.e.
+the 7 tab-only states plus the 8 overlay states that sit on a tab, so those 8
+were counted twice. Each term is now its own predicate — route-only, tab-only,
+overlay — and the label prints `14 + 7 + 11 = 32`. **The terms are counted
+independently, never by subtraction**, or the sum would close by construction.
+A log string only: no test count, no baseline.
+
+**G2 — "27 PACKAGES ADDED" BESIDE "RESOLVED 167 -> 193".** Both figures
+re-derived from the diff:
+
+```bash
+git --no-pager diff mvp-gate50 mvp-gate50b -- package-lock.json | grep -cE '^\+    "node_modules/'
+```
+
+```bash
+git --no-pager diff mvp-gate50 mvp-gate50b -- package-lock.json | grep -cE '^\+\s+"resolved":'
+```
+
+Both return **27**. The resolved count went **167 -> 194**, not 193 — so the
+27 was right and the 193 was the error. No package has one without the other:
+the only `packages` key without a `resolved` field is the root `""` entry, in
+both locks, and it was not added.
+
+**G3 — THE GATE 50-B SECTION, AUDITED ON ARRIVAL.** All fourteen of its
+stack-entry clauses are present. Every fenced command in it was run verbatim
+against a `dist/` built from the `mvp-gate50b` tree, and every figure
+reproduced: the entry `index-D_E2G5hq.js` at 5,784,337; the four asset sizes;
+`jsdelivr` **3** (2 in the worker, 1 in the tesseract API chunk); the six hooks;
+62 files and 16,611,415 bytes in `dist/`; the chunk sizes; zero
+`modulepreload`; the model's sha256; the three gzip wire figures; 13,876,967
+bytes of `@tesseract.js-data/eng`; the 10,923,060 and 2,952,873 model sizes;
+`src/index.css:270`. **The defects were outside the section and one was caused
+by it:** Gate 39's "IT IS THE ONLY EXACT SPECIFIER IN THE MANIFEST" had been
+false since Gate 50-B added three more (corrected in place, dated); Gate 30's
+"the one declared entry is a caret range" had been false since Gate 39
+(corrected); and two comments in `e2e/ocr.spec.ts` were false — the restated
+type "tracking" the seam, and the model being "handed in as bytes" when
+`langPath` serves it (both corrected, no assertion touched).
+
+**THE PRODUCTION DELIVERY PATH NOTHING COVERED WAS READ AT THIS GATE'S
+PRE-FLIGHT.** Every hashed OCR asset name emitted locally by `npm run
+build:package` exists on `https://monarchmvp.netlify.app`: all four answered
+`200`, the three scripts as `application/javascript; charset=UTF-8` and the
+model as `application/gzip`, each with a `Content-Length` equal to the local
+file's byte size. So the build is name-reproducible between this machine and
+Netlify's for these assets — a measurement of one deploy, not a guarantee.
+
+### Deliberately not in scope
+
+The manual link picker (Gate 51) — a missed auto-match is linked by hand there;
+the confidence-marker and field-edit affordances, which would recover several of
+run (b)'s misses and are screen changes; the receipt viewer; relinking;
+persistence; any change to `installExtractionStub`; the DS repo and the pin;
+branch deletion; `npm audit fix`; G13, G14, G17's prop half, G19-G23, G28 — all
+still registered, all still deferred; and the three AA shortfalls on the
+net-worth card ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
@@ -6330,11 +6655,18 @@ is wanted: change the literal, re-read Gate 30's offsets against the new
 `playwright-core`, confirm `--disable-partial-raster` is still honoured, and
 expect a baseline re-mint. Name the version in the commit message.
 
-**IT IS THE ONLY EXACT SPECIFIER IN THE MANIFEST, AND THAT ASYMMETRY IS
-DELIBERATE.** The other eleven npm entries keep their ranges; none of them has
-documentation reading line numbers out of its installed source, and none bundles
-a browser. `@monarch/design-system` is a git-tag pin, which is stricter still
-and guarded by `lint:linkage`.
+**IT WAS THE ONLY EXACT SPECIFIER IN THE MANIFEST UNTIL GATE 50-B, AND THE
+ASYMMETRY IS STILL DELIBERATE.** Gate 50-B added three more — `tesseract.js`
+`7.0.0`, `pdfjs-dist` `6.3.289` and `@tesseract.js-data/eng` `1.0.0` — for the
+same reason this one is exact: its section reads behaviour out of their installed
+source. *(Corrected at Gate 50-C: this sentence read "IT IS THE ONLY EXACT
+SPECIFIER" for two gates after it stopped being true. Gate 50-B's own section
+says "THREE EXACT SPECIFIERS JOIN `@playwright/test`" and nothing reconciled the
+two.)* The other eleven npm entries keep their ranges — re-derived at Gate 50-C
+from `package.json`, 16 entries: 4 exact, 11 ranged, 1 git tag. None of the
+ranged ones has documentation reading line numbers out of its installed source,
+and none bundles a browser. `@monarch/design-system` is a git-tag pin, which is
+stricter still and guarded by `lint:linkage`.
 
 ### Propagation status — both mechanisms confirmed live
 
@@ -6719,7 +7051,8 @@ which is why doubling the captures does not come close to doubling the run.
 The exact check compares bytes, so anything that shifts a single byte of any
 baseline fails it — where the old comparator absorbed the same shift silently on
 thin features. **A Playwright upgrade is also a Chromium upgrade** (Playwright
-bundles its own, and the one declared entry is a caret range, `^1.62.1`), so a
+bundles its own, and the one declared entry was a caret range, `^1.62.1`, until
+Gate 39 pinned it exact — corrected at Gate 50-C), so a
 rasteriser or PNG-encoder change arriving that way can redden **up to all 96**
 visual tests at once, having previously reddened none.
 

@@ -4,7 +4,9 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
+import { capturedToReceipt, type CapturedFile } from './receiptCapture'
 import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
+import { autoMatchBatch } from '../../data/autoMatch'
 
 /**
  * Flow 9 — the Receipts tab of `/finance`.
@@ -91,14 +93,43 @@ export function ReceiptsTab() {
     by which heading was pressed. A per-section state would have made the two
     links mean two different things while looking identical.
 
-    CAPTURES FROM HERE LAND UNLINKED. There is no transaction in view to link
-    them to, which is the whole difference from the detail sheet's entry point;
-    `AddReceiptsModal` passes `null` and auto-match (Gate 50-C) decides later.
-    Until it does, a captured receipt renders as `ReceiptCard`'s `Linked=No`
-    variant — the variant Gate 49 first reached by UNLINKING, and which no seeded
-    record ships in.
+    CAPTURES FROM HERE ARRIVE UNLINKED AND AUTO-MATCH DECIDES (Gate 50-C).
+    There is no transaction in view to link them to, which is the whole
+    difference from the detail sheet's entry point. A capture that does not
+    match renders as `ReceiptCard`'s `Linked=No` variant — the variant Gate 49
+    first reached by UNLINKING, and which no seeded record ships in.
   */
   const [isAddOpen, setIsAddOpen] = useState(false)
+
+  /*
+    ── AUTO-MATCH RUNS HERE, AND ONLY HERE (Gate 50-C) ──────────────────────
+
+    ONCE, OVER THE WHOLE BATCH, AT THE MOMENT IT IS ADDED. `autoMatchBatch`
+    reads each capture's RAW extraction — unread fields still `null` — against
+    the ledger and the library as they stand before the batch lands, and the
+    display fallbacks are applied only afterwards, by `capturedToReceipt`.
+
+    IT IS A HANDLER, NOT A RENDER-TIME DERIVATION, AND THAT IS THE RUN-ONCE
+    RULING. Nothing re-matches the library when this tab re-renders, and
+    nothing re-matches after an unlink: unlinking makes a transaction
+    receipt-less, so a re-run would find it a candidate again and re-link the
+    receipt the user had just unlinked.
+
+    NO NEW MUTATOR. The link is decided BEFORE the receipt exists, so the
+    existing `addReceipt` — the same one the detail sheet uses for a receipt
+    that arrives already linked — carries it. It writes the receipt collection
+    and nothing else, so an auto-link cannot move a ledger amount.
+  */
+  const saveCaptures = (captured: CapturedFile[]) => {
+    const links = autoMatchBatch(
+      captured.map((c) => c.extracted),
+      transactions,
+      receipts,
+    )
+    captured.forEach((capture, i) =>
+      addReceipt(capturedToReceipt(capture, links[i] ?? null)),
+    )
+  }
 
   // GROUPED FROM `capturedAt`, NEVER FROM A STORED MONTH — see
   // `groupReceiptsByMonth`. Search narrows BEFORE grouping so a month whose
@@ -217,7 +248,7 @@ export function ReceiptsTab() {
         <AddReceiptsModal
           isOpen
           onClose={() => setIsAddOpen(false)}
-          onSave={(captured) => captured.forEach(addReceipt)}
+          onSave={saveCaptures}
         />
       )}
     </div>

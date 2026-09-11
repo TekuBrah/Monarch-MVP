@@ -165,9 +165,14 @@ interface AccountsContextValue {
    * LINKAGE IS THE CALLER'S, NOT THIS FUNCTION'S, and that is the capture-context
    * ruling made concrete: a receipt captured FROM a transaction arrives with
    * `transactionId` already set, because it is linked to that transaction by
-   * definition; one captured from the Receipts tab arrives with `null` and
-   * auto-match decides later (Gate 50-C). A mutator that tried to decide would
+   * definition; one captured from the Receipts tab arrives with whatever
+   * auto-match decided BEFORE it was built (Gate 50-C) — an id when exactly one
+   * transaction matched, `null` otherwise. A mutator that tried to decide would
    * have to guess at the context it was called from.
+   *
+   * SO AUTO-MATCH NEEDED NO LINK MUTATOR. It decides `transactionId` before the
+   * receipt exists and this appends it — writing the receipt collection only,
+   * never the ledger, which is why an auto-link cannot move an amount.
    *
    * IT APPENDS AND DOES NOTHING ELSE — no sorting (`groupReceiptsByMonth` sorts),
    * no id generation (the caller owns identity), no validation, no de-duplication.
