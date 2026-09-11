@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Chips, Divider, Icon, ListItem } from '@monarch/design-system'
 import { receiptImageUrl } from '../../../config/media'
 import { TransactionMark } from '../../../components/TransactionMark'
@@ -26,6 +27,24 @@ import type { Receipt, Transaction } from '../../../data/types'
  * the honest failure: it is a dangling id, and drawing a "Linked" badge over a
  * row that is not there would assert something false.
  * ─────────────────────────────────────────────────────────────────────────────
+ * THE CARD IS A BUTTON AS OF GATE 51 — tapping it opens the receipt viewer.
+ *
+ * A REAL `<button>`, NOT A `role` ON THE OLD `<article>`, for the reason
+ * `ListItem` gives when it takes `onClick`: a real button is focusable, Enter-
+ * and Space-activated and announced already, with no keydown handler written
+ * here. Its block-level children are the same shape the DS already ships inside
+ * `ListItem`'s own `<button>` branch.
+ *
+ * NO INTERACTIVE ELEMENT NESTS INSIDE IT, ESTABLISHED FROM SOURCE. `Chips`
+ * renders a `<div>` around a `<span>` (`Chips.tsx:25-27`), and the nested
+ * `ListItem` renders a `<div>` because it is given no `onClick`
+ * (`ListItem.tsx:114-122`). The only interactive node in the card is the card.
+ *
+ * ITS ACCESSIBLE NAME IS THE FILE NAME, NOT ALL OF ITS TEXT. Computed from
+ * content it would read the name, the date, "Linked" and the whole transaction
+ * row in one breath. `aria-labelledby` names it by the file — which is also the
+ * title of the dialog it opens — and `aria-describedby` adds the capture date.
+ * ─────────────────────────────────────────────────────────────────────────────
  * THE TRANSACTION ROW IS THE SHIPPED `ListItem` AT FULL SIZE. RULED, NOT CHOSEN.
  *
  * Figma draws a DETACHED lookalike inside this card: 36 tall, a 32px mark, 14px
@@ -51,6 +70,7 @@ import type { Receipt, Transaction } from '../../../data/types'
 export function ReceiptCard({
   receipt,
   transaction,
+  onOpen,
 }: {
   receipt: Receipt
   /**
@@ -58,11 +78,21 @@ export function ReceiptCard({
    * `receipt.transactionId`; passing it keeps this component free of context.
    */
   transaction?: Transaction
+  /** Open the receipt viewer on this receipt. Gate 51. */
+  onOpen: () => void
 }) {
   const isLinked = receipt.transactionId !== null && transaction !== undefined
+  const nameId = useId()
+  const dateId = useId()
 
   return (
-    <article className="mvp-receipt-card">
+    <button
+      type="button"
+      className="mvp-receipt-card"
+      onClick={onOpen}
+      aria-labelledby={nameId}
+      aria-describedby={dateId}
+    >
       <div className="mvp-receipt-card__head">
         {/*
           `alt=""` AND NOT A DESCRIPTION, DELIBERATELY. The filename beside it is
@@ -76,10 +106,10 @@ export function ReceiptCard({
           alt=""
         />
         <div className="mvp-receipt-card__meta">
-          <span className="mvp-receipt-card__name type-body-sm-semibold">
+          <span id={nameId} className="mvp-receipt-card__name type-body-sm-semibold">
             {receipt.displayName}
           </span>
-          <span className="mvp-receipt-card__date type-body-caption">
+          <span id={dateId} className="mvp-receipt-card__date type-body-caption">
             {formatTimestamp(receipt.capturedAt)}
           </span>
         </div>
@@ -115,6 +145,9 @@ export function ReceiptCard({
             `Link`, where omitting `iconBefore` rendered an `open_in_new` glyph
             nobody asked for; a default parameter fires on `undefined`, and
             "I did not pass it" is `undefined`.
+
+            NO `onClick`, AND THAT IS WHAT KEEPS IT A `<div>`. Passed one, the DS
+            renders a `<button>` — which would nest a button inside this card's.
           */}
           <ListItem
             type="default"
@@ -127,6 +160,6 @@ export function ReceiptCard({
           />
         </>
       )}
-    </article>
+    </button>
   )
 }

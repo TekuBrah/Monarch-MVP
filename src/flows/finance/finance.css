@@ -474,6 +474,31 @@
 }
 
 /*
+  THE SAME TOAST, ON A SCREEN THAT KEEPS ITS CHROME (Gate 51) — the receipt
+  viewer's "Receipt deleted." on `/finance`.
+
+  A MODIFIER, NOT A SIXTH FIXED ELEMENT. It moves `bottom` and `z-index` and
+  nothing else: `position` and the frame-capped inset above are untouched, so
+  this is still the fifth of the app's five fixed elements, reached from a
+  second screen.
+
+  WHY THE HOLDING SCREEN'S VALUES DO NOT TRANSFER. `/finance/holding/*` is
+  `nav: 'suppressed', fab: false`, so 72px from the bottom is clear air there.
+  `/finance` keeps the nav, its scrim and the FAB — and 72px puts the toast
+  across all three and, at `z-index: auto`, UNDER them.
+
+  `bottom` IS THE BOTTOM RESERVE, WHICH IS ALREADY DERIVED FROM THE FAB: its
+  inset plus its size plus 8px (`index.css`). So the toast's bottom edge sits
+  exactly one `--spacing-200` above the FAB's top, with no new number.
+  `z-index: 3` is the FAB's and the theme switch's own tier, which lifts the
+  toast over the scrim (1) and the nav (2) that reach this high.
+*/
+.mvp-finance-detail__toast--above-chrome {
+  bottom: var(--mvp-bottom-reserve);
+  z-index: 3;
+}
+
+/*
   ── Flow 8, the transactions ledger ──────────────────────────────────────────
 
   Three stacked regions: the search bar, the applied-filter chips, and the list.
@@ -839,9 +864,10 @@
 /*
   ONE MONTH. The heading row and its cards.
 
-  16px between the heading and the first card, which is what the mockup draws
-  and is also what puts the inline "+ Add Receipts" affordance 16px above the
-  list — the placement this gate was required to honour.
+  16px between the heading and the first card, which is what the mockup draws.
+  Until Gate 51 the heading row also carried an inline "+ Add Receipts" link,
+  16px above the list; that link is gone, replaced by the single
+  `.mvp-receipts__add` row above the first month.
 */
 .mvp-receipts__month {
   display: flex;
@@ -964,6 +990,118 @@
 
 .mvp-receipt-card__rule > .mn-divider {
   flex: 1 1 0;
+}
+
+/* ─────────────────────────────────────────────────────────── Gate 51 ──
+   THE RECEIPTS TAB'S ADD ROW, THE TAPPABLE CARD, AND THE RECEIPT VIEWER.
+
+   LAYOUT ONLY, as above. The viewer is a DS `Modal` and no rule here touches
+   `.mn-modal*`; the add row is a DS `Button` and no rule here touches `.mn-btn`.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/*
+  THE ONE ADD CONTROL. Figma `1266:14283` puts `Frame 456` 24px below the chip
+  row and 24px above the first month: the tab body's own 8px gap plus 16 on
+  each side here.
+
+  THE COLUMN FLEX IS WHAT MAKES THE BUTTON FILL. `.mn-btn` is `inline-flex` with
+  no width; as the only item of a column flex container it is blockified and
+  stretched to the content box by `align-items: stretch`, the default. No width
+  is declared on the button, so no MVP rule sits on DS geometry.
+*/
+.mvp-receipts__add {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--spacing-400);
+  margin-bottom: var(--spacing-400);
+}
+
+/*
+  THE CARD BECAME A `<button>` AT GATE 51, and a button brings user-agent
+  styles an `<article>` never had: a 2px outset border, a system font at
+  13.33px, centred text and `buttontext` colour. This undoes exactly those four,
+  and nothing the card's own rule above already sets — its padding, radius,
+  surface and shadow still come from `.mvp-receipt-card`.
+
+  THE FOCUS RING IS THE DS's OWN, restated for an MVP element: `ListItem`'s
+  `button.mn-list-item:focus-visible` is a `--brand-scale-50` outline in
+  `--mapped-border-primary-default` at a `--brand-scale-50` offset.
+*/
+button.mvp-receipt-card {
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.mvp-receipt-card:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+}
+
+/*
+  THE VIEWER'S IMAGE WELL — Figma's `756/1008` box, which is exactly 3:4, at the
+  content column's width. It carries NO FILL: Figma binds the raw primitive
+  `Gray/900` and no mapped surface resolves to it in light (register G30).
+
+  `contain`, NOT THE FILE'S `cover` — see `ReceiptViewer.tsx`: the delivered
+  receipts are ~0.56, and cover would crop every one of them.
+*/
+/*
+  THE CHILD IS TAKEN OUT OF FLOW, AND THAT IS WHAT MAKES THE RATIO HOLD —
+  measured, not assumed. With the image in flow, the well is a flex item of the
+  Modal's content column, and a flex item's automatic minimum height is its
+  CONTENT height: the image's own 559px at 311 wide beat `aspect-ratio` and the
+  card grew to 889, starting 38px above the viewport. Positioned absolutely, the
+  image contributes no content height, so the well is exactly 3:4.
+*/
+.mvp-receipt-viewer__well {
+  position: relative;
+  aspect-ratio: 3 / 4;
+}
+
+.mvp-receipt-viewer__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* A PDF capture: `AddReceiptsModal`'s staged-tile treatment, at viewer size. */
+.mvp-receipt-viewer__file {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mapped-surface-subtlest-default);
+  color: var(--mapped-icon-subtle-default);
+}
+
+/*
+  THE LINKED BLOCK — Figma `1044:10896`: the pill, 8px, then the transaction
+  row. The 16px below it is `Frame 537`'s own bottom padding, which the DS
+  `Modal` content region does not carry (it pads the sides only); without it the
+  row would sit 16px from the first button where Figma draws 32.
+*/
+.mvp-receipt-viewer__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  padding-bottom: var(--spacing-400);
+}
+
+/* A flex row so `Chips` hugs its label instead of stretching across the column. */
+.mvp-receipt-viewer__chip {
+  display: flex;
+}
+
+/* THE DELETE CONFIRMATION'S ONE LINE. Not drawn; body copy on the default ink. */
+.mvp-receipt-delete__body {
+  margin: 0;
+  color: var(--mapped-text-default-default);
 }
 
 /* ─────────────────────────────────────────────────────────── Gate 49 ──

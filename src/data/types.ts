@@ -486,8 +486,10 @@ export interface ReceiptLineItem {
  * `null` IS A REAL STATE, NOT A PLACEHOLDER. Figma draws `Item/receipts` in two
  * variants, `Linked=Yes` and `Linked=No`, and the unlinked one is what a capture
  * looks like before it has been matched. All ten records ship LINKED at Gate 48;
- * the type admits `null` because the variant exists and Gate 51's unlink action
- * needs somewhere to put the result.
+ * the type admits `null` because the variant exists and an unlink action needs
+ * somewhere to put the result. That action shipped at Gate 49 — this line said
+ * "Gate 51's" until Gate 51 corrected it; Gate 51 added the receipt viewer's own
+ * Unlink, which writes the same field through the same `unlinkReceipt`.
  */
 export interface Receipt {
   id: string

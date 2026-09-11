@@ -58,27 +58,35 @@ import type { Receipt, Transaction } from '../../../data/types'
  * on `<body>` interacts with the full-page screenshot harness, and the fix is
  * DS-side in any case.
  * ─────────────────────────────────────────────────────────────────────────────
- * WHAT IS INERT, STATED SO NOTHING READS AS BROKEN — CORRECTED AT GATE 50:
+ * WHAT IS INERT — NOTHING, AS OF GATE 51:
  *
- *   "Add Receipt"    — FUNCTIONAL as of Gate 50. Opens `ReceiptSourcePicker`.
- *   "View"           — the receipt viewer is Gate 51. Still wired to NOTHING.
+ *   "Add Receipt"    — FUNCTIONAL since Gate 50. Opens `ReceiptSourcePicker`.
+ *   "View"           — FUNCTIONAL since Gate 51. Closes this sheet and opens
+ *                      the receipt viewer on this transaction's receipt.
  *   "Unlink receipt" — FUNCTIONAL since Gate 49. See `ReceiptBlock`.
  *
- * THE PREDICTION GATE 49 MADE ABOUT THIS HELD EXACTLY: it left "Add Receipt" as
- * a real `Button` with a real label precisely so that Gate 50 would replace a
- * HANDLER rather than the markup, and that is all Gate 50 did — one `onClick`,
- * no change to the element, its label or its position, and the four `detail`
- * baselines did not move. The same bet Gate 41 made on the filter trigger and
- * Gate 43 collected on.
+ * THE PREDICTION GATE 49 MADE ABOUT THIS HELD TWICE: it left "Add Receipt" and
+ * "View" as real `Button`s with real labels precisely so that later gates would
+ * replace a HANDLER rather than the markup, and that is all Gates 50 and 51 did
+ * — one `onClick` each, no change to the element, its label or its position.
+ * The same bet Gate 41 made on the filter trigger and Gate 43 collected on.
  *
- * ONE INERT CONTROL REMAINS. "View" is still a real `Button` carrying a real
- * label, for the same reason.
+ * "View" SWAPS, IT DOES NOT STACK (Gate 51 ruling 7). One surface at a time:
+ * the ledger closes this sheet and opens the viewer in the same update, and
+ * closing the viewer returns to the ledger, not to this sheet.
  */
 export interface TransactionDetailSheetProps {
   transaction: Transaction
   /** The linked receipt, or `undefined` — which IS the state distinction. */
   receipt?: Receipt
   onUnlink: (receiptId: string) => void
+  /**
+   * Open the receipt viewer on the linked receipt. Gate 51.
+   *
+   * THE CALLER SWAPS, THIS SHEET DOES NOT: the ledger closes this sheet and
+   * opens the viewer in one update, so the two are never stacked (ruling 7).
+   */
+  onView: (receiptId: string) => void
   /**
    * Open the capture source picker. Gate 50.
    *
@@ -104,6 +112,7 @@ export function TransactionDetailSheet({
   transaction,
   receipt,
   onUnlink,
+  onView,
   onAddReceipt,
   isCapturing,
   onClose,
@@ -170,7 +179,11 @@ export function TransactionDetailSheet({
       {isCapturing ? (
         <CapturingBlock count={1} />
       ) : receipt ? (
-        <ReceiptBlock receipt={receipt} onUnlink={() => onUnlink(receipt.id)} />
+        <ReceiptBlock
+          receipt={receipt}
+          onUnlink={() => onUnlink(receipt.id)}
+          onView={() => onView(receipt.id)}
+        />
       ) : (
         <PromptBlock onAddReceipt={onAddReceipt} />
       )}
@@ -333,9 +346,11 @@ function PromptBlock({ onAddReceipt }: { onAddReceipt: () => void }) {
 function ReceiptBlock({
   receipt,
   onUnlink,
+  onView,
 }: {
   receipt: Receipt
   onUnlink: () => void
+  onView: () => void
 }) {
   const subtotal = receiptSubtotal(receipt)
 
@@ -450,6 +465,7 @@ function ReceiptBlock({
           size="s"
           label="View"
           leadingIcon={<Icon name="visibility" size="m" />}
+          onClick={onView}
         />
         <Button
           variant="tertiary"

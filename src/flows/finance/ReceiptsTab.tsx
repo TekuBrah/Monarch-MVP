@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
-import { Field, FilterChip, Icon } from '@monarch/design-system'
+import { useCallback, useMemo, useState } from 'react'
+import { Button, Field, FilterChip, Icon } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
+import { ReceiptViewerHost } from './components/ReceiptViewer'
 import { capturedToReceipt, type CapturedFile } from './receiptCapture'
 import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
 import { autoMatchBatch } from '../../data/autoMatch'
@@ -32,33 +33,47 @@ import { autoMatchBatch } from '../../data/autoMatch'
  * `Link` whether or not `onLinkClick` was supplied — so wiring the affordance
  * changed no attribute and no class.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * FLOW 9 ADDS NO VIEWPORT-FIXED ELEMENT. THE APP'S FIXED SET STAYS AT FIVE.
+ * GATE 51 MOVED THE RESTING TAB'S FOUR BASELINES, AND THE THREE ADD STATES'
+ * TWELVE WITH THEM. The per-month "+ Add Receipts" link became ONE screen-level
+ * "Add new receipt" button (Teku's redesign of `1266:14283`, 11 Sept), and every
+ * card became a button that opens the receipt viewer. The add states photograph
+ * this tab behind their modal at full page height, so they see the new row too.
  *
- * "+ Add Receipts" is INLINE — the trailing child of the month heading's own
- * row, 16px above the list. It is not a FAB, it is not fixed chrome, and
- * `var(--mvp-frame-inset)` therefore does not arise here: that inset exists
- * because a `position: fixed` element resolves against the viewport rather than
- * the capped shell (Gate D), and nothing on this screen does. If a later gate
- * finds itself writing `position: fixed` in this file, the frame-cap work is
- * what it has just walked into.
  * ─────────────────────────────────────────────────────────────────────────────
- * THREE THINGS THE MOCKUP DOES NOT HAVE, AND THEY ARE NOT BUILT:
+ * THE ADD CONTROL IS ONE PER SCREEN, NOT ONE PER MONTH (Gate 51 ruling 3).
  *
- *  - NO EMPTY STATE. Nothing in the frame draws one, and a screen with ten
- *    seeded receipts cannot reach it. Inventing one would be inventing a design.
- *    The search box CAN empty the list, and it renders an empty list — which is
- *    what an unstyled zero-result looks like, and is the honest placeholder for
- *    a state the design has not specified.
+ * Figma `1266:14283` now draws `Frame 456` — a full-width `button`, "Add new
+ * receipt" with a leading `add` glyph — between the chip row and the first
+ * month, and hides the heading row's old `Frame 530` link. With two months on
+ * screen the old design read as two identical adds.
+ *
+ * IT SITS OUTSIDE EVERY MONTH GROUP, so it renders when a search empties the
+ * list and when the library is empty — which Gate 51's Delete makes reachable.
+ *
+ * IT FILLS THE COLUMN BY COMPOSITION, NOT BY A RULE ON `.mn-btn`. `Button` ships
+ * no fill prop and renders `display: inline-flex`; as the only item of a column
+ * flex container it is blockified and takes `align-items: stretch`'s width. So
+ * the width comes from the parent's layout and no MVP rule reaches into the DS.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE APP'S FIXED SET STAYS AT FIVE.
+ *
+ * The add row is in flow. The one fixed element this screen can now show is
+ * Delete's toast, and it renders the EXISTING `.mvp-finance-detail__toast` rule
+ * — the fifth of the five — with a modifier that moves only its `bottom` and
+ * `z-index`. `var(--mvp-frame-inset)` therefore still arises nowhere new. If a
+ * later gate finds itself writing `position: fixed` in this file, the frame-cap
+ * work is what it has just walked into.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THINGS THE MOCKUP DOES NOT HAVE:
+ *
+ *  - NO EMPTY STATE. Nothing in the frame draws one. The search box can empty
+ *    the list, and so — since Gate 51 — can deleting every receipt; both render
+ *    an empty list under the add control, which is the honest placeholder for a
+ *    state the design has not specified.
  *  - NO SECOND CHIP PAIR. Figma draws two chips, "All" and "This Month", with
  *    two further slots hidden. The hidden ones are not built.
- *  - THE BULK-ADD MODAL LANDED AT GATE 50, and the bet Gate 48 made on it paid
- *    off exactly: "+ Add Receipts" was left as a real `Link` with a real
- *    accessible name so that gate would replace a HANDLER rather than the
- *    markup, and that is all it did — one `onLinkClick`. Same bet Gate 41 made
- *    on the filter button and Gate 43 collected on.
  * ─────────────────────────────────────────────────────────────────────────────
- * THE CHIPS ARE DECORATIVE THIS GATE, AND THAT IS STATED RATHER THAN HIDDEN.
+ * THE CHIPS ARE DECORATIVE, AND THAT IS STATED RATHER THAN HIDDEN.
  *
  * Figma draws `All` and `This Month` on this screen. The Transactions tab's
  * chip row is DERIVED from an applied filter and each chip dismisses its own
@@ -86,12 +101,10 @@ export function ReceiptsTab() {
   /*
     ── THE BULK ADD MODAL (Gate 50) ──────────────────────────────────────────
 
-    ONE boolean for the whole screen, not one per month. The "+ Add Receipts"
-    affordance repeats per month heading (see the header note), but all of them
-    open the SAME surface: the modal is a way to add receipts to the library, not
-    to a particular month, and its captures are dated by extraction rather than
-    by which heading was pressed. A per-section state would have made the two
-    links mean two different things while looking identical.
+    ONE boolean for the whole screen — and since Gate 51 one CONTROL for the
+    whole screen too. The modal is a way to add receipts to the library, not to
+    a particular month, and its captures are dated by extraction rather than by
+    where the button sits.
 
     CAPTURES FROM HERE ARRIVE UNLINKED AND AUTO-MATCH DECIDES (Gate 50-C).
     There is no transaction in view to link them to, which is the whole
@@ -102,6 +115,18 @@ export function ReceiptsTab() {
   const [isAddOpen, setIsAddOpen] = useState(false)
 
   /*
+    ── THE RECEIPT VIEWER (Gate 51) ──────────────────────────────────────────
+
+    AN ID, NEVER THE RECEIPT OBJECT — the ledger's `detailId` rule. The host
+    re-resolves it from the live collection on every render, so an Unlink flips
+    the open viewer in place and a Delete unmounts it.
+  */
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  // STABLE — it reaches the viewer's DS `Modal` as `onClose`, whose effect
+  // re-runs on every identity change. See `ReceiptViewerHost`'s `close`.
+  const closeViewer = useCallback(() => setViewingId(null), [])
+
+  /*
     ── AUTO-MATCH RUNS HERE, AND ONLY HERE (Gate 50-C) ──────────────────────
 
     ONCE, OVER THE WHOLE BATCH, AT THE MOMENT IT IS ADDED. `autoMatchBatch`
@@ -110,10 +135,10 @@ export function ReceiptsTab() {
     display fallbacks are applied only afterwards, by `capturedToReceipt`.
 
     IT IS A HANDLER, NOT A RENDER-TIME DERIVATION, AND THAT IS THE RUN-ONCE
-    RULING. Nothing re-matches the library when this tab re-renders, and
-    nothing re-matches after an unlink: unlinking makes a transaction
-    receipt-less, so a re-run would find it a candidate again and re-link the
-    receipt the user had just unlinked.
+    RULING. Nothing re-matches the library when this tab re-renders, nothing
+    re-matches after an unlink, and nothing re-matches after a delete: each
+    makes a transaction receipt-less, so a re-run would find it a candidate
+    again and re-link a receipt the user had just taken away from it.
 
     NO NEW MUTATOR. The link is decided BEFORE the receipt exists, so the
     existing `addReceipt` — the same one the detail sheet uses for a receipt
@@ -199,27 +224,33 @@ export function ReceiptsTab() {
         ))}
       </ul>
 
+      {/*
+        ── THE ONE ADD CONTROL (Gate 51) ─────────────────────────────────────
+        Figma's `Frame 456` button: `Type=Primary, Size=M, Icon left=True,
+        Icon right=False` — `variant="primary"`, `size="m"` (8/12 padding) and a
+        20px `add` glyph, which is `Icon size="m"`. See the header for why the
+        width comes from this row's layout rather than from the button.
+      */}
+      <div className="mvp-receipts__add mvp-column">
+        <Button
+          variant="primary"
+          size="m"
+          label="Add new receipt"
+          leadingIcon={<Icon name="add" size="m" />}
+          onClick={() => setIsAddOpen(true)}
+        />
+      </div>
+
       {groups.map((group) => (
         <section className="mvp-receipts__month" key={group.key}>
           {/*
-            THE ADD AFFORDANCE IS THIS HEADER'S TRAILING CHILD. `SectionHeader`
-            already models a heading with a trailing `Link` — it is what "See
-            all" uses on the Homepage — so this needs no new component and no
-            new rule. `onLinkClick` is deliberately not passed: the `Link`'s own
-            handler already calls `preventDefault()`, so the control is inert
-            without being broken.
-
-            IT REPEATS PER MONTH, which is what the mockup draws — the frame
-            shows one month and one add affordance, and the affordance belongs
-            to the heading row rather than to the screen. With two months that
-            reads as two adds; if a later gate rules it should be screen-level,
-            that is a layout change, not a data one.
+            THE HEADING CARRIES NO TRAILING LINK AS OF GATE 51. It used to hold
+            "+ Add Receipts", which repeated per month; Figma `1266:14283` hides
+            that link (`Frame 530`, `hidden="true"`) and draws the screen-level
+            button above instead. `SectionHeader` renders correctly without a
+            `linkLabel` — the Homepage's "Monarch Academy" is the precedent.
           */}
-          <SectionHeader
-            label={group.label}
-            linkLabel="+ Add Receipts"
-            onLinkClick={() => setIsAddOpen(true)}
-          />
+          <SectionHeader label={group.label} />
           <div className="mvp-receipts__list">
             {group.receipts.map((receipt) => (
               <ReceiptCard
@@ -230,6 +261,7 @@ export function ReceiptsTab() {
                     ? byId.get(receipt.transactionId)
                     : undefined
                 }
+                onOpen={() => setViewingId(receipt.id)}
               />
             ))}
           </div>
@@ -238,11 +270,10 @@ export function ReceiptsTab() {
 
       {/*
         MOUNTED CONDITIONALLY, so nothing of it exists in the DOM while it is
-        closed — which is what makes the four existing `/finance [tab:receipts]`
-        baselines provably unaffected by its addition. It also re-seeds its own
-        staged list per open, the same property Gate 43's filter sheet gets from
-        being mounted conditionally: reopening after a cancel starts empty rather
-        than showing whatever was staged last time.
+        closed. It also re-seeds its own staged list per open, the same property
+        Gate 43's filter sheet gets from being mounted conditionally: reopening
+        after a cancel starts empty rather than showing whatever was staged last
+        time.
       */}
       {isAddOpen && (
         <AddReceiptsModal
@@ -251,6 +282,12 @@ export function ReceiptsTab() {
           onSave={saveCaptures}
         />
       )}
+
+      {/*
+        ALWAYS MOUNTED, AND IT RENDERS NOTHING WHILE IDLE — its toast has to
+        outlive the viewer it reports on. See `ReceiptViewerHost`.
+      */}
+      <ReceiptViewerHost receiptId={viewingId} onClose={closeViewer} />
     </div>
   )
 }

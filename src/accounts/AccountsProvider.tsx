@@ -70,9 +70,11 @@ import type {
  * sheet's "Unlink receipt" writes exactly that field, and it cost one
  * `useCallback` and one line in the value object. Nothing else moved.
  *
- * SO THERE ARE NOW TWO MUTATORS AND THEY ARE NOT IN THE SAME STATE.
- * `unlinkReceipt` has a caller; `addTransaction` still has none and is still
- * the seam described above. Do not sweep it as dead code.
+ * SO THERE ARE NOW FOUR MUTATORS, AND ONE OF THEM HAS NO CALLER. This line
+ * said "two" from Gate 49 and was stale from Gate 50, when `addReceipt`
+ * arrived; corrected at Gate 51, which adds `deleteReceipt`. `unlinkReceipt`,
+ * `addReceipt` and `deleteReceipt` have callers; `addTransaction` still has
+ * none and is still the seam described above. Do not sweep it as dead code.
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT IS STILL NOT SOLVED, stated so it is not mistaken for solved. This is a
  * provider holding two arrays, not a store. There is no reducer, no action
@@ -183,6 +185,29 @@ interface AccountsContextValue {
    * document that made it. See `Receipt.sourceUrl`.
    */
   addReceipt: (receipt: Receipt) => void
+  /**
+   * Remove a receipt from the library. Gate 51.
+   *
+   * THE THIRD MUTATOR WITH A CALLER — the receipt viewer's "Delete receipt",
+   * behind a confirmation modal. `addTransaction` is STILL the zero-caller seam.
+   *
+   * IT WRITES THE RECEIPT COLLECTION AND NOTHING ELSE, EVER — NEVER THE LEDGER.
+   * A linked transaction becomes receipt-less through the derived
+   * `transactionHasReceipt` and ITS AMOUNT DOES NOT CHANGE. Delete is unlink plus
+   * removal, and `unlinkReceipt` above never reverted an amount (Gate 49's
+   * ruling, extended).
+   *
+   * A CAPTURE'S BLOB URL IS REVOKED, because nothing can show it again once its
+   * record is gone and leaving it would hold the image for the life of the tab.
+   * Seeded receipts carry no `sourceUrl`, so for them this only removes.
+   *
+   * AUTO-MATCH DOES NOT RE-RUN. It is locked to once, at add time (Gate 50-C),
+   * so the transaction a delete frees stays receipt-less until a NEW capture
+   * matches it.
+   *
+   * NOT PERSISTED. Reload restores the seed — the deleted receipt included.
+   */
+  deleteReceipt: (receiptId: string) => void
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
@@ -219,6 +244,18 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  // REMOVE, AND REVOKE A CAPTURE'S IN-MEMORY IMAGE. `setTransactions` is not
+  // touched, and that absence IS the contract — see `deleteReceipt` above.
+  // Revoking inside the updater follows `AddReceiptsModal`'s `remove`; StrictMode
+  // may run an updater twice, and revoking an already-revoked url is a no-op.
+  const deleteReceipt = useCallback((receiptId: string) => {
+    setReceipts((current) => {
+      const gone = current.find((r) => r.id === receiptId)
+      if (gone?.sourceUrl?.startsWith('blob:')) URL.revokeObjectURL(gone.sourceUrl)
+      return current.filter((r) => r.id !== receiptId)
+    })
+  }, [])
+
   const value = useMemo<AccountsContextValue>(() => {
     const primaryAccount = FIAT_ACCOUNTS[0]
     if (!primaryAccount) throw new Error('No fiat account seeded')
@@ -238,8 +275,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       addTransaction,
       unlinkReceipt,
       addReceipt,
+      deleteReceipt,
     }
-  }, [transactions, receipts, addTransaction, unlinkReceipt, addReceipt])
+  }, [transactions, receipts, addTransaction, unlinkReceipt, addReceipt, deleteReceipt])
 
   return (
     <AccountsContext.Provider value={value}>{children}</AccountsContext.Provider>

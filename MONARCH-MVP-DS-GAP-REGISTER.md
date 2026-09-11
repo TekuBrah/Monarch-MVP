@@ -1425,4 +1425,84 @@ count that re-enumerates the shapes is.**
 **THE HIGHEST NUMBER IS G28 AND 24 IS STILL A PERMANENT HOLE.** G28 follows G27
 directly; the released G24 was not re-used, for the reason recorded at Gate 49.
 
+---
+
+## 2i. MVP Gate 51 — the receipt viewer (`1266:14285`)
+
+Two entries opened, both found building `Finance_Receipts_View receipt`. **Both
+ship WITHOUT a workaround** — nothing was faked, overridden or substituted.
+
+### G29 is OPENED — `Button` has no error / destructive appearance
+
+| | |
+|---|---|
+| **G29** | `Button` — an error (destructive) appearance |
+| tag | **`prop-gap`** |
+| flow | 9 |
+
+Figma draws the viewer's second footer button, "Delete receipt" (`1045:11001`),
+BORDERLESS — i.e. `variant="tertiary"` — with its label bound to
+`text/error/default` and its glyph to `icon/error/default` (`get_variable_defs`
+on `1044:10853`: `#eb4f52` for both). The DS ships `ButtonVariant =
+'primary' | 'secondary' | 'tertiary'` (`Button.tsx:4`) and every variant maps
+`--btn-text` to a primary or on-colour token; there is no error map and no
+`appearance` prop.
+
+**SHIPPED AS `tertiary`, WHICH RENDERS PRIMARY BLUE** — measured
+`rgb(3, 88, 204)` at 375 and 430. The Gate 51 prompt ruled the variant ("take it
+from the viewer's own second button … the DS `Button` has no destructive variant,
+so do not invent one"); the colour is what this entry asks for. The same
+button is reused, whole, as "Delete" in the undrawn confirmation modal.
+
+**NOT A RULE ON `.mn-btn`.** Recolouring it from the MVP would be an
+equal-specificity override on DS appearance — the Gate 13 shape.
+
+### G30 is OPENED — no mapped surface for a dark media well
+
+| | |
+|---|---|
+| **G30** | a mapped surface for the image well behind a photograph |
+| tag | **`token-gap`** |
+| flow | 9 |
+
+Figma's image well (`1044:10855`, the `Content` frame around the photo) fills
+`Gray/900` = `#262626` — a RAW PRIMITIVE binding, not a mapped token. No
+`--mapped-surface-*` token resolves to `--brand-gray-900` in light
+(enumerated in the pinned v2.3.0 `globals.css`; it appears only in dark, as
+`--mapped-surface-subtle-default` and siblings), and the MVP writes no raw
+brand primitive (Gate 51 ruling 10).
+
+**SHIPPED WITH NO FILL** — the well is the card's own surface. Invisible on the
+receipts as delivered, because the photograph fills the width; visible as
+letterboxing either side of a narrow receipt, since the viewer uses
+`object-fit: contain` (a receipt is ~0.56 against the well's 3:4, and `cover`
+would crop it).
+
+**THE QUESTION FOR THE DS:** should a media well be a theme-invariant dark
+surface (Figma's evident intent), or follow the page? Either way it needs a
+token the file can bind.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**29 entries, 10 closed, 19 open.** Stated as the Gate 50 tally plus these two,
+and **not** re-derived by enumerating entry and closure shapes from scratch — so
+by this register's own rule it is weaker evidence than the Gate 50 count. Both
+new entries use the Gate 50 key/value ENTRY shape (tag on a following row), so a
+census that already knows that shape finds them.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 | 6 | **0** |
+| `prop-gap` | 18 | 2 | **16** — + G29 |
+| `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **29** | **10** | **19** |
+
+**G28 APPLIES TO THE VIEWER UNCHANGED** and was not re-opened: header 74 against
+Figma 64, footer 156 against 152 (two `size="l"` buttons with 24px glyphs render
+50 tall against Figma's 48 — `l` with a 24px glyph DOES exceed 48, so G28's
+"`l` tops out around 42" holds only for a 20px glyph).
+
+**THE HIGHEST NUMBER IS G30.** 24 is still a permanent hole.
+
 **Nothing was fixed DS-side. Nothing was staged, committed, pushed or tagged.**

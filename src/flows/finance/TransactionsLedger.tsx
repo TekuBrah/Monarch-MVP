@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import { TransactionFilterSheet } from './TransactionFilterSheet'
 import { TransactionDetailSheet } from './components/TransactionDetailSheet'
 import { ReceiptSourcePicker } from './components/ReceiptSourcePicker'
+import { ReceiptViewerHost } from './components/ReceiptViewer'
 import {
   ReceiptFileInput,
   type ReceiptFileInputHandle,
@@ -102,6 +103,16 @@ export function TransactionsLedger() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const detail = detailId ? transactions.find((t) => t.id === detailId) : undefined
   const detailReceipt = detail ? receiptForTransaction(receipts, detail.id) : undefined
+
+  /*
+    WHICH RECEIPT THE VIEWER SHOWS (Gate 51) — an id, for the same reason as
+    `detailId` above. Set by the detail sheet's "View", which clears `detailId`
+    in the same update so the two surfaces never stack.
+  */
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  // STABLE — see `ReceiptViewerHost`'s `close` for why an `onClose` that
+  // reaches a DS `Modal` must keep its identity across renders.
+  const closeViewer = useCallback(() => setViewingId(null), [])
 
   /*
     ── CAPTURE STATE (Gate 50) ───────────────────────────────────────────────
@@ -387,11 +398,30 @@ export function TransactionsLedger() {
           transaction={detail}
           receipt={detailReceipt}
           onUnlink={unlinkReceipt}
+          /*
+            GATE 51 — "View" SWAPS THE SHEET FOR THE VIEWER, IN ONE UPDATE.
+            Both setters land in the same React batch, so there is no frame with
+            the sheet and the viewer open together and no frame with neither.
+            `Sheet` restores focus to the row on unmount before `Modal` records
+            where focus was, so closing the viewer returns the user to the row
+            they started from.
+          */
+          onView={(receiptId) => {
+            setDetailId(null)
+            setViewingId(receiptId)
+          }}
           onAddReceipt={() => setIsPickerOpen(true)}
           isCapturing={isCapturing}
           onClose={() => setDetailId(null)}
         />
       )}
+
+      {/*
+        THE RECEIPT VIEWER'S SECOND HOME (Gate 51). The Receipts tab mounts the
+        same host for its cards; this one serves "View". Always mounted, because
+        Delete's toast has to outlive the viewer — see `ReceiptViewerHost`.
+      */}
+      <ReceiptViewerHost receiptId={viewingId} onClose={closeViewer} />
 
       {/*
         ── THE CAPTURE SOURCE PICKER (Gate 50) ─────────────────────────────────

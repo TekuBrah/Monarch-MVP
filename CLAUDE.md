@@ -3965,7 +3965,7 @@ bespoke model; an empty state, which the mockup does not draw; the two hidden
 chip slots; the DS repo and the pin; branch deletion; and the three AA shortfalls
 on the net-worth card ruled on at Gate 31.
 
-**ONE DIVERGENCE MEASURED AND LEFT ALONE:** the inline "+ Add Receipts" renders
+**ONE DIVERGENCE MEASURED AND LEFT ALONE** *(moot since Gate 51, which removed the per-month link in favour of one screen-level "Add new receipt" button; kept as the Gate 48 record)*: the inline "+ Add Receipts" renders
 **106.23 x 16** against the brief's 116 x 20. It is `SectionHeader`'s `Link`,
 which exposes no `size` — deliberately, per that component's own note — and it
 serves six other call sites. Changing it there would move headings across the
@@ -4336,7 +4336,7 @@ Staging is Teku's.
 
 The action sheet behind "Add Receipt" (Gate 50, register G2 — the only fully
 uncomponentised interactive surface in the five flows); the receipt viewer behind
-"View" (Gate 51); RELINKING an unlinked receipt (Gate 51 — `unlinkReceipt` is
+"View" (Gate 51 — built there); RELINKING an unlinked receipt (Gate 51 — `unlinkReceipt` is
 one-way and there is no UI that could produce a relink target); **G14, the
 absent background scroll lock** — still open, the ledger still scrolls behind an
 open sheet, and it is deferred because `overflow: hidden` on `<body>` interacts
@@ -5096,7 +5096,8 @@ longer this screen's).
 The Camera full-screen frame `1266:14282` (retired — see above, and the Figma
 frame is left alone); auto-match (Gate 50-C) — captures from the Receipts tab
 land unlinked and nothing tries to pair them; the receipt viewer behind "View"
-(Gate 51), still the one inert control in the detail sheet; relinking; the PDF
+(Gate 51), still the one inert control in the detail sheet *(true at Gate 50; false
+since Gate 51 wired it — the sheet has no inert control now)*; relinking; the PDF
 tile variant; persistence; a receipt FILTER model — the two chips on that tab are
 still labels; G13, G14, G17's prop half, G19-G23, G28 — all registered, all
 deferred, and **no MVP-local override was added for any**; the DS repo and the
@@ -5884,7 +5885,7 @@ four OCR assets must be EXCLUDED from its precache or the wire-cost table above
 becomes false; a test that loads the BUILT `dist/` through the real engine, which
 is the one uncovered delivery path; the
 pdfjs text-layer fast path; auto-match (Gate 50-C), so a capture from the
-Receipts tab still lands unlinked; the receipt viewer behind "View" (Gate 51);
+Receipts tab still lands unlinked; the receipt viewer behind "View" (Gate 51 — built there);
 relinking; Figma's full PDF tile variant; persistence; `npm audit fix`; the DS
 repo and the pin; branch deletion; G13, G14, G17's prop half, G19-G23, G28 — all
 still registered, all still deferred, and **no MVP-local override was added for
@@ -6129,7 +6130,8 @@ the amount already follows each receipt.
 **2 BROWSER TESTS.** The wiring test installs its OWN resolving extraction by
 writing `window.__monarchExtractReceipt` AFTER `gotoRoute` — the call-time read
 is what makes that enough — returning fields derived from the newest
-receipt-less merchant outflow in the seed, drives "+ Add Receipts", "Photo
+receipt-less merchant outflow in the seed, drives "+ Add Receipts" (the screen-level
+"Add new receipt" since Gate 51, through `e2e/capture.ts`), "Photo
 Gallery" (intercepting `filechooser`, never `setInputFiles`) and Save, and
 asserts from the DOM that the capture is linked and that the ledger row's glyph
 appeared and its amount did not change. The rule-A6 test unlinks
@@ -6207,13 +6209,408 @@ Netlify's for these assets — a measurement of one deploy, not a guarantee.
 
 ### Deliberately not in scope
 
-The manual link picker (Gate 51) — a missed auto-match is linked by hand there;
+The manual link picker (Gate 51 when written; moved to Gate 51-B, which Teku ruled the review thread designs from the app's existing UI because no Figma frame exists) — a missed auto-match is linked by hand there;
 the confidence-marker and field-edit affordances, which would recover several of
 run (b)'s misses and are screen changes; the receipt viewer; relinking;
 persistence; any change to `installExtractionStub`; the DS repo and the pin;
 branch deletion; `npm audit fix`; G13, G14, G17's prop half, G19-G23, G28 — all
 still registered, all still deferred; and the three AA shortfalls on the
 net-worth card ruled on at Gate 31.
+
+## The receipt viewer, one screen-level add, and capture time (Gate 51)
+
+No DS re-pin — **v2.3.0 throughout**. Three items, and only three: **V** the
+receipt viewer, **R** one screen-level "Add new receipt", **T** the capture
+fallback in local time. **|WALK| 32 -> 35, `OVERLAY_STATES` 11 -> 14, baselines
+128 -> 140 (12 added, 16 modified, 0 deleted), tests 284 -> 319, spec files
+9 -> 11.** `lint:tokens` scans **58** files (was 57 — `ReceiptViewer.tsx`) with
+the same **3** exemptions.
+
+### THE VIEWER IS A `Modal`, AND THE GATE PROMPT CALLED IT A `Sheet`
+
+Figma `Finance_Receipts_View receipt` (`1266:14285`) wraps the surface in a
+frame literally named "Modal" around a node named "Bottom Sheet"
+(`1044:10853`). **Its geometry is the Modal's:** 343 wide at x=16, every corner
+rounded, `overflow-clip`, no home indicator, a 64-tall header and a 152-tall
+footer holding two full-width 48-tall buttons — the same frame shape Gate 50
+read at `1048:10593`. The prompt said "a DS `Sheet`"; geometry wins, the layer
+name is the trap, and this is the third time in Flow 9 it has pointed the wrong
+way. **Ruling 7's "one sheet at a time" carries over unchanged to "one surface
+at a time".**
+
+Measured through a Playwright-launched Chromium, DPR 2, animations finished:
+
+| | Figma | 375 | 430 |
+|---|---|---|---|
+| card | x=16, w=343 | **x=16, w=343** | x=27.5, w=375 (the Modal's own 375 cap) |
+| header | 64 | 74 | 74 |
+| image well | 311 x 414.67 | **311 x 414.66** | 343 x 457.33 |
+| linked block (pill + row + 16) | 68 + 16 | 84 | 84 |
+| footer | 152 | 156 | 156 |
+| card height, linked | 730.67 | 744.66, y 33.67 | 787.33, y 12.34 |
+| card height, unlinked | not drawn | 578.66 | 621.33 |
+
+**G28 APPLIES UNCHANGED** (header +10). The footer is +4 because the buttons are
+`size="l"` with 24px glyphs — which is what Figma's `py-[Scale/300]` around a
+24px element reads as — and render 50 tall against 48.
+
+**THE WELL HELD 3:4 ONLY ONCE ITS CHILD LEFT FLOW, MEASURED.** In flow, the
+well is a flex item of the Modal's content column, and a flex item's automatic
+minimum height is its content height: the image's own 559px at 311 wide beat
+`aspect-ratio`, and the linked card grew to 889 and started 38px ABOVE the
+viewport. Positioned absolutely, the image contributes nothing and the well is
+exactly Figma's box.
+
+**`object-fit: contain`, NOT THE FILE'S `cover`.** Figma's sample photo is itself
+3:4, so the two are the same picture there; the ten delivered receipts are
+~0.56 (292 x 525 for `receipt_aeonbig01`) and `cover` would crop every one.
+
+### The three entry points
+
+| | where | what it does |
+|---|---|---|
+| **1** | a Receipts-tab card — `ReceiptCard.tsx:92` | the card is a `<button>`; `ReceiptsTab.tsx:264` sets `viewingId` |
+| **2** | "View" in the transaction detail sheet — `TransactionDetailSheet.tsx:468` | `TransactionsLedger.tsx:409` clears `detailId` and sets `viewingId` in ONE update |
+| **3** | "Add new receipt" — `ReceiptsTab.tsx:234` | the screen-level add; opens `AddReceiptsModal`, unchanged |
+
+**THE PROMPT SAID "TWO" ENTRY POINTS TO THE VIEWER AND ASKED FOR "THE THREE" IN
+THIS SECTION.** Both are true of different things: the viewer has two, and the
+third row is the add control this gate also moved. Stated rather than resolved
+by guessing which count was meant.
+
+**"View" SWAPS, IT DOES NOT STACK.** Both setters land in one React batch, so no
+frame holds the sheet and the viewer together and none holds neither. Proven by
+`receipt-viewer.spec.ts`: after "View" the open-dialog list is exactly
+`['IMG_4806.jpg']`.
+
+**AND FOCUS COMES BACK TO THE ROW — measured, by a probe that was then deleted.**
+With the viewer open, focus sits on its Close button; after Close, the active
+element is the `button.mn-list-item` for "Aeon Big … -RM 429.19", the row the
+user started from. The mechanism is the commit order: `Sheet`'s unmount
+cleanup restores focus to the row before `Modal`'s mount effect records
+`document.activeElement` as the place to return to.
+
+**THE HOST IS MOUNTED BY BOTH SCREENS AND IS ALWAYS MOUNTED.**
+`ReceiptViewerHost` (`ReceiptViewer.tsx`) owns the confirmation and the toast;
+the screen owns only which receipt is open, as an id re-resolved from the live
+collection every render — so Unlink flips the viewer in place and Delete
+unmounts it. The toast must outlive the viewer it reports on, which is why it
+cannot live inside it.
+
+### Viewer states — drawn and undrawn
+
+| state | drawn? | built from |
+|---|---|---|
+| linked | **yes**, `1266:14285` | as drawn: image, "Linked" pill, the row (`hasReceiptIcon={false}`), Unlink + Delete |
+| unlinked | no | **ruling 4**: image and Delete receipt only. Receipt details, Edit and Link to transaction are **completed at Gate 51-B** |
+| PDF capture | no | **ruling 4**: `AddReceiptsModal`'s `icon_pdf` treatment where the `<img>` would go. No inline viewer, no rasterisation |
+| delete confirmation | no | **ruling 5**, see below |
+| "Receipt deleted." toast | no | **ruling 5**, see below |
+
+**THE UNLINKED VIEWER IS REACHED BY UNLINKING — no seeded receipt ships
+unlinked.** It stays open and flips in place.
+
+**THE RECEIPTS-TAB CARD STILL DRAWS A BROKEN IMAGE FOR A CAPTURED PDF.
+REPORTED, NOT CHANGED** (ruling 4). Measured: `<img>` with a `blob:` src,
+`naturalWidth` 0, 48 x 48, `alt=""` — the browser's broken-image glyph. The
+viewer handles the same record correctly; the card is the one surface that
+does not.
+
+### `deleteReceipt`, the confirmation and the toast
+
+`AccountsProvider.tsx:251`. **It writes the receipt collection and nothing else,
+ever — never the ledger.** A linked row becomes receipt-less through the derived
+`transactionHasReceipt` and **its amount does not move**: delete is unlink plus
+removal, and unlink never reverted an amount (Gate 49's ruling, extended). A
+capture's `blob:` url is revoked; seeded receipts carry none. **Auto-match does
+not re-run** — it is locked to once, at add time. **Not persisted: a reload
+restores the seed, the deleted receipt included.** It is the third mutator with
+a caller; `addTransaction` still has none.
+
+**THE CONFIRMATION** is a DS `Modal` composed the way `PresetModals.tsx`
+composes its confirm modals: title **"Delete receipt?"**, body **"This removes
+the receipt and its image from your library. It can't be undone."**, footer
+**"Cancel"** then **"Delete"**. Delete takes the viewer's own second button
+whole — `tertiary`, `l`, the `delete` glyph — per ruling 5. **Cancel is
+`secondary`**, mirroring the viewer's first button so the safe action is the
+outlined one; that is this gate's call, not the prompt's. It STACKS over the
+viewer, so Cancel returns to it unchanged — the two-dialog shape Gate 50-A's
+`opens`/`dialogs` split exists for.
+
+**WHY ONLY DELETE ASKS — the principle, for later gates:** confirm only what
+cannot be undone; toast only when the surface the user acted on disappears.
+Unlink is reversible (Gate 51-B links by hand) and flips in place, so it asks
+nothing and toasts nothing.
+
+**THE TOAST REUSES THE FIFTH FIXED ELEMENT'S RULE. NO SIXTH WAS ADDED.** It
+renders `.mvp-finance-detail__toast` plus one modifier,
+`--above-chrome` (`finance.css:496`), which moves only `bottom` and `z-index`.
+**The base rule could not simply be reused**: `/finance/holding/*` is
+`nav: 'suppressed', fab: false`, while `/finance` keeps its nav (z 2), scrim
+(z 1, 256px tall) and FAB (z 3) — at the base rule's 72px the toast would sit
+across all three and, at `z-index: auto`, underneath them. `bottom:
+var(--mvp-bottom-reserve)` is already derived from the FAB (inset + size + 8),
+so the toast's bottom edge lands exactly 8px above the FAB's top with no new
+number. Measured at 375 and 430: toast `[16, 612, *, 652]`, FAB top 660,
+hit-testable at its centre and top edge, and exactly five fixed elements on
+screen — the toast, the FAB, the scrim, the nav and the theme switch.
+`frame-cap.spec.ts` gained a third test, **"the receipts toast [1280]"**, which
+asserts the frame inset, the clearance and the paint order.
+
+**ESCAPE ON THE STACKED CONFIRMATION CLOSES BOTH MODALS — measured by a probe
+that was then deleted.** With the viewer and the confirmation open, one Escape
+left the open-dialog list `[]`, the library still at **10** cards and **no**
+toast. The mechanism, read from `Modal.tsx`: each `Modal` adds its own
+capture-phase `keydown` listener on `document` and calls `stopPropagation`,
+which does not stop a second listener on the same node, so Escape fires both
+`onClose`s. It deletes nothing — Cancel is the path that returns to the viewer —
+and it is DS stacking behaviour, recorded rather than worked around.
+
+### AN `onClose` THAT REACHES A DS OVERLAY MUST BE STABLE — found by looking
+
+**THE FIRST MINT OF `view-unlinked` AND `view-delete` WAS WRONG, AND NO
+ASSERTION NOTICED.** Opening the minted PNGs showed the page behind the modal
+scrolled down — the top of the list undimmed, the modal composited hundreds of
+pixels down the image. The suite had reported 319 passed.
+
+**THE MECHANISM, read from source and then measured.** `Modal.tsx`'s open
+effect has deps `[isOpen, onClose]`, and its CLEANUP calls
+`previouslyFocused.current?.focus?.()` — it hands focus back to whatever opened
+the modal. `ReceiptViewerHost` passed a fresh `close` on every render, and both
+screens passed a fresh `onClose`. So any re-render of the open viewer — pressing
+Unlink, or opening the confirmation — re-ran the effect, focused the receipt card
+UNDER the overlay, and `focus()` scrolled that card into view. **A real user saw
+the page jump behind the modal and focus flicker out of it and back.** Measured
+before the fix: **770px** after Unlink, **808px** after opening the
+confirmation, both themes. After: **0**.
+
+**THE FIX IS `useCallback`, AT EVERY LEVEL THE CALLBACK CROSSES** — the host's
+`close` and `cancelDelete`, and each screen's `closeViewer`. Stabilising only the
+host's would not have been enough: its `close` depends on the screen's
+`onClose`, and the screens re-render on every context change.
+
+**`Sheet` HAS THE SAME DEPS** (`Sheet.tsx:203`, `[isOpen, onClose]`), so the
+Gate 49 detail sheet — whose `onClose` is an inline arrow in
+`TransactionsLedger` — carries the same latent focus-restore on every re-render,
+e.g. after its own Unlink — READ FROM SOURCE, NOT MEASURED. Its target is the row the sheet was opened from, which
+is usually already in view, so it has not surfaced. **Reported, not fixed** —
+outside this gate's surfaces; one `useCallback` closes it. The DS-side question
+is whether an overlay should re-run its focus effect on an `onClose` identity
+change at all.
+
+**THE HARNESS HAD A MATCHING GAP, AND IT IS NOW AN ASSERTION.** `openOverlay`
+reset the scroll BEFORE the prepare steps and, on the no-confirm path, never
+looked again — its own note claimed nothing inside a fixed dialog could move the
+page. It now asserts `scrollY === 0` after the prepare steps and names the offset
+if not. **An assertion and not a second reset**: a reset would have minted a
+clean baseline over an app that jumps. Proven both ways — before the fix the
+four viewer runs failed at 770 / 808, and the four pre-existing prepare-bearing
+states (`add-source`, `add-grid`, `add-saving`, `applied`) passed at 0 in both
+themes, so the assertion adds no false positive.
+
+**THE LESSON IS THE ONE THIS FILE KEEPS RECORDING: A GREEN RUN IS NOT A
+REVIEWED BASELINE.** 319 passed over two baselines of a defect. Open the new
+PNGs before trusting them.
+
+### Item R — one screen-level "Add new receipt"
+
+Figma `1266:14283` (Teku's redesign, 11 Sept) hides the month heading's
+`Frame 530` link and draws `Frame 456` between the chip row and the first month:
+`Type=Primary, Size=M, Icon left=True, Icon right=False`, label "Add new
+receipt", 343 x 40. Built as `Button variant="primary" size="m"` with
+`<Icon name="add" size="m" />`; `add` is in the registry in both resolution paths.
+
+**THE FILL IS COMPOSITION, NOT A RULE ON `.mn-btn`.** `Button` has no fill prop
+and renders `inline-flex` with no declared width; as the only item of a column
+flex container it is blockified and stretched by the default `align-items:
+stretch`. Measured: **343 wide at x=16 at 375, 398 at x=16 at 430**, computed
+`align-self: auto`, **24px** below the chips and **24px** above the first month
+— Figma's two gaps exactly. **38 tall against Figma's 40** — the DS hugs, the
+file fixes. Month headings keep `SectionHeader` with no link: **0** `.mn-link`
+under any month, at both widths.
+
+**IT SITS OUTSIDE EVERY MONTH GROUP**, so it renders on an emptied search and on
+an empty library, which Delete now makes reachable.
+
+### Item T — the capture moment is recorded in LOCAL time
+
+`capturedToReceipt` filled an unread date with
+`new Date().toISOString().slice(0, 19)`: UTC wall-clock fields with the `Z` cut
+off, which every reader here parses as LOCAL. A receipt captured at 18:34 in
+Malaysia was recorded, printed and month-grouped as 10:34 — measured on Teku's
+phone, where the card read "11 Sept, 10:35" against a clock reading 18:35.
+Fixed at `receiptCapture.ts:132` by `localWallClock`, which builds the string
+from the Date's local getters. **It was the only site in `src/` producing a UTC
+timestamp** — at `b9923c3`:
+
+```bash
+git grep -n "toISOString" b9923c3 -- src/
+```
+
+returns exactly one line, `src/flows/finance/receiptCapture.ts:108`. **No other
+timestamp was touched, and auto-match still reads the raw `null`.**
+
+**WHY NOTHING CAUGHT IT.** The config pins `Asia/Kuala_Lumpur` — the zone that
+exposes it — but no browser test ever reached the fallback with a date unread.
+
+**THE PROOF, `e2e/capture-time.spec.ts` (2 tests, no baseline):** under
+`PINNED_NOW` = `2026-08-15T01:41Z` an unread capture prints **"15 Aug, 09:41"**
+(the defect: 01:41); re-pinned to `2026-08-31T20:00Z` — 04:00 on 1 September
+local — it prints **"01 Sept, 04:00"** under **"September 2026"** (the defect:
+August). Mutation-proved by restoring the old line: both fail, at exactly those
+two strings.
+
+### Walk states — before and after
+
+| | before | after |
+|---|---|---|
+| `OVERLAY_STATES` | 11 | **14** |
+| \|WALK\| | 32 | **35** = 14 routes + 7 non-default tabs + 14 overlays |
+| `visual.spec.ts` | 128 | **140** = 35 x 2 viewports x 2 themes |
+| `routes.spec.ts` | 65 | **71** = 35 x 2 + 1 |
+| `section-headers.spec.ts` | 66 | **72** = 35 x 2 + 2 |
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "^    overlay: {"
+```
+
+returns **14**. The three, all on `/finance [tab:receipts]`, all opening
+`receipt-aeonbig01` ("IMG_4806.jpg") — the receipt `detail-linked` shows and
+`unlink.spec.ts` exercises — through its card:
+
+| id | why it earns a state |
+|---|---|
+| `view` | the drawn surface |
+| `view-unlinked` | its own layout (no pill, no row, a one-button footer); reached by a real Unlink |
+| `view-delete` | a new rendered surface and a two-stack one: `opens ['IMG_4806.jpg']`, `dialogs ['IMG_4806.jpg', 'Delete receipt?']` |
+
+**DECLINED, ONE LINE EACH:** the viewer opened from "View" renders the same
+component on the same data over a different underlay — the swap is behaviour
+and is asserted in `receipt-viewer.spec.ts`; the toast is the same DS
+component under the same capped rule, its geometry covered by `frame-cap.spec.ts`
+and its text and dismissal by the behaviour spec.
+
+**THE HARNESS'S OLD ADD CONTROL, every reference listed before any changed:**
+`e2e/harness.ts:941-942`, `:965-966`, `:1018-1019` (`.mvp-receipts__month:first-of-type .mn-link`
+/ `'+ Add Receipts'`) and `e2e/automatch.spec.ts:301-302`. All four now read
+`.mvp-receipts__add .mn-btn` / `'Add new receipt'`; the automatch helper moved to
+`e2e/capture.ts`, shared by the three specs that drive a capture.
+
+### The tests — 319, derived
+
+```bash
+npx playwright test --list
+```
+
+ends `Total: 319 tests in 11 files` — automatch 15, baselines 3,
+**capture-time 2**, frame-cap **3**, ocr 1, **receipt-viewer 8**, routes 71,
+section-headers 72, tile-fill 2, unlink 2, visual 140. 284 + 24 (three walk
+states at 8 each — the Gate α figure, a fifth time) + 8 + 2 + 1 = 319.
+
+**MUTATION-PROVED, EACH: mutate, exit 1, restore, sha256 match, exit 0.** All four ran BEFORE the stable-`onClose` fix above. That fix touched `ReceiptViewer.tsx` and `ReceiptsTab.tsx` — two of the four mutated files — but none of the four mutated lines, and every full run since re-ran all four tests green on the fixed tree.
+
+| control | mutation | failed at |
+|---|---|---|
+| delete moves no amount | `deleteReceipt` also zeroes the row | "DELETE MOVES NO AMOUNT" |
+| Cancel deletes nothing | Cancel calls `onConfirm` | the open-dialog list |
+| the add control survives an empty list | the row `display: none` when `groups` is empty | "the add control sits outside every month group" |
+| Item T | the old `toISOString` line restored | both date strings |
+
+**ONE MUTATION HAD TO BE RE-RUN, AND WHY IS WORTH KEEPING.** The first attempt
+at the third put `hidden={groups.length === 0}` on the row and the test stayed
+GREEN — because `.mvp-receipts__add` declares `display: flex`, and an author
+`display` beats the user-agent `[hidden] { display: none }`. The mutation never
+took effect. A mutation that passes proves nothing until it is shown to have
+changed what renders.
+
+### Baselines — predicted, then reconciled
+
+**PREDICTED IN WRITING BEFORE THE FIRST RUN: 16 modified, 12 added, 0 deleted.**
+The four `finance-receipts-{375,430}-{light,dark}` move with the tab; the twelve
+`finance-receipts-add{,-grid,-saving}-*` move with it, because each photographs
+the whole tab behind its Modal at full page height (checked on the committed
+`finance-receipts-add-375-light` before predicting). `detail-linked` was
+predicted still: "View" gains an `onClick`, which `Button` passes straight
+through.
+
+**THE PRE-MINT RUN MATCHED IT EXACTLY: 28 failed / 291 passed**, the 28 being
+the 16 predicted pixel diffs and the 12 predicted "snapshot doesn't exist", with
+nothing failing outside that set — no route, no section-header, no behaviour
+spec. Re-hashed at the failure point: **byte-identical to the start manifest**,
+0 "writing actual", `updateSnapshots: 'none'` honoured.
+
+**THE MINT, `npm run test:e2e:update` (`--update-snapshots=all`), reported 319
+passed and 44 "writing actual" lines** — the 12 new files once each, and the 16
+modified files TWICE each ("is re-generated"). 12 + 32 = 44, over 28 distinct
+files. Count the distinct names, not the lines.
+
+Reconciled against the SHA-256 manifest taken outside the repo before the first
+change:
+
+| | count | which |
+|---|---|---|
+| start | **128** | |
+| added | **12** | `finance-receipts-view{,-unlinked,-delete}-{375,430}-{light,dark}` |
+| modified | **16** | `finance-receipts-{375,430}-{light,dark}` and `finance-receipts-add{,-grid,-saving}-{375,430}-{light,dark}` |
+| deleted | **0** | |
+| byte-identical | **112** | |
+| end | **140** | |
+
+**THEN A SECOND, TARGETED MINT, BECAUSE TWO OF THE TWELVE NEW FILES RECORDED A
+DEFECT** — see "An `onClose` that reaches a DS overlay must be stable" above.
+Its prediction was written before it ran: against the first mint, exactly the 8
+`finance-receipts-view-{unlinked,delete}-{375,430}-{light,dark}` change and the
+other 132 do not — `view` included, since nothing re-renders after it opens.
+Run with `--update-snapshots=all` over `-g "overlay:view"` only: 12 passed, 8
+files re-generated, and the reconciliation was **8 modified, 132 identical, 0
+added, 0 deleted**. Against the start manifest the totals did not move — the
+table above is the final state.
+
+**THE ADDED AND MODIFIED SETS DO NOT OVERLAP, ACROSS BOTH MINTS.** The 12 added are the viewer
+(Item V) and are new names; the 16 modified are the tab (Item R and the card
+becoming a button) and are existing names. No file is in both, so 12 + 16 = 28
+reconciles with the pre-mint failure count directly — the Gate 50 case, not the
+Gate 44 one.
+
+**ARM 1 OF THE BASELINE GUARD IS RED AT THIS GATE'S CLOSE AND THAT IS
+CORRECT**: 12 untracked baselines, so the suite closes at **318 passed / 1
+failed**. Arm 2 stays green because nothing was renamed or deleted (the Gate α
+correction) and arm 3 because every file on disk is a name the walk asks for.
+Staging is Teku's.
+
+### Sentences made false, corrected in place
+
+**MADE FALSE BY THIS GATE** — line numbers are at `b9923c3`:
+
+| file | sentence | now |
+|---|---|---|
+| `ReceiptsTab.tsx:38`, `:89`, `:212` | "+ Add Receipts is INLINE", "repeats per month heading", "IT REPEATS PER MONTH" | rewritten for the one screen-level button |
+| `TransactionDetailSheet.tsx:64`, `:74` | "View — Still wired to NOTHING", "ONE INERT CONTROL REMAINS" | "WHAT IS INERT — NOTHING, AS OF GATE 51" |
+| `finance.css:843` | "the inline "+ Add Receipts" affordance 16px above the list" | records the link's removal |
+| `e2e/harness.ts:929-932` | "`:first-of-type` RESOLVES THE TWO AFFORDANCES TO ONE" | "ONE CONTROL, SO NO `:first-of-type`" |
+| `e2e/harness.ts:1065` | "+ 11 OVERLAY_STATES = 32" | "+ 14 OVERLAY_STATES = 35" |
+| `CLAUDE.md`, six places | the Gate 48 "+ Add Receipts" divergence, the Gate 49 / 50 / 50-B "viewer behind View (Gate 51)", Gate 50's "still the one inert control", Gate 50-C's wiring test driving "+ Add Receipts" and its "manual link picker (Gate 51)" | each annotated in place, dated, the original words kept |
+
+**ALREADY STALE, FOUND ON THE WAY AND CORRECTED** — not caused by this gate:
+
+| file | sentence | stale since |
+|---|---|---|
+| `e2e/harness.ts:600` | "THE FOUR OVERLAY STATES" | Gate 44, when the fifth arrived |
+| `src/accounts/AccountsProvider.tsx:73` | "SO THERE ARE NOW TWO MUTATORS" | Gate 50, when `addReceipt` arrived |
+| `src/data/types.ts:489` | "Gate 51's unlink action needs somewhere to put the result" | Gate 49, which shipped unlink |
+
+### Deliberately not in scope
+
+The manual link picker, the receipt editor and the receipt details block with its
+Edit link (**Gate 51-B**, designed by the review thread from the app's existing
+UI behaviour — no Figma frame exists for any of them); relinking; a receipt
+filter model — the two chips stay decorative; persistence; the Receipts-tab
+card's PDF thumbnail (reported above, not changed); auto-match, OCR, the
+extraction seam and `installExtractionStub` (all unchanged); **G14** — the
+viewer inherits the absent background scroll lock exactly as both sheets do;
+G13, G17's prop half, G19–G23, G28 and the two opened here, G29 and G30; the DS
+repo and the pin; branch deletion; `npm audit fix`; and the three AA shortfalls
+on the net-worth card ruled on at Gate 31.
 
 ## Known conditions of this setup
 

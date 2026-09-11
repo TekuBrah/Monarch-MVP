@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { assertHarnessIsHonest, finishAnimations, gotoRoute } from './harness'
+import { activateTab, assertHarnessIsHonest, finishAnimations, gotoRoute } from './harness'
 
 /**
  * THE FIXED CHROME FOLLOWS THE FRAME CAP — Gate D.
@@ -300,5 +300,76 @@ test.describe(`the fixed chrome follows the frame cap — ${WIDE.width}px`, () =
         `${frameLeft}px — it follows the capped frame through its scroll container, ` +
         `without a frame inset of its own`,
     ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
+  })
+
+  /*
+    THE SAME TOAST, ON THE RECEIPTS TAB — Gate 51.
+
+    THE FIFTH FIXED ELEMENT REACHED FROM A SECOND SCREEN, NOT A SIXTH ONE. The
+    receipt viewer's "Receipt deleted." renders `.mvp-finance-detail__toast` —
+    the rule the test above measures — plus `--above-chrome`, which moves only
+    `bottom` and `z-index`. So the frame-inset assertions are the SAME ones, and
+    this test adds the two things that modifier exists for: `/finance` keeps its
+    nav, scrim and FAB, which the holding screen does not, and at the base rule's
+    72px the toast would sit across all three and underneath them.
+  */
+  test(`the receipts toast [${WIDE.width}]`, async ({ page }) => {
+    await gotoRoute(page, '/finance', 'light')
+    await assertHarnessIsHonest(page, WIDE.width)
+    await activateTab(page, { id: 'receipts', label: 'Receipts' })
+
+    await page.locator('.mvp-receipt-card:has-text("IMG_4806.jpg")').click()
+    await page.getByRole('button', { name: 'Delete receipt' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete receipt?' })
+      .getByRole('button', { name: 'Delete', exact: true })
+      .click()
+
+    const toast = page.locator('.mvp-finance-detail__toast')
+    await expect(
+      toast,
+      'the toast did not appear after confirming a delete — the path this spec reaches it by ' +
+        'has changed, and the assertions below would measure nothing',
+    ).toHaveCount(1)
+    await finishAnimations(page)
+
+    const frame = await readFrame(page)
+    expect(frame.clientWidth, 'this spec is only meaningful ABOVE the cap').toBeGreaterThan(frame.cap)
+    const frameLeft = (frame.clientWidth - frame.cap) / 2
+    const frameRight = frameLeft + frame.cap
+
+    const el = await readFixed(page, '.mvp-finance-detail__toast')
+    expect(el!.position, 'the receipts toast must still be position: fixed').toBe('fixed')
+    expect(
+      Math.abs(el!.left - (frameLeft + frame.gutter)),
+      `receipts toast left edge ${el!.left}px, derived ${frameLeft + frame.gutter}px`,
+    ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
+    expect(
+      Math.abs(el!.right - (frameRight - frame.gutter)),
+      `receipts toast right edge ${el!.right}px, derived ${frameRight - frame.gutter}px`,
+    ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
+
+    // CLEAR OF THE FAB, which is the chrome that reaches highest on this screen.
+    const fab = await readFixed(page, '.mvp-shell__fab')
+    expect(fab, '.mvp-shell__fab must be present on /finance').not.toBeNull()
+    expect(
+      el!.bottom,
+      `the toast's bottom edge (${el!.bottom}px) must sit above the FAB's top (${fab!.top}px)`,
+    ).toBeLessThanOrEqual(fab!.top)
+
+    // AND ABOVE THE SCRIM AND THE NAV IN PAINT ORDER, not merely in position: the
+    // scrim reaches 256px up the screen, so a toast at `z-index: auto` would be
+    // washed by it. Hit-testing its centre and its top edge proves it is on top.
+    const hit = await page.evaluate(() => {
+      const t = document.querySelector('.mvp-finance-detail__toast')!
+      const r = t.getBoundingClientRect()
+      const at = (y: number) => {
+        const target = document.elementFromPoint(r.left + r.width / 2, y)
+        return target !== null && t.contains(target)
+      }
+      return { centre: at(r.top + r.height / 2), top: at(r.top + 1) }
+    })
+    expect(hit.centre, 'the toast is not on top at its centre').toBe(true)
+    expect(hit.top, 'the toast is not on top at its top edge').toBe(true)
   })
 })

@@ -597,9 +597,14 @@ export interface WalkState {
 }
 
 /**
- * THE FOUR OVERLAY STATES, WRITTEN DOWN ONE AT A TIME.
+ * THE OVERLAY STATES, WRITTEN DOWN ONE AT A TIME — FOURTEEN AS OF GATE 51.
  *
- * THREE OF THEM live on `/finance/holding/fd`, and that is not a convenience:
+ * This heading read "THE FOUR OVERLAY STATES", which was true at Gate 43 — the
+ * filter sheet was the fourth — and stale from Gate 44, when the fifth arrived;
+ * corrected at Gate 51. The count is re-derived by the command beside `WALK`
+ * below, never by reading this line.
+ *
+ * THE FIRST THREE live on `/finance/holding/fd`, and that is not a convenience:
  * the fixed
  * deposit is the ONLY holding type whose `holdingFields` entry returns
  * `actions: { reminder: true, statement: true }`. `bank`/`joint` return
@@ -923,13 +928,15 @@ export const OVERLAY_STATES: WalkState[] = [
   //
   // A DIFFERENT ENTRY PATH FROM THE PICKER'S, and that is the whole reason it is
   // a separate state rather than another prepare step: this surface is reached
-  // from the RECEIPTS tab's inline "+ Add Receipts", with no transaction in view
-  // — which is also what makes its captures land UNLINKED.
+  // from the RECEIPTS tab's "Add new receipt", with no transaction in view —
+  // which is also what makes its captures land UNLINKED.
   //
-  // `:first-of-type` RESOLVES THE TWO AFFORDANCES TO ONE. The add link repeats
-  // per month heading and the fixture spans two months (September and August),
-  // so a bare `.mn-link` matches two and `toHaveCount(1)` fails. Both open the
-  // same modal; the first is chosen because it is the one on screen at rest.
+  // ONE CONTROL, SO NO `:first-of-type`. Until Gate 51 the add affordance was a
+  // "+ Add Receipts" link repeated per month heading, and this selector read
+  // `.mvp-receipts__month:first-of-type .mn-link` to resolve the two copies to
+  // one. Gate 51 replaced them with a single screen-level button (Teku's
+  // redesign of `1266:14283`), so `.mvp-receipts__add .mn-btn` matches exactly
+  // one by construction. All three add states changed the same two lines.
   //
   // NO `opens` AND NO `dialogs`. One stack, so the defaults derive `[title]` for
   // both — nothing was restated to widen anything.
@@ -938,8 +945,8 @@ export const OVERLAY_STATES: WalkState[] = [
     tab: { id: 'receipts', label: 'Receipts' },
     overlay: {
       id: 'add',
-      control: '.mvp-receipts__month:first-of-type .mn-link',
-      controlLabel: '+ Add Receipts',
+      control: '.mvp-receipts__add .mn-btn',
+      controlLabel: 'Add new receipt',
       title: 'Add receipts',
     },
   },
@@ -962,8 +969,8 @@ export const OVERLAY_STATES: WalkState[] = [
     tab: { id: 'receipts', label: 'Receipts' },
     overlay: {
       id: 'add-grid',
-      control: '.mvp-receipts__month:first-of-type .mn-link',
-      controlLabel: '+ Add Receipts',
+      control: '.mvp-receipts__add .mn-btn',
+      controlLabel: 'Add new receipt',
       title: 'Add receipts',
       prepare: [
         {
@@ -1015,8 +1022,8 @@ export const OVERLAY_STATES: WalkState[] = [
     tab: { id: 'receipts', label: 'Receipts' },
     overlay: {
       id: 'add-saving',
-      control: '.mvp-receipts__month:first-of-type .mn-link',
-      controlLabel: '+ Add Receipts',
+      control: '.mvp-receipts__add .mn-btn',
+      controlLabel: 'Add new receipt',
       title: 'Add receipts',
       prepare: [
         {
@@ -1037,6 +1044,86 @@ export const OVERLAY_STATES: WalkState[] = [
           action: 'click',
           settlesOn: '.mvp-capturing__label',
           settlesText: 'Reading your receipt…',
+        },
+      ],
+    },
+  },
+  // ── 5 · THE RECEIPT VIEWER, LINKED (Gate 51) ──────────────────────────────
+  //
+  // Figma `1266:14285`, as drawn: image, "Linked" pill, the transaction's row,
+  // Unlink receipt and Delete receipt. Opened by TAPPING A CARD — the card is a
+  // `<button>` named by its file, which is also the dialog's title.
+  //
+  // `receipt-aeonbig01` ("IMG_4806.jpg") AND NOT FIGMA'S "IMG_4821.jpg": it is
+  // the receipt `detail-linked` shows inside the transaction sheet and the one
+  // `unlink.spec.ts` exercises, so one record is photographed on every surface
+  // that shows it. Its card is the sixth in September, below the fold — the
+  // click scrolls, and `resetPageScroll` returns the document to 0 for capture.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view',
+      control: '.mvp-receipt-card:has-text("IMG_4806.jpg")',
+      controlLabel: 'IMG_4806.jpg',
+      title: 'IMG_4806.jpg',
+    },
+  },
+  // ── 6 · THE RECEIPT VIEWER, UNLINKED ──────────────────────────────────────
+  //
+  // NOT DRAWN — built by Gate 51 ruling 4: the image and Delete receipt only.
+  // ITS OWN STATE BECAUSE IT IS ITS OWN LAYOUT: no pill, no row, a one-button
+  // footer, a shorter card. No seeded receipt ships unlinked, so the state is
+  // reached the way a user reaches it — Unlink, pressed inside the viewer, which
+  // flips in place rather than closing. The same record as `view`, so the two
+  // baselines differ by the link and by nothing else.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view-unlinked',
+      control: '.mvp-receipt-card:has-text("IMG_4806.jpg")',
+      controlLabel: 'IMG_4806.jpg',
+      title: 'IMG_4806.jpg',
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn:has-text("Unlink receipt")',
+          controlName: 'Unlink receipt',
+          action: 'click',
+          // THE FOOTER'S WHOLE TEXT, which is simultaneously the proof that
+          // Unlink is GONE and that Delete receipt REMAINS. One modal is open,
+          // so exactly one footer exists.
+          settlesOn: '.mn-modal__footer',
+          settlesText: 'Delete receipt',
+        },
+      ],
+    },
+  },
+  // ── 7 · THE DELETE CONFIRMATION, OVER THE VIEWER ──────────────────────────
+  //
+  // NOT DRAWN — built by ruling 5. A NEW RENDERED SURFACE, and a TWO-STACK one:
+  // Cancel must return to the viewer unchanged, so the confirmation opens over
+  // it rather than instead of it. Opened by a prepare step, so ONE dialog is
+  // open at the settle and TWO at capture — the shape `opens` and `dialogs`
+  // were split for at Gate 50-A. DOM order: the viewer portals first.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view-delete',
+      control: '.mvp-receipt-card:has-text("IMG_4806.jpg")',
+      controlLabel: 'IMG_4806.jpg',
+      title: 'IMG_4806.jpg',
+      opens: ['IMG_4806.jpg'],
+      dialogs: ['IMG_4806.jpg', 'Delete receipt?'],
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn:has-text("Delete receipt")',
+          controlName: 'Delete receipt',
+          action: 'click',
+          settlesOn: '.mvp-receipt-delete__body',
+          settlesText:
+            "This removes the receipt and its image from your library. It can't be undone.",
         },
       ],
     },
@@ -1062,11 +1149,13 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 11 OVERLAY_STATES = 32.
+  // each, from ROUTES) + 7 non-default tab states + 14 OVERLAY_STATES = 35.
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the
-  // four capture surfaces. It was 3 = 24 from Gate α through Gate 41.)
+  // four capture surfaces; Gate 51 the twelfth through fourteenth, the receipt
+  // viewer linked, unlinked, and under its delete confirmation. It was 3 = 24
+  // from Gate α through Gate 41.)
   //
   // THE CODE HAS BEEN RIGHT SINCE GATE 44 AND THIS COMMENT SAID 4 = 25 UNTIL
   // GATE 48 — `OVERLAY_STATES` is spread, so the arithmetic was never read by
@@ -1848,6 +1937,31 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
 
     await parkPointer(page)
   }
+
+  /*
+    THE DOCUMENT MUST STILL BE AT THE TOP AFTER THE PREPARE STEPS — ASSERTED,
+    NOT RESET. Added at Gate 51.
+
+    `resetPageScroll` above runs BEFORE the prepare steps, and this function's
+    own note claimed nothing after it could scroll the window "because every
+    prepare control lives inside a fixed dialog". Gate 51 proved that false:
+    pressing a button inside the receipt viewer re-rendered its host, the DS
+    `Modal`'s effect (deps `[isOpen, onClose]`) re-ran on a fresh `onClose`,
+    and its cleanup focused the element that opened it — a card far down the
+    page — which scrolled the document behind the modal. The first mint of
+    `view-unlinked` and `view-delete` recorded exactly that.
+
+    AN ASSERTION AND NOT A SECOND RESET, deliberately. A reset here would have
+    minted a clean baseline over an app that jumps the page behind its modal;
+    this fails instead, naming the offset, so the defect is fixed in the app.
+  */
+  const scrolled = await page.evaluate(() => window.scrollY)
+  expect(
+    scrolled,
+    `after "${overlay.id}"'s prepare steps the document is scrolled to ${scrolled}px. Nothing ` +
+      `inside a fixed dialog should move the page behind it — look for focus being restored ` +
+      `to an element under the overlay (an unstable onClose re-running a Modal/Sheet effect).`,
+  ).toBe(0)
 
   if (!overlay.confirm) {
     /*

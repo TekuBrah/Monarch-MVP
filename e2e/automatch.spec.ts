@@ -1,5 +1,13 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { activateTab, gotoRoute } from './harness'
+import {
+  RECEIPTS_TAB,
+  TRANSACTIONS_TAB,
+  glyphRowCount,
+  installResolvingExtraction,
+  printedMagnitude,
+  saveOneCapture,
+} from './capture'
 import { autoMatchBatch, candidatesFor, type MatchFields } from '../src/data/autoMatch'
 import { RECEIPTS } from '../src/data/receipts'
 import { TRANSACTIONS } from '../src/data/transactions'
@@ -42,12 +50,6 @@ import type { Receipt, Transaction } from '../src/data/types'
  * candidates" can never arise from the seed. The constructed rows below exist
  * for that reason and no other.
  */
-
-const TRANSACTIONS_TAB = { id: 'transactions', label: 'Transactions' }
-const RECEIPTS_TAB = { id: 'receipts', label: 'Receipts' }
-
-/** The same committed fixture the capture walk states stage. */
-const FIXTURE = 'e2e/fixtures/receipt-capture.jpg'
 
 /** What a receipt's own transcription says, as the rule reads it. */
 function fieldsOf(receipt: Receipt): MatchFields {
@@ -270,61 +272,11 @@ function extractionFor(t: Transaction): Record<string, unknown> {
   }
 }
 
-/** "RM 250.75" — the magnitude as a ledger row prints it. */
-function printedMagnitude(amount: number): string {
-  return `RM ${Math.abs(amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`
-}
-
-/**
- * Replace the walk's never-settling stub with one that answers at once — FOR
- * THIS TEST'S PAGE ONLY, AFTER `gotoRoute` HAS INSTALLED THE STUB.
- *
- * `extract.ts` reads `window.__monarchExtractReceipt` at CALL time, so writing
- * it after navigation is enough, and `installExtractionStub` stays exactly as
- * Gate 50 wrote it. Nothing navigates after this, so nothing re-runs the stub's
- * init script over the top.
- */
-async function installResolvingExtraction(page: Page, extracted: Record<string, unknown>) {
-  await page.evaluate((value) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(window as any).__monarchExtractReceipt = async () => value
-  }, extracted)
-}
-
-/**
- * Stage the fixture in the bulk modal and press Save — through the real
- * buttons. The OS picker is INTERCEPTED via `filechooser`, never bypassed with
- * `setInputFiles` on the hidden input, because the wiring between "Photo
- * Gallery" and that input is part of what is under test.
- */
-async function saveOneCapture(page: Page): Promise<void> {
-  const add = page.locator('.mvp-receipts__month:first-of-type .mn-link')
-  await expect(add).toHaveAccessibleName('+ Add Receipts')
-  await add.click()
-
-  const dialog = page.locator('[role="dialog"][aria-modal="true"]')
-  await expect(dialog).toHaveCount(1)
-  await expect(dialog).toHaveAccessibleName('Add receipts')
-
-  const gallery = dialog.locator('.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")')
-  // Armed BEFORE the click — Chromium raises the event synchronously with it.
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), gallery.click()])
-  await chooser.setFiles(FIXTURE)
-  await expect(dialog.locator('.mvp-add-receipts__badge')).toHaveText('jpg')
-
-  await dialog.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(dialog, 'Save resolved and the modal closed').toHaveCount(0)
-}
-
-/** How many ledger rows draw the receipt glyph — `unlink.spec.ts`'s probe. */
-async function glyphRowCount(page: Page): Promise<number> {
-  return page.evaluate(
-    () =>
-      [...document.querySelectorAll('.mvp-transactions__list .mn-list-item__amount-row')].filter(
-        (el) => el.querySelector('svg') !== null,
-      ).length,
-  )
-}
+// `printedMagnitude`, `installResolvingExtraction`, `saveOneCapture` and
+// `glyphRowCount` were declared here until Gate 51 and now live in `capture.ts`,
+// shared with `receipt-viewer.spec.ts` and `capture-time.spec.ts`. Only
+// `saveOneCapture` changed on the move: it presses the screen-level
+// "Add new receipt" where it pressed the first month's "+ Add Receipts".
 
 test.describe('auto-match — wired into the Receipts tab', () => {
   test('a Receipts-tab Save links a fresh capture to its one matching row', async ({ page }) => {

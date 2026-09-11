@@ -29,6 +29,29 @@ import type { Receipt } from '../../data/types'
 let captureSeq = 0
 
 /**
+ * `YYYY-MM-DDTHH:mm:ss` IN LOCAL WALL-CLOCK TIME — the zone-less shape every
+ * timestamp in this app is written in. Gate 51, item T.
+ *
+ * `toISOString()` IS NOT THAT, AND IT WAS USED HERE UNTIL GATE 51. It returns
+ * UTC fields; slicing off the `Z` leaves a zone-less string, and every reader —
+ * `formatTimestamp`, `groupReceiptsByMonth` — reads a zone-less string as LOCAL.
+ * So a receipt captured at 18:34 in Malaysia was recorded, printed and grouped
+ * as 10:34, and one captured between 00:00 and 08:00 local on the 1st landed in
+ * the previous month. Found on Teku's phone, not by a test.
+ *
+ * BUILT FROM THE DATE'S LOCAL GETTERS, so the string names the same wall-clock
+ * moment the device shows. It was the only site in `src/` producing a UTC one:
+ * `toISOString` had exactly one occurrence.
+ */
+function localWallClock(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  )
+}
+
+/**
  * The badge text on a staged tile — "jpg", "png", "heic".
  *
  * FROM THE FILE'S OWN NAME, NOT FROM ITS MIME TYPE. The badge is telling the
@@ -83,7 +106,8 @@ export async function extractCapture(
  *   merchant    the file's own name — what the user picked, and recognisably
  *               not a merchant, so it reads as "unread" rather than as a claim
  *   capturedAt  the moment of capture, which is a real fact about this receipt
- *               even when the printed date is unreadable
+ *               even when the printed date is unreadable — in LOCAL wall-clock
+ *               time, like every other timestamp here (`localWallClock`, Gate 51)
  *   total       0, never a guess
  *
  * THESE ARE FOR THE SCREEN ONLY. Auto-match has already run on the raw fields
@@ -105,7 +129,7 @@ export function capturedToReceipt(
     // CAMERA-ROLL STYLE, matching what the ten seeded records print — the
     // file's own name is what the user will recognise it by.
     displayName: file.name,
-    capturedAt: extracted.capturedAt ?? new Date().toISOString().slice(0, 19),
+    capturedAt: extracted.capturedAt ?? localWallClock(new Date()),
     merchant: extracted.merchant ?? file.name,
     total: extracted.total ?? 0,
     tax: extracted.tax,
