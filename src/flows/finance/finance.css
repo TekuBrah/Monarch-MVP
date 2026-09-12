@@ -1098,10 +1098,194 @@ button.mvp-receipt-card:focus-visible {
   display: flex;
 }
 
-/* THE DELETE CONFIRMATION'S ONE LINE. Not drawn; body copy on the default ink. */
+/* THE DELETE CONFIRMATION'S ONE LINE. Not drawn; body copy on the default ink.
+   Shared with the REPLACE confirmation as of Gate 51-B — one `ConfirmModal`
+   renders both, so one rule serves both rather than a second identical class. */
 .mvp-receipt-delete__body {
   margin: 0;
   color: var(--mapped-text-default-default);
+}
+
+/* ─────────────────────────────────────────────────────── Gate 51-B ──
+   THE VIEWER'S CARD IS CAPPED TO THE VIEWPORT AND ITS CONTENT SCROLLS —
+   register G33, and the ONLY two rules in this app that reach inside a DS
+   component's internals.
+
+   THEY SUPPLY TWO THINGS THE DS `Modal` LEAVES UNSET, not two it declares.
+   `.mn-modal__card` declares `max-width` and NO `max-height`;
+   `.mn-modal__content` declares neither `overflow` nor `min-height`. `Sheet`
+   has had both since it shipped — `max-height: calc(100dvh -
+   var(--brand-scale-1100))` on its panel, `min-height: 0` plus a scrolling
+   `overflow` on `.mn-sheet__content`, which its own CSS calls "the sole
+   scrolling region" — and `Modal` never received the equivalent. So a card
+   taller than `.mn-modal`'s padded box centres and hangs off BOTH ends: the
+   viewer's ran 872.66 tall in a 780 box and put Delete 30px below the fold.
+
+   THEY REACH THE CARD THROUGH THE `className` SEAM `Modal.css` DOCUMENTS.
+   `className` lands on `.mn-modal` (`Modal.tsx`), and `Modal.css` names it as
+   the caller's way to control the card's size — in as many words, on
+   `.mn-modal__card`'s `max-width`: "Figma frame width; caller-controllable via
+   className/style". That is what makes these higher-specificity rules a
+   documented escape hatch rather than the equal-specificity override on
+   DECLARED DS geometry that Gate 13 removed on measurement.
+
+   ⚠ BOTH RULES ARE DELETED AT THE MVP RE-PIN THAT FOLLOWS THE DS ROUND CLOSING
+   G33, ALONG WITH THE `.mvp-receipt-viewer-modal` CLASS ITSELF AND THE
+   `className` PROP IN `ReceiptViewer.tsx`. They are a workaround with a
+   removal condition, not a convention. The DS fix is `Modal` mirroring `Sheet`;
+   once it ships, leaving these in place would be an MVP rule sitting on top of
+   DS geometry that now agrees with it — invisible while the values match and a
+   silent mask over any later DS change, which is exactly the shape Gate 13
+   removed.
+
+   SCOPED TO ONE CONSUMER BY THE MVP CLASS, deliberately. Written as a bare
+   `.mn-modal__card` rule this would reach every Modal in the app — including
+   the two confirmations, which are short and must keep hugging.
+
+   `100%` AND NOT A VIEWPORT UNIT. `.mn-modal` is `position: fixed; inset: 0`,
+   so its padded content box IS the viewport minus the DS's own 16px — which is
+   exactly the budget the card may have. A `dvh` expression would restate that
+   padding as a second literal, and `vw`/`vh` are what the guardrail's
+   `viewport-width-unit` rule exists to keep out of this tree.
+
+   `min-height: 0` IS THE LOAD-BEARING HALF OF THE SECOND RULE. A flex item's
+   automatic minimum size is its content, so `overflow-y: auto` alone would
+   leave the region at full content height and the cap would do nothing — the
+   same mechanism Gate 51 recorded when the image well's child was in flow.
+   Ship the overflow without the min-height and the change looks applied while
+   doing nothing. */
+.mvp-receipt-viewer-modal .mn-modal__card {
+  max-height: 100%;
+}
+
+.mvp-receipt-viewer-modal .mn-modal__content {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ─────────────────────────────────────────────────────── Gate 51-B ──
+   THE RECEIPT DETAILS BLOCK, THE MISMATCH LINE, THE LINK PICKER AND THE
+   EDITOR. All four are UNDRAWN — no Figma frame exists for any of them, and
+   Teku ruled the review thread designs them from this app's own behaviour.
+
+   LAYOUT ONLY, like every block above it. Every surface, colour and type ramp
+   is a DS token or a `type-*` class on the element; nothing here paints an
+   appearance the DS could own.
+   ──────────────────────────────────────────────────────────────────────── */
+
+/*
+  THE DETAILS BLOCK sits after the designed content in both viewer states, so
+  the 16px above it separates it from whatever preceded — the image well in the
+  unlinked state, the linked block's own bottom padding in the linked one.
+*/
+.mvp-receipt-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  padding-top: var(--spacing-400);
+}
+
+/* `margin: 0` resets the UA sheet's `<dl>` block margin. */
+.mvp-receipt-details__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+/*
+  The detail sheet's row shape at a smaller ramp — 4px above and below rather
+  than 8, because this block is a summary beneath a photograph and not the
+  screen's primary content. `padding` rather than a `height`, so a long merchant
+  that wraps grows the row instead of overflowing it.
+*/
+.mvp-receipt-details__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+  padding: var(--spacing-100) 0;
+}
+
+.mvp-receipt-details__row-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* `margin-inline-start: 0` resets the UA sheet's 40px `<dd>` indent — invisible
+   in a `space-between` row until the row gets tight, which is exactly the kind
+   of thing that shows up at one viewport and not the other. */
+.mvp-receipt-details__row-value {
+  margin-inline-start: 0;
+  color: var(--mapped-text-default-default);
+  text-align: right;
+}
+
+/*
+  THE MISMATCH LINE. Subtle, not an error treatment: nothing is broken, and an
+  alert colour would assert a defect this app cannot adjudicate. See
+  `ReceiptViewer.tsx` for why the two figures are shown rather than reconciled.
+*/
+.mvp-receipt-details__mismatch {
+  margin: var(--spacing-100) 0 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+/* ── The manual link picker ─────────────────────────────────────────────── */
+
+.mvp-link-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+}
+
+/*
+  THE CONTEXT LINE — what the user is matching against, since the receipt's
+  image is off screen while this view is open.
+*/
+.mvp-link-picker__context {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-link-picker__context-merchant {
+  color: var(--mapped-text-default-default);
+}
+
+/* `Field` at `sizing="fill"` fills whatever box it is given; this is that box. */
+.mvp-link-picker__search {
+  display: flex;
+}
+
+.mvp-link-picker__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+/* `list-style: none` and `padding: 0` reset the UA sheet's bullets and indent. */
+.mvp-link-picker__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mvp-link-picker__empty {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+/* ── The receipt editor ─────────────────────────────────────────────────── */
+
+.mvp-receipt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+.mvp-receipt-editor__context {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
 }
 
 /* ─────────────────────────────────────────────────────────── Gate 49 ──

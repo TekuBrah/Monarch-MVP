@@ -70,11 +70,16 @@ import type {
  * sheet's "Unlink receipt" writes exactly that field, and it cost one
  * `useCallback` and one line in the value object. Nothing else moved.
  *
- * SO THERE ARE NOW FOUR MUTATORS, AND ONE OF THEM HAS NO CALLER. This line
- * said "two" from Gate 49 and was stale from Gate 50, when `addReceipt`
- * arrived; corrected at Gate 51, which adds `deleteReceipt`. `unlinkReceipt`,
- * `addReceipt` and `deleteReceipt` have callers; `addTransaction` still has
- * none and is still the seam described above. Do not sweep it as dead code.
+ * SO THERE ARE NOW SIX MUTATORS, AND ONE OF THEM STILL HAS NO CALLER. This
+ * line said "two" from Gate 49, was stale from Gate 50 when `addReceipt`
+ * arrived, and was corrected at Gate 51 for `deleteReceipt`; Gate 51-B adds
+ * `linkReceipt` and `updateReceipt`. Five have callers; `addTransaction` still
+ * has none and is still the seam described above. Do not sweep it as dead code.
+ *
+ * FIVE OF THE SIX WRITE `receipts` AND NOTHING ELSE. Only `addTransaction`
+ * touches the ledger, and it is the one nothing calls — so no user action in
+ * this app can currently change a transaction. That is the P6 ruling made
+ * structural rather than promised: receipts never rewrite the bank.
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT IS STILL NOT SOLVED, stated so it is not mistaken for solved. This is a
  * provider holding two arrays, not a store. There is no reducer, no action
@@ -208,6 +213,72 @@ interface AccountsContextValue {
    * NOT PERSISTED. Reload restores the seed — the deleted receipt included.
    */
   deleteReceipt: (receiptId: string) => void
+  /**
+   * Link a receipt to a transaction by hand — the picker's write. Gate 51-B.
+   *
+   * THE RECOVERY PATH FOR EVERY AUTO-MATCH MISS. Gate 50-B measured the real
+   * engine linking 5 of 10 seeded receipts unaided; the other five failed on a
+   * field the photograph did not yield (two unread dates, one date misread by
+   * six months, two letterheads read as an address line or a line item), and no
+   * matcher can recover those. This is how a user does it instead.
+   *
+   * IT SWAPS. If another receipt already points at that transaction, THAT
+   * receipt's `transactionId` becomes `null` in the SAME update — the displaced
+   * capture returns to the library unlinked rather than being deleted, and the
+   * transaction never ends up claimed by two receipts at once. One
+   * `setReceipts` call and one `map`, never two writes: two would render an
+   * intermediate frame in which both receipts claim the row.
+   *
+   * IT NEVER CALLS `setTransactions`, AND THAT ABSENCE IS THE CONTRACT — the
+   * same one `deleteReceipt` above documents. A hand-link does not move the
+   * ledger amount it links to, so a receipt total that differs from the
+   * transaction's amount is SHOWN by the viewer and not reconciled. Receipts
+   * never rewrite the bank.
+   *
+   * AUTO-MATCH DOES NOT RE-RUN, here or anywhere. It is locked to once, at add
+   * time (Gate 50-C).
+   *
+   * NOT PERSISTED. Reload restores the seed.
+   */
+  linkReceipt: (receiptId: string, transactionId: string) => void
+  /**
+   * Correct what extraction read off a receipt — the editor's write. Gate 51-B.
+   *
+   * THE THREE FIELDS A USER CAN SEE AND CHECK AGAINST THE PHOTOGRAPH, and no
+   * others: merchant, timestamp and total. `tax` and `lineItems` are not
+   * editable and are not surfaced by the editor at all — correcting a line item
+   * is transcription work, not correction of a misread, and there is no drawn
+   * surface for it.
+   *
+   * THIS IS WHAT REPLACED PER-FIELD CONFIDENCE MARKING. Gate 50-B measured
+   * Tesseract's per-word confidence against ground truth over all ten seeded
+   * receipts and found it does not discriminate — AUC 0.642, precision never
+   * above 0.231, and the one genuinely wrong SST figure (7.19 for a printed
+   * 7.79) scoring 77, the exact median of the CORRECT population. So: parse
+   * everything, mark nothing, and let a human correct any field.
+   *
+   * `capturedAt` IS A ZONE-LESS LOCAL WALL-CLOCK STRING, composed from the
+   * date and time the user typed. It is never round-tripped through
+   * `toISOString` — see `localWallClock` in `receiptCapture.ts` for the bug
+   * that convention exists to prevent.
+   *
+   * IT NEVER CALLS `setTransactions` EITHER, for the same reason `linkReceipt`
+   * does not: editing a total to what the paper actually prints does not
+   * authorise this app to move a bank figure. AND IT NEVER RE-RUNS AUTO-MATCH —
+   * that is locked to add time, and re-running it after an edit would re-link a
+   * receipt the user had just unlinked.
+   *
+   * NOT PERSISTED. Reload restores the seed.
+   */
+  updateReceipt: (receiptId: string, changes: ReceiptEdit) => void
+}
+
+/** The three fields `updateReceipt` may change. Nothing else is editable. */
+export interface ReceiptEdit {
+  merchant: string
+  /** Zone-less local wall-clock, `YYYY-MM-DDTHH:mm:ss`. */
+  capturedAt: string
+  total: Amount
 }
 
 const AccountsContext = createContext<AccountsContextValue | null>(null)
@@ -256,6 +327,43 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  /*
+    LINK, AND SWAP IF THE TARGET IS TAKEN — one `map`, one `setReceipts`.
+
+    THE DISPLACEMENT IS IN THE SAME PASS DELIBERATELY. Unlinking the incumbent
+    first and linking second would be two state writes; between them the library
+    would hold a frame in which the transaction has no receipt, and — worse —
+    `transactionHasReceipt` would answer differently to anything that rendered
+    in between. One pass makes "a transaction has at most one receipt" true at
+    every observable moment rather than eventually.
+
+    THE ORDER OF THE BRANCHES MATTERS FOR ONE CASE: a receipt already linked to
+    this very transaction matches BOTH tests. The first branch wins, so
+    re-linking a receipt to the row it already has is a no-op rather than an
+    unlink.
+
+    `setTransactions` IS NOT TOUCHED, AND THAT ABSENCE IS THE CONTRACT.
+  */
+  const linkReceipt = useCallback((receiptId: string, transactionId: string) => {
+    setReceipts((current) =>
+      current.map((r) => {
+        if (r.id === receiptId) return { ...r, transactionId }
+        if (r.transactionId === transactionId) return { ...r, transactionId: null }
+        return r
+      }),
+    )
+  }, [])
+
+  // THE THREE EDITABLE FIELDS, SPREAD OVER THE RECORD — so `id`, `filename`,
+  // `sourceUrl`, `tax`, `lineItems`, `currency` and `transactionId` are
+  // provably untouched: they are not in `ReceiptEdit`. `setTransactions` is not
+  // touched here either.
+  const updateReceipt = useCallback((receiptId: string, changes: ReceiptEdit) => {
+    setReceipts((current) =>
+      current.map((r) => (r.id === receiptId ? { ...r, ...changes } : r)),
+    )
+  }, [])
+
   const value = useMemo<AccountsContextValue>(() => {
     const primaryAccount = FIAT_ACCOUNTS[0]
     if (!primaryAccount) throw new Error('No fiat account seeded')
@@ -276,8 +384,19 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       unlinkReceipt,
       addReceipt,
       deleteReceipt,
+      linkReceipt,
+      updateReceipt,
     }
-  }, [transactions, receipts, addTransaction, unlinkReceipt, addReceipt, deleteReceipt])
+  }, [
+    transactions,
+    receipts,
+    addTransaction,
+    unlinkReceipt,
+    addReceipt,
+    deleteReceipt,
+    linkReceipt,
+    updateReceipt,
+  ])
 
   return (
     <AccountsContext.Provider value={value}>{children}</AccountsContext.Provider>

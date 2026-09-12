@@ -4337,7 +4337,9 @@ Staging is Teku's.
 The action sheet behind "Add Receipt" (Gate 50, register G2 — the only fully
 uncomponentised interactive surface in the five flows); the receipt viewer behind
 "View" (Gate 51 — built there); RELINKING an unlinked receipt (Gate 51 — `unlinkReceipt` is
-one-way and there is no UI that could produce a relink target); **G14, the
+one-way and there is no UI that could produce a relink target) *(the second half
+is false since Gate 51-B: the manual link picker relinks, and `linkReceipt` is
+the mutator that does it; kept as the Gate 49 record)*; **G14, the
 absent background scroll lock** — still open, the ledger still scrolls behind an
 open sheet, and it is deferred because `overflow: hidden` on `<body>` interacts
 with the full-page screenshot harness and the fix is DS-side anyway; the
@@ -6209,7 +6211,7 @@ Netlify's for these assets — a measurement of one deploy, not a guarantee.
 
 ### Deliberately not in scope
 
-The manual link picker (Gate 51 when written; moved to Gate 51-B, which Teku ruled the review thread designs from the app's existing UI because no Figma frame exists) — a missed auto-match is linked by hand there;
+The manual link picker (Gate 51 when written; moved to Gate 51-B, which Teku ruled the review thread designs from the app's existing UI because no Figma frame exists — *shipped there, and its leave-one-out ranking measures 10/10 top-1 against the real engine*) — a missed auto-match is linked by hand there;
 the confidence-marker and field-edit affordances, which would recover several of
 run (b)'s misses and are screen changes; the receipt viewer; relinking;
 persistence; any change to `installExtractionStub`; the DS repo and the pin;
@@ -6302,7 +6304,7 @@ cannot live inside it.
 | state | drawn? | built from |
 |---|---|---|
 | linked | **yes**, `1266:14285` | as drawn: image, "Linked" pill, the row (`hasReceiptIcon={false}`), Unlink + Delete |
-| unlinked | no | **ruling 4**: image and Delete receipt only. Receipt details, Edit and Link to transaction are **completed at Gate 51-B** |
+| unlinked | no | **ruling 4**: image and Delete receipt only. Receipt details, Edit and Link to transaction are **completed at Gate 51-B** — *shipped there; the state now draws all three* |
 | PDF capture | no | **ruling 4**: `AddReceiptsModal`'s `icon_pdf` treatment where the `<img>` would go. No inline viewer, no rasterisation |
 | delete confirmation | no | **ruling 5**, see below |
 | "Receipt deleted." toast | no | **ruling 5**, see below |
@@ -6339,7 +6341,7 @@ viewer, so Cancel returns to it unchanged — the two-dialog shape Gate 50-A's
 
 **WHY ONLY DELETE ASKS — the principle, for later gates:** confirm only what
 cannot be undone; toast only when the surface the user acted on disappears.
-Unlink is reversible (Gate 51-B links by hand) and flips in place, so it asks
+Unlink is reversible (Gate 51-B links by hand — *shipped*) and flips in place, so it asks
 nothing and toasts nothing.
 
 **THE TOAST REUSES THE FIFTH FIXED ELEMENT'S RULE. NO SIXTH WAS ADDED.** It
@@ -6603,7 +6605,9 @@ Staging is Teku's.
 
 The manual link picker, the receipt editor and the receipt details block with its
 Edit link (**Gate 51-B**, designed by the review thread from the app's existing
-UI behaviour — no Figma frame exists for any of them); relinking; a receipt
+UI behaviour — no Figma frame exists for any of them; *all three shipped there,
+along with the mismatch line and the replace confirmation*); relinking
+*(covered there by the swap)*; a receipt
 filter model — the two chips stay decorative; persistence; the Receipts-tab
 card's PDF thumbnail (reported above, not changed); auto-match, OCR, the
 extraction seam and `installExtractionStub` (all unchanged); **G14** — the
@@ -6611,6 +6615,539 @@ viewer inherits the absent background scroll lock exactly as both sheets do;
 G13, G17's prop half, G19–G23, G28 and the two opened here, G29 and G30; the DS
 repo and the pin; branch deletion; `npm audit fix`; and the three AA shortfalls
 on the net-worth card ruled on at Gate 31.
+
+## The picker, the editor and the completed viewer (Gate 51-B)
+
+No DS re-pin — **v2.3.0 throughout**. Six items, and the one to read first is
+the blocker: **`Modal` bounds its card to nothing**, which stopped this gate
+until it was worked around through the DS's own `className` seam and registered
+as **G33**. **|WALK| 35 -> 38, `OVERLAY_STATES` 14 -> 17, baselines 140 -> 164
+(12 added, 12 modified, 0 deleted), tests 319 -> 365, spec files 11 -> 12.**
+`lint:tokens` scans **60** files (was 58 — the two new components) with the same **3** exemptions — no
+new raw value entered the tree.
+
+### THIS GATE NEEDED NO FIGMA, AND HAD NONE OF THE SURFACES DRAWN
+
+Teku's decision 1B (11 Sept): the picker, the editor, the details block, the
+mismatch line and the replace confirmation have **no Figma frame**, and the
+review thread designs them from this app's own existing UI behaviour. So every
+one of them is justified by a PRINCIPLE and a PRECEDENT in this repo rather than
+by a drawing. The seven principles are written out in full at the head of
+`ReceiptViewer.tsx`; in short:
+
+| | principle | what already shipped that establishes it |
+|---|---|---|
+| **P1** | one overlay, many views | `TransactionFilterSheet`'s `'filters' \| 'merchant'` swap |
+| **P2** | data-driven flips | `ReceiptViewerHost` re-resolves the receipt every render (Gate 51) |
+| **P3** | confirm only what cannot be undone | Delete asks; Unlink does not (Gate 51 ruling 5) |
+| **P4** | toast only when the surface disappears | Delete toasts; a flip in place does not |
+| **P5** | reuse the ledger's row | `ListItem` with the derived receipt glyph (Gate 48/49) |
+| **P6** | receipts never rewrite the bank | `unlinkReceipt`/`deleteReceipt` write `receipts` only |
+| **P7** | one definition of "agree" | `autoMatch.ts`'s three exported predicates |
+
+**THE GATE PROMPT CALLED THE VIEWER "a DS `Sheet`" FOR THE SECOND TIME.** It is
+a `Modal`, on geometry, for the reason Gate 51 recorded — 343 wide at x=16, all
+four corners rounded, no home indicator. Figma's layer is named "Bottom Sheet";
+that name has now pointed the wrong way three times in Flow 9.
+
+### THE BLOCKER — `Modal` HAS NO HEIGHT CAP AND NO SCROLL REGION (G33)
+
+**READ THIS BEFORE ADDING ANY CONTENT TO ANY MODAL IN THIS APP.**
+
+`.mn-modal` is `position: fixed; inset: 0` with 16px padding and
+`align-items: center`. `.mn-modal__card` declares `max-width` and **no
+`max-height`**; `.mn-modal__content` declares neither `overflow` nor
+`min-height`. A card taller than the padded box therefore CENTRES AND HANGS OFF
+BOTH ENDS. `Sheet` has had both since it shipped — `max-height: calc(100dvh -
+var(--brand-scale-1100))` on its panel and a scrolling `.mn-sheet__content` —
+and its own CSS records them as an **instructed addition Figma does not draw**.
+`Modal` never received the equivalent.
+
+**IT IS PRE-EXISTING AND THIS GATE MADE IT ACUTE. Both halves measured:**
+
+| | card height | padded box | overflow |
+|---|---|---|---|
+| Gate 51 linked viewer @375 | 744.66 | 780 | fits, 35.34 spare |
+| **Gate 51 linked viewer @430** | **787.33** | 780 | **7.33 — 3.66 off EACH end, before this gate** |
+| Gate 51-B linked viewer @375, uncapped | **872.66** at y **-30.33** | 780 | **92.66 — Delete 30px BELOW the viewport** |
+
+A screen whose primary action is off screen is not shippable, so this could not
+be registered and left. **No amount of compaction saves it either**: the linked
+card was already 95% of its budget, so the gate's own deliverable could not fit
+under any reasonable height for it.
+
+**THE FIX IS TWO SCOPED RULES THROUGH THE DS'S OWN SEAM.** They are the FIRST
+rules this app has ever written that target a DS component's INTERNALS, and
+still the only ones — every previous shortfall was registered and shipped short
+(G15's hard-coded `.mn-select` width is the closest precedent, and it was
+deliberately NOT overridden). That precedent was broken here, once, knowingly:
+
+```css
+.mvp-receipt-viewer-modal .mn-modal__card    { max-height: 100%; }
+.mvp-receipt-viewer-modal .mn-modal__content { min-height: 0; overflow-y: auto; }
+```
+
+**WHY THIS IS NOT THE GATE 13 OVERRIDE.** `className` lands on `.mn-modal`, and
+`Modal.css` names `className` as the supported way a caller controls the card's
+size ("caller-controllable via className/style"). The rules are
+higher-specificity, scoped to one consumer by an MVP class, and supply a value
+the DS leaves **UNSET** — where `.mn-field { width: 100% }` was an
+equal-specificity global rule fighting a DECLARED 240px. **It is still a
+workaround**, registered as G33 with the DS fix named.
+
+**⚠ THE REMOVAL CONDITION, STATED IN THREE PLACES SO IT CANNOT BE MISSED** —
+here, in `finance.css` above the rules, and in the register's G33 entry. **Both
+rules, the `.mvp-receipt-viewer-modal` class and the `className` prop in
+`ReceiptViewer.tsx` are DELETED at the first MVP re-pin after a DS release
+closes G33.** `grep -rn "mvp-receipt-viewer-modal" src/` returns exactly two
+files and is the whole checklist. **Leaving them in place after the DS fix would
+be worse than the original defect**: MVP CSS sitting on top of DS geometry that
+now agrees with it, invisible while the values match and a silent mask over any
+later DS change — the exact shape Gate 13 removed on measurement. The twelve
+`finance-receipts-view*` baselines are what verifies the removal: a clean run
+means the DS cap and `max-height: 100%` produce the same geometry, and a diff
+on those twelve is a finding rather than a re-mint.
+
+**`100%` AND NOT A VIEWPORT UNIT.** `.mn-modal` is `inset: 0`, so its padded
+content box IS the viewport minus the DS's own 16px — exactly the budget the
+card may have. A `dvh` expression would restate that padding as a second
+literal. **`min-height: 0` IS THE LOAD-BEARING HALF of the second rule**: a flex
+item's automatic minimum size is its content, so `overflow-y: auto` alone leaves
+the region at full content height and the cap does nothing.
+
+Measured after: the card is exactly **`[16, 16, 343, 780]`** at 375 with the
+footer fully on screen.
+
+**ONE VISIBLE CONSEQUENCE, ACCEPTED — AND IT IS A CONSEQUENCE OF TWO THINGS
+TOGETHER: the ruling's fixed ORDER and the height cap this gate had to add.**
+Neither alone produces it. On the LINKED state at 375 the details block now sits
+below the fold and is reached by scrolling (content `clientHeight` 550 against
+`scrollHeight` 643, max scroll 93 — measured), sliced mid-glyph at the clip
+boundary — which is the standard "there is more below" signal and is
+what `Sheet.css` argues for explicitly. The unlinked state (772.66) and both
+430 states fit without scrolling. The ruling fixes the ORDER (image, pill, row,
+THEN details), so this is not resolvable by reordering.
+
+### Item D — the completed viewer
+
+**S1, UNLINKED** (undrawn; Gate 51 shipped image + Delete only): image well,
+then a **"Receipt details"** `SectionHeader` with a trailing **"Edit"** link,
+then Merchant / Date / Total rows, then **"Link to transaction"** (primary,
+`link` glyph) and **"Delete receipt"** unchanged.
+
+**S2, LINKED**: everything Gate 51 draws — image, "Linked" pill, the
+transaction's `ListItem` — **then** the same details block, **then** the
+mismatch line only when the two figures differ. Footer unchanged.
+
+**THE HEADING IS `SectionHeader` WITH `linkLabel` + `onLinkClick`** — the app's
+own "See all" pattern, whose precedent is `HomepageFiat.tsx:51`. Not a bespoke
+row.
+
+**THE BLOCK EXISTS TO SHOW THE DISPLAY FALLBACKS, AND UNTIL THIS GATE NONE OF
+THEM WAS ON SCREEN ANYWHERE.** `capturedToReceipt` fills a field extraction
+could not read with something HONEST rather than plausible:
+
+| field | fallback | why it reads as "unread" |
+|---|---|---|
+| `merchant` | **the file's own name** | recognisably not a merchant, so it is not a claim |
+| `capturedAt` | **the moment of capture**, local wall-clock | a real fact about the receipt even when the printed date is unreadable |
+| `total` | **0** | never a guess |
+
+So a user now sees `IMG_4821.jpg` where a merchant should be, or `RM 0.00` where
+a total should be, with Edit one tap away. That is what makes a misread
+CORRECTABLE, which is the whole argument for item E.
+
+**THE MISMATCH LINE IS A STATEMENT, NOT A WARNING.** P6 means this app never
+reconciles a receipt's total with its transaction's amount, so the honest thing
+is to print both. **Auto-match cannot produce one** — its rule requires
+`-amount === total` to the sen — so only a hand-link or an edit reaches it,
+which is why it arrives in the same gate as both. Compared in **integer cents**,
+the same comparison `totalMatches` makes; a float `!==` would report a mismatch
+on values that print identically. No error colour and no glyph: nothing is
+broken, and an alert treatment would assert a defect the app cannot adjudicate.
+
+### Item L — the manual link picker
+
+**IT IS THE RECOVERY PATH FOR EVERY AUTO-MATCH MISS**, and Gate 50-B measured
+five of them: the real engine auto-links 5 of the 10 seeded receipts, and the
+other five fail on a field the photograph did not yield. No matcher recovers
+those.
+
+| | |
+|---|---|
+| header | back affordance, title "Link to transaction", a context line — merchant · date · total |
+| search | `Field` at `sizing="fill"`, a leading `search` glyph, **no** trailing filter button |
+| "Suggested" | ranked, and **OMITTED ENTIRELY when empty** — no heading, no "no suggestions" copy |
+| "Everything else" | the remaining outflows, grouped by month with `SectionHeader` |
+| credits | **not listed at all, in either group** |
+
+**THE SEARCH IS THE LEDGER'S OWN.** `filterTransactions(transactions,
+TRANSACTION_FILTER_ALL, search)` applies no facet and leaves only the needle,
+which it matches against `${merchant} ${method}` — exactly what the Transactions
+tab's box does. The ruling said "filtering by payee"; reusing the ledger's
+behaviour outranks the word, and this is a superset of it.
+
+**THE LEDGER DOES NOT GROUP BY MONTH — the ruling's "the way the ledger groups
+them" describes something that does not exist.** `TransactionsLedger` renders
+one flat date-descending list. `groupTransactionsByMonth` is new, mirrors
+`groupReceiptsByMonth`, and shares its `monthLabel` helper — extracted when the
+second consumer arrived, exactly as that function's own note said to. **Do not
+"restore consistency" by grouping the ledger**; that would move four committed
+baselines to make two screens look alike.
+
+**RANKING, AND IT REUSES THE RULE'S OWN PREDICATES (P7).** `rankedSuggestions`
+in `autoMatch.ts` calls `totalMatches` (`:111`), `withinWindow` (`:117`) and
+`merchantMatches` (`:199`) — all three already exported, verified. A row
+qualifies on an exact total **OR** on date and merchant together; ordering is
+criteria agreed (desc), then an exact total first, then the closest date, then
+newest.
+
+**IT IS DELIBERATELY LOOSER THAN THE AUTO-MATCH RULE, AND DIFFERS ON ONE POINT.**
+`candidatesFor` excludes a transaction that already has a receipt; this does
+not. Auto-match must never displace a link silently, but a user choosing a row
+explicitly IS the deliberate action that ruling reserved — so the picker offers
+it and asks first.
+
+#### The leave-one-out measurement — the prediction held, 10/10
+
+**PREDICTED IN WRITING BEFORE MEASURING**: the correct transaction is the top
+suggestion for all ten, and specifically for all five auto-match misses. The
+risk named was that two rows sharing a payee within three days could score 2 and
+outrank a total-only score of 1.
+
+**RUN AGAINST THE REAL ENGINE**, in a Playwright-launched Chromium through the
+dev server, feeding each receipt's actual OCR output rather than its transcribed
+fields:
+
+| | |
+|---|---|
+| **top-1** | **10/10** |
+| **top-3** | **10/10** |
+| auto-match, same fields | **5/10** — the same five Gate 50-C measured |
+| totals read correctly | **10/10** |
+
+| receipt | auto | engine date | engine merchant | rank |
+|---|---|---|---|---|
+| aeonbig01 | YES | 2025-09-04 | `AEON BIG` | **0** |
+| aia01 | no | 2025-08-25 | `ATA` | **0** |
+| caring01 | no | **null** | `CARING PHARMACY` | **0** |
+| giant01 | YES | 2025-09-02 | `Giant Hypermarket` | **0** |
+| ikea01 | YES | 2025-09-08 | `IKEA Southeast Asia` | **0** |
+| ikea02 | YES | 2025-09-06 | `IKEA Southeast Asia` | **0** |
+| ikea03 | no | 2025-08-15 | `Lalan PIU 7 7 Wutira Damansara` | **0** |
+| jayagrocer01 | no | **2025-03-01** | `Jaya Grocer Holdings` | **0** |
+| lotus01 | YES | 2025-09-05 | `Lotus's Stores` | **0** |
+| tonyroma02 | no | **null** | `Classic Ribs 59.90` | **0** |
+
+**WHY IT IS 10/10 AND NOT LUCK.** The engine reads every total correctly, the 23
+ledger magnitudes are all distinct (re-derived: 23 rows, 23 distinct cents), and
+an exact total alone qualifies a row — so each receipt's own transaction is
+always IN the set and nothing else can match its total. The named risk did not
+materialise because the three IKEA rows are 15 Aug, 06 Sept and 08 Sept, none
+within three days of another.
+
+### Item E — the receipt editor
+
+**IT IS WHAT REPLACED PER-FIELD CONFIDENCE MARKING.** The standing ruling was
+option B — flag low-confidence fields and offer an inline edit — and Gate 50-B
+measured the assumption under it and refuted it: AUC **0.642**, precision never
+above **0.231**, and the one genuinely wrong SST figure (7.19 for a printed
+7.79) scoring **77, the exact median of the CORRECT population**. Option A is
+the recorded fallback: parse everything, mark nothing, let a human correct any
+field. This is it.
+
+Four controls, all DS `Field` at `sizing="fill"`: **Merchant** (`text`,
+required), **Date** (`date`), **Time** (`time`), **Total (RM)** (`number`, > 0,
+at most 2 decimals).
+
+**NATIVE INPUT TYPES, AND NOT DS `DatePicker` / `TimePicker` — a deliberate
+composition choice with a measured reason.** Both components ship, and each
+takes its calendar grid or time list as an APP-PROVIDED SLOT
+(`DatePicker.calendarSlot`, `TimePicker.timesSlot`), gated on its own presence
+(`const showCalendar = open && !!calendarSlot`). **The DS ships neither**, and
+there is no calendar component among its 49. Using them would mean the MVP
+inventing a calendar grid with no frame to draw it from. `Field` forwards `type`
+straight to its `<input>` (`Field.tsx:107`), so this keeps the DS's box, label,
+focus ring and invalid treatment and gets the platform's own picker on a device.
+**No new gap number was opened** — the register already records "the DS ships no
+calendar and none is built" as a generalised decision, and G6 holds
+`DatePicker`'s remaining prop gap.
+
+**`Field` EXPOSES NO `inputMode` PROP.** `type="number"` is what gives a numeric
+keypad. Measured at 375: all four inputs render 285 wide at x=45, 24-26 tall,
+inside the DS box with no visible spinner at rest. Nothing was patched.
+
+**A MEASURED OBSERVATION WORTH KNOWING: the native inputs' DISPLAY format does
+not follow the pinned locale.** `playwright.config.ts` pins `locale: 'en-GB'`,
+and the page agrees — `navigator.language`, `navigator.languages` and
+`Intl.DateTimeFormat().resolvedOptions().locale` all read `en-GB`. Chromium
+still renders the date control as **`09/04/2025`** (MM/DD) and the time as
+**`01:45 PM`**, because a native date/time input's display format follows the
+BROWSER UI LANGUAGE, not the page locale. The stored VALUE is ISO either way
+(`2025-09-04`, `13:45`), so nothing is functionally wrong — but a real device
+will very likely render DD/MM where the baseline records MM/DD.
+
+**SO THE FOUR COMMITTED `finance-receipts-view-editor-*` BASELINES RECORD A DATE
+AND TIME FORMAT A REAL DEVICE MAY NOT SHOW**, and that is stated rather than
+left to be discovered: they are a reference render under the harness's browser,
+not a claim about what a user in Kuala Lumpur sees — the same distinction Gate 17
+drew about `--disable-partial-raster`. Do not "fix" a device screenshot that
+disagrees with them. That is a property of the platform control, and it is the
+price of not inventing one.
+
+**SAVE IS DISABLED UNTIL VALID *AND* CHANGED**, and "changed" is derived from
+`draftFrom` rather than from restated literals — the same shape as
+`isFacetDefault` comparing against `clearFacet`. The keys are read off the value
+with `Object.keys`, because a listed field someone forgets to add is not a type
+error: it is a field that reports itself unchanged forever.
+
+**THE TOTAL IS VALIDATED AS TEXT, NOT VIA `Number(...)`.** `Number` accepts
+`1e3`, ` 12 ` and `0x10`, and a receipt total is none of those; the pattern also
+enforces the two-decimal rule, which a numeric check could not.
+
+**`capturedAt` IS COMPOSED DIRECTLY — `${date}T${time}:00` — AND NEVER
+ROUND-TRIPPED.** That is Gate 51's item T convention, and the mutation proof
+below shows exactly what a `toISOString` round trip costs: `20:34` becomes
+`12:34`, the UTC+8 shift. `toISOString` still appears **zero** times in `src/`
+OUTSIDE COMMENTS — measured: 4 occurrences, all four in prose warning against it
+(`AccountsProvider.tsx:262`, `ReceiptEditor.tsx:113`, `receiptCapture.ts:35` and
+`:44`), and none in code. That is the precise form of Gate 51's claim; the bare
+"zero occurrences" version is wrong and a grep will say so.
+
+**LINE ITEMS AND TAX ARE NOT EDITABLE** and are not surfaced here. Correcting a
+line item is transcription work rather than correction of a misread, there is no
+drawn surface for it, and `receiptSubtotal` derives from the lines — so an
+edited line would silently move a figure the detail sheet prints beside a total
+the paper does print.
+
+### The two new mutators
+
+`AccountsProvider` goes to **six mutators, five with callers**. `addTransaction`
+still has **zero** and is still the Gate 48 seam — do not sweep it.
+
+**`linkReceipt(receiptId, transactionId)`** sets the link and, if another
+receipt already points at that transaction, sets THAT receipt's `transactionId`
+to `null` **in the same `map` and the same `setReceipts`**. One pass, not two
+writes: between two writes the library would hold a frame in which the
+transaction has no receipt at all, and `transactionHasReceipt` would answer
+differently to anything that rendered in between. The branch order matters for
+one case — a receipt already linked to that very transaction matches both tests,
+and the first branch wins, so re-linking is a no-op rather than an unlink.
+
+**`updateReceipt(receiptId, changes)`** spreads a `ReceiptEdit` of exactly
+`{ merchant, capturedAt, total }` over the record, so `id`, `filename`,
+`sourceUrl`, `tax`, `lineItems`, `currency` and `transactionId` are provably
+untouched — they are not in the type.
+
+**NEITHER CALLS `setTransactions`, AND THAT ABSENCE IS THE CONTRACT.** Grepped:
+`setTransactions` has exactly **one** call site in the whole app,
+`addTransaction`, which nothing calls. **So no user action in this app can
+currently change a transaction** — P6 made structural rather than promised. Two
+mutation proofs below attack exactly that.
+
+### Item S — the image settle guard
+
+**THE VISUAL SPEC ITSELF WAITS FOR NOTHING; `harness.ts` DOES, AT THREE POINTS**
+— the end of `gotoRoute`, the end of `activateTab`, and `openOverlay`'s opening
+settle and confirm branch. All three ran
+`Array.from(document.images).every((img) => img.complete)` inline. Extracted
+into `settleImages()` and given the two things the copies lacked:
+
+1. **IT NEVER RAN AFTER THE `prepare` STEPS.** The opening settle is BEFORE the
+   prepare loop, and the second call is on the CONFIRM branch only. So a prepare
+   step that MOUNTS an image was unwaited — and one does: `add-grid`'s
+   `chooseFiles` stages a thumbnail on a fresh `blob:` url. Gate 51's first
+   close attempt failed `add-grid` at 430-dark by 16,967 pixels with the
+   artifacts discarded; a dead dev server is confirmed present in that window
+   and explains it, but an undecoded thumbnail predicts the identical symptom
+   and had never been excluded. **It is excluded now by closing the hole rather
+   than by arguing about it.**
+2. **`complete` IS TRUE FOR AN IMAGE THAT FAILED.** It means "the load attempt
+   finished", not "there is a picture". A 404, a dead dev server or a revoked
+   blob url all satisfy it and the capture records an empty box — which is what
+   `view` 430-dark's 126,594-pixel failure in that same window looks like.
+   `naturalWidth > 0` is now ASSERTED, not waited on, so a failure names the
+   image instead of timing out 180 seconds later.
+
+**MUTATION-PROVED BY BREAKING AN IMAGE, NOT BY BREAKING THE GUARD.** Pointing
+`receiptImageUrl` at a `-missing.jpg` path turned `[overlay:view] [light]` red
+with this guard's own message, naming all ten broken files. `src/config/media.ts`
+restored byte-identical (`cd070fd9…e0a16`). Note `routes.spec.ts` would also
+have caught a 404 via its response check — but a dead server or a revoked blob
+produces no 4xx response at all, which is the case this guard is actually for.
+
+**ONE HAZARD, STATED.** A deliberately-broken image fails this. The app has
+exactly one — a captured PDF's card thumbnail (reported at Gate 51, not fixed) —
+and **no walk state stages a PDF**. If one ever does, this assertion is what
+will say so, which is the correct outcome rather than a reason to weaken it.
+
+### Item M — the six Gate 51 corrections
+
+| | what Gate 51 deferred | status |
+|---|---|---|
+| **1** | two mutation-proof hashes belonged to files the stable-callback fix later touched | **re-run against the final tree** — see the proof table below; all four Gate 51 proofs plus six new ones now carry current hashes |
+| **2** | Gate 51's first close attempt was never written down | **recorded below, as UNRESOLVED** |
+| **3** | G14's status for the viewer was asked for and not given | **stated below** |
+| **4** | §3 called Delete "primary blue", §6 called it `tertiary` | **reconciled: both are true** |
+| **5** | two ruling-10 violations were self-reported and not recorded | **recorded below** |
+| **6** | sentences this gate makes false | corrected in place, listed below |
+
+**M2 — GATE 51'S FIRST CLOSE ATTEMPT, RECORDED AS UNRESOLVED.** It reported two
+pixel failures — `add-grid` at **430-dark, 16,967 pixels** and `view` at
+**430-dark, 126,594 pixels** — plus two `ERR_CONNECTION_REFUSED`, against a dead
+dev server. **The artifacts were not kept, so it could not be diagnosed**, and
+that is the lesson rather than the failure: a probe that discards its artifact
+cannot characterise what it caught (the Gate A outlier, again). The dead server
+explains both; an image-decode race predicted the identical symptom for
+`add-grid` and had not been excluded. **Item S excludes it.** Neither failure
+has recurred; stated as unresolved rather than closed.
+
+**M3 — G14 IS INHERITED BY THE VIEWER, UNCHANGED, AND STAYS DEFERRED.** The DS
+`Blanket` does not lock background scroll, so the page behind the viewer scrolls
+exactly as it does behind the detail and filter sheets. Confirmed from behaviour
+rather than asserted: the harness now checks `window.scrollY === 0` after every
+prepare step, and the viewer's own states pass it only because nothing scrolls
+the document — not because anything locks it. **DS-side; not fixable here.**
+
+**M4 — THE DELETE BUTTON'S VARIANT: BOTH SENTENCES ARE TRUE.** It ships as
+`variant="tertiary"` **and** renders primary blue, measured `rgb(3, 88, 204)` at
+both viewports. Figma draws it borderless (which IS `tertiary`) in
+`text/error/default`; `ButtonVariant` has no error appearance, so `--btn-text`
+resolves to `--mapped-text-primary-default`. **One finding stated two ways, not
+two conflicting claims** — and the gap register's **G29** already carries exactly
+that measurement, so nothing needed correcting in it.
+
+**M5 — TWO RULING-10 VIOLATIONS AT GATE 51, RECORDED.** A `git status` during
+Phase 0.5 and a `git show` during the pre-mint run, both while a suite run was in
+flight. Both read-only, both self-reported, neither affecting the tree. Recorded
+because a violation nobody wrote down is one nobody can count.
+
+### Walk states and tests — the arithmetic, derived
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "^    overlay: {"
+```
+
+returns **17**. So |WALK| = 14 routes + 7 non-default tab states + 17 overlay
+states = **38**, and:
+
+| spec | formula | before | after |
+|---|---|---|---|
+| `visual` | \|WALK\| x 2 viewports x 2 themes | 140 | **152** |
+| `routes` | \|WALK\| x 2 + 1 | 71 | **77** |
+| `section-headers` | \|WALK\| x 2 + 2 | 72 | **78** |
+| `link-editor` | new, no walk axis | — | **22** |
+| the other eight | unchanged | 36 | 36 |
+| | | **319** | **365** |
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE SIXTH TIME**: 3 added states x
+(4 baselines + 8 tests) = 12 baselines and 24 tests, and 319 + 24 + 22 = **365**.
+
+**THE THREE STATES, AND WHY EACH EARNS ONE.** `view-picker` and `view-editor`
+are new rendered surfaces with no other coverage — the editor is the suite's only
+render of a native `date`, `time` or `number` input, which no computed-style
+assertion can see. `view-replace` is a new rendered surface AND the only state
+that photographs the pick path at all. **The mismatch line got NO state**: it is
+one line of text whose only interesting property is a CONDITION, and a
+screenshot cannot express "absent when they agree" — `link-editor.spec.ts`
+asserts both sides instead.
+
+**`view-picker` AND `view-replace` USE THE GATE 50-A FIELDS IN A THIRD SHAPE.**
+`opens` names the file name and `dialogs` names the VIEW's title, because the
+Modal's accessible name follows its `title` and the title is the view's. One
+stack that RENAMES, rather than a second stack that appears.
+
+### Baselines — predicted before the run, and the prediction held
+
+Written to a scratch file before the first suite run: **12 modified** (the three
+existing `view*` states) and **12 added** (the three new ones), **0 deleted**,
+with the mismatch line argued NOT to render on `view` because Gate 48
+reconciled that receipt's total to its transaction's amount.
+
+**THE PRE-MINT RUN REPORTED 28 failed / 337 passed.** Twenty-four of those are
+the predicted visual tests — exactly the 6 states x 4, with nothing failing
+outside them. **The other four were not predicted and are not baselines**:
+Gate 51's `view-unlinked` prepare step asserts the footer reads exactly
+`Delete receipt`, and this gate gave that state a second button. **The harness
+catching it is the assertion working** — it reads the footer's WHOLE text
+precisely so a change cannot slip through, and it was UPDATED to
+`Link to transactionDelete receipt` rather than loosened to `toContainText`.
+
+Reconciled against a SHA-256 manifest taken outside the repo before the first
+change:
+
+| | |
+|---|---|
+| start | **140** |
+| added | **12** |
+| modified | **12** |
+| deleted | **0** |
+| byte-identical | **116** |
+| end | **152** |
+
+**THE ADDED AND MODIFIED SETS DO NOT OVERLAP**, so 12 + 12 = 24 reconciles
+directly with the visual failure count — the Gate 50 case, not the Gate 44 one.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT BEFORE MINTING.**
+140 files byte-identical to the start manifest, zero "writing actual" lines,
+`updateSnapshots: 'none'` honoured.
+
+**ARM 1 OF THE BASELINE GUARD IS RED AT THIS GATE'S CLOSE AND THAT IS CORRECT.**
+12 untracked baselines. Arm 2 stays green because nothing was renamed or deleted
+(the Gate alpha correction), and arm 3 because every file on disk is a name the
+walk asks for. Staging is Teku's.
+
+### The mutation proofs — all six, against the FINAL tree
+
+Each: mutate, confirm exit 1, restore, confirm the file's sha256, confirm exit 0.
+**Run after every source change was final**, which is Item M's first lesson.
+
+| # | mutation | failed at | file sha256, before = after |
+|---|---|---|---|
+| **1** | `linkReceipt` also zeroes the linked row's amount | `Expected "-RM 250.75" / Received "+RM 0.00"` | `AccountsProvider.tsx` `7e996686…829e1a` |
+| **2** | `updateReceipt` also writes the ledger | the mismatch line vanished — the two figures agreed | `AccountsProvider.tsx` `7e996686…829e1a` |
+| **3** | the confirmation's Cancel calls `onConfirm` | the open-dialog list | `ReceiptViewer.tsx` `fd0b7430…c090f` |
+| **4** | the mismatch line renders unconditionally | `Expected: 0 / Received: 1` | `ReceiptViewer.tsx` `fd0b7430…c090f` |
+| **5** | `capturedAt` via `new Date(...).toISOString()` | `Date 03 Sept, 20:34` -> `12:34` | `ReceiptEditor.tsx` `66f79a34…f91c6` |
+| **6** | a receipt image that 404s (proves item S's guard fires) | the guard's own message, naming ten files | `media.ts` `cd070fd9…e0a16` |
+
+**MUTATION 2 FAILED EARLIER IN ITS TEST THAN INTENDED**, at the mismatch
+assertion rather than at the ledger read — because writing the ledger made the
+two figures agree and the line disappeared. The test still fails, which is what a
+proof requires, and it happens to be a second proof that the mismatch condition
+is load-bearing. Stated rather than presented as a clean ledger proof.
+
+### What this gate changed
+
+`src/accounts/AccountsProvider.tsx` (`linkReceipt`, `updateReceipt`,
+`ReceiptEdit`); `src/data/autoMatch.ts` (`rankedSuggestions`,
+`RankedSuggestion`); `src/data/derive.ts` (`monthLabel` extracted,
+`groupTransactionsByMonth`, `TransactionMonthGroup`);
+`src/flows/finance/components/ReceiptViewer.tsx` (three views, the details
+block, the mismatch line, one shared `ConfirmModal`, the G33 workaround class);
+`src/flows/finance/components/TransactionPicker.tsx` (new);
+`src/flows/finance/components/ReceiptEditor.tsx` (new);
+`src/flows/finance/finance.css` (+2 G33 rules, +17 layout rules);
+`e2e/harness.ts` (three overlay states, `settleImages` and its fourth call site,
+the corrected `view-unlinked` settle, the |WALK| comment);
+`e2e/link-editor.spec.ts` (new, 22 tests); the gap register (G31-G33, the
+not-opened calendar note, the tally); `CLAUDE.md`; and 24 baselines.
+
+**NO DS EDIT, NO PIN CHANGE, NO `src/` FILE DELETED.** `index.html`,
+`netlify.toml`, `package.json` and every asset are untouched.
+
+### Deliberately not in scope
+
+Fixing G31, G32 or G33 — all DS-side, all registered, and the G33 workaround is
+scoped to one consumer so the DS fix removes it cleanly; relinking as a distinct
+action (a swap covers it); persistence; a receipt filter model — the two chips
+stay decorative; any change to auto-match's rule, OCR, the extraction seam or
+`installExtractionStub`; the Receipts-tab card's PDF thumbnail, still
+report-only; grouping the ledger by month; G6, G13, G14, G17's prop half,
+G19-G23, G28, G29 and G30 — all still registered, still deferred, and **no
+MVP-local override was added for any**; the DS repo and the pin; branch
+deletion; `npm audit fix`; and the three AA shortfalls on the net-worth card
+ruled on at Gate 31.
 
 ## Known conditions of this setup
 

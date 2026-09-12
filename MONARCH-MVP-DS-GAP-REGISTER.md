@@ -1506,3 +1506,226 @@ Figma 64, footer 156 against 152 (two `size="l"` buttons with 24px glyphs render
 **THE HIGHEST NUMBER IS G30.** 24 is still a permanent hole.
 
 **Nothing was fixed DS-side. Nothing was staged, committed, pushed or tagged.**
+
+---
+
+## 2k. Status at MVP Gate 51-B (2026-09-12) — the picker, the editor, the completed viewer
+
+Three entries opened, **none fixed**, and one number deliberately NOT opened.
+No DS re-pin — **v2.3.0 throughout**, `lint:linkage` PASS with all four sources
+agreeing.
+
+**THE NEXT FREE NUMBER WAS DERIVED, NOT CARRIED.** The highest entry in this
+file before this gate was **G30** (grep over every `G<n>` occurrence, max 30),
+so the next is G31. **24 remains a permanent hole** — reserved at Gate 46 for
+the applied-chip row, measured, found not to be a gap, and RELEASED; the
+sentence explaining its absence is itself the evidence that the row was checked,
+so re-using the number would delete that evidence.
+
+### G31 is OPENED — `Sheet` and `Modal` restore focus on CALLBACK IDENTITY
+
+| | |
+|---|---|
+| **G31** | an overlay's focus-restore effect keyed to CLOSING, not to `onClose` changing |
+| tag | **`prop-gap`** |
+| flow | 8, 9 |
+
+**READ FROM SOURCE AT THE PINNED v2.3.0, BOTH COMPONENTS.** `Modal.tsx:98` and
+`Sheet.tsx:203` both declare the open effect's dependencies as
+`[isOpen, onClose]`, and both CLEANUPS end with
+`previouslyFocused.current?.focus?.()` (`Modal.tsx:96`, `Sheet.tsx:201`). So the
+effect tears down and re-runs whenever `onClose` changes IDENTITY — which, for
+any consumer passing an inline arrow, is **every render while the overlay is
+open** — and each teardown moves focus to the element that opened the overlay.
+
+**MEASURED AT GATE 51, ON `Modal`, NOT INFERRED: the page behind the overlay
+scrolled 770px after pressing Unlink and 808px after opening the delete
+confirmation**, both themes, because `focus()` scrolls its target into view and
+that target is a card far down the Receipts tab. Both numbers were minted into
+committed baselines under a **green 319-passed run** and were caught only by a
+human opening the PNGs.
+
+**THE `Sheet` HALF IS UNEXERCISED BUT NOT HYPOTHETICAL.** The Gate 49 detail
+sheet and the Gate 43 filter sheet both pass inline `onClose` arrows, so both
+carry the same latent behaviour; it has not surfaced only because a sheet's
+opener is usually already in view. Read from source, not measured.
+
+**THE MVP MITIGATES IT WITH `useCallback` AT EVERY LEVEL THE CALLBACK CROSSES**
+— `ReceiptViewerHost`'s `close`, `cancelDelete`, `cancelReplace` and `back`, and
+each screen's `closeViewer`. Stabilising only the innermost one is not enough,
+because it depends on the screen's. The harness now asserts
+`window.scrollY === 0` after every prepare step, which is the tripwire.
+
+**THE QUESTION FOR THE DS:** should the focus-restore fire on `onClose` changing
+at all? Restoring focus is a CLOSE behaviour; keying it to a callback's identity
+makes correct consumer code depend on memoisation the API does not document.
+
+### G32 is OPENED — `Modal` has no leading-edge header slot
+
+| | |
+|---|---|
+| **G32** | a header slot at the LEADING edge, for a back control |
+| tag | **`prop-gap`** |
+| flow | 9 |
+
+`Modal.tsx` renders a three-track header grid (`Modal.css:29`,
+`grid-template-columns: 1fr auto 1fr`). The leading track holds
+`<span className="mn-modal__header-side" aria-hidden="true" />` with **no
+children and no slot** (`Modal.tsx:113`); the trailing track holds the ✕. The
+only app-provided header node is `headerIconLeft`, and it renders INSIDE the
+centred `mn-modal__title-group` (`Modal.tsx:115`) — `Modal.css:40` records that
+placement as deliberate, so the icon and title centre as one unit.
+
+**SO A MULTI-VIEW MODAL CANNOT PUT A BACK CONTROL WHERE A BACK CONTROL GOES.**
+Measured at 375 in the shipped viewer: the leading `header-side` span sits at
+**x=32** and is 0 tall; the back `IconButton` renders at **x=93.25** on the
+picker view and **x=122.91** on the editor, immediately left of the centred
+title. It moves with the title's width, which is the other half of the problem —
+the control's position depends on how long the heading is.
+
+**SHIPPED VISIBLY SHORT, AND DELIBERATELY NOT MOVED.** An MVP rule repositioning
+`.mn-modal__title-group`'s child would be writing over DS geometry that the DS's
+own comment says is intentional.
+
+### G33 is OPENED — `Modal` bounds its card to nothing
+
+| | |
+|---|---|
+| **G33** | a viewport cap on the card and a scrolling content region |
+| tag | **`prop-gap`** |
+| flow | 9 |
+
+**THIS IS THE ONE THAT BLOCKED A GATE.** `.mn-modal` is
+`position: fixed; inset: 0` with `padding: var(--brand-scale-400)` and
+`align-items: center` (`Modal.css:1-9`); `.mn-modal__card` declares `max-width`
+but **no `max-height`** (`:14-25`), and `.mn-modal__content` declares neither
+`overflow` nor `min-height` (`:64-72`). A card taller than the padded box
+therefore centres and hangs off BOTH ends.
+
+**`Sheet` HAS HAD BOTH SINCE IT SHIPPED**, and its own CSS records them as an
+**instructed addition Figma does not draw**: `max-height: calc(100dvh -
+var(--brand-scale-1100))` on `.mn-sheet__panel` (`Sheet.css:39`), and
+`flex: 0 1 auto; min-height: 0` plus a scrolling `overflow` on
+`.mn-sheet__content` (`:112-120`), described there as "the sole scrolling
+region". `Modal` never received the equivalent.
+
+**IT IS PRE-EXISTING AND GATE 51-B MADE IT ACUTE — measured both ways.** At 430
+the **Gate 51** linked viewer already rendered **787.33 tall in a 780 padded
+box**, i.e. 3.66px off each end, before one line of Gate 51-B's content existed.
+Adding the undrawn Receipt details block took it to **872.66 at 375**, putting
+the card top at **y = -30.33** and the "Delete receipt" button **30px below the
+viewport**. A screen whose primary action is off screen is not shippable, so
+this could not be registered and left.
+
+**THE MVP WORKS AROUND IT THROUGH THE DS'S OWN `className` SEAM**, and this is
+the only place in the app that reaches inside a DS component's internals:
+
+```css
+.mvp-receipt-viewer-modal .mn-modal__card    { max-height: 100%; }
+.mvp-receipt-viewer-modal .mn-modal__content { min-height: 0; overflow-y: auto; }
+```
+
+`className` lands on `.mn-modal` (`Modal.tsx:100`), and `Modal.css:21` names
+`className` as the supported way a caller controls the card's size ("Figma frame
+width; caller-controllable via className/style"). So this is a SCOPED,
+higher-specificity rule through a documented escape hatch, supplying a value the
+DS leaves UNSET — not the equal-specificity override on declared DS geometry
+that Gate 13 removed on measurement. **It is still a workaround.** Measured
+after: the card is exactly `[16, 16, 343, 780]` at 375 with the footer fully on
+screen.
+
+**THE QUESTION FOR THE DS:** `Modal` should mirror `Sheet` — a viewport cap on
+the card and one scrolling content region, with the same bottom affordance
+`Sheet.css` argues for so content never ends flush at the clip boundary.
+
+#### ⚠ THE REMOVAL CONDITION — for the DS round AND the re-pin that follows it
+
+**THE MVP WORKAROUND IS DELETED AT THE FIRST MVP RE-PIN AFTER A DS RELEASE
+CLOSES G33.** It is a workaround with a removal condition, not a convention, and
+both halves of the work need to find it without reading any CSS — so the exact
+text and its three locations are written out here.
+
+**THE DS SIDE — what closing G33 means:** `Modal.css` gains a viewport cap on
+`.mn-modal__card` and a scrolling region on `.mn-modal__content`, mirroring
+`Sheet.css`'s `.mn-sheet__panel` `max-height` and `.mn-sheet__content`
+`min-height: 0` + `overflow`. No MVP change is needed for the DS round itself.
+
+**THE MVP SIDE — exactly three deletions, at the re-pin:**
+
+| # | file | what goes |
+|---|---|---|
+| 1 | `src/flows/finance/finance.css` | both rules below, **and** the comment block above them |
+| 2 | `src/flows/finance/finance.css` | nothing else — no other selector carries the class |
+| 3 | `src/flows/finance/components/ReceiptViewer.tsx` | the `className="mvp-receipt-viewer-modal"` prop on the viewer's `Modal`, and its comment block |
+
+The two rules, verbatim, so a grep for either selector finds this entry:
+
+```css
+.mvp-receipt-viewer-modal .mn-modal__card {
+  max-height: 100%;
+}
+
+.mvp-receipt-viewer-modal .mn-modal__content {
+  min-height: 0;
+  overflow-y: auto;
+}
+```
+
+`.mvp-receipt-viewer-modal` appears in exactly **two** files — that stylesheet
+and that component — so `grep -rn "mvp-receipt-viewer-modal" src/` is the whole
+removal checklist.
+
+**WHY IT MUST NOT BE LEFT IN PLACE ONCE THE DS FIXES THIS.** After the DS
+release these rules would be MVP CSS sitting on top of DS geometry that now
+agrees with them — invisible while the values match, and a silent mask over any
+later DS change to the cap or the scroll region. That is precisely the shape
+Gate 13 removed on measurement, and it is worse than the original defect because
+nothing would report it.
+
+**HOW TO VERIFY THE REMOVAL.** Delete all three, then re-run the suite: the
+twelve `finance-receipts-view*` baselines are the ones that would move if the
+DS's cap differs from `max-height: 100%` in any way. A clean run means the DS
+fix and this workaround produce the same geometry; a diff on those twelve is the
+DS's cap being measurably different, which is a finding to report rather than a
+re-mint.
+
+### NOT OPENED — the absent calendar and time grids
+
+`DatePicker.calendarSlot` and `TimePicker.timesSlot` are app-provided
+(`DatePicker.tsx:21`, `TimePicker.tsx:17`), each gated on its own presence
+(`const showCalendar = open && !!calendarSlot`), and **the DS ships neither** —
+there is no calendar or date-grid component among its 49 (`ls
+src/components/`). The receipt editor therefore composes native `type="date"` and
+`type="time"` inputs inside DS `Field`s, which `Field` supports directly
+(`Field.tsx:107` forwards `type` to its `<input>`).
+
+**NO NEW NUMBER WAS OPENED, because this register already carries it.** §2's
+Gate 46 sweep records the generalised ruling in as many words — *"`Date range
+picker` is not a calendar … Flow 7's 'the DS ships no calendar and none is built'
+decision generalises"* — and **G6** already holds `DatePicker`'s one remaining
+prop gap. Opening a fourth entry would restate a decision this file has made.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**32 entries, 10 closed, 22 open.** Stated as the Gate 51 tally plus these three,
+and **not** re-derived by enumerating entry and closure shapes from scratch — so
+by this register's own rule it is weaker evidence than the Gate 50 count. All
+three new entries use the Gate 50 key/value ENTRY shape, so a census that knows
+that shape finds them.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 | 6 | **0** |
+| `prop-gap` | 21 | 2 | **19** — + G31, G32, G33 |
+| `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **32** | **10** | **22** |
+
+**G28 AND G29 APPLY TO THE COMPLETED VIEWER UNCHANGED** and neither was
+re-opened. G29's measurement is also the reconciliation Gate 51's report owed:
+the Delete button IS `variant="tertiary"` **and** renders primary blue
+`rgb(3, 88, 204)` — one finding stated two ways, not two conflicting claims.
+
+**THE HIGHEST NUMBER IS G33.** 24 is still a permanent hole.
+
+**Nothing was fixed DS-side. Nothing was staged, committed, pushed or tagged.**

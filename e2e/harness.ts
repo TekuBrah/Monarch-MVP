@@ -1071,8 +1071,11 @@ export const OVERLAY_STATES: WalkState[] = [
   },
   // ── 6 · THE RECEIPT VIEWER, UNLINKED ──────────────────────────────────────
   //
-  // NOT DRAWN — built by Gate 51 ruling 4: the image and Delete receipt only.
-  // ITS OWN STATE BECAUSE IT IS ITS OWN LAYOUT: no pill, no row, a one-button
+  // NOT DRAWN — built by Gate 51 ruling 4, and COMPLETED at Gate 51-B. That
+  // gate shipped the image and Delete receipt only and deferred the rest; the
+  // state now also draws the Receipt details block with its Edit link and a
+  // primary "Link to transaction" above Delete.
+  // ITS OWN STATE BECAUSE IT IS ITS OWN LAYOUT: no pill, no row, a different
   // footer, a shorter card. No seeded receipt ships unlinked, so the state is
   // reached the way a user reaches it — Unlink, pressed inside the viewer, which
   // flips in place rather than closing. The same record as `view`, so the two
@@ -1091,10 +1094,17 @@ export const OVERLAY_STATES: WalkState[] = [
           controlName: 'Unlink receipt',
           action: 'click',
           // THE FOOTER'S WHOLE TEXT, which is simultaneously the proof that
-          // Unlink is GONE and that Delete receipt REMAINS. One modal is open,
-          // so exactly one footer exists.
+          // Unlink is GONE, that "Link to transaction" has ARRIVED in its place
+          // and that Delete receipt REMAINS beneath it. One modal is open, so
+          // exactly one footer exists.
+          //
+          // IT READ JUST "Delete receipt" UNTIL GATE 51-B, and that gate's
+          // unlinked footer gained its first button — so this assertion went red
+          // on four tests, correctly, and was updated rather than loosened. A
+          // `toContainText` here would have absorbed the change silently, which
+          // is the whole reason it reads the WHOLE text.
           settlesOn: '.mn-modal__footer',
-          settlesText: 'Delete receipt',
+          settlesText: 'Link to transactionDelete receipt',
         },
       ],
     },
@@ -1128,6 +1138,136 @@ export const OVERLAY_STATES: WalkState[] = [
       ],
     },
   },
+  // ── 8 · THE MANUAL LINK PICKER ────────────────────────────────────────────
+  //
+  // GATE 51-B, ITEM L. NOT DRAWN — no Figma frame exists for it, and Teku ruled
+  // (decision 1B) that it is designed from this app's own behaviour.
+  //
+  // A VIEW INSIDE THE VIEWER, NOT A SECOND OVERLAY (principle P1), which is why
+  // `dialogs` names ONE dialog under a DIFFERENT title than `opens` does: the
+  // Modal's accessible name follows its `title`, and the title is the view's.
+  // That asymmetry is the whole point of the Gate 50-A field split arriving in
+  // a third shape — one stack that RENAMES rather than a second stack.
+  //
+  // REACHED THROUGH TWO REAL CLICKS, because the picker is only reachable from
+  // the UNLINKED state and no seeded receipt ships unlinked. The first step's
+  // settle reads the footer's WHOLE text, which simultaneously proves Unlink is
+  // gone, "Link to transaction" has arrived, and Delete is still beneath it.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view-picker',
+      control: '.mvp-receipt-card:has-text("IMG_4806.jpg")',
+      controlLabel: 'IMG_4806.jpg',
+      title: 'IMG_4806.jpg',
+      opens: ['IMG_4806.jpg'],
+      dialogs: ['Link to transaction'],
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn:has-text("Unlink receipt")',
+          controlName: 'Unlink receipt',
+          action: 'click',
+          settlesOn: '.mn-modal__footer',
+          settlesText: 'Link to transactionDelete receipt',
+        },
+        {
+          control: '.mn-modal__footer .mn-btn:has-text("Link to transaction")',
+          controlName: 'Link to transaction',
+          action: 'click',
+          // THE CONTEXT LINE, which proves the picker opened AND which receipt
+          // it is matching against — a heading alone would prove only the first.
+          settlesOn: '.mvp-link-picker__context',
+          settlesText: 'Aeon Big · 04 Sept, 13:45 · RM 429.19',
+        },
+      ],
+    },
+  },
+  // ── 9 · THE RECEIPT EDITOR ────────────────────────────────────────────────
+  //
+  // GATE 51-B, ITEM E. NOT DRAWN. Reached from the LINKED state in ONE click,
+  // deliberately: the Edit link renders in both viewer states, and entering
+  // from the linked one also proves the details block reached the state Figma
+  // DOES draw rather than only the undrawn one.
+  //
+  // IT IS THE SUITE'S ONLY RENDER OF A NATIVE `date`, `time` OR `number` INPUT.
+  // Those are the composition choice most at risk of looking wrong inside a DS
+  // `Field`, and a computed-style assertion cannot see a platform-drawn
+  // calendar glyph or a spinner — only a baseline can.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view-editor',
+      control: '.mvp-receipt-card:has-text("IMG_4806.jpg")',
+      controlLabel: 'IMG_4806.jpg',
+      title: 'IMG_4806.jpg',
+      opens: ['IMG_4806.jpg'],
+      dialogs: ['Edit receipt'],
+      prepare: [
+        {
+          control: '.mvp-receipt-details .mn-link',
+          controlName: 'Edit',
+          action: 'click',
+          settlesOn: '.mvp-receipt-editor__context',
+          settlesText: 'IMG_4806.jpg',
+        },
+      ],
+    },
+  },
+  // ── 10 · THE REPLACE CONFIRMATION, OVER THE PICKER ────────────────────────
+  //
+  // GATE 51-B, ITEM L. NOT DRAWN. A NEW RENDERED SURFACE and a TWO-STACK one,
+  // like `view-delete` — but the stack underneath is a DIFFERENT VIEW of the
+  // same Modal, so `dialogs` reads `['Link to transaction', ...]` rather than
+  // the file name. It is the only state that photographs the pick path at all.
+  //
+  // THE ROW IS CHOSEN BY AMOUNT, NOT BY POSITION. All 23 ledger magnitudes are
+  // distinct (re-derived at this gate: 23 rows, 23 distinct cents), so
+  // `RM 26.29` names exactly one row and goes on naming it if the sort order or
+  // the row count changes. An `nth-child` would silently pick a different row
+  // the day a transaction is added above it.
+  //
+  // IT MUST BE A ROW THAT ALREADY HAS A RECEIPT, which is the whole trigger:
+  // `txn-caring-0913` carries `receipt-caring01`. Picking a FREE row links
+  // immediately with no confirmation, which is the behaviour
+  // `link-picker.spec.ts` asserts instead.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view-replace',
+      control: '.mvp-receipt-card:has-text("IMG_4806.jpg")',
+      controlLabel: 'IMG_4806.jpg',
+      title: 'IMG_4806.jpg',
+      opens: ['IMG_4806.jpg'],
+      dialogs: ['Link to transaction', "Replace this transaction's receipt?"],
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn:has-text("Unlink receipt")',
+          controlName: 'Unlink receipt',
+          action: 'click',
+          settlesOn: '.mn-modal__footer',
+          settlesText: 'Link to transactionDelete receipt',
+        },
+        {
+          control: '.mn-modal__footer .mn-btn:has-text("Link to transaction")',
+          controlName: 'Link to transaction',
+          action: 'click',
+          settlesOn: '.mvp-link-picker__context',
+          settlesText: 'Aeon Big · 04 Sept, 13:45 · RM 429.19',
+        },
+        {
+          control: '.mvp-link-picker .mn-list-item:has-text("RM 26.29")',
+          controlName: 'Caring Pharmacy Card Payment -RM 26.29 13 Sept, 18:50',
+          action: 'click',
+          settlesOn: '.mvp-receipt-delete__body',
+          settlesText:
+            "Caring Pharmacy's current receipt will move to your library, unlinked.",
+        },
+      ],
+    },
+  },
 ]
 
 /**
@@ -1149,7 +1289,7 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 14 OVERLAY_STATES = 35.
+  // each, from ROUTES) + 7 non-default tab states + 17 OVERLAY_STATES = 38.
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the
@@ -1516,6 +1656,62 @@ async function resetPageScroll(page: Page): Promise<void> {
 }
 
 /**
+ * Every `<img>` in the frame has finished loading AND actually decoded to
+ * something — Gate 51-B, item S.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE WAIT WAS ALREADY HERE, THREE TIMES, AND IT HAD TWO HOLES.
+ *
+ * `gotoRoute`, `activateTab` and `openOverlay`'s two exits each ran
+ * `Array.from(document.images).every((img) => img.complete)` inline. Extracted
+ * here so there is one definition rather than four copies, and then given the
+ * two things the copies lacked:
+ *
+ * 1 · IT NEVER RAN AFTER THE `prepare` STEPS. `openOverlay` waited at its
+ *     OPENING settle, which is before the prepare loop, and again only on the
+ *     CONFIRM branch. So a prepare step that MOUNTS AN IMAGE was unwaited —
+ *     and one does: `add-grid`'s `chooseFiles` stages a file whose thumbnail is
+ *     an `<img>` on a fresh `blob:` url. Gate 51's first close attempt failed
+ *     `add-grid` at 430-dark by 16,967 pixels and the artifacts were discarded,
+ *     so it could not be diagnosed; a dead dev server is confirmed present in
+ *     that window and explains it, but an undecoded thumbnail predicts the
+ *     identical symptom and had never been excluded. It is excluded now by
+ *     closing the hole rather than by arguing about it.
+ *
+ * 2 · `complete` IS TRUE FOR AN IMAGE THAT FAILED. It means "the load attempt
+ *     finished", not "there is a picture". A 404, a dead dev server or a blob
+ *     url revoked too early all satisfy it, and the capture then records an
+ *     empty box — which is exactly what `view` 430-dark's 126,594-pixel failure
+ *     in that same window looks like. `naturalWidth > 0` is the question that
+ *     distinguishes them, and it is asserted rather than waited on so the
+ *     failure NAMES the image instead of timing out 180 seconds later.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * IT IS AN ASSERTION AND NOT A LONGER WAIT, deliberately — the Gate 17 rule. A
+ * `waitForTimeout` here would be a tolerance wearing a fix's clothes.
+ *
+ * ONE HAZARD, STATED BECAUSE IT IS REACHABLE. A deliberately-broken image would
+ * fail this. The app has exactly one — a captured PDF's card thumbnail, which
+ * points an `<img>` at PDF bytes (reported at Gate 51, not fixed) — and NO WALK
+ * STATE STAGES A PDF: the harness stages `receipt-capture.jpg` and nothing else.
+ * If one ever does, this assertion is the thing that will say so, which is the
+ * correct outcome rather than a reason to weaken it.
+ */
+async function settleImages(page: Page): Promise<void> {
+  await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
+  const broken = await page.evaluate(() =>
+    Array.from(document.images)
+      .filter((img) => img.naturalWidth === 0)
+      .map((img) => img.currentSrc || img.src || '(no src)'),
+  )
+  expect(
+    broken,
+    'an <img> finished loading but decoded to nothing, so this capture would record an ' +
+      'empty box where a picture belongs. A dead dev server, a 404 or a revoked blob url ' +
+      'all look like this',
+  ).toEqual([])
+}
+
+/**
  * Navigate to a route in a given theme, with time pinned and fonts settled.
  *
  * THEME IS SET THROUGH THE APP'S OWN TOGGLE, not by writing `data-theme` on
@@ -1639,7 +1835,7 @@ export async function activateTab(page: Page, tab: TabState): Promise<void> {
     'exactly one tab must be selected after the click',
   ).toHaveCount(1)
 
-  await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
+  await settleImages(page)
   await page.waitForFunction(() => document.fonts.status === 'loaded')
 
   // Parked AFTER the settle assertions, never before. `aria-selected` is what
@@ -1854,7 +2050,7 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
     ).toHaveCount(1)
   }
 
-  await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
+  await settleImages(page)
   await page.waitForFunction(() => document.fonts.status === 'loaded')
 
   // BOTH EXITS OF THIS FUNCTION PARK, and they are separate calls on purpose:
@@ -1937,6 +2133,20 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
 
     await parkPointer(page)
   }
+
+  /*
+    AND AGAIN AFTER THE PREPARE STEPS — the hole Gate 51-B's item S closed. The
+    settle above runs BEFORE this loop, so a step that mounts an image left it
+    unwaited; `add-grid`'s `chooseFiles` stages exactly such a thumbnail. See
+    `settleImages` for the measurement and for why it now also asserts the image
+    decoded to something rather than merely finishing.
+
+    UNCONDITIONAL, not `if (overlay.prepare)`. A state with no prepare steps
+    settled its images moments ago and nothing since could have changed them, so
+    the call is a no-op there — and an unconditional one cannot be forgotten by
+    a future state that adds its first step.
+  */
+  await settleImages(page)
 
   /*
     THE DOCUMENT MUST STILL BE AT THE TOP AFTER THE PREPARE STEPS — ASSERTED,
@@ -2034,7 +2244,7 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
     `the surface that settled is not the one "${overlay.id}" declares`,
   ).toHaveText(overlay.confirm.settlesText)
 
-  await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete))
+  await settleImages(page)
   await page.waitForFunction(() => document.fonts.status === 'loaded')
 
   await parkPointer(page)

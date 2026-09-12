@@ -266,6 +266,108 @@ export function candidatesFor(
  * its transaction receipt-less, so a re-run would find it a candidate and
  * re-link the very receipt the user just unlinked.
  */
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ONE SUGGESTION FOR THE MANUAL PICKER (Gate 51-B).
+ *
+ * THE PICKER IS THE RECOVERY PATH FOR EVERY AUTO-LINK THE RULE ABOVE DECLINES,
+ * so its ranking is DELIBERATELY LOOSER than the rule. The rule requires all
+ * three criteria and exactly one candidate, because a false link is silent; a
+ * suggestion is a row the user is about to look at, so a wrong one costs a
+ * glance.
+ *
+ * IT REUSES `totalMatches`, `withinWindow` AND `merchantMatches` RATHER THAN
+ * RESTATING THEM. There is ONE definition of "agree" in this app, and a second
+ * one here would drift from the rule it exists to recover from — the shape
+ * `Transaction.hasReceipt` had before Gate 48 deleted it.
+ *
+ * WHAT QUALIFIES: an exact total, OR date and merchant together. A single
+ * criterion other than the total is not enough — "same day" alone would offer
+ * most of the ledger, and a fuzzy merchant alone would offer every IKEA row.
+ * The total is sufficient alone because the seed's 23 magnitudes are distinct
+ * (measured, Gate 50-C) and a sen-exact total is the strongest single evidence
+ * a receipt carries.
+ *
+ * CREDITS ARE NEVER SUGGESTED, because `totalMatches` and the outflow test both
+ * reject them — a receipt records a payment, which is the same reason the rule
+ * above requires `-amount === total`. The picker excludes them from its WHOLE
+ * list, not just from this group; that is the caller's filter, stated here so
+ * the two cannot disagree.
+ *
+ * A TRANSACTION THAT ALREADY HAS A RECEIPT IS STILL SUGGESTED. That is the one
+ * place this deliberately differs from `candidatesFor`, which excludes them:
+ * auto-match must never displace a link silently, but a user choosing a row
+ * explicitly is exactly the deliberate action that ruling reserved. The picker
+ * asks before swapping.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export interface RankedSuggestion {
+  transaction: Transaction
+  /** How many of the three criteria agree. At least 1, at most 3. */
+  score: number
+  totalAgrees: boolean
+  dateAgrees: boolean
+  merchantAgrees: boolean
+  /** Whole calendar days between the two dates, or `null` when either is unread. */
+  dayGap: number | null
+}
+
+/**
+ * Rank the transactions worth offering first for one receipt.
+ *
+ * ORDER: criteria agreed (descending), then an exact total ahead of one
+ * without, then the closest date, then newest. Every tie-break is total before
+ * date before recency, so the ordering is a function of the data alone and
+ * cannot depend on the input array's order.
+ *
+ * AN EMPTY RESULT MEANS THE GROUP IS OMITTED ENTIRELY — the caller draws no
+ * heading and no "no suggestions" copy. A heading over nothing is a statement
+ * the app cannot support.
+ */
+export function rankedSuggestions(
+  fields: MatchFields,
+  transactions: Transaction[],
+): RankedSuggestion[] {
+  const { merchant, capturedAt, total } = fields
+  const receiptDay = capturedAt === null ? null : wallClockDay(capturedAt)
+
+  return transactions
+    .filter((t) => t.amount < 0)
+    .map((transaction) => {
+      const totalAgrees = total !== null && totalMatches(total, transaction)
+      const dateAgrees = capturedAt !== null && withinWindow(capturedAt, transaction)
+      const merchantAgrees =
+        merchant !== null &&
+        merchant.trim().length > 0 &&
+        merchantMatches(merchant, transaction.merchant)
+
+      const rowDay = wallClockDay(transaction.occurredAt)
+      const dayGap =
+        receiptDay === null || rowDay === null ? null : Math.abs(rowDay - receiptDay)
+
+      return {
+        transaction,
+        score: Number(totalAgrees) + Number(dateAgrees) + Number(merchantAgrees),
+        totalAgrees,
+        dateAgrees,
+        merchantAgrees,
+        dayGap,
+      }
+    })
+    .filter((s) => s.totalAgrees || (s.dateAgrees && s.merchantAgrees))
+    .sort((a, b) => {
+      if (a.score !== b.score) return b.score - a.score
+      if (a.totalAgrees !== b.totalAgrees) return a.totalAgrees ? -1 : 1
+      // AN UNREAD DATE SORTS LAST RATHER THAN FIRST. `null` means "no evidence",
+      // and treating it as gap 0 would rank a row with no date agreement above
+      // one measured to be a day away.
+      const ga = a.dayGap ?? Number.POSITIVE_INFINITY
+      const gb = b.dayGap ?? Number.POSITIVE_INFINITY
+      if (ga !== gb) return ga - gb
+      return b.transaction.occurredAt.localeCompare(a.transaction.occurredAt)
+    })
+}
+
 export function autoMatchBatch(
   batch: MatchFields[],
   transactions: Transaction[],

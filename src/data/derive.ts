@@ -875,12 +875,72 @@ export function groupReceiptsByMonth(receipts: Receipt[]): ReceiptMonthGroup[] {
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([key, items]) => ({
       key,
-      label: new Date(`${key}-01T00:00:00`).toLocaleDateString('en-GB', {
-        month: 'long',
-        year: 'numeric',
-      }),
+      label: monthLabel(key),
       receipts: items,
     }))
+}
+
+/**
+ * `2025-09` → `September 2025` — a month heading, for the two surfaces that
+ * draw one.
+ *
+ * EXTRACTED AT GATE 51-B, WHEN THE SECOND CONSUMER ARRIVED, and not before —
+ * `groupReceiptsByMonth`'s own note says to move it then. It is provably the
+ * same expression that function carried, moved rather than rewritten, so the
+ * Receipts tab's headings cannot have changed.
+ *
+ * `en-GB` AND AN EXPLICIT LOCALE, NOT THE HOST DEFAULT. The harness pins the
+ * browser locale, but the app also runs in a real browser where the default is
+ * the visitor's; a month name that changed language per visitor would be a
+ * baseline that only agrees by luck.
+ */
+function monthLabel(key: string): string {
+  return new Date(`${key}-01T00:00:00`).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/** One month's worth of transactions, with the heading that month prints. */
+export interface TransactionMonthGroup {
+  /** `2025-09` — stable, sortable, and never rendered. */
+  key: string
+  /** `September 2025` — what the section heading prints. */
+  label: string
+  transactions: Transaction[]
+}
+
+/**
+ * Group transactions into months, newest month first, newest row first inside —
+ * the manual link picker's "Everything else" list (Gate 51-B).
+ *
+ * DERIVED FROM `occurredAt`, never stored, for the same reason
+ * `groupReceiptsByMonth` derives from `capturedAt`: a month is a property of how
+ * one screen slices the rows, not of a row.
+ *
+ * THE LEDGER ITSELF DOES **NOT** GROUP BY MONTH — it renders one flat
+ * date-descending list (`TransactionsLedger.tsx`). This grouping exists because
+ * the picker shows the WHOLE ledger at once with no filter chips to narrow it,
+ * where the ledger shows a filtered slice. Do not "restore consistency" by
+ * grouping the ledger; that would move four committed baselines to make two
+ * screens look alike.
+ */
+export function groupTransactionsByMonth(
+  transactions: Transaction[],
+): TransactionMonthGroup[] {
+  const groups = new Map<string, Transaction[]>()
+  const newestFirst = [...transactions].sort((a, b) =>
+    b.occurredAt.localeCompare(a.occurredAt),
+  )
+  for (const transaction of newestFirst) {
+    const key = transaction.occurredAt.slice(0, 7)
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(transaction)
+    else groups.set(key, [transaction])
+  }
+  return [...groups.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, items]) => ({ key, label: monthLabel(key), transactions: items }))
 }
 
 /**
