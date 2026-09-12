@@ -916,10 +916,123 @@ export const OVERLAY_STATES: WalkState[] = [
           // and would be present even if the panel failed to render; the panel
           // is the thing this step exists to bring on screen.
           settlesOn: '.mvp-source-picker__panel',
-          // THREE ROWS, CONCATENATED — which is simultaneously the proof that
-          // the picker opened, that it drew both sources, and that Cancel is
-          // present as the separated third. A picker missing a row fails here.
-          settlesText: 'Photo GalleryCameraCancel',
+          // FOUR ROWS, CONCATENATED — simultaneously the proof that the picker
+          // opened, that it drew all THREE sources, and that Cancel is present as
+          // the separated fourth. A picker missing a row fails here.
+          //
+          // ⚠️ IT READ `Photo GalleryCameraCancel` UNTIL GATE 52, and that gate
+          // correctly turned it red by adding "Receipt library" to the group. It
+          // was UPDATED rather than loosened to a contains-match: the whole value
+          // of asserting the concatenation is that a row appearing or vanishing
+          // cannot slip through, which a `toContainText` would let it do.
+          settlesText: 'Photo GalleryCameraReceipt libraryCancel',
+        },
+      ],
+    },
+  },
+
+  // ── 1a · THE RECEIPT LIBRARY, BOTH OF ITS STATES (Gate 52) ───────────────
+  //
+  // "Receipt library" is the picker’s third row, and choosing it SWAPS THIS
+  // PANEL rather than stacking a second overlay — so `dialogs` is unchanged
+  // from `add-source` at two entries, and the view is reached by one more
+  // prepare step rather than by a second `opens`.
+  //
+  // TWO STATES, BECAUSE THE TWO DIFFER IN DATA AND NOT IN CONTROLS. There is
+  // no affordance that turns the empty list into a populated one; what
+  // separates them is whether any receipt is unlinked, which is the same
+  // argument that made `detail` and `detail-linked` two states rather than one.
+  //
+  // THE EMPTY ONE IS THE DEFAULT, WHICH IS WHY IT EARNS A BASELINE AT ALL.
+  // All ten seeded receipts ship linked, so a user opening this row today sees
+  // the empty copy — it is the ordinary first experience of the feature, not an
+  // edge case.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'add-library',
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+      opens: ['Transaction details'],
+      dialogs: ['Transaction details', 'Add a receipt'],
+      prepare: [
+        {
+          control: '.mvp-txn-detail__prompt .mn-btn',
+          controlName: 'Add Receipt',
+          action: 'click',
+          settlesOn: '.mvp-source-picker__panel',
+          settlesText: 'Photo GalleryCameraReceipt libraryCancel',
+        },
+        {
+          // `:has-text` AND NOT `:text-is` — the same reading Gate 44 recorded
+          // for the date chip. The row’s text is its own here, so both would
+          // match, and `:has-text` is what the other steps in this file use.
+          control: '.mvp-source-picker__row:has-text("Receipt library")',
+          controlName: 'Receipt library',
+          action: 'click',
+          // THE EMPTY PARAGRAPH ITSELF, NOT THE PANEL. Settling on the panel
+          // would also pass while the list was still the three choice rows;
+          // this element exists only in the library view, and only when the
+          // library holds nothing.
+          settlesOn: '.mvp-source-picker__empty',
+          settlesText:
+            'Every receipt in your library is already linked to a transaction.',
+        },
+      ],
+    },
+  },
+
+  // THE POPULATED ONE IS REACHED BY UNLINKING FIRST, and that is the only way
+  // to reach it: no seeded receipt ships unlinked, so the fixture cannot supply
+  // one. The chain is three real clicks on two surfaces the suite already
+  // drives — unlink in the detail sheet, which flips it to its prompt state in
+  // place (Gate 49), then the prompt’s own button, then the new row.
+  //
+  // IT OPENS THE LINKED ROW, so the receipt it frees is `receipt-aeonbig01` —
+  // the same record `detail-linked` and `unlink.spec.ts` already exercise, and
+  // the one whose card prints `IMG_4806.jpg`.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'add-library-filled',
+      control: '.mvp-transactions__list > li:has-text("RM 429.19") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 429.19 04 Sept, 13:45',
+      title: 'Transaction details',
+      opens: ['Transaction details'],
+      dialogs: ['Transaction details', 'Add a receipt'],
+      prepare: [
+        {
+          // SCOPED TO THE RECEIPT BLOCK’S OWN ACTION ROW. `.mn-btn` alone
+          // matches the sheet’s close button and more besides.
+          control:
+            '.mvp-txn-detail__receipt-actions .mn-btn:has-text("Unlink receipt")',
+          controlName: 'Unlink receipt',
+          action: 'click',
+          // THE SHEET FLIPPING TO ITS PROMPT STATE IS THE PROOF THE UNLINK TOOK.
+          // That block renders only when the transaction has no receipt.
+          settlesOn: '.mvp-txn-detail__prompt',
+          settlesText:
+            'Add a receipt to track what you boughtThis helps Monarch find savings on things you buy often.Add Receipt',
+        },
+        {
+          control: '.mvp-txn-detail__prompt .mn-btn',
+          controlName: 'Add Receipt',
+          action: 'click',
+          settlesOn: '.mvp-source-picker__panel',
+          settlesText: 'Photo GalleryCameraReceipt libraryCancel',
+        },
+        {
+          control: '.mvp-source-picker__row:has-text("Receipt library")',
+          controlName: 'Receipt library',
+          action: 'click',
+          // THE LIST, AND ITS ONE CARD’S WHOLE TEXT. This is simultaneously
+          // the proof that the view swapped, that the unlinked receipt reached
+          // it, and that exactly one did — a second card would change the text.
+          settlesOn: '.mvp-source-picker__library',
+          settlesText: 'IMG_4806.jpg04 Sept, 13:45',
         },
       ],
     },
@@ -1289,7 +1402,7 @@ export const WALK: WalkState[] = [
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 17 OVERLAY_STATES = 38.
+  // each, from ROUTES) + 7 non-default tab states + 19 OVERLAY_STATES = 40.
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the

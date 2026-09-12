@@ -210,16 +210,47 @@ export function AddReceiptsModal({
   /*
     SAVE — EXTRACT EVERY STAGED CAPTURE, THEN COMMIT ONCE.
 
-    `Promise.all` rather than a loop with an await inside it: the captures are
-    independent, the surface shows one indeterminate loader for the batch, and a
-    sequential loop would make a five-image save take five times as long for no
-    change to what the user sees.
+    ─────── ONE AT A TIME, AND `Promise.all` WAS THE BUG (Gate 52) ───────────
+
+    THIS RAN `Promise.all(staged.map(extractCapture))` UNTIL THIS GATE, and the
+    note here argued for it on speed: "the captures are independent, the surface
+    shows one indeterminate loader for the batch, and a sequential loop would
+    make a five-image save take five times as long for no change to what the
+    user sees." Every clause of that is true and it was still the wrong shape,
+    because it ignored what one extraction COSTS.
+
+    `recognise.ts` SPAWNS A WORKER PER CALL — its own header says so — and each
+    one loads a ~3.9 MB WASM engine and a 2.95 MB language model. So
+    `Promise.all` over N staged files put N of those in memory AT ONCE.
+    MEASURED in a Playwright-launched Chromium by wrapping `window.Worker`:
+    peak live workers tracked the staged count EXACTLY — 1 file -> 1, 2 -> 2,
+    4 -> 4 — with engine and model requests scaling 6 -> 9 -> 15 alongside.
+
+    THAT CONCURRENCY IS THE ONLY BEHAVIOURAL DIFFERENCE BETWEEN THIS PATH AND
+    THE TWO THAT WORK, and it partitions the three reported cases exactly:
+
+      bulk + camera          1 file by construction      -> 1 worker   works
+      detail sheet + gallery `files[0]`, ever only one   -> 1 worker   works
+      bulk + gallery         N files                     -> N workers  FAILS
+
+    So the loop below is not a performance regression accepted for safety — it
+    makes this path do PRECISELY what the two working paths already do, which is
+    the one change that removes the difference rather than compensating for it.
+    The cost is bounded and already communicated: `CapturingBlock` is told how
+    many captures it is waiting on.
 
     THE COMMIT IS ONE CALL WITH THE WHOLE BATCH, not one per receipt — and as
     of Gate 50-C that is load-bearing rather than tidy. Auto-match decides the
     batch TOGETHER: a transaction two photos in one Save would both claim links
     to neither, which can only be known with every capture in hand. So nothing
     is linked here; the caller receives the raw captures and decides.
+
+    IT CAN NO LONGER STRAND, BECAUSE `extractCapture` CAN NO LONGER REJECT.
+    `Promise.all` is all-or-nothing, so before this gate ONE failed read threw
+    past `setIsSaving(false)`, `onSave` and `onClose` alike — the modal held its
+    loader forever, the Save button was already gone, and the captures that HAD
+    succeeded were discarded with the one that did not. The catch lives in
+    `extractCapture` rather than here because the detail sheet reaches it too.
 
     IT DOES NOT REVOKE ON SUCCESS. The saved receipts carry these very urls as
     their `sourceUrl` — revoking here would blank every thumbnail the moment it
@@ -228,9 +259,10 @@ export function AddReceiptsModal({
   */
   const save = async () => {
     setIsSaving(true)
-    const captures = await Promise.all(
-      staged.map((c) => extractCapture(c.file, c.url)),
-    )
+    const captures: CapturedFile[] = []
+    for (const capture of staged) {
+      captures.push(await extractCapture(capture.file, capture.url))
+    }
     setStaged([])
     setIsSaving(false)
     onSave(captures)
@@ -272,17 +304,32 @@ export function AddReceiptsModal({
         /*
           THE EMPTY PHASE. The two sources as full-width buttons in the CONTENT
           region — they are the choice this surface is asking the user to make,
-          so they are the content, not chrome. Same two labels as the source
-          picker, because they are the same two sources.
+          so they are the content, not chrome.
+
+          IT NO LONGER MIRRORS THE SOURCE PICKER, AND THAT IS DELIBERATE. This
+          block used to read "Same two labels as the source picker, because they
+          are the same two sources". Gate 52 gave the picker a THIRD row,
+          "Receipt library", and it is correctly absent here: that row links an
+          EXISTING receipt to the transaction the picker was opened from, and
+          this surface has no transaction in view to link one to. Offering it
+          here would be offering an action that cannot complete.
+
+          `tertiary` AT `size="l"` SINCE GATE 52, measured 42 tall. They were
+          `secondary` at the default size, which stacked two outlined buttons
+          directly above an outlined `cancel`; the separation below does the rest
+          of that work — see `.mvp-add-receipts__sources` in `finance.css` for
+          the before-and-after measurement.
         */
         <div className="mvp-add-receipts__sources">
           <Button
-            variant="secondary"
+            variant="tertiary"
+            size="l"
             label="Photo Gallery"
             onClick={() => pick('gallery')}
           />
           <Button
-            variant="secondary"
+            variant="tertiary"
+            size="l"
             label="Camera"
             onClick={() => pick('camera')}
           />

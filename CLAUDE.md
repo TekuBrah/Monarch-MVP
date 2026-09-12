@@ -7149,6 +7149,441 @@ MVP-local override was added for any**; the DS repo and the pin; branch
 deletion; `npm audit fix`; and the three AA shortfalls on the net-worth card
 ruled on at Gate 31.
 
+## The gallery add failure, the receipt library and the source buttons (Gate 52)
+
+No DS re-pin — **v2.3.0 throughout**. Four items, and the first is a real
+user-facing defect with a mechanism that had never been reproduced. **|WALK| 38
+-> 40, `OVERLAY_STATES` 17 -> 19, baselines 152 -> 160 (8 added, 8 modified, 0
+deleted), tests 365 -> 383, spec files 12 -> 13.** `lint:tokens` scans **60** files —
+UNCHANGED, because no new file entered `src/` — with the same **3** exemptions.
+No new raw value entered the tree.
+
+### ITEM 1 — `Promise.all` WAS THE BUG, AND THE STUB HID IT
+
+**THE REPORT:** on the Receipts tab, "Add new receipt" -> Photo Gallery never
+added the receipt. The same modal's Camera path worked, and the transaction
+detail sheet's own Photo Gallery path worked and extracted correctly.
+
+**IT DOES NOT REPRODUCE UNDER THE WALK'S STUB, AND THAT IS THE FIRST FINDING.**
+Driven through the real click path with `installExtractionStub` replaced by a
+resolving one, gallery-with-one, gallery-with-two and camera-with-one all added
+correctly — 10 -> 11, 10 -> 12, 10 -> 11 cards, zero broken thumbnails. A stub
+that answers instantly cannot overlap, so it cannot show what the real engine
+does.
+
+#### The only behavioural difference partitions the three cases exactly
+
+`recognise.ts` spawns **a worker per call** — its own header says so — and each
+one loads a ~3.9 MB WASM engine and a 2.95 MB language model. `save()` ran
+`Promise.all(staged.map(extractCapture))`, so N staged files meant N of those
+resident AT ONCE.
+
+**MEASURED by wrapping `window.Worker` in a Playwright-launched Chromium**, with
+the real engine (confirmed by its own model/worker requests, not assumed):
+
+| staged files | peak live workers | engine+model requests | wall clock |
+|---|---|---|---|
+| 1 | **1** | 6 | 1385 ms |
+| 2 | **2** | 9 | 1392 ms |
+| 4 | **4** | 15 | 2391 ms |
+
+Peak tracked the staged count exactly. And that concurrency is the ONLY
+behavioural difference between the failing path and the two working ones:
+
+| path | extractions | outcome |
+|---|---|---|
+| bulk + camera | 1 by construction — `multiple` is omitted for camera | works |
+| detail sheet + gallery | `files[0]`, ever only one | works |
+| **bulk + gallery** | **N, all at once** | **FAILED** |
+
+#### The symptom was reproduced exactly, and it is a data loss
+
+`Promise.all` is all-or-nothing and **nothing in the chain catches** — not
+`extractCapture`, not `extractReceipt`, not `recognise`, not `rasterise`. With
+one of two extractions rejecting, measured:
+
+| | before the fix | after |
+|---|---|---|
+| modal closed | **NO — loader held forever** | yes |
+| cards | **10 -> 10** | 10 -> 12 |
+| Save button | already gone, so no retry | — |
+| unhandled `pageerror` | 1 | 0 |
+
+**THE CAPTURE THAT HAD SUCCEEDED WAS DISCARDED WITH THE ONE THAT FAILED.** That
+is what makes it a data loss rather than a hang: the user loses a photograph the
+app had already read correctly.
+
+#### The fix is two independent halves, and each has its own test
+
+**1 · SEQUENTIAL, WHICH MAKES THIS PATH DO PRECISELY WHAT THE TWO WORKING PATHS
+DO.** Not a performance regression traded for safety — it removes the difference
+rather than compensating for it. Measured after: peak workers **1** at every
+file count. The cost is real and bounded (n=2 1392 -> 2376 ms, n=4 2391 -> 3940
+ms) and is already communicated, since `CapturingBlock` is told how many
+captures it is waiting on.
+
+The comment arguing for `Promise.all` on speed was correct in every clause and
+still the wrong shape, because it costed the wall clock of an extraction and not
+its MEMORY. It is corrected in place rather than deleted.
+
+**2 · `extractCapture` CAN NO LONGER REJECT.** A failed read returns the
+all-`null` `UNREAD` shape — the same shape `ocrExtractReceipt` already returns
+for a page it read but could not understand — so `capturedToReceipt` applies its
+three existing honest fallbacks (the file's own name, the moment of capture, 0)
+and auto-match cannot link it, because all three fields its rule reads are
+`null`. **A failed read is an unread receipt, not a lost one**, and Gate 51-B's
+editor is how the user corrects it. It is logged, not swallowed: `routes.spec.ts`
+fails on any console error.
+
+**THE CATCH SITS IN `extractCapture`, NOT IN THE MODAL, BECAUSE BOTH SURFACES
+REACH IT.** `captureToReceipt` is `capturedToReceipt(await extractCapture(...))`,
+so the detail sheet had the same strand — `setIsCapturing(false)` never running —
+and one catch closes both.
+
+#### `e2e/bulk-save.spec.ts` — 2 tests, no baseline
+
+It asserts at the SEAM, not on tesseract's internals: concurrency is counted
+through `window.__monarchExtractReceipt`, because the property that matters is
+"this surface never asks for two reads at once". Counting live `Worker` objects
+would tie the assertion to the engine's private choice of one worker per call
+and would go quietly green the day the engine pooled them while the surface
+still queued N phone-camera-sized images into memory.
+
+**THE STUB TAKES 60 ms ON PURPOSE.** An instantly-resolving one reports a peak
+of 1 even from `Promise.all`, because each call finishes before the next begins —
+the test would pass against the very code it exists to reject.
+
+**MUTATION-PROVED, BOTH HALVES, each restored and hash-verified:**
+
+| mutation | result | file sha256, before = after |
+|---|---|---|
+| `save()` back to `Promise.all` | **exit 1**, `Expected: 1 / Received: 3` | `AddReceiptsModal.tsx` `e54a3f7e…505170` |
+| the `catch` removed from `extractCapture` | **exit 1**, the modal held its loader | `receiptCapture.ts` `7a182553…64b4e2` |
+
+**THE TWO MUTATIONS FAIL DIFFERENT TESTS, WHICH IS THE ATTRIBUTION WORKING.**
+Under mutation 1 the failure test still PASSED, because the catch was still
+there and `Promise.all` therefore never rejected. The halves are independent and
+each test names its own.
+
+### ITEM 2 — BLOCKED ON THE FILES, AND NOT GUESSED
+
+**NOTHING IS REPORTED FOR THE TWO TEST IMAGES, BECAUSE THEY ARE NOT ON DISK.**
+They reached this session as conversation attachments and there is no tool that
+writes those bytes to a file; searched and found absent in the repo, Downloads,
+Pictures, Desktop, OneDrive and the desktop app's own directories.
+
+So the dimensions, EXIF orientation, file size, MIME type and — the one that
+decides the item — the RAW Tesseract output could not be measured. **A gate that
+cannot reach its input says so rather than reporting figures it did not
+derive**, which is the Gate 48 ruling about Figma applied to an image.
+
+**WHAT WAS BUILT INSTEAD IS THE INSTRUMENT, SO THE MEASUREMENT IS ONE COMMAND
+WHEN THE FILES LAND.** Both halves live in the scratchpad and are deliberately
+NOT committed, since Item 2 is diagnose-only:
+
+- `image-facts.mjs` — MIME from magic bytes (never the extension), pixel
+  dimensions from the JPEG SOF marker, EXIF orientation from the APP1 IFD0 tag,
+  bytes on disk. No dependency. **Verified against receipts that DO exist**:
+  `receipt_aeonbig01.jpg` reads 292 x 525 and the committed fixture 287 x 517,
+  matching the recorded 513–531 long edge.
+- `raw-ocr.spec.ts` — calls `recognise()` DIRECTLY rather than
+  `extractReceipt()`, because the question is what the engine saw BEFORE the
+  parser ran. Garbage text and legible-but-unparsed text are the two answers the
+  item is choosing between, and only the raw string separates them.
+
+**THE CONTROL ALREADY EXISTS, AND IT IS THE SAME RECEIPT.** Both attached images
+are the AEON BiG receipt this repo ships as `receipt_aeonbig01.jpg`, so the
+instrument was run against it — giving the exact raw text a CLEAN read of that
+receipt produces, to compare the two against:
+
+```
+decoded size    292 x 525      page confidence 78
+line count      24             word count      103
+
+AEON BIG (M) SON BHD (126926-H)      <- BHD misread as SON BHD
+Date 04/09/2025 13:45
+1 Munchy's Oat Krunch 4165 10.50      <- 416g misread as 4165
+1 Dettol Body Wash 950m 2890          <- 28.90 lost its decimal point
+Subtotal 404.90
+SST (6%) 24.29
+Total (RM) 429.19
+```
+
+**SO THE TEST IS A DIRECT COMPARISON RATHER THAN A JUDGEMENT CALL.** Raw text
+resembling the above — legible lines with scattered character-level misreads —
+means the OCR stage worked and any RM 0.00 came from the PARSER, which would be
+a real and fixable finding. Raw text that is noise, or very few lines, means the
+engine could not read the page at all, which is a property of that photograph
+and not a defect.
+
+**NOTE THE CLEAN READ ALREADY PRINTS `Total (RM) 429.19` CORRECTLY**, so a
+reported Subtotal/Total of RM 0.00 from the recapture is NOT something the
+parser does to this receipt's text in general.
+**THE QUESTION REMAINS OPEN AND MUST NOT BE PRE-JUDGED.** Whether a live photo
+of actual paper works is untested either way; the monitor-recapture is a
+photograph of a screen, with moire, glare and subpixel structure no paper
+receipt has.
+
+### ITEM 3 — "Receipt library", and a link the transaction now initiates
+
+`ReceiptSourcePicker` draws THREE source rows and swaps in place to a list of
+every receipt whose `transactionId` is `null`.
+
+**THE GROUPING RULE DECIDED WHERE THE ROW WENT.** The rounded box answers "where
+is this receipt coming from"; the library is a third answer to that question, so
+it joins the box. Cancel stays outside it, separated by 10px, which is the whole
+point of the shape — see the component header, and do not merge them.
+
+**IT SWAPS, IT DOES NOT STACK** — `AddReceiptsModal`'s three phases and
+`TransactionFilterSheet`'s two views in a third place. One overlay, one scrim,
+one dismiss gesture. `dialogs` is therefore unchanged at two entries and the
+accessible name stays "Add a receipt" across both views, which is the ruling
+`AddReceiptsModal` already set: a dialog is still the same dialog when its
+content changes.
+
+**BACK STEPS ONE VIEW; CANCEL, THE SCRIM AND ESCAPE DISMISS THE WHOLE PICKER.**
+Escape deliberately does NOT step back — its effect depends on `onClose` only,
+so a view swap neither re-runs it nor re-focuses the panel.
+
+#### Two defects the render found that reading the rules did not
+
+Both were invisible in the CSS and obvious in a screenshot.
+
+| defect | cause | fix |
+|---|---|---|
+| the back arrow and title **stacked vertically** | the header also carries `.mvp-source-picker__group`, which declares `flex-direction: column`; the header rule set `display: flex` and never overrode the direction | `flex-direction: row`, explicitly. Header 78 -> **46** tall |
+| the card rendered **173 wide in a 355 panel** | `.mvp-receipt-card` is a `<button>` and declares no width; on the Receipts tab it is a stretched flex item, in a plain `<li>` it shrink-wraps | make the `<li>` a column flex container, so its single child stretches |
+
+**THE WIDTH FIX IS ON THE CONTAINER, NEVER ON THE CARD.** That card renders on
+the Receipts tab too, and its width is its container's business — the rule Gate
+33 settled when `sizing="fill"` moved the geometry decision onto the container.
+
+**`ReceiptCard` IS REUSED UNCHANGED, `transaction` OMITTED**, which is the
+`Linked=No` variant by construction since every row here is unlinked by
+definition. It is already a `<button>`, so it needs no wrapper to be operable,
+and at 64 tall it is the same row height as the three choices behind it.
+
+**IT IS NOT NESTED INSIDE THE ROUNDED GROUP, AND THAT IS A MEASUREMENT.**
+`.mvp-receipt-card` paints `--mapped-surface-elevation-default` with its own
+radius and `--shadow-subtlest` — the SAME surface `.mvp-source-picker__group`
+paints. Inside one, every row would be an invisible card on an identical ground
+casting a shadow onto its own colour. The alternative was to neutralise the
+card's background here, which is the equal-specificity override on a component's
+own appearance that Gate 13 removed on measurement and that G15 was deliberately
+left unfixed rather than commit.
+
+#### The link is now transaction-initiated. The DATA DIRECTION is unchanged.
+
+**A RECEIPT STILL POINTS AT A TRANSACTION.** `Receipt.transactionId` is still
+the only field expressing the relationship, `linkReceipt(receiptId,
+transactionId)` is still the only mutator that sets it, and no transaction
+holds a receipt id. What changed is WHO STARTS THE ACT: until this gate a link
+could only be made from the receipt's side (auto-match at add time, or Gate
+51-B's picker inside the receipt viewer), and it can now also be made from the
+transaction's side.
+
+So any line reading **"Linking direction: Receipt -> transaction only"** is
+**REVISED, NOT VIOLATED** — it was describing two different things at once, the
+data direction and the entry point. The data direction holds; the entry point
+is now either side.
+
+**NO CONFIRM MODAL, DELIBERATELY.** Gate 51's ruling is confirm only what cannot
+be undone. Every row in this list is unlinked, so there is nothing to displace
+and nothing to warn about — `linkReceipt`'s swap branch cannot fire from here.
+The picker closes and the detail sheet underneath re-renders from live data,
+which is the P2 pattern: it holds an id and re-resolves every render.
+
+#### Two new walk states, because the two differ in DATA
+
+There is no affordance that turns the empty list into a populated one — the same
+argument that made `detail` and `detail-linked` two states rather than one.
+
+| id | reached by | shows |
+|---|---|---|
+| `add-library` | the unlinked row, then two clicks | the EMPTY copy |
+| `add-library-filled` | the LINKED row, unlink, then two clicks | one card, `IMG_4806.jpg` |
+
+**THE EMPTY ONE IS THE DEFAULT AND THAT IS WHY IT EARNS A BASELINE.** All ten
+seeded receipts ship linked, so it is the ordinary first experience of the
+feature rather than an edge case.
+
+**THE POPULATED ONE CAN ONLY BE REACHED BY UNLINKING FIRST**, since the fixture
+supplies no unlinked receipt. The chain is three real clicks across two surfaces
+the suite already drives, and every rung is asserted — the unlink is proved by
+the sheet flipping to its prompt block, which renders only when the transaction
+has no receipt.
+
+### ITEM 4 — the empty-phase source buttons
+
+`variant` secondary -> **tertiary**, `size` -> **l** (measured 42 tall), plus a
+24px separation before the footer.
+
+**THE SEPARATION WAS DERIVED FROM A MEASUREMENT, NOT FROM THE ESTIMATE.** The
+brief put the existing boundary at "roughly 16-24px combined"; measured, the
+content region's bottom and the footer's top are the **same y** (delta 0), so
+the whole gap was the footer's own **16px** padding — against an **8px** gap
+between Photo Gallery and Camera. A 2:1 ratio is exactly why all three read as
+one stack of three.
+
+**24 (`--brand-scale-600`) TAKES IT TO 40, FIVE TIMES THE INTERNAL GAP.** Off
+the ramp, so no literal enters the tree. Measured after: 16 -> 40, internal gap
+still 8, card height 240 -> 264.
+
+**IT IS A MARGIN ON `.mvp-add-receipts__sources`, NOT A CHANGE TO THE MODAL'S
+CONTENT/FOOTER BOUNDARY, AND THAT IS WHAT SCOPES IT.** That element exists only
+in the empty phase, so `add-grid` and `add-saving` are untouched BY
+CONSTRUCTION — which is why this moves four baselines and not twelve.
+
+**NO BOUNDED GROUP WAS ADDED.** It was offered and declined: the modal card
+already paints `--mapped-surface-elevation-default`, so a bounded group would
+need a second surface to read as bounded, and Figma draws no frame for this
+phase at all — the empty phase is entirely this repo's design. Inventing a
+surface treatment with no drawn authority is rule 3's territory, and the prompt
+made it optional.
+
+### One prepare-step assertion correctly failed first
+
+`add-source` asserted the picker panel's whole text as
+`'Photo GalleryCameraCancel'`. The third row makes that
+`'Photo GalleryCameraReceipt libraryCancel'`, and the assertion was **UPDATED,
+never loosened to a contains-match** — the whole value of asserting the
+concatenation is that a row appearing or vanishing cannot slip through. Same
+shape as Gate 51-B's `view-unlinked` footer assertion.
+
+### `sed -i` REWROTE THREE FILES TO LF, AND IT IS INERT
+
+`sed -i` on this machine rewrites CRLF to LF. FOUR files came out all-LF —
+`AddReceiptsModal.tsx`, `ReceiptSourcePicker.tsx`, `finance.css` and
+`e2e/harness.ts` — where the repo’s working tree is CRLF under
+`core.autocrlf=true`.
+
+**IT PRODUCES NO SPURIOUS DIFF, VERIFIED RATHER THAN ASSUMED.** `git diff
+--numstat` reports 43/9 on `AddReceiptsModal.tsx`, not a whole-file rewrite:
+git's clean filter normalises to LF before comparing, which is the same
+mechanism `.gitattributes` relies on. Git warns "LF will be replaced by CRLF the
+next time Git touches it", which is the checkout filter doing its job. Nothing
+to fix — recorded so a future session does not mistake the warning for damage.
+
+### THE WALK STATE CASHED IN G31's `Sheet` HALF, AND IT WAS A REAL DEFECT
+
+**GATE 51-B PREDICTED THIS EXACTLY, NAMED THE ONE-LINE FIX, AND LEFT IT
+UNFIXED.** Its note read: *"`Sheet` HAS THE SAME DEPS (`Sheet.tsx:203`,
+`[isOpen, onClose]`), so the Gate 49 detail sheet — whose `onClose` is an inline
+arrow in `TransactionsLedger` — carries the same latent focus-restore on every
+re-render, e.g. after its own Unlink — READ FROM SOURCE, NOT MEASURED. Its
+target is the row the sheet was opened from, which is usually already in view,
+so it has not surfaced."*
+
+`add-library-filled` is the first thing in this suite to unlink from a row BELOW
+THE FOLD — the fourteenth — so it surfaced at once:
+
+```
+after "add-library-filled"'s prepare steps the document is scrolled to 790px
+```
+
+Both themes, `routes` and `section-headers` alike. **790 is the same number Gate
+51-B measured on the receipt viewer**, and the mechanism is that gate's in full:
+the unlink re-renders `TransactionsLedger`, the inline `onClose` changes
+identity, the DS overlay's open effect tears down, and its cleanup calls
+`previouslyFocused.current?.focus?.()` — focusing a ledger row under the scrim,
+which scrolls it into view.
+
+**A USER SEES THE PAGE JUMP BEHIND AN OPEN SHEET.** It is a real defect, not a
+harness artifact, and the assertion Gate 51-B added for precisely this is what
+caught it — doing its job rather than needing relaxing.
+
+**ALL THREE LEDGER SITES WERE STABILISED, NOT ONLY THE ONE THAT WENT RED.**
+`closeDetail`, `closeFilter` and `closePicker`. The filter sheet and the source
+picker take the same identity-keyed effect and would surface the same way the
+day a walk state re-renders while either is open; fixing only the measured one
+would leave two live instances of a mechanism the register documents.
+
+**A RISK WAS NAMED IN ADVANCE AND DID NOT MATERIALISE.** Stabilising
+`closeFilter` REMOVES a focus-restore that was running on every re-render of the
+open filter sheet, which `applied`'s prepare steps cause. If focus position were
+visible, `finance-transactions-filter-*` and `-applied-*` would have moved. They
+did not — both came back byte-identical — because the harness clicks rather than
+typing and Gate 44 measured that programmatic focus after a click leaves
+`:focus-visible` false, so no ring paints.
+
+**G31 IS UPDATED, NOT CLOSED.** It is still a DS gap; what changed is that its
+`Sheet` half is now MEASURED rather than read from source, so no half of it
+rests on inference any more.
+
+### Baselines — predicted before the run, reconciled after
+
+**PREDICTED IN WRITING BEFORE THE FIRST SUITE RUN**, to a scratch file outside
+the repo: 8 changed, 8 added, 0 deleted.
+
+**THE FILE-LEVEL PREDICTION HELD EXACTLY AND THE FAILURE COUNT DID NOT — and the
+difference is the whole finding.** Pre-mint run 1 reported **20 failed**, not the
+16 predicted. The 16 visual failures were precisely the predicted set, with
+nothing outside it; the extra 4 were `routes` and `section-headers` on
+`add-library-filled` alone, i.e. the G31 defect above. After the fix, pre-mint
+run 2 reported **16 failed / 367 passed**, the amended prediction exactly.
+
+| | |
+|---|---|
+| start | **152** |
+| added | **8** |
+| changed | **8** |
+| deleted | **0** |
+| byte-identical | **144** |
+| end | **160** |
+
+**THE ADDED AND CHANGED SETS DO NOT OVERLAP** (measured: 0), so 8 + 8 = 16
+reconciles directly with the pre-mint failure count — the Gate 50 case, not the
+Gate 44 one.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT BEFORE MINTING.**
+152 files byte-identical to the start manifest, zero untracked, zero "writing
+actual" lines. `updateSnapshots: 'none'` honoured.
+
+**THE MINT REPORTED 383 PASSED AND 24 WRITE LINES**, which is 8 new files once
+each plus 8 modified files twice each ("writing actual" then "is re-generated").
+Count the distinct names, not the lines. **That run is not the verification** —
+it overwrote the very files it compared against.
+
+**THE NEW BASELINES WERE OPENED, NOT TRUSTED** (Gate 51's lesson, which cost that
+gate a second mint): the dark populated library renders its panel, back control,
+full-width card and separated Cancel correctly, at `scrollY` 0 — the G31 fix
+visible in the baseline — with the unlinked row correctly drawing no receipt
+glyph.
+
+### Suite arithmetic — derived three ways, all agreeing
+
+|WALK| 38 -> **40** (14 routes + 7 non-default tab states + **19**
+`OVERLAY_STATES`), confirmed by the anchored command:
+
+```bash
+awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts | grep -c "^    overlay: {"
+```
+
+| spec | formula | before | after |
+|---|---|---|---|
+| `visual` | \|WALK\| x 2 viewports x 2 themes | 152 | **160** |
+| `routes` | \|WALK\| x 2 + 1 | 77 | **81** |
+| `section-headers` | \|WALK\| x 2 + 2 | 78 | **82** |
+| `bulk-save` (new) | no walk axis | — | **2** |
+| the other eight | unchanged | 58 | 58 |
+| | | **365** | **383** |
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE SEVENTH TIME**: 2 added walk
+states x (4 baselines + 8 tests) = 8 and 16, and 365 + 16 + 2 = **383**.
+
+### Deliberately not in scope
+
+Item 2's fix, whatever it turns out to be — diagnose-only by instruction, and
+blocked on files this session cannot reach; **fixing G31 itself**, which is
+DS-side (the MVP `useCallback`s are a mitigation, and the DS question is whether
+a focus-restore should fire on an `onClose` identity change at all); G13, G14,
+G17's prop half, G19-G23, G28-G30, G32, G33 — all still registered, all still
+deferred, and **no MVP-local override was added for any**; the G33 workaround
+class, untouched and still carrying its removal condition; the DS repo and the
+pin; `npm audit fix`; branch deletion; the Camera full-screen frame, still
+retired; persistence; a receipt filter model; and the three AA shortfalls on the
+net-worth card ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

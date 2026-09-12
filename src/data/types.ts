@@ -490,6 +490,24 @@ export interface ReceiptLineItem {
  * somewhere to put the result. That action shipped at Gate 49 — this line said
  * "Gate 51's" until Gate 51 corrected it; Gate 51 added the receipt viewer's own
  * Unlink, which writes the same field through the same `unlinkReceipt`.
+ *
+ * -- THE LINK IS NOW TRANSACTION-INITIATED TOO. THE DIRECTION IS UNCHANGED. --
+ *
+ * REVISED AT GATE 52, NOT VIOLATED, and the distinction is the whole point.
+ * THIS FIELD IS STILL THE ONLY EXPRESSION OF THE RELATIONSHIP: a receipt points
+ * at a transaction, no transaction holds a receipt id, and
+ * `linkReceipt(receiptId, transactionId)` is still the only mutator that sets
+ * it. Nothing about the data direction moved.
+ *
+ * WHAT MOVED IS WHO STARTS THE ACT. Until Gate 52 a link could only be made
+ * from the RECEIPT side -- auto-match at add time (Gate 50-C), or the manual
+ * picker inside the receipt viewer (Gate 51-B). The source picker’s "Receipt
+ * library" row now makes one from the TRANSACTION side, choosing among the
+ * receipts where this field is `null`.
+ *
+ * SO A STATEMENT LIKE "linking direction: receipt -> transaction only" WAS
+ * DESCRIBING TWO DIFFERENT THINGS AT ONCE -- the data direction and the entry
+ * point. The first holds and is structural; the second is now either side.
  */
 export interface Receipt {
   id: string

@@ -1545,16 +1545,42 @@ that target is a card far down the Receipts tab. Both numbers were minted into
 committed baselines under a **green 319-passed run** and were caught only by a
 human opening the PNGs.
 
-**THE `Sheet` HALF IS UNEXERCISED BUT NOT HYPOTHETICAL.** The Gate 49 detail
-sheet and the Gate 43 filter sheet both pass inline `onClose` arrows, so both
-carry the same latent behaviour; it has not surfaced only because a sheet's
-opener is usually already in view. Read from source, not measured.
+**⚠️ THE `Sheet` HALF IS NO LONGER UNEXERCISED — IT WAS MEASURED AT GATE 52.**
+This paragraph read "Read from source, not measured", and said the behaviour
+had not surfaced "only because a sheet’s opener is usually already in view".
+That was exactly right, and Gate 52 built the walk state that stops it being
+true: `add-library-filled` opens the detail sheet on the **fourteenth** ledger
+row — below the fold — and unlinks from it.
+
+**MEASURED: the document scrolled to 790px behind the open sheet**, in both
+themes, caught by the Gate 51-B scroll assertion rather than by a human opening
+a PNG. 790 is the same order as the 770/808 measured on `Modal`, and the
+mechanism is identical — the unlink re-renders `TransactionsLedger`, the inline
+`onClose` changes identity, the open effect tears down, and its cleanup focuses
+the ledger row under the scrim.
+
+**SO BOTH COMPONENTS ARE NOW MEASURED, NOT ONE.** The gap is unchanged and
+still DS-side; what changed is that no half of it rests on reading source any
+more.
+
+**GATE 52 CLOSED THE THREE REMAINING MVP SITES** — `closeDetail`, `closeFilter`
+and `closePicker` in `TransactionsLedger`, alongside the viewer’s own from Gate
+51-B. Mutation-proved: restoring any one of them to an inline arrow reproduces
+the 790px scroll and turns the suite red with that exact message.
 
 **THE MVP MITIGATES IT WITH `useCallback` AT EVERY LEVEL THE CALLBACK CROSSES**
-— `ReceiptViewerHost`'s `close`, `cancelDelete`, `cancelReplace` and `back`, and
-each screen's `closeViewer`. Stabilising only the innermost one is not enough,
-because it depends on the screen's. The harness now asserts
-`window.scrollY === 0` after every prepare step, which is the tripwire.
+— `ReceiptViewerHost`'s `close`, `cancelDelete`, `cancelReplace` and `back`,
+each screen's `closeViewer`, and (Gate 52) `TransactionsLedger`'s `closeDetail`,
+`closeFilter` and `closePicker`. Stabilising only the innermost one is not
+enough, because it depends on the screen's. The harness now asserts
+`window.scrollY === 0` after every prepare step, which is the tripwire — and it
+is what caught the `Sheet` half above.
+
+**ALL THREE LEDGER SITES WERE DONE TOGETHER, NOT JUST THE ONE THAT WENT RED.**
+Only `closeDetail` was measured scrolling the page; the filter sheet and the
+source picker take the same identity-keyed effect and would surface the same way
+the day a walk state re-renders while either is open. Fixing only the measured
+one would leave two live instances of a mechanism this register documents.
 
 **THE QUESTION FOR THE DS:** should the focus-restore fire on `onClose` changing
 at all? Restoring focus is a CLOSE behaviour; keying it to a callback's identity

@@ -1,6 +1,8 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Blanket } from '@monarch/design-system'
+import { Blanket, Icon, IconButton } from '@monarch/design-system'
+import type { Receipt } from '../../../data/types'
+import { ReceiptCard } from './ReceiptCard'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -17,10 +19,17 @@ import { Blanket } from '@monarch/design-system'
  * raw literal. It is a pasted iOS action sheet, and a design system does not
  * ship a pasted Apple asset.
  *
- * SO THE SHAPE SURVIVES AND THE SKIN DOES NOT. Grouped-and-separated — two
- * source rows joined by a hairline, then a gap, then Cancel standing alone — is
+ * SO THE SHAPE SURVIVES AND THE SKIN DOES NOT. Grouped-and-separated — the
+ * source rows joined by hairlines, then a gap, then Cancel standing alone — is
  * a real design decision that distinguishes a SOURCE PICKER from a sheet: the
- * gap is what says "this one is not one of the choices". That is kept. The font,
+ * gap is what says "this one is not one of the choices". That is kept.
+ *
+ * ⚠️ IT DREW TWO SOURCE ROWS UNTIL GATE 52 AND DRAWS THREE NOW — "Receipt
+ * library" joined Photo Gallery and Camera inside the same box, and choosing it
+ * swaps this panel to a list of unlinked receipts. The GROUPING RULE is what
+ * decided where it went: the box answers "where is this receipt coming from",
+ * and the library is a third answer to that question rather than a new kind of
+ * thing. Cancel stays outside it, which is the whole point of the shape. The font,
  * the colour and the radius are Apple's, and SF Pro Text does not exist on the
  * Android device this app is actually tested on, so it is not even a faithful
  * transcription there — it is a silent fallback to whatever Android has.
@@ -107,6 +116,17 @@ export interface ReceiptSourcePickerProps {
   onCamera: () => void
   /** Choose existing images. Fires the file input with `multiple`. */
   onGallery: () => void
+  /**
+   * Every receipt with no transaction — the library view's whole content.
+   *
+   * PASSED IN, NOT LOOKED UP. `ReceiptCard` takes a transaction rather than
+   * resolving one itself, and this follows it: the screen already holds
+   * `useAccounts()`, and a presentational overlay that reached for a context
+   * would be a second place deciding what "unlinked" means.
+   */
+  unlinkedReceipts: Receipt[]
+  /** Link that receipt to the transaction this picker was opened from. */
+  onPickReceipt: (receiptId: string) => void
   /** Dismiss — the Cancel row, the scrim, and Escape all route here. */
   onClose: () => void
 }
@@ -114,11 +134,24 @@ export interface ReceiptSourcePickerProps {
 export function ReceiptSourcePicker({
   onCamera,
   onGallery,
+  unlinkedReceipts,
+  onPickReceipt,
   onClose,
 }: ReceiptSourcePickerProps) {
   const id = useId()
+  const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
+
+  /*
+    ONE SURFACE, TWO VIEWS (Gate 52) — the shape `AddReceiptsModal` already uses
+    for its three phases, and `TransactionFilterSheet` for its filters/merchant
+    swap. Choosing the library SWAPS THIS PANEL'S CONTENT; it does not stack a
+    second overlay. A stacked surface would give the user two scrims and two
+    dismiss gestures for one task, and would put the question "which one am I
+    dismissing" in front of them.
+  */
+  const [view, setView] = useState<'choice' | 'library'>('choice')
 
   /*
     ESCAPE AND INITIAL FOCUS, patterned on `Modal.tsx` rather than reinvented —
@@ -132,6 +165,11 @@ export function ReceiptSourcePicker({
     document-level Escape listener. Without the stop, one Escape press would
     close both — the picker AND the sheet underneath it — which is not what a
     dismiss gesture on the top surface means.
+
+    IT DEPENDS ON `onClose` ONLY, NOT ON `view`. Escape dismisses the whole
+    picker from either view rather than stepping back one, which is what the
+    scrim and Cancel also do. Re-running this effect on a view swap would also
+    re-focus the panel and undo wherever focus had moved to.
   */
   useEffect(() => {
     previouslyFocused.current = document.activeElement as HTMLElement | null
@@ -159,39 +197,120 @@ export function ReceiptSourcePicker({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        /*
+          THE ACCESSIBLE NAME DOES NOT CHANGE WITH THE VIEW, which is the ruling
+          `AddReceiptsModal` already set across its own three phases: a dialog is
+          still the same dialog when its content changes. The harness therefore
+          declares one name for both walk states and tells them apart by their
+          `prepare` steps.
+        */
         aria-label="Add a receipt"
         tabIndex={-1}
         id={id}
         className="mvp-source-picker__panel"
       >
-        {/*
-          THE GROUPED PAIR. One rounded box, two rows, one hairline — the rule is
-          a `border-top` on the second row rather than a separate element, so
-          there is no third child to keep in step and the rule cannot outlive
-          either row it separates.
-        */}
-        <div className="mvp-source-picker__group">
-          <button
-            type="button"
-            className="mvp-source-picker__row type-body-m"
-            onClick={onGallery}
-          >
-            Photo Gallery
-          </button>
-          <button
-            type="button"
-            className="mvp-source-picker__row mvp-source-picker__row--ruled type-body-m"
-            onClick={onCamera}
-          >
-            Camera
-          </button>
-        </div>
+        {view === 'choice' ? (
+          /*
+            THE GROUPED SET. One rounded box, now THREE rows, each rule a
+            `border-top` on the row below it rather than a separate element — so
+            there is no extra child to keep in step and a rule cannot outlive
+            either row it separates.
+
+            "RECEIPT LIBRARY" IS A THIRD SOURCE, NOT A THIRD KIND OF THING. It
+            belongs in this box for the same reason Camera does: all three answer
+            "where is this receipt coming from". The group below is separated
+            because it answers a different question entirely.
+          */
+          <div className="mvp-source-picker__group">
+            <button
+              type="button"
+              className="mvp-source-picker__row type-body-m"
+              onClick={onGallery}
+            >
+              Photo Gallery
+            </button>
+            <button
+              type="button"
+              className="mvp-source-picker__row mvp-source-picker__row--ruled type-body-m"
+              onClick={onCamera}
+            >
+              Camera
+            </button>
+            <button
+              type="button"
+              className="mvp-source-picker__row mvp-source-picker__row--ruled type-body-m"
+              onClick={() => setView('library')}
+            >
+              Receipt library
+            </button>
+          </div>
+        ) : (
+          <>
+            {/*
+              THE HEADER ROW IS NOT ITSELF THE BACK CONTROL. Making the whole row
+              a button would give it the accessible name "Receipt library", which
+              names where the user IS rather than what pressing it DOES. The back
+              affordance is its own labelled control and the title sits beside it.
+            */}
+            <div className="mvp-source-picker__group mvp-source-picker__header">
+              <IconButton
+                variant="tertiary"
+                size="s"
+                icon={<Icon name="arrow_back" size="m" />}
+                ariaLabel="Back to receipt source"
+                onClick={() => setView('choice')}
+              />
+              <span
+                id={titleId}
+                className="mvp-source-picker__title type-body-m-semibold"
+              >
+                Receipt library
+              </span>
+            </div>
+
+            {unlinkedReceipts.length === 0 ? (
+              /*
+                A PLAIN EMPTY STATE, AND DELIBERATELY NOT A `ComingSoon`. Nothing
+                here is missing or unbuilt — the library genuinely holds no
+                unlinked receipt, which is the ordinary state once every capture
+                has found its transaction. It offers no action of its own because
+                the two actions that would fix it are one tap behind it.
+              */
+              <p className="mvp-source-picker__group mvp-source-picker__empty type-body-sm">
+                Every receipt in your library is already linked to a transaction.
+              </p>
+            ) : (
+              <ul className="mvp-source-picker__library">
+                {unlinkedReceipts.map((receipt) => (
+                  <li key={receipt.id}>
+                    {/*
+                      `ReceiptCard` WITH `transaction` OMITTED, WHICH IS THE
+                      `Linked=No` VARIANT BY CONSTRUCTION — every row here is
+                      unlinked by definition, so there is nothing to pass and no
+                      "Linked" pill to suppress. It is already a `<button>`, so
+                      it needs no wrapper to be operable, and at 64 tall it is the
+                      same row height as the three choices behind it.
+                    */}
+                    <ReceiptCard
+                      receipt={receipt}
+                      onOpen={() => onPickReceipt(receipt.id)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
 
         {/*
           CANCEL IS ITS OWN GROUP, SEPARATED BY 10px, AND THAT GAP IS THE WHOLE
-          POINT OF THE SHAPE. It is what says Cancel is not a third source. Merge
-          the two groups and the surface stops being a source picker and becomes
-          a menu with a strange last item.
+          POINT OF THE SHAPE. It is what says Cancel is not a source. Merge the
+          two groups and the surface stops being a source picker and becomes a
+          menu with a strange last item.
+
+          IT IS PRESENT IN BOTH VIEWS. Back steps one view; Cancel dismisses the
+          whole picker. Dropping it from the library view would leave the scrim
+          and Escape as the only ways out of a view the user reached by choice.
 
           SEMIBOLD, as drawn — the one weight difference in the surface, and it
           is doing the same job the gap is.

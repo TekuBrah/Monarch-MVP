@@ -78,12 +78,66 @@ export interface CapturedFile {
   extracted: ExtractedReceipt
 }
 
-/** Extract one chosen file. Builds nothing and decides nothing. */
+/**
+ * WHAT EXTRACTION RETURNS WHEN THE ENGINE COULD NOT READ THE FILE AT ALL.
+ *
+ * Every field `null`, which is the SAME shape `ocrExtractReceipt` returns for a
+ * page it read but could not understand — so nothing downstream needs a second
+ * notion of failure. `capturedToReceipt` then applies its three honest display
+ * fallbacks (the file's own name, the moment of capture, 0), and auto-match
+ * cannot link it, because all three of the fields its rule reads are `null`.
+ *
+ * `currency` IS THE ONE FIELD THAT IS NOT NULLABLE, and 'MYR' is not a guess
+ * here: `parseReceipt` hardcodes it as the single-currency statement of the
+ * model, so this is the same value a successful read would have produced.
+ */
+const UNREAD: ExtractedReceipt = {
+  merchant: null,
+  capturedAt: null,
+  total: null,
+  tax: null,
+  currency: 'MYR',
+  lineItems: [],
+}
+
+/**
+ * Extract one chosen file. Builds nothing and decides nothing.
+ *
+ * ───────────────── IT CANNOT REJECT, AND THAT IS LOAD-BEARING (Gate 52) ──────
+ *
+ * Nothing in the chain below it catches — not `extractReceipt`, not
+ * `recognise`, not `rasterise` — so before this gate a worker that failed to
+ * start, a model fetch that 404'd or an image the engine could not decode threw
+ * straight through both capture surfaces. Measured: one rejection left the bulk
+ * modal on its loader FOREVER, with `onSave` and `onClose` never called, the
+ * Save button already gone, nothing added, and — the part that makes it a data
+ * loss rather than a hang — the captures that HAD succeeded discarded with it.
+ *
+ * SO A FAILED READ IS AN UNREAD RECEIPT, NOT A LOST ONE. The user's photograph
+ * is still theirs; it lands in the library with the fallbacks above and Gate
+ * 51-B's editor is how they correct it. That is the same answer this app
+ * already gives for a field the engine read but could not parse, which is why
+ * it needs no new state and no new copy.
+ *
+ * IT IS LOGGED RATHER THAN SWALLOWED. `routes.spec.ts` fails on any console
+ * error, so a walk state that ever starts failing here reddens the suite
+ * instead of quietly minting a library of blank receipts.
+ *
+ * IT SITS HERE, NOT IN THE BULK MODAL, BECAUSE BOTH SURFACES REACH IT.
+ * `captureToReceipt` — the transaction detail sheet's path — is
+ * `capturedToReceipt(await extractCapture(...))`, so the sheet had the same
+ * strand (`setIsCapturing(false)` never running) and one catch closes both.
+ */
 export async function extractCapture(
   file: File,
   sourceUrl: string,
 ): Promise<CapturedFile> {
-  return { file, sourceUrl, extracted: await extractReceipt(file) }
+  try {
+    return { file, sourceUrl, extracted: await extractReceipt(file) }
+  } catch (error) {
+    console.error(`receipt extraction failed for ${file.name}`, error)
+    return { file, sourceUrl, extracted: UNREAD }
+  }
 }
 
 /**

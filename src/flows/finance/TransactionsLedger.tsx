@@ -56,7 +56,8 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
-  const { transactions, receipts, unlinkReceipt, addReceipt } = useAccounts()
+  const { transactions, receipts, unlinkReceipt, addReceipt, linkReceipt } =
+    useAccounts()
   const [search, setSearch] = useState('')
 
   // THE SCREEN OPENS UNFILTERED, AS OF GATE 44. This was
@@ -113,6 +114,40 @@ export function TransactionsLedger() {
   // STABLE — see `ReceiptViewerHost`'s `close` for why an `onClose` that
   // reaches a DS `Modal` must keep its identity across renders.
   const closeViewer = useCallback(() => setViewingId(null), [])
+
+  /*
+    ── EVERY OVERLAY `onClose` ON THIS SCREEN IS STABLE (Gate 52) ───────────
+
+    GATE 51-B PREDICTED THIS EXACTLY AND LEFT IT UNFIXED, and Gate 52 is the
+    gate that reached it. Its note read: "`Sheet` HAS THE SAME DEPS
+    (`Sheet.tsx:203`, `[isOpen, onClose]`), so the Gate 49 detail sheet — whose
+    `onClose` is an inline arrow in `TransactionsLedger` — carries the same
+    latent focus-restore on every re-render, e.g. after its own Unlink. Its
+    target is the row the sheet was opened from, which is usually already in
+    view, so it has not surfaced."
+
+    IT SURFACED THE MOMENT A WALK STATE UNLINKED FROM A ROW BELOW THE FOLD.
+    `add-library-filled` opens the FOURTEENTH ledger row and unlinks from it,
+    and the harness reported the document scrolled to **790px** behind the open
+    sheet — the same number Gate 51-B measured on the receipt viewer. The
+    mechanism is that gate’s in full: an unstable `onClose` re-runs the DS
+    overlay’s open effect, whose CLEANUP calls
+    `previouslyFocused.current?.focus?.()`, and focusing a row under the scrim
+    scrolls it into view.
+
+    A USER SEES THE PAGE JUMP BEHIND THE SHEET, so this is a real defect and
+    not a harness artifact. The assertion is the one Gate 51-B added for
+    precisely this, and it is doing its job rather than needing relaxing.
+
+    ALL THREE ARE DONE TOGETHER, NOT JUST THE ONE THAT WENT RED. The filter
+    sheet and the source picker take the same identity-keyed effect and would
+    surface the same way the day a walk state re-renders while either is open —
+    fixing only the measured one would leave two instances of a mechanism this
+    file now documents.
+  */
+  const closeDetail = useCallback(() => setDetailId(null), [])
+  const closeFilter = useCallback(() => setIsFilterOpen(false), [])
+  const closePicker = useCallback(() => setIsPickerOpen(false), [])
 
   /*
     ── CAPTURE STATE (Gate 50) ───────────────────────────────────────────────
@@ -178,6 +213,20 @@ export function TransactionsLedger() {
     [transactions, filter, search],
   )
   const chips = useMemo(() => filterChips(filter), [filter])
+
+  /*
+    THE LIBRARY VIEW'S CONTENT (Gate 52) — every receipt with no transaction.
+
+    DERIVED FROM `transactionId`, NEVER FROM A STORED FLAG. It is the same
+    predicate `transactionHasReceipt` reads from the other side, which is why
+    an unlink performed in the detail sheet puts that receipt into this list
+    immediately, with nothing to keep in step. Gate 48 deleted a stored
+    `hasReceipt` boolean for exactly this reason.
+  */
+  const unlinkedReceipts = useMemo(
+    () => receipts.filter((r) => r.transactionId === null),
+    [receipts],
+  )
 
   return (
     <div className="mvp-transactions">
@@ -374,7 +423,7 @@ export function TransactionsLedger() {
           filter={filter}
           search={search}
           onApply={(next) => setFilter(() => next)}
-          onClose={() => setIsFilterOpen(false)}
+          onClose={closeFilter}
         />
       )}
 
@@ -412,7 +461,7 @@ export function TransactionsLedger() {
           }}
           onAddReceipt={() => setIsPickerOpen(true)}
           isCapturing={isCapturing}
-          onClose={() => setDetailId(null)}
+          onClose={closeDetail}
         />
       )}
 
@@ -455,7 +504,12 @@ export function TransactionsLedger() {
         <ReceiptSourcePicker
           onGallery={() => pick('gallery')}
           onCamera={() => pick('camera')}
-          onClose={() => setIsPickerOpen(false)}
+          unlinkedReceipts={unlinkedReceipts}
+          onPickReceipt={(receiptId) => {
+            linkReceipt(receiptId, detail.id)
+            setIsPickerOpen(false)
+          }}
+          onClose={closePicker}
         />
       )}
     </div>

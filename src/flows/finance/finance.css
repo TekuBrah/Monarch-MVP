@@ -1632,6 +1632,8 @@ button.mvp-receipt-card:focus-visible {
   box-sizing: border-box;
   margin: 0 var(--brand-scale-250)
     calc(var(--brand-scale-800) + env(safe-area-inset-bottom, 0px));
+  /* Lets the library view scroll instead of overflowing the viewport (Gate 52). */
+  min-height: 0;
 }
 
 .mvp-source-picker__group {
@@ -1670,6 +1672,93 @@ button.mvp-receipt-card:focus-visible {
 }
 
 /*
+  ── THE LIBRARY VIEW (Gate 52) ───────────────────────────────────────────────
+
+  THE CARDS ARE NOT INSIDE THE ROUNDED GROUP, AND THAT IS A MEASUREMENT RATHER
+  THAN A PREFERENCE. `.mvp-receipt-card` paints `--mapped-surface-elevation-
+  default` with its own radius and `--shadow-subtlest` — the SAME surface
+  `.mvp-source-picker__group` paints. Nested inside one, every row would be an
+  invisible card on an identical ground, with a shadow cast onto its own colour.
+
+  The alternative was to neutralise the card's background here, which is the
+  equal-specificity override on a component's own appearance that Gate 13
+  removed on measurement and that G15 was deliberately left unfixed rather than
+  commit. So the header keeps the group box and the cards form their own stack
+  beside it, spaced by the panel's existing 10px gap — the card renders exactly
+  as it does on the Receipts tab, because it is the same card.
+*/
+.mvp-source-picker__header {
+  display: flex;
+  /*
+    ROW, EXPLICITLY. This element also carries `.mvp-source-picker__group`,
+    which declares `flex-direction: column` for the stacked choice rows — so
+    without this the back control and the title stack vertically instead of
+    sitting side by side. Caught in a render, not by reading the rule.
+  */
+  flex-direction: row;
+  align-items: center;
+  gap: var(--brand-scale-200);
+  padding: var(--brand-scale-200) var(--brand-scale-300);
+}
+
+/*
+  LEFT-ALIGNED BESIDE THE BACK CONTROL, NOT CENTRED OVER THE WHOLE ROW. Centring
+  it would need either a DS-internal selector to absolutely position
+  `IconButton`, or an inert spacer element mirroring its width — markup for
+  layout. The picker's ROWS are centred because each one is a choice; a header
+  is not a choice, and a back arrow followed by its title is the ordinary shape.
+*/
+.mvp-source-picker__title {
+  color: var(--mapped-text-default-default);
+}
+
+/*
+  IT SCROLLS RATHER THAN PUSHING THE PANEL OFF THE TOP OF THE SCREEN. The panel
+  is a flex item of a `position: fixed; inset: 0` column, so it already shrinks
+  to fit; `min-height: 0` on both is what lets it, because a flex item's
+  automatic minimum size is its content and would otherwise win.
+
+  THE SCROLLBAR IS ALREADY HIDDEN GLOBALLY (Gate 44, `src/index.css` on `*`), so
+  there is nothing to declare here — and per that gate the harness cannot see the
+  difference either way, since headless Chromium reserves no gutter at all.
+*/
+/*
+  THE CARD FILLS THE ROW, AND THE CONTAINER IS WHAT MAKES IT DO SO.
+  `.mvp-receipt-card` is a `<button>` and declares no width of its own — on the
+  Receipts tab it is a stretched flex item, and in a plain `<li>` it shrink-wraps
+  to its content instead, measured at 173 against the panel width of 355. Making
+  the `<li>` a column flex container stretches its single child across the cross
+  axis, with no width declared anywhere.
+
+  IT IS DONE HERE RATHER THAN BY GIVING `.mvp-receipt-card` A WIDTH, because that
+  card renders on the Receipts tab too and its width is its container business —
+  the same rule Gate 33 settled when `sizing="fill"` moved the geometry decision
+  onto the container rather than the component.
+*/
+.mvp-source-picker__library > li {
+  display: flex;
+  flex-direction: column;
+}
+
+.mvp-source-picker__library {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.mvp-source-picker__empty {
+  margin: 0;
+  padding: var(--brand-scale-500) var(--brand-scale-400);
+  color: var(--mapped-text-subtle-default);
+  text-align: center;
+}
+
+/*
   THE BULK MODAL — `AddReceiptsModal`. The panel, header and footer are all the
   DS `Modal`'s own and are measured to match Figma exactly; only the content
   region's layout is here.
@@ -1678,6 +1767,24 @@ button.mvp-receipt-card:focus-visible {
   display: flex;
   flex-direction: column;
   gap: var(--brand-scale-200);
+  /*
+    THE SEPARATION BEFORE cancel, AND IT IS DERIVED FROM A MEASUREMENT (Gate 52).
+
+    MEASURED BEFORE CHANGING IT: the content region's bottom and the footer's top
+    are the SAME y (delta 0), so the whole gap before cancel was the footer's own
+    16px padding — against an 8px gap between Photo Gallery and Camera. A 2:1
+    ratio is why all three buttons read as one stack of three rather than as two
+    sources and a dismissal.
+
+    24 TAKES IT TO 40, i.e. FIVE TIMES the internal gap. It is --brand-scale-600,
+    a real ramp step, so no literal enters the tree.
+
+    IT IS A MARGIN ON THE SOURCES, NOT A CHANGE TO THE MODAL'S CONTENT/FOOTER
+    BOUNDARY, WHICH IS WHAT KEEPS IT SCOPED. This element exists only in the
+    empty phase, so the grid and saving phases are untouched by construction —
+    which is also why this moves four baselines and not twelve.
+  */
+  margin-bottom: var(--brand-scale-600);
 }
 
 /* Full-width, matching the footer's own stack. */
