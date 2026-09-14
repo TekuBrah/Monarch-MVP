@@ -2719,6 +2719,12 @@ luck. Do not re-derive this from the changelog; re-run the two-tag diff.
 
 ### THE APP HAS TWO CLOCKS, AND THEY DISAGREE BY ELEVEN MONTHS
 
+*(**THREE clocks since Gate 53**, which dated two rows 2026-09-12 and so moved
+`ledgerNow()` — the newest row — a year ahead of the rest of the fixture. The
+eleven-month figure and everything below it is Gate 41's record and is left as
+written; what it cost, and why `TRANSACTION_FILTER_APPLIED` had to stop
+depending on the date facet, is in the Gate 53 section.)*
+
 **THIS IS THE FINDING MOST LIKELY TO BITE A FUTURE FLOW, AND IT IS INVISIBLE
 UNTIL SOMETHING FILTERS BY DATE.**
 
@@ -2789,6 +2795,14 @@ unchanged (still third of the original four); only its printed timestamp moved.
 the ledger are still **Aeon Big 2025-09-15T22:03** and **Caring Pharmacy
 2025-09-13T18:50**, so the Homepage's two-row slice is untouched. The newest
 fabricated row is KFC at 12 Sept 08:15.
+
+**⚠ RULING 3 WAS RETIRED AT GATE 53, ON TEKU'S RULING, AND THE PARAGRAPH ABOVE
+IS GATE 41'S RECORD.** Gate 53 added two rows dated 2026-09-12 — the date printed
+on the paper they were captured from — which are now the ledger's newest, so the
+Homepage draws **iFruits Market** and **ST Rosyam Wholesale Express** where
+Figma's frame draws Aeon Big and Caring Pharmacy. Exactly one walk state shows
+it (`index`). Do not "restore" it by re-dating a row away from its receipt's
+printed date; see the Gate 53 section.
 
 ### EIGHT BASELINES, NOT FOUR — the account-attribution decision
 
@@ -3256,6 +3270,13 @@ for:
 | click `This Month` | `Apply Filter · 18 results` | the five August rows drop out |
 | fill max `500` | `Apply Filter · 15 results` | three September rows over the cap drop out |
 | confirm | chip row reads `This MonthRM 0 - 500` | 15 rows, TWO chips |
+
+*(**THIS LADDER IS GATE 44'S RECORD AND IS TWO GATES STALE.** Gate 48 moved the
+third rung 15 -> 16, and Gate 53 replaced the DATE facet with the TYPE facet
+outright — the ladder is now 25 -> 16 -> 14, clicking `Card Payment` rather than
+`This Month`, and the chip row settles on `Card PaymentRM 0 - 500`. The reason
+is that the date facet measures back from the ledger's newest row, which Gate 53
+moved a year. Re-derive against `filterTransactions`.)*
 
 15 is the number Figma's frame prints and the count
 `TRANSACTION_FILTER_APPLIED` produces, so the constant is exercised end to end.
@@ -3818,10 +3839,12 @@ prints "Apply Filter (15)", so the code and the frame no longer agree — and th
 FRAME is the stale party.** The nine rows the frame draws are still the top nine;
 a tenth now also qualifies.
 
-**THE HARNESS LADDER MOVED WITH IT.** `OVERLAY_STATES`' `applied` entry asserts
-23 -> 18 -> 16; only the third rung moved, because the first two are date facts
-and this gate moved no date. Those numbers are DERIVED — re-derive them against
-`filterTransactions` rather than editing them to make a run go green.
+**THE HARNESS LADDER MOVED WITH IT.** `OVERLAY_STATES`' `applied` entry asserted
+23 -> 18 -> 16 from this gate; only the third rung moved here, because the first
+two are date facts and this gate moved no date. Those numbers are DERIVED —
+re-derive them against `filterTransactions` rather than editing them to make a
+run go green. *(It reads **25 -> 16 -> 14** since Gate 53, which re-anchored the
+filter off the date facet entirely.)*
 
 **Neither may be restored by moving an amount away from its receipt.** The
 receipts are photographs of what was paid; the ledger figures were authored at
@@ -7583,6 +7606,325 @@ class, untouched and still carrying its removal condition; the DS repo and the
 pin; `npm audit fix`; branch deletion; the Camera full-screen frame, still
 retired; persistence; a receipt filter model; and the three AA shortfalls on the
 net-worth card ruled on at Gate 31.
+
+## Merchant photographs, two 2026 rows, and a re-anchored filter (Gate 53)
+
+No DS re-pin — **v2.3.0 throughout**. Four items, and the one to read first is
+the third: **two rows dated a year ahead of the whole fixture moved the ledger's
+idea of "now", which broke a filter by making it correct and useless.**
+**|WALK| stays 40, `OVERLAY_STATES` stays 19, baselines 160 -> 160 (48 changed,
+ZERO added, ZERO deleted), tests 383 -> 385, spec files 13 -> 14.**
+`lint:tokens` scans 62 files with the same **3** pre-existing exemptions — no
+new raw value entered the tree.
+
+### Item 1 — `TransactionLogo` grew a third case, and it is NOT a DS gap
+
+`{ kind: 'image'; filename: string }`, beside `merchant` and `person`.
+
+**THE DS CANNOT SERVE THIS AND NEVER WILL, WHICH IS WHY NO GAP NUMBER WAS
+OPENED.** DS `Logo` takes a `name` out of the closed `LogoName` registry —
+curated vector brand marks, drawn once and shared by every consumer. A
+photograph of ONE merchant's shopfront signage is the opposite: per-record
+product data, in exactly the category the ten receipt photographs are already
+in. `receiptUrl()` is the precedent and `transactionLogoUrl()` follows it
+without modification — the record stores a bare filename and
+`src/config/media.ts` owns the directory, so no component writes a literal
+`/media/...` path.
+
+**IT RENDERS THROUGH `Avatar src`, AND NO CSS WAS WRITTEN.** `.mn-avatar--photo
+img` is `object-fit: cover` inside a fixed square at `border-radius: 50%` with
+`overflow: hidden`.
+
+**VERIFIED AT RENDER WITH A NON-SQUARE CONTROL, NOT READ OFF THE DS
+STYLESHEET** — and the control was necessary, because **both shipped files are
+exactly square (447 x 447) and could therefore never demonstrate cropping at
+all.** A deliberately 4:1 (400 x 100) image in a `mn-avatar--m` frame rendered
+**32 x 32**: filled the circle, cropped, not distorted. Both real files were then
+confirmed served and rendering at 32 x 32 through the same path.
+
+#### The switch is exhaustive by construction — mutation-proved twice
+
+`TransactionMark` has **no `default` case and must not grow one**, because a
+default is precisely what would let a fourth `kind` compile and render nothing.
+Two early returns (`person`, `image`) narrow `mark` to the `merchant` member, so
+the final `mark.name` is what fails. **SO THE ORDER OF THE RETURNS IS
+LOAD-BEARING:** the case reading a member-specific property must come last.
+
+Proved by adding a fourth `kind`, on the final tree:
+
+```
+src/components/TransactionMark.tsx(69,27): error TS2339: Property 'name' does not
+exist on type '{ kind: "merchant"; name: LogoName; } | { kind: "emoji"; glyph: string; }'
+```
+
+`types.ts` restored byte-identical (`e090f6334dc4c3ca`).
+
+**IT ALSO CORRECTED A COUNT IN ITS OWN HEADER.** The comment claimed "THREE call
+sites … and a fourth is coming with Flow 9", written at Gate 41. Measured at
+Gate 53 there are **SEVEN** — `HomepageFiat`, `HoldingDetailScreen`,
+`TransactionsLedger`, `TransactionDetailSheet`, `TransactionPicker`,
+`ReceiptCard`, `ReceiptViewer`. `grep -rn "<TransactionMark" src/` is the whole
+check and the number only grows.
+
+#### The assets — measured, and NOT downscaled
+
+| file | format | dimensions | bytes |
+|---|---|---|---|
+| `st-rosyam.jpg` | baseline JPEG (SOF0), JFIF/APP0, no Exif | **447 x 447** | 13,946 |
+| `ifruits-market.jpg` | same | **447 x 447** | 18,954 |
+
+**THE SOURCE FILES WERE NAMED `.jpg.jfif`, NOT `.jpg`.** JFIF is the JPEG
+container, so these are ordinary JPEGs; only the extension was corrected on
+copy, and both are **byte-identical to source by SHA-256** — copied, never
+re-exported. Neither carries an EXIF orientation tag, so nothing has to honour a
+rotation flag.
+
+**NO DOWNSCALE, APPROVED.** The largest `Avatar` is `l` = 40px = 80 device px at
+DPR 2, so 447 is ~5.6x oversupply — but the two together are **32,900 bytes**,
+against the 128,696-byte academy PNG this repo already ships for a 221 x 152
+render. Re-exporting would save ~25 KB site-wide and put two files out of step
+with their source; Gate 25's ruling that a re-export is its own separate act
+stands. **Re-check if either is ever shown larger than 40px.**
+
+### Item 2 — two rows dated 2026, and what that cost
+
+`txn-ifruits-0912` (iFruits Market, -RM 38.60, 16:13) and `txn-rosyam-0912`
+(ST Rosyam Wholesale Express, -RM 70.85, 16:05), both Card Payment, both
+`groceries`, both `accountId: 'main'` per Gate 41's precedent, both
+`logo.kind: 'image'`, both **dated 2026-09-12 — a year ahead of all 23 other
+rows.** They are first in the array because it is ordered date-descending.
+
+**THE DATE IS TEKU'S RULING: the date printed on the paper they were captured
+from.** Re-dating them into the September-2025 block was offered, measured and
+declined.
+
+**THEY SHIP WITH NO RECEIPT LINKED, DELIBERATELY** — every add-and-link path is
+hand-tested against them, so a pre-linked row would remove the state the testing
+needs.
+
+#### `ledgerNow()` IS AN EXTREMUM, AND TWO ROWS MOVED IT A YEAR
+
+**THIS IS THE FINDING THAT GENERALISES.** `ledgerNow()` is the newest
+`occurredAt`, and the date facet measures back from it — a deliberate Gate 41
+divergence from B5, because the ledger cannot be an offset from `TODAY`. The
+property that bought was "move the ledger forward a year and the window follows,
+with no literal to update."
+
+**IT WORKED EXACTLY AS DESIGNED, AND THAT WAS THE PROBLEM.** The window followed
+the newest row straight past every other row in the fixture. Measured by running
+the real filter code over both candidate ledgers:
+
+| | as shipped (23 rows) | + the two 2026 rows (25) |
+|---|---|---|
+| `ledgerNow()` | 2025-09-15 | **2026-09-12** |
+| "This Month" alone | 18 rows | **2** |
+| `TRANSACTION_FILTER_APPLIED` | 16 rows | **2** |
+| Homepage top two | Aeon Big, Caring Pharmacy | **iFruits, ST Rosyam** |
+
+**NOTHING WAS BROKEN. THE PREDICATE WAS CORRECT AND THE RESULT WAS USELESS**,
+which is a worse failure than a wrong predicate because no assertion can smell
+it. And the lesson is NOT "don't derive" — a hardcoded September-2025 boundary
+would have gone silently empty instead. It is that **A WINDOW ANCHORED TO AN
+EXTREMUM IS ONLY AS REPRESENTATIVE AS THAT EXTREMUM.**
+
+`ledgerNow()` is **UNCHANGED** and is still the right anchor for a user-chosen
+date facet, where "this month" relative to the data on screen is what a user
+means. What changed is the one consumer that needed a representative subset.
+
+#### The Homepage now diverges from its Figma frame — RECORDED, ACCEPTED
+
+**`recentTransactions` SORTS DATE-DESCENDING AND SLICES TWO, so `/` DRAWS THE
+TWO 2026 ROWS.** Figma's Homepage frame draws Aeon Big (15 Sept) and Caring
+Pharmacy (13 Sept); the app draws iFruits Market and ST Rosyam.
+
+**EXACTLY ONE WALK STATE SHOWS IT: `index`** — i.e. the four baselines
+`index-{375,430}-{light,dark}`. Measured, not assumed: the per-state census
+shows `index-crypto`'s five list items are crypto HOLDINGS (`Bitcoin 0.098279
+BTC`), because `HomepageCrypto` renders no ledger slice at all. So the
+displacement reaches the accounts tab and nowhere else.
+
+This is the clause the ledger header used to protect ("sorting this ledger
+newest-first and taking two rows yields Aeon Big and Caring Pharmacy"). **It is
+retired, on Teku's ruling, and recorded here rather than left to be discovered
+from a screenshot.** Do not "restore" it by re-dating a row away from its
+receipt's printed date.
+
+### The re-anchored applied filter
+
+`TRANSACTION_FILTER_APPLIED` was Figma's own four drawn chips — Payee All, Type
+All, **This Month**, RM 0-500 — from Gate 41 to Gate 53. It is now Payee All,
+**Type Card Payment**, **All Time**, RM 0-500, and returns **14 of 25 rows**.
+**The RM 0-500 half is still Figma's own, literally; only the date facet was
+replaced.**
+
+**ITS ONE CONSUMER IS THE `[overlay:applied]` WALK STATE**, whose whole job is to
+be the suite's ONLY photograph of an applied filter and its ONLY non-empty chip
+row (Gate 44). A screenshot of 2 rows out of 25 demonstrates almost nothing.
+
+**EVERY CANDIDATE WAS MEASURED OVER THE SAME 25 ROWS BEFORE ONE WAS CHOSEN**,
+and all of them have `dateRange: 'all'`, which was the requirement — nothing
+here moves when a row is added at either end of the ledger:
+
+| candidate | rows | |
+|---|---|---|
+| RM 0-500 alone | 21 of 25 | too weak — excludes only 4 |
+| Card Payment alone | 16 of 25 | one chip only |
+| RM 0-100 alone | 11 of 25 | one chip only |
+| **Card Payment + RM 0-500** | **14 of 25** | **chosen** |
+| Card Payment + RM 0-100 | 9 of 25 | |
+| Fund Transfer + RM 0-500 | 5 of 25 | |
+
+Four reasons for the choice, each measured rather than argued:
+
+- **TWO FACETS, BECAUSE THE CHIP ROW IS HALF OF WHAT THE STATE COVERS.** A
+  two-chip row exercises `filterChipLabels`' joining and the row's own layout
+  where one chip would not. The old filter drew two; this draws two —
+  `["Card Payment", "RM 0 - 500"]`.
+- **BOTH FACETS ARE LOAD-BEARING.** Of the 11 excluded rows, **7 are excluded by
+  the method facet alone** and **2 by the amount facet alone** (`txn-ikea-0908`
+  at -830.83, `txn-ikea-0815` at -2647.67); 2 by both. So a facet that silently
+  stopped working changes the count rather than being masked.
+- **IT COVERS A FACET NOTHING COVERED BEFORE.** The old ladder drove the date and
+  amount controls; **no walk state had ever selected a transaction TYPE.** A
+  coverage gain, not a like-for-like swap.
+- **BOTH GATE 53 ROWS FALL INSIDE IT** (Card Payments of 38.60 and 70.85), so the
+  rows every add-and-link path is hand-tested against are visible on the one
+  filtered screen.
+
+#### The ladder was re-derived, not edited to go green
+
+25 at open -> **16** after Type = Card Payment (the 7 Fund Transfers and 2 Crypto
+Transfers drop out) -> **14** after the RM 500 cap. It read 23 -> 18 -> 16 until
+this gate and 23 -> 18 -> 15 before Gate 48.
+
+**ONE SELECTOR FACT THAT WAS NOT TRUE OF THE OLD STEP.** The chip locator is
+`.mn-toggle-chip:has-text("Card Payment")`, and the class scoping is now
+load-bearing: **"Card Payment" is also the method caption on sixteen ledger rows
+behind the sheet**, so an unscoped text lookup would be ambiguous many times
+over. `:has-text` and not `:text-is` for the Gate 44 reason — `ToggleChip`
+renders its label in a child `<span>`, so `:text-is` returns zero.
+
+**FIGMA'S "Apply Filter (15)" NOW CORRESPONDS TO NOTHING, AND THE DRIFT IS TWO
+GATES DEEP** — Gate 48 broke it first (15 -> 16), Gate 53 replaced a facet
+outright. The frame is the stale party. Do not restore 15 by moving an amount
+away from its receipt, by re-dating a row, or by narrowing the cap.
+
+### Item 3 — the captured-receipt name, and the diagnosis that was wrong
+
+A card on a real device printed
+`"ESPEN EER BCs rf 42. i EH EER eer Spates Le"`.
+
+**THE OBVIOUS DIAGNOSIS IS WRONG AND THAT IS THE FINDING.** That string reads
+exactly like OCR output, so the natural conclusion — the one the gate brief
+reached — is that extraction leaked into `displayName`. It did not:
+**`displayName` has exactly ONE writer in `src/`** (`capturedToReceipt`) and it
+has never read `extracted`. The garbled value WAS `File.name`, handed over by
+the device's own camera intent.
+
+**SO THE SPLIT IS BY SOURCE, NOT BY WHETHER THE NAME LOOKS SENSIBLE.** There is
+no predicate for "this filename is rubbish" that is not a guess. A gallery pick's
+name is one the user browsed to and can recognise — discarding it would be a
+regression. A camera capture has no such name to protect: the photograph did not
+exist until the shutter fired.
+
+`cameraRollName(file, now)` -> `IMG_20260912_160512.jpg`, for `'camera'` only.
+
+- **THE STAMP IS DERIVED FROM `localWallClock`, NOT FORMATTED AGAIN.** One
+  definition of "the local wall-clock moment", reshaped — so a camera-roll name
+  and the `capturedAt` beside it on the same card cannot disagree about what time
+  it is. It inherits Gate 51 item T for free.
+- **THE EXTENSION IS THE FILE'S OWN, NOT A HARDCODED `.jpg`.** `capture` is a
+  hint a desktop browser ignores and `accept` admits `application/pdf`, so the
+  camera row CAN return a PDF — and the staged tile's badge already reads
+  `fileTypeLabel(file.name)`, so a hardcoded `.jpg` would sit beside a badge
+  reading "pdf". A dotless name falls back to `jpg`.
+- **`filename` IS UNTOUCHED.** It and `displayName` are two different facts
+  (`types.ts`); `filename` stays the device's own name, as the honest record of
+  what was handed over.
+
+**THE SOURCE IS REPORTED BY `ReceiptFileInput` AND ONLY BY IT**, from a ref set
+inside `open()` — the element that sets `capture` is the single point of truth. A
+consumer remembering its own last-clicked source would be a second copy of that
+fact, and a re-render between the click and the `change` event would name the
+wrong one. `ReceiptSource` moved from that component to `receiptCapture.ts`,
+because it is now a recorded fact about a capture rather than an instruction to
+an `<input>`, and the dependency then runs the way every other one in the flow
+does.
+
+`e2e/capture-name.spec.ts` (2 tests, no baseline). **It cannot reproduce an
+Android camera's `File.name` and says so** — `capture` is a hint desktop
+Chromium ignores, so both rows receive the same `File`. That is precisely what
+makes it the right instrument for the FIX: the two rows differ in nothing except
+which source they report.
+
+**THREE MUTATIONS, RE-RUN AGAINST THE FINAL TREE**, `receiptCapture.ts` restored
+byte-identical (`b6c383ab1c76e24a`) after each:
+
+| mutation | fails at |
+|---|---|
+| revert to `file.name` for both | the camera arm |
+| apply the generated name to both | the gallery arm |
+| `toISOString()` instead of `localWallClock` | the camera arm (UTC would name it `IMG_20260815_014100`) |
+
+**NO BASELINE CAN MOVE FOR THIS**, and it is structural: `openOverlay`'s
+`chooseFiles` step stages through "Photo Gallery", so no committed baseline
+photographs a camera capture.
+
+### Item 4 — the picker's rows were 0px apart, measured
+
+**`row-gap` COMPUTED `normal` AND `.mn-list-item` CARRIES `padding: 0`**, so
+consecutive 44px rows in `.mvp-link-picker__list` sat edge to edge with a real
+separation of **exactly 0**. A 48px logo nearly touched the one below it and the
+next row's merchant name sat immediately under the previous row's date.
+
+Now `gap: var(--spacing-400)` — 16px.
+
+**`--spacing-400` AND NOT THE LEDGER'S `--brand-scale-700` (28px), which is the
+precedent a first pass reaches for**, because the picker's rows ARE the ledger's
+own `ListItem` (principle P5). Two measured reasons it is the wrong one:
+
+- **THE LEDGER HAS NO INTERLEAVED HEADINGS.** Its 28px is transcribed from
+  Figma's `Frame 453`, a flat date-descending list. This view is month-grouped,
+  and `.mvp-link-picker__group` puts only `--spacing-100` (4px) between a heading
+  and its first row. At 28px that is a **7:1** ratio — the heading reads as glued
+  to one row while the rows read as unrelated to each other, which is the
+  opposite of the grouping the headings assert.
+- **`.mvp-receipts__list` IS THE CLOSER ANALOGUE AND ALREADY USES 16px** — a
+  month-grouped list of pickable rows in this same flow.
+
+**ALL FOUR CANDIDATES WERE RENDERED AND LOOKED AT, not reasoned about:** 0px
+packed, 12px still cramped, 16px clearly separated, 28px loose. Modal content
+`scrollHeight` 1050 -> 1322 against a 706px viewport, so the region already
+scrolled and still does.
+
+### Baselines — predicted in writing, then reconciled
+
+**PREDICTED BEFORE THE PRE-MINT RUN: 48 changed, 0 added, 0 deleted**, as 12
+walk states x 2 viewports x 2 themes, each state named with its mechanism.
+Derived from a per-state census of all 40 walk states taken BEFORE the rows
+landed, not from reasoning about which screens probably show transactions.
+
+The 12: `index`; `finance-transactions`; `finance-holding-main`; and the nine
+`finance-transactions-{filter,applied,detail,detail-linked,add-source,add-library,add-library-filled}`
+plus `finance-receipts-{view-picker,view-replace}`.
+
+**`view-picker` AND `view-replace` MOVE FOR TWO CAUSES AT ONCE** — the picker
+gains the two new outflows AND Item 4's gap — which is why a per-item baseline
+split would not sum. Items 1 and 3 move nothing of their own: Item 1's pixels
+arrive inside the 48 (no walk state rendered an `image` mark until these rows
+existed), and Item 3 is outside the visual net entirely.
+
+### Deliberately not in scope
+
+Re-dating the two rows to 2025 (measured, offered, declined by Teku); restoring
+Figma's "Apply Filter (15)" correspondence or the Homepage's drawn two rows;
+downscaling either photograph; linking either new row to a receipt; grouping the
+ledger by month; `ledgerNow()` itself, which is unchanged and still correct for a
+user-chosen date facet; the DS repo and the pin; G6, G13, G14, G17's prop half,
+G19-G23, G28-G33 — all still registered, still deferred, and **no MVP-local
+override was added for any**; the G33 workaround class, untouched and still
+carrying its removal condition; branch deletion; `npm audit fix`; and the three
+AA shortfalls on the net-worth card ruled on at Gate 31.
 
 ## Known conditions of this setup
 

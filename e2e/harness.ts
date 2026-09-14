@@ -726,28 +726,34 @@ export const OVERLAY_STATES: WalkState[] = [
   // dismiss affordance and the whole `FilterChip` row could break silently.
   //
   // IT LANDS EXACTLY ON `TRANSACTION_FILTER_APPLIED`, WHICH IS THE POINT
-  // rather than a coincidence: this walks the sheet to Figma's own applied
-  // filter — This Month, RM 0-500 — over the same 23-row ledger, and the
-  // prepare steps' own assertions prove it arrived.
+  // rather than a coincidence: this walks the sheet to that constant — Type
+  // Card Payment, RM 0-500 — over the 25-row ledger, and the prepare steps'
+  // own assertions prove it arrived.
   //
-  // THE BUTTON READS "16 results", AND IT READ "15" UNTIL GATE 48. 15 is what
-  // Figma's frame prints, and the two agreed until that gate reconciled every
-  // receipt-linked amount to its receipt's printed total: Jaya Grocer fell from
-  // 529.75 to 263.20 and crossed under the RM 500 cap. The count is still
-  // exactly what `TRANSACTION_FILTER_APPLIED` produces over the ledger — that
-  // constant is still exercised end to end — but it no longer matches the
-  // frame. See the Gate 48 block in `src/data/transactions.ts`.
+  // IT WAS FIGMA'S OWN FOUR CHIPS UNTIL GATE 53, AND THE DATE FACET IS WHAT
+  // CHANGED. The drawn filter is Payee All, Type All, THIS MONTH, RM 0-500.
+  // Gate 53 added two rows dated 2026-09-12, which moved `ledgerNow()` — the
+  // newest `occurredAt` — forward a year, so "This Month" came to mean
+  // September 2026 and matched exactly those two rows. Measured: this state
+  // would have photographed 2 ROWS OUT OF 25. The filter was not broken; it was
+  // correct and useless, which is worse for a state whose whole job is to
+  // demonstrate filtering. The full derivation, including every candidate that
+  // was measured and rejected, is on `TRANSACTION_FILTER_APPLIED` itself.
   //
-  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 23 rows at open, 18
-  // after This Month (the five August rows drop out), 16 after the RM 500 cap
-  // (two September rows over it drop out). A step that silently failed would
+  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 25 rows at open, 16
+  // after Type = Card Payment (the 7 Fund Transfers and 2 Crypto Transfers drop
+  // out), 14 after the RM 500 cap (`txn-ikea-0908` at -830.83 and
+  // `txn-ikea-0815` at -2647.67 drop out). A step that silently failed would
   // land on the wrong rung and fail there rather than minting a baseline of a
   // filter nobody asked for.
   //
-  // THE THIRD RUNG WAS 15 AND THE CAP EXCLUDED THREE ROWS UNTIL GATE 48. Only
-  // that rung moved: the 23 and the 18 are date facts, and Gate 48 moved no
-  // date. THESE NUMBERS ARE DERIVED, NOT DECORATIVE — re-derive them against
+  // THE LADDER READ 23 -> 18 -> 16 UNTIL GATE 53, AND 23 -> 18 -> 15 BEFORE
+  // GATE 48. THESE NUMBERS ARE DERIVED, NOT DECORATIVE — re-derive them against
   // `filterTransactions` rather than editing them to make a run go green.
+  //
+  // IT IS ALSO THE ONLY PLACE THE SUITE OPERATES THE TYPE FACET. Before Gate 53
+  // the ladder drove the date and amount controls only, so no walk state had
+  // ever selected a transaction type.
   //
   // IT CONFIRMS, SO NO DIALOG IS OPEN AT CAPTURE — the same shape as the toast
   // state above, and `assertOverlayMatchesState` already expects an empty
@@ -767,11 +773,17 @@ export const OVERLAY_STATES: WalkState[] = [
           // its label in a child <span>, and `:text-is` matches an element's
           // own immediate text, so it returns ZERO here. `:has-text` matches
           // the ancestor and returns exactly one.
-          control: '.mn-toggle-chip:has-text("This Month")',
-          controlName: 'This Month',
+          //
+          // SCOPED TO `.mn-toggle-chip`, WHICH IS LOAD-BEARING HERE IN A WAY IT
+          // WAS NOT FOR "This Month". "Card Payment" is also the METHOD CAPTION
+          // on sixteen ledger rows behind the sheet, so an unscoped text lookup
+          // would be ambiguous many times over. The class restricts it to the
+          // Transaction Type chip row — measured count 1.
+          control: '.mn-toggle-chip:has-text("Card Payment")',
+          controlName: 'Card Payment',
           action: 'click',
           settlesOn: '.mn-sheet__actions .mn-btn',
-          settlesText: 'Apply Filter · 18 results',
+          settlesText: 'Apply Filter · 16 results',
         },
         {
           // THE INPUT, NOT THE THUMB. `RangeSlider` puts the SAME
@@ -783,20 +795,25 @@ export const OVERLAY_STATES: WalkState[] = [
           action: 'fill',
           value: '500',
           settlesOn: '.mn-sheet__actions .mn-btn',
-          settlesText: 'Apply Filter · 16 results',
+          settlesText: 'Apply Filter · 14 results',
         },
       ],
       confirm: {
         control: '.mn-sheet__actions .mn-btn',
-        controlLabel: 'Apply Filter · 16 results',
+        controlLabel: 'Apply Filter · 14 results',
         // THE CHIP ROW IS THE SETTLE TARGET, DELIBERATELY. The ledger's row
         // count is not directly assertable as text, but the chip row is — and
         // it is also the thing this state exists to cover. Two chips and only
-        // two: the type and payee facets are at their defaults and Gate 44
+        // two: the DATE and payee facets are at their defaults and Gate 44
         // suppresses them, so this text is simultaneously the proof that the
         // filter applied AND that the suppression rule fired.
+        //
+        // WHICH TWO FACETS ARE DEFAULTED SWAPPED AT GATE 53 — it was the type
+        // and payee facets that were suppressed here, and it is now the date
+        // and payee. The arity is unchanged at two, which is what keeps this
+        // assertion exercising the multi-chip row rather than a single chip.
         settlesOn: '.mvp-transactions__chips',
-        settlesText: 'This MonthRM 0 - 500',
+        settlesText: 'Card PaymentRM 0 - 500',
       },
     },
   },
@@ -1335,8 +1352,10 @@ export const OVERLAY_STATES: WalkState[] = [
   // same Modal, so `dialogs` reads `['Link to transaction', ...]` rather than
   // the file name. It is the only state that photographs the pick path at all.
   //
-  // THE ROW IS CHOSEN BY AMOUNT, NOT BY POSITION. All 23 ledger magnitudes are
-  // distinct (re-derived at this gate: 23 rows, 23 distinct cents), so
+  // THE ROW IS CHOSEN BY AMOUNT, NOT BY POSITION. All 25 ledger magnitudes are
+  // distinct (re-derived at Gate 53: 25 rows, 25 distinct cents, zero
+  // duplicates — the two rows added there are 70.85 and 38.60, neither of which
+  // collided), so
   // `RM 26.29` names exactly one row and goes on naming it if the sort order or
   // the row count changes. An `nth-child` would silently pick a different row
   // the day a transaction is added above it.

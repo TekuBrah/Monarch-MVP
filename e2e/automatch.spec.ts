@@ -46,7 +46,7 @@ import type { Receipt, Transaction } from '../src/data/types'
  * the point, not a hazard.
  * ─────────────────────────────────────────────────────────────────────────────
  * THE AMBIGUITY BRANCH IS TESTED ONLY ON CONSTRUCTED DATA, AND HAS TO BE. After
- * Gate 48's reconciliation no two of the 23 rows share a magnitude, so "two
+ * Gate 48's reconciliation no two of the 25 rows share a magnitude, so "two
  * candidates" can never arise from the seed. The constructed rows below exist
  * for that reason and no other.
  */

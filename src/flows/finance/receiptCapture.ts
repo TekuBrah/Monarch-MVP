@@ -52,6 +52,63 @@ function localWallClock(date: Date): string {
 }
 
 /**
+ * WHICH DEVICE SURFACE A FILE CAME FROM.
+ *
+ * IT LIVES HERE, NOT IN `ReceiptFileInput`, AS OF GATE 53. It was that
+ * component's type while it was only an instruction to an `<input>` — which
+ * `multiple` and `capture` to set. It is now a recorded FACT ABOUT A CAPTURE
+ * that `capturedToReceipt` reads, so it belongs beside the record it shapes and
+ * the dependency runs the way every other one in this flow does: components
+ * import from `receiptCapture`, never the reverse.
+ */
+export type ReceiptSource = 'camera' | 'gallery'
+
+/**
+ * A camera-roll-style name for a photograph the user just took.
+ *
+ * ───────────── WHY A CAMERA CAPTURE NEEDS A NAME GENERATED AT ALL ────────────
+ *
+ * `displayName` is documented as "what a phone's camera roll would have called
+ * the capture" — `IMG_4821.jpg`. For a GALLERY pick that is exactly what
+ * `File.name` already is: the user browsed their own camera roll and chose a
+ * file they can see the name of. For a CAMERA capture it is not. The photograph
+ * did not exist until the shutter fired, the user has never seen a name for it,
+ * and what `File.name` carries is whatever the OS camera intent happened to
+ * hand back — which is a name nobody chose and nobody recognises. Gate 53 was
+ * opened on a real device report where that value reached the card as
+ * `"ESPEN EER BCs rf 42. i EH EER eer Spates Le"`.
+ *
+ * SO THIS IS NOT A WORKAROUND FOR ONE BAD STRING. Even a well-behaved device
+ * name is meaningless to a user who never saw it, and the generated stamp is
+ * what Android's own camera would have produced. The fix is scoped to
+ * `'camera'` precisely so a gallery name — which IS user-recognisable — is
+ * never discarded.
+ *
+ * THE STAMP IS DERIVED FROM `localWallClock`, NOT FORMATTED AGAIN. One
+ * definition of "the local wall-clock moment", reshaped — so a camera-roll name
+ * and the `capturedAt` beside it on the same card can never disagree about what
+ * time it is. Formatting the date a second time here is how they would. That
+ * also inherits Gate 51 item T for free: a UTC stamp would name a capture taken
+ * at 18:34 in Malaysia `IMG_20260912_103400`, which is not what the phone's
+ * own camera roll would have called it.
+ *
+ * THE EXTENSION IS THE FILE'S OWN, NOT A HARDCODED `.jpg`. `capture` is a HINT
+ * that a desktop browser ignores entirely — it opens an ordinary file dialog —
+ * and `accept` admits `application/pdf`, so the camera row CAN return a PDF.
+ * The staged tile's badge already reads `fileTypeLabel(file.name)`, so a
+ * hardcoded `.jpg` would put a name ending `.jpg` next to a badge reading
+ * "pdf". A name with no dot at all falls back to `jpg`, which is the only
+ * guess here and is the format a camera actually produces.
+ */
+export function cameraRollName(file: File, now: Date): string {
+  const stamp = localWallClock(now).replace(/[-:]/g, '').replace('T', '_')
+  const dot = file.name.lastIndexOf('.')
+  const ext =
+    dot > 0 && dot < file.name.length - 1 ? file.name.slice(dot + 1).toLowerCase() : 'jpg'
+  return `IMG_${stamp}.${ext}`
+}
+
+/**
  * The badge text on a staged tile — "jpg", "png", "heic".
  *
  * FROM THE FILE'S OWN NAME, NOT FROM ITS MIME TYPE. The badge is telling the
@@ -76,6 +133,11 @@ export interface CapturedFile {
   sourceUrl: string
   /** Exactly what extraction returned, unread fields still `null`. */
   extracted: ExtractedReceipt
+  /**
+   * Which device surface produced it — `capturedToReceipt` needs it to decide
+   * the display name, and only the `<input>` that set `capture` knows it.
+   */
+  source: ReceiptSource
 }
 
 /**
@@ -131,12 +193,13 @@ const UNREAD: ExtractedReceipt = {
 export async function extractCapture(
   file: File,
   sourceUrl: string,
+  source: ReceiptSource,
 ): Promise<CapturedFile> {
   try {
-    return { file, sourceUrl, extracted: await extractReceipt(file) }
+    return { file, sourceUrl, source, extracted: await extractReceipt(file) }
   } catch (error) {
     console.error(`receipt extraction failed for ${file.name}`, error)
-    return { file, sourceUrl, extracted: UNREAD }
+    return { file, sourceUrl, source, extracted: UNREAD }
   }
 }
 
@@ -176,13 +239,33 @@ export function capturedToReceipt(
   capture: CapturedFile,
   transactionId: string | null,
 ): Receipt {
-  const { file, sourceUrl, extracted } = capture
+  const { file, sourceUrl, extracted, source } = capture
   return {
     id: `receipt-capture-${(captureSeq += 1)}`,
+    // WHERE THE BYTES CAME FROM, UNTOUCHED BY GATE 53. `filename` and
+    // `displayName` are two different facts (see `Receipt` in `types.ts`) and
+    // only the second one moved: this stays the device's own name, because it is
+    // the honest record of the file that was handed over — including when that
+    // name is unusable.
     filename: file.name,
-    // CAMERA-ROLL STYLE, matching what the ten seeded records print — the
-    // file's own name is what the user will recognise it by.
-    displayName: file.name,
+    /*
+      CAMERA-ROLL STYLE — AND FOR A CAMERA CAPTURE THAT MEANS A GENERATED ONE.
+
+      THIS WAS `file.name` FOR BOTH SOURCES UNTIL GATE 53, and the defect it
+      produced is worth stating because the mechanism is NOT the obvious one.
+      A card printed `"ESPEN EER BCs rf 42. i EH EER eer Spates Le"` — which
+      reads exactly like OCR output, so the natural diagnosis is that extraction
+      leaked into this field. IT DID NOT: `displayName` has exactly ONE writer
+      in `src/`, this line, and it has never read `extracted`. That garbled
+      string WAS `File.name`, handed over by the device's own camera intent.
+
+      SO THE SPLIT IS BY SOURCE, NOT BY WHETHER THE NAME LOOKS SENSIBLE. There
+      is no predicate for "this filename is rubbish" that is not a guess, and a
+      gallery pick's name is one the user chose and can recognise — discarding it
+      would be a regression. A camera capture has no such name to protect.
+    */
+    displayName:
+      source === 'camera' ? cameraRollName(file, new Date()) : file.name,
     capturedAt: extracted.capturedAt ?? localWallClock(new Date()),
     merchant: extracted.merchant ?? file.name,
     total: extracted.total ?? 0,
@@ -205,6 +288,7 @@ export async function captureToReceipt(
   file: File,
   sourceUrl: string,
   transactionId: string | null,
+  source: ReceiptSource,
 ): Promise<Receipt> {
-  return capturedToReceipt(await extractCapture(file, sourceUrl), transactionId)
+  return capturedToReceipt(await extractCapture(file, sourceUrl, source), transactionId)
 }

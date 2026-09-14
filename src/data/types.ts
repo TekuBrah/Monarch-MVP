@@ -92,29 +92,55 @@ export interface TransactionCategory {
 export type TransactionMethod = 'Card Payment' | 'Fund Transfer' | 'Crypto Transfer'
 
 /**
- * Who the row is with — a merchant mark, or a person.
+ * Who the row is with — a curated merchant mark, a person, or a photograph.
  *
- * A DISCRIMINATED UNION rather than two optional fields, for the same reason
- * `Holding` is one: the two cases render through DIFFERENT DS components
- * (`Logo` vs `Avatar`) with disjoint inputs, so `{ logo?, initials? }` would
- * admit both-set and neither-set — two states with no meaning that every call
- * site would then have to defend against. The tag makes the render a total
- * switch instead.
+ * A DISCRIMINATED UNION rather than a bag of optional fields, for the same
+ * reason `Holding` is one: the three cases render through DIFFERENT DS
+ * components with disjoint inputs, so `{ logo?, initials?, filename? }` would
+ * admit every combination of set and unset — a lattice of meaningless states
+ * that every call site would then have to defend against. The tag makes the
+ * render a total switch instead, and `TransactionMark` is that switch.
  *
- * NO IMAGE ASSET IS INVOLVED. `Avatar` takes `initials`, verified against the
- * pinned `dist/components/Avatar/Avatar.d.ts`, so a person row needs no
- * photograph and `public/media/` is untouched. Inventory §F describes Figma's
- * people as avatar PHOTOGRAPHS; initials are the substitution, and they are a
- * substitution rather than a shortcut — a photograph of a fictional person is
- * product data this repo has no source for.
+ * THE `person` CASE INVOLVES NO IMAGE ASSET, AND STILL DOES NOT. `Avatar` takes
+ * `initials`, verified against the pinned `dist/components/Avatar/Avatar.d.ts`,
+ * so a person row needs no photograph. Inventory §F describes Figma's people as
+ * avatar PHOTOGRAPHS; initials are the substitution, and they are a substitution
+ * rather than a shortcut — a photograph of a fictional person is product data
+ * this repo has no source for.
  *
- * THE FIELD IS STILL CALLED `logo`. The merchant case dominates (21 of 23 rows)
- * and both read sites already spell `logo`; renaming it would have widened a
- * type change into a rename across every consumer for no behavioural gain.
+ * ──────────── `image` — AN ARBITRARY MERCHANT PHOTOGRAPH (Gate 53) ───────────
+ *
+ * THIS IS THE CASE THE DS CANNOT SERVE, AND THAT IS WHY IT IS HERE. `Logo` takes
+ * a `name` out of the closed `LogoName` registry — curated vector brand marks,
+ * drawn once and shared by every consumer. A photograph of ONE merchant's
+ * shopfront signage is the opposite of that: it is per-record product data, in
+ * exactly the category the ten receipt photographs are already in, and a design
+ * system has no business shipping it. So it is not a DS gap and no gap number
+ * was opened — see the note on `Receipt.filename` and `receiptUrl()`, which is
+ * the precedent this follows rather than a new pattern.
+ *
+ * IT STORES A BARE FILENAME, NOT A URL, for the same reason `Receipt` does: the
+ * directory is `src/config/media.ts`'s to own (`transactionLogoUrl()`), and a
+ * record that spelled `/media/transactions/…` itself would be the literal
+ * `/media/` path that file's own top-level rule forbids.
+ *
+ * IT RENDERS THROUGH `Avatar src`, NOT THROUGH `Logo`. `Avatar` already frames a
+ * photograph in a fixed circle and `.mn-avatar--photo img` crops it with
+ * `object-fit: cover` — verified at render, not read off the stylesheet — so an
+ * arbitrary aspect ratio fills the frame without distorting. No MVP stylesheet
+ * and no DS change was needed.
+ *
+ * THE FIELD IS STILL CALLED `logo`, THOUGH ONE OF ITS THREE CASES IS NOW A
+ * PHOTOGRAPH AND NOT A LOGO AT ALL. The `merchant` case still dominates, every
+ * read site already spells `logo`, and `TransactionMark` is the only thing that
+ * reads the tag — so a rename would touch every consumer to buy a better word
+ * and no behaviour. Recorded as a deliberate imprecision rather than left to be
+ * rediscovered.
  */
 export type TransactionLogo =
   | { kind: 'merchant'; name: LogoName }
   | { kind: 'person'; initials: string }
+  | { kind: 'image'; filename: string }
 
 export interface Transaction {
   id: string

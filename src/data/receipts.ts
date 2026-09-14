@@ -106,13 +106,17 @@ import type { Receipt } from './types'
  *     that a documented invariant is retired. Do not "restore" it by editing an
  *     amount away from its receipt.
  *
- *  2. `TRANSACTION_FILTER_APPLIED` NOW RETURNS 16 ROWS, NOT 15. `txn-jaya-0901`
- *     fell from 529.75 to 263.20 and crossed under that filter's RM 500 cap, so
- *     it entered a set it used to sit just outside. Figma's own button prints
- *     "Apply Filter (15)", so that correspondence is now broken — see the note
- *     on the constant in `derive.ts`, and the harness ladder in
- *     `e2e/harness.ts`, both of which were updated to the derived 16. It is a
- *     real loss and it is the price of the reconciliation, not an oversight.
+ *  2. IT TOOK `TRANSACTION_FILTER_APPLIED` FROM 15 ROWS TO 16.
+ *     `txn-jaya-0901` fell from 529.75 to 263.20 and crossed under that
+ *     filter's RM 500 cap, so it entered a set it used to sit just outside.
+ *     Figma's own button prints "Apply Filter (15)", so that correspondence
+ *     broke here — a real loss, and the price of the reconciliation rather than
+ *     an oversight.
+ *
+ *     THAT CONSTANT HAS SINCE MOVED AGAIN AND NO LONGER RETURNS 16: Gate 53
+ *     re-anchored it off the date facet entirely and it returns 14 over a
+ *     25-row ledger. The sentence above is Gate 48's record, not a current
+ *     figure — read `derive.ts` for what the filter is now.
  *
  * WHAT DID NOT MOVE: merchant, category, payment method, account, date, and
  * therefore ledger position. The date-descending order of all 23 rows is
@@ -273,9 +277,15 @@ export const RECEIPTS: Receipt[] = [
     // Printed subtotal 248.30, SST (6%) 14.90, total 263.20. The eight lines
     // sum to 248.20 — 0.10 under.
     //
-    // THIS IS THE ROW THAT CHANGES THE FILTER COUNT. Its transaction fell
-    // 529.75 -> 263.20 and crossed under the RM 500 cap, taking
-    // `TRANSACTION_FILTER_APPLIED` from 15 rows to 16.
+    // THIS IS THE ROW THAT CHANGED THE FILTER COUNT AT GATE 48. Its
+    // transaction fell 529.75 -> 263.20 and crossed under the RM 500 cap,
+    // taking `TRANSACTION_FILTER_APPLIED` from 15 rows to 16.
+    //
+    // IT IS NO LONGER A BOUNDARY ROW, MEASURED. Gate 53 re-anchored that
+    // constant onto Type = Card Payment + RM 0-500, and this transaction is a
+    // Card Payment of 263.20 — comfortably inside on both facets, so its amount
+    // no longer decides anything. The two rows the cap now excludes on its own
+    // are `txn-ikea-0908` (-830.83) and `txn-ikea-0815` (-2647.67).
     total: 263.2,
     tax: 14.9,
     currency: 'MYR',

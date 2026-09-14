@@ -117,24 +117,40 @@ export function TransactionFilterSheet({
   const isMerchantView = view === 'merchant'
 
   /**
-   * The Merchant facet's options — 18 distinct names, DERIVED.
+   * The Merchant facet's options — 20 distinct names, DERIVED.
    *
    * `transactionPayees` de-duplicates and sorts the ledger's `merchant` field.
    * It is never a literal list and never a grep: a naive single-quote regex
-   * over the source returns 16, because two rows are DOUBLE-quoted to carry
-   * the apostrophes in their names. Note that 16 is a COINCIDENCE and not the
-   * merchant/person split — 16 rows also carry `logo.kind === 'merchant'`, but
-   * they are a DIFFERENT set of 16. The count is 18 and it comes from the data.
+   * over the source returns 18, because two rows are DOUBLE-quoted to carry
+   * the apostrophes in their names.
+   *
+   * THREE COUNTS SIT CLOSE TOGETHER HERE AND NONE OF THEM IS THE OPTION LIST.
+   * Re-derived at Gate 53 over the 25-row ledger: 20 distinct payees, 18 from
+   * the naive grep, and 16 rows carrying `logo.kind === 'merchant'` — the last
+   * of which is now joined by 2 `'image'` and 2 `'person'`, and 16 + 2 + 2 = 20
+   * only by coincidence of this fixture. THE COUNT IS 20 AND IT COMES FROM THE
+   * DATA.
+   *
+   * IT READ 18 / 16 / 16 FROM GATE 43 UNTIL GATE 53, which added two merchants.
+   * Every one of these numbers moves whenever a row with a new payee is added,
+   * so re-derive them rather than trusting this paragraph.
    */
   const payees = useMemo(() => transactionPayees(transactions), [transactions])
 
   /**
    * WHAT THE APPLY BUTTON COUNTS — the rows the PENDING filter matches.
    *
-   * Confirmed against the live Figma read: the frame prints "Apply Filter
-   * (15)", and `TRANSACTION_FILTER_APPLIED` over the 23-row ledger returns
-   * exactly 15. So N is a row count, not a count of facets changed or options
-   * selected — either of those would print 2 and 4 respectively on that frame.
+   * N IS A ROW COUNT, AND THAT WAS ESTABLISHED AGAINST FIGMA WHILE THE TWO
+   * STILL AGREED. The frame prints "Apply Filter (15)" and
+   * `TRANSACTION_FILTER_APPLIED` over the then-23-row ledger returned exactly
+   * 15 — which settles the semantics, because a count of facets changed would
+   * have printed 2 on that frame and a count of options selected 4.
+   *
+   * THE NUMBERS NO LONGER AGREE AND THE SEMANTICS ARE UNAFFECTED. Gate 48 took
+   * that constant to 16 and Gate 53 re-anchored it onto the type facet over a
+   * 25-row ledger, so it now returns 14. N is still whatever
+   * `filterTransactions` returns for the PENDING filter; only the constant the
+   * harness happens to walk to has moved.
    *
    * IT INCLUDES THE SEARCH TERM, WHICH FIGMA CANNOT ADJUDICATE because the
    * mockup's search box is empty, so both readings print 15 there. Including

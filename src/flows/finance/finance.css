@@ -1265,6 +1265,34 @@ button.mvp-receipt-card:focus-visible {
 .mvp-link-picker__list {
   display: flex;
   flex-direction: column;
+  /*
+    16px BETWEEN ROWS. It was NOTHING until Gate 53 — measured, not estimated:
+    computed `row-gap: normal` on this element and `padding: 0` on
+    `.mn-list-item`, so consecutive 44px rows sat edge to edge with a real
+    separation of exactly 0. A 48px logo nearly touched the one below it and the
+    next row's merchant name sat immediately under the previous row's date, so
+    the list read as one dense block rather than as rows a user picks between.
+
+    `--spacing-400` AND NOT THE LEDGER'S `--brand-scale-700` (28px), which is
+    the precedent a first pass reaches for, because the rows here ARE the
+    ledger's own `ListItem` (principle P5). Two reasons it is the wrong one:
+
+      · THE LEDGER HAS NO INTERLEAVED HEADINGS. Its 28px is transcribed from
+        Figma's `Frame 453`, a flat date-descending list. This view is grouped,
+        and `.mvp-link-picker__group` puts only `--spacing-100` (4px) between a
+        month heading and its first row. At 28px that is a 7:1 ratio — the
+        heading reads as glued to one row while the rows read as unrelated to
+        each other, which is the opposite of the grouping the headings assert.
+      · `.mvp-receipts__list` IS THE CLOSER ANALOGUE AND ALREADY USES 16px — a
+        month-grouped list of pickable rows inside this same flow. Matching it
+        is following a precedent rather than inventing a third value.
+
+    All four candidates were rendered and looked at, not reasoned about: 0px
+    packed, 12px still cramped, 16px clearly separated, 28px loose. Modal
+    content scrollHeight goes 1050 -> 1322 against a 706px viewport, so the
+    region already scrolled and still does.
+  */
+  gap: var(--spacing-400);
   margin: 0;
   padding: 0;
   list-style: none;

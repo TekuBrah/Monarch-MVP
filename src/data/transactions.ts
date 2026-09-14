@@ -112,13 +112,17 @@ import type { Transaction, TransactionCategory } from './types'
  *     (a) The RM 1,800.00 groceries chain — see above. Four of the five
  *         groceries rows moved; the total is now 1118.46.
  *
- *     (b) `TRANSACTION_FILTER_APPLIED` NOW MATCHES 16 ROWS, NOT 15. Jaya Grocer
+ *     (b) IT TOOK `TRANSACTION_FILTER_APPLIED` FROM 15 ROWS TO 16. Jaya Grocer
  *         fell from 529.75 to 263.20 and crossed under that filter's RM 500 cap,
  *         entering a set it used to sit just outside. Figma's own button prints
  *         "Apply Filter (15)", so the correspondence between the code and the
- *         frame is broken — and the frame is the thing that is now out of date,
- *         not the code. The harness ladder in `e2e/harness.ts` was moved to the
- *         derived 16 with it.
+ *         frame broke here — and the frame is the out-of-date party, not the
+ *         code. The harness ladder in `e2e/harness.ts` moved to the derived 16
+ *         with it.
+ *
+ *         THE 16 IS GATE 48'S FIGURE AND IS NOT CURRENT. Gate 53 re-anchored
+ *         that constant off the date facet — see the block on it in
+ *         `derive.ts` — and it now matches 14 of 25 rows.
  *
  *     THE HEADLINE ABOVE — "15 satisfy Flow 8's applied filter" — IS THEREFORE
  *     ALSO STALE AND HAS BEEN CORRECTED. Do not restore either number by editing
@@ -137,14 +141,84 @@ export const TRANSACTION_CATEGORIES: TransactionCategory[] = [
 ]
 
 /**
- * 23 rows. SIXTEEN satisfy Flow 8's applied filter and 7 are outside it — it was
- * 15 and 8 until Gate 48 reconciled the linked amounts to their receipts. They
- * exist so that clearing the filter is a visible act rather than a no-op: a
+ * 25 rows. FOURTEEN satisfy `TRANSACTION_FILTER_APPLIED` and 11 are outside it.
+ * They exist so that clearing the filter is a visible act rather than a no-op: a
  * filter whose input equals its output is not a filter.
  *
- * Ordered by date descending, which is also the order the ledger renders in.
+ * THAT SPLIT HAS MOVED THREE TIMES AND THE HISTORY MATTERS, because two of the
+ * three were amount changes and the third was not: 15/8 from Gate 41, 16/7 at
+ * Gate 48 (which reconciled every receipt-linked amount to its receipt's printed
+ * total, dropping Jaya Grocer under the RM 500 cap), and 14/11 at Gate 53 —
+ * which added two rows AND re-anchored the filter itself off the date facet.
+ * The derivation is on `TRANSACTION_FILTER_APPLIED`; re-derive rather than
+ * trusting this sentence.
+ *
+ * Ordered by date descending, which is also the order the ledger renders in —
+ * so the two 2026 rows below come FIRST.
  */
 export const TRANSACTIONS: Transaction[] = [
+  // ===== September 2026 — THE NEWEST ROWS IN THE LEDGER =====================
+  //
+  // TWO ROWS DATED A YEAR AHEAD OF EVERY OTHER ROW, AND THAT IS DELIBERATE
+  // (Gate 53, Teku's ruling). They are dated from the date printed on the
+  // paper receipts they were captured from — 12 Sept 2026 — and were explicitly
+  // NOT re-dated into the file's September-2025 block to keep the fixture
+  // uniform.
+  //
+  // ─────────── WHAT THAT COSTS, MEASURED, SO NOTHING IS DISCOVERED LATER ─────
+  //
+  // `ledgerNow()` is the newest row's timestamp, so these two rows MOVE THE
+  // LEDGER'S PRESENT from 2025-09-15 to 2026-09-12. Two consequences, both
+  // measured rather than reasoned:
+  //
+  //   · THE HOMEPAGE'S TWO-ROW STRIP NOW DRAWS THESE TWO. `recentTransactions`
+  //     sorts date-descending and slices, so `/` and `/ [tab:crypto]` show
+  //     iFruits Market and ST Rosyam where Figma's frame draws Aeon Big
+  //     (15 Sept) and Caring Pharmacy (13 Sept). That divergence from the drawn
+  //     frame is ACCEPTED, not overlooked — see the Gate 53 section of
+  //     CLAUDE.md, which names the affected walk states.
+  //   · A DATE-ANCHORED FILTER BECOMES USELESS HERE. "This Month" measured back
+  //     from the newest row means September 2026, which matches exactly these
+  //     two rows and nothing else. That is why Gate 53 re-anchored
+  //     `TRANSACTION_FILTER_APPLIED` onto facets that do not move with the
+  //     newest row; the reasoning is on that constant.
+  //
+  // THEY SHIP WITH NO RECEIPT LINKED, DELIBERATELY. Every add-and-link path —
+  // auto-match, the bulk modal, the detail sheet's own capture, and Gate 51-B's
+  // manual picker — is hand-tested against them, so a pre-linked row would
+  // remove the very state that testing needs.
+  //
+  // `accountId: 'main'` PER GATE 41'S PRECEDENT: a fabricated fiat row is
+  // attributed to the account the money actually moved through, rather than to
+  // an invented id that no holding claims. So `/finance/holding/main` goes
+  // 19 rows -> 21.
+  //
+  // `logo: { kind: 'image' }` IS THE THIRD `TransactionLogo` CASE, new at Gate
+  // 53. Neither merchant is in the DS's curated `LogoName` registry and neither
+  // ever will be — these are photographs of shopfront signage, which is
+  // per-record product data. See `TransactionLogo` in `types.ts`.
+  {
+    id: 'txn-ifruits-0912',
+    accountId: 'main',
+    merchant: 'iFruits Market',
+    logo: { kind: 'image', filename: 'ifruits-market.jpg' },
+    method: 'Card Payment',
+    amount: -38.6,
+    currency: 'MYR',
+    occurredAt: '2026-09-12T16:13:00',
+    category: 'groceries',
+  },
+  {
+    id: 'txn-rosyam-0912',
+    accountId: 'main',
+    merchant: 'ST Rosyam Wholesale Express',
+    logo: { kind: 'image', filename: 'st-rosyam.jpg' },
+    method: 'Card Payment',
+    amount: -70.85,
+    currency: 'MYR',
+    occurredAt: '2026-09-12T16:05:00',
+    category: 'groceries',
+  },
   // ===== September 2025 — inside the applied filter =========================
   // The nine rows Figma draws, in date order. Marked (1)-(9) with the position
   // they occupy in FIGMA'S DRAWN ORDER, which is not chronological: Figma places

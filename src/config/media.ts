@@ -230,3 +230,43 @@ export function receiptImageUrl(receipt: {
 }): string {
   return receipt.sourceUrl ?? receiptUrl(receipt.filename)
 }
+
+// ------------------------------------------------- transaction merchant marks
+
+/**
+ * The directory merchant photographs are served from.
+ *
+ * DECLARED ONCE SO NO COMPONENT WRITES A LITERAL `/media/...` PATH — the rule
+ * this file states at the top, honoured for the second case the slot model
+ * cannot express.
+ */
+const TRANSACTION_LOGO_DIR = '/media/transactions'
+
+/**
+ * Resolve a `{ kind: 'image' }` transaction mark's stored `filename` to a
+ * public URL.
+ *
+ * THIS IS `receiptUrl()`'s ARGUMENT AGAIN, NOT A NEW PATTERN, and the reasoning
+ * transfers without modification. A `MediaSlot` is ONE logical name resolving
+ * to ONE url a future customisation flow can swap — `profile`, `banner`,
+ * `academy`. A merchant photograph is per-record product data: each
+ * `Transaction` whose `logo` is an image names its own file, and there is no
+ * "the merchant photo" for a slot to point at. Widening `MediaSlot` would give
+ * it a `placeholder`, a `consumable` flag and a `mediaUrl()` entry, none of
+ * which mean anything for a collection.
+ *
+ * IT IS ALSO NOT A DS CONCERN, WHICH IS THE POINT WORTH KEEPING. The DS `Logo`
+ * component takes a name from the closed `LogoName` registry — curated vector
+ * brand marks. A photograph of one merchant's signage is not a candidate for
+ * that registry at any point in the future, so this is not a gap the DS will
+ * ever close; see `TransactionLogo` in `src/data/types.ts`.
+ *
+ * NO PLACEHOLDER AND NO FALLBACK, DELIBERATELY — `receiptUrl()`'s rule, for the
+ * same reason. A slot falls back because it can legitimately be unset. A record
+ * tagged `image` whose file is missing is a DATA DEFECT, and quietly
+ * substituting a placeholder would hide it. It fails the way a mistyped slot
+ * path already does: a broken image at runtime, with a green build.
+ */
+export function transactionLogoUrl(filename: string): string {
+  return `${TRANSACTION_LOGO_DIR}/${filename}`
+}

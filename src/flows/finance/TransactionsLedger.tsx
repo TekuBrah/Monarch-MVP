@@ -9,9 +9,8 @@ import { ReceiptViewerHost } from './components/ReceiptViewer'
 import {
   ReceiptFileInput,
   type ReceiptFileInputHandle,
-  type ReceiptSource,
 } from './components/ReceiptFileInput'
-import { captureToReceipt } from './receiptCapture'
+import { captureToReceipt, type ReceiptSource } from './receiptCapture'
 import {
   TRANSACTION_FILTER_ALL,
   clearFacet,
@@ -27,15 +26,21 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  *
  * THE NINE ROWS FIGMA DRAWS ARE AN OUTPUT, NOT A LIST, AND THAT IS STILL TRUE —
  * WHAT CHANGED AT GATE 44 IS WHEN THE SCREEN IS IN THAT STATE. Every row here
- * comes from `filterTransactions()` over the whole 23-row ledger, and Figma's
- * nine are simply the first nine of the SIXTEEN that match
- * `TRANSACTION_FILTER_APPLIED` under an ordinary date-descending sort — it was
- * 15 until Gate 48 reconciled the receipt-linked amounts and Jaya Grocer fell
- * under the RM 500 cap. Nothing is hand-picked, which is what makes the filter a
- * filter rather than a caption over a fixed list.
+ * comes from `filterTransactions()` over the whole 25-row ledger; nothing is
+ * hand-picked, which is what makes the filter a filter rather than a caption
+ * over a fixed list.
+ *
+ * THE FRAME'S NINE NO LONGER LINE UP WITH THIS SCREEN'S FILTER AT ALL, AND THE
+ * CORRESPONDENCE IS GONE RATHER THAN MERELY OFF BY ONE. They were the first nine
+ * of the 15 rows `TRANSACTION_FILTER_APPLIED` matched at Gate 41, then of 16
+ * after Gate 48 moved an amount under the cap. Gate 53 replaced that constant's
+ * date facet with a type facet — because two rows dated 2026 moved the ledger's
+ * "now" a year and collapsed "This Month" to 2 rows — so it now matches 14 rows
+ * selected on a different axis. See `TRANSACTION_FILTER_APPLIED` in
+ * `derive.ts`; do not try to reconstruct the frame's nine from it.
  *
  * BUT THE SCREEN NO LONGER OPENS THERE. Gate 44 reversed the earlier ruling
- * that it should: the initial filter is `TRANSACTION_FILTER_ALL`, all 23 rows
+ * that it should: the initial filter is `TRANSACTION_FILTER_ALL`, all 25 rows
  * show, and the chip row is empty. Figma's frame is a picture of the screen
  * MID-USE — it is what the screen looks like once a filter has been applied,
  * and reproducing it as the initial state made an applied filter look like a
@@ -74,6 +79,13 @@ export function TransactionsLedger() {
   // the value the harness's filtered walk state applies, which is what keeps
   // a filtered ledger — and, under Gate 44's chip model, the chip row itself —
   // inside the visual net. See OVERLAY_STATES in `e2e/harness.ts`.
+  //
+  // IT IS NO LONGER FIGMA'S FILTER, AS OF GATE 53. It is now Type = Card
+  // Payment + RM 0-500 rather than This Month + RM 0-500, because the date
+  // facet measures back from the ledger's NEWEST row and Gate 53's two 2026
+  // rows moved that a year forward — which left the drawn filter matching 2
+  // rows out of 25. The constant is a demonstration filter now, not a
+  // transcription; its derivation is on the constant itself.
   //
   // The chip row writes this state through `clearFacet` as of Gate 41-C, and
   // Gate 43's sheet writes it too — THROUGH THIS SAME SETTER. There is one
@@ -194,7 +206,7 @@ export function TransactionsLedger() {
     time rather than at click time is the one that stays correct if they ever
     can.
   */
-  const captureForTransaction = async (files: File[]) => {
+  const captureForTransaction = async (files: File[], source: ReceiptSource) => {
     const file = files[0]
     const targetId = detailId
     if (!file || !targetId) return
@@ -203,6 +215,7 @@ export function TransactionsLedger() {
       file,
       URL.createObjectURL(file),
       targetId,
+      source,
     )
     addReceipt(receipt)
     setIsCapturing(false)

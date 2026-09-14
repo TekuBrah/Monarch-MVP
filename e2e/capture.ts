@@ -50,15 +50,31 @@ export async function installResolvingExtraction(
 /**
  * Stage the fixture in the bulk modal and press Save — through the real
  * buttons. The OS picker is INTERCEPTED via `filechooser`, never bypassed with
- * `setInputFiles` on the hidden input, because the wiring between "Photo
- * Gallery" and that input is part of what is under test.
+ * `setInputFiles` on the hidden input, because the wiring between the source
+ * button and that input is part of what is under test.
  *
  * THE CONTROL IS THE SCREEN-LEVEL "Add new receipt" (Gate 51). Until then it
  * was the first month heading's "+ Add Receipts" link, resolved with
  * `.mvp-receipts__month:first-of-type .mn-link` because it repeated per month.
  * There is one now, so no `:first-of-type` is needed to pick between copies.
+ *
+ * ─────────── `via` SELECTS THE SOURCE ROW, AND DEFAULTS TO GALLERY ───────────
+ *
+ * Gate 53 made the receipt's `displayName` depend on which row opened the
+ * picker, so a spec has to be able to choose. It defaults to 'Photo Gallery' so
+ * every caller written before that gate is unchanged — and so the walk states,
+ * which stage through `openOverlay`'s own `chooseFiles` step rather than
+ * through here, keep matching what these helpers do.
+ *
+ * THE TWO ROWS DIFFER ONLY IN THEIR LABEL HERE, AND THAT IS THE POINT: both
+ * reach the same `<input>`, and what distinguishes them is the `capture`
+ * attribute that `ReceiptFileInput.open()` sets. Clicking the real button is
+ * therefore the only way a test can exercise the source at all.
  */
-export async function saveOneCapture(page: Page): Promise<void> {
+export async function saveOneCapture(
+  page: Page,
+  via: 'Photo Gallery' | 'Camera' = 'Photo Gallery',
+): Promise<void> {
   const add = page.locator('.mvp-receipts__add .mn-btn')
   await expect(add).toHaveAccessibleName('Add new receipt')
   await add.click()
@@ -67,9 +83,10 @@ export async function saveOneCapture(page: Page): Promise<void> {
   await expect(dialog).toHaveCount(1)
   await expect(dialog).toHaveAccessibleName('Add receipts')
 
-  const gallery = dialog.locator('.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")')
+  const source = dialog.locator(`.mvp-add-receipts__sources .mn-btn:has-text("${via}")`)
+  await expect(source, `the "${via}" row resolved to exactly one control`).toHaveCount(1)
   // Armed BEFORE the click — Chromium raises the event synchronously with it.
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), gallery.click()])
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), source.click()])
   await chooser.setFiles(FIXTURE)
   await expect(dialog.locator('.mvp-add-receipts__badge')).toHaveText('jpg')
 

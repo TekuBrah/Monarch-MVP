@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Icon, Modal, Tag } from '@monarch/design-system'
 import { CapturingBlock } from './CapturingBlock'
+import { ReceiptFileInput, type ReceiptFileInputHandle } from './ReceiptFileInput'
 import {
-  ReceiptFileInput,
-  type ReceiptFileInputHandle,
+  extractCapture,
+  fileTypeLabel,
+  type CapturedFile,
   type ReceiptSource,
-} from './ReceiptFileInput'
-import { extractCapture, fileTypeLabel, type CapturedFile } from '../receiptCapture'
+} from '../receiptCapture'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +141,15 @@ interface StagedCapture {
   file: File
   /** `URL.createObjectURL(file)` — revoked when the modal unmounts. */
   url: string
+  /**
+   * Which surface produced it, carried per TILE rather than per modal.
+   *
+   * THE GRID ACCUMULATES ACROSS SOURCES, which is what makes this per-capture:
+   * "Add more" can be pressed from either row, so one save can mix a camera
+   * frame with three gallery picks. A single `source` on the modal would
+   * describe only the last press and would mislabel every tile staged before it.
+   */
+  source: ReceiptSource
 }
 
 let stagedSeq = 0
@@ -186,13 +196,14 @@ export function AddReceiptsModal({
     [],
   )
 
-  const stage = useCallback((files: File[]) => {
+  const stage = useCallback((files: File[], source: ReceiptSource) => {
     setStaged((current) => [
       ...current,
       ...files.map((file) => ({
         key: `staged-${(stagedSeq += 1)}`,
         file,
         url: URL.createObjectURL(file),
+        source,
       })),
     ])
   }, [])
@@ -261,7 +272,7 @@ export function AddReceiptsModal({
     setIsSaving(true)
     const captures: CapturedFile[] = []
     for (const capture of staged) {
-      captures.push(await extractCapture(capture.file, capture.url))
+      captures.push(await extractCapture(capture.file, capture.url, capture.source))
     }
     setStaged([])
     setIsSaving(false)

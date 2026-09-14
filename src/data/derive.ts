@@ -478,28 +478,79 @@ export const TRANSACTION_FILTER_ALL: TransactionFilter = {
 }
 
 /**
- * The filter `Finance_Transaction01` opens with — Figma's four applied chips.
+ * A DEMONSTRATION FILTER — one applied filter the suite can photograph.
  *
- * Payee All, Type All, This Month, RM 0-500.
+ * Payee All, **Type Card Payment**, **All Time**, RM 0-500. Over the 25-row
+ * ledger it returns **14 rows**.
  *
- * APPLIED TO THE LEDGER THIS RETURNS 16 ROWS. It returned 15 from Gate 41 until
- * Gate 48, and 15 is the number Figma's own button prints ("Apply Filter (15)",
- * inventory A14 — recorded there as unverifiable from a static frame, and then
- * computed). THAT CORRESPONDENCE IS NOW BROKEN, deliberately: Gate 48
- * reconciled every receipt-linked amount to the receipt's printed total, and
- * Jaya Grocer fell from 529.75 to 263.20, crossing under this filter's RM 500
- * cap and entering the set.
+ * ──────────── IT IS NO LONGER FIGMA'S FILTER, AND THAT IS GATE 53 ────────────
  *
- * THE FRAME IS THE STALE PARTY, NOT THIS CONSTANT. The nine rows the frame
- * draws are still the first nine of this result under a date-descending sort;
- * a tenth row now also qualifies. Do not restore 15 by moving an amount away
- * from its receipt, and do not narrow the cap to exclude a row that genuinely
- * falls inside it.
+ * IT WAS `Finance_Transaction01`'s FOUR DRAWN CHIPS — Payee All, Type All,
+ * **This Month**, RM 0-500 — from Gate 41 to Gate 53, returning 15 rows and
+ * then 16. Gate 53 replaced the DATE facet with the TYPE facet. The RM 0-500
+ * half is still Figma's own, literally.
+ *
+ * THE REASON IS THAT THE DATE FACET IS ANCHORED TO THE NEWEST ROW AND THE
+ * NEWEST ROW MOVED A YEAR. Gate 53 added two rows dated 2026-09-12 (the date
+ * printed on the paper they were captured from), so `ledgerNow()` — which is
+ * the newest `occurredAt`, see below — is now September 2026. "This Month"
+ * therefore means September 2026 and matches **exactly those two rows**:
+ * measured, this constant collapsed from 16 rows to **2**.
+ *
+ * THAT IS NOT A BROKEN PREDICATE, WHICH IS PRECISELY WHY IT HAD TO BE CHANGED.
+ * "This month" genuinely does contain two rows; the filter is correct and
+ * useless. Its one consumer is the `[overlay:applied]` walk state, whose whole
+ * job is to be the suite's ONLY photograph of an applied filter and its ONLY
+ * non-empty chip row (Gate 44). A screenshot of 2 rows out of 25 demonstrates
+ * almost nothing about a filtered ledger.
+ *
+ * ─────────────────── WHY THESE TWO FACETS AND NOT OTHERS ─────────────────────
+ *
+ * NEITHER IS ANCHORED TO THE NEWEST ROW, which was the requirement: `dateRange`
+ * is `'all'`, so nothing here moves when a row is added to either end of the
+ * ledger. Every other candidate was measured over the same 25 rows before this
+ * one was chosen:
+ *
+ *   RM 0-500 alone             21 of 25   too weak — excludes only 4
+ *   Card Payment alone         16 of 25   one chip only
+ *   RM 0-100 alone             11 of 25   one chip only
+ *   **Card Payment + RM 0-500  14 of 25   chosen**
+ *   Card Payment + RM 0-100     9 of 25
+ *   Fund Transfer + RM 0-500    5 of 25
+ *
+ * TWO FACETS, BECAUSE THE CHIP ROW IS HALF OF WHAT THE STATE COVERS. Gate 44
+ * built `[overlay:applied]` as the only state that renders a chip at all, and
+ * a two-chip row exercises `filterChipLabels`' joining and the row's own
+ * layout where a single chip would not. The old filter drew two; this draws
+ * two — `["Card Payment", "RM 0 - 500"]`.
+ *
+ * BOTH FACETS ARE LOAD-BEARING, MEASURED, so a facet that silently stopped
+ * working changes the count rather than being masked by the other: of the 11
+ * excluded rows, **7 are excluded by the method facet alone** and **2 by the
+ * amount facet alone** (`txn-ikea-0908` at -830.83 and `txn-ikea-0815` at
+ * -2647.67, both Card Payments over the cap). The remaining 2 are excluded by
+ * both.
+ *
+ * IT ALSO COVERS A FACET NOTHING COVERED BEFORE. The old ladder operated the
+ * date and amount controls; no walk state had ever selected a transaction TYPE.
+ * So this is a coverage gain rather than a like-for-like swap.
+ *
+ * BOTH GATE 53 ROWS FALL INSIDE IT — they are Card Payments of 38.60 and 70.85
+ * — which is deliberate: they are the rows every add-and-link path is
+ * hand-tested against, so they should be visible on the one filtered screen.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FIGMA'S "Apply Filter (15)" NOW CORRESPONDS TO NOTHING HERE, AND THE DRIFT IS
+ * TWO GATES DEEP. Gate 48 broke it first (reconciling receipt-linked amounts
+ * moved Jaya Grocer under the cap, 15 -> 16); Gate 53 replaced a facet outright.
+ * THE FRAME IS THE STALE PARTY. Do not restore 15 by moving an amount away from
+ * its receipt, by re-dating a row away from its receipt's printed date, or by
+ * narrowing the cap to exclude a row that genuinely falls inside it.
  */
 export const TRANSACTION_FILTER_APPLIED: TransactionFilter = {
   payees: null,
-  methods: null,
-  dateRange: 'this-month',
+  methods: ['Card Payment'],
+  dateRange: 'all',
   amountMin: 0,
   amountMax: 500,
 }
@@ -510,21 +561,46 @@ export const TRANSACTION_FILTER_APPLIED: TransactionFilter = {
  * IT IS THE LEDGER'S NEWEST ROW, NOT `TODAY`, AND THAT IS A DELIBERATE
  * DIVERGENCE FROM B5 rather than an oversight. Every other date in this app is
  * an offset from `TODAY` so nothing goes stale; the transaction ledger is the
- * one place that CANNOT be, because inventory SYS-7 fixes these rows to
+ * one place that CANNOT be, because inventory SYS-7 fixes most of these rows to
  * September 2025 and Flow 1's Homepage reconciles against "15 Sept 22:03"
  * literally.
  *
- * So the two clocks genuinely disagree, and by a lot: the harness pins `TODAY`
- * to 2026-08-15 (`PINNED_NOW` in `e2e/harness.ts`, chosen so the fixed deposit
- * and the net-worth chart derive sensibly), while the ledger's present is
- * 2025-09-15. A "This Month" facet measured against `TODAY` would ask for
- * August 2026 and match ZERO of the 23 rows — a filter that is technically
- * correct, silently empty, and impossible to tell apart from a broken predicate.
+ * So the clocks genuinely disagree, and by a lot: the harness pins `TODAY` to
+ * 2026-08-15 (`PINNED_NOW` in `e2e/harness.ts`, chosen so the fixed deposit and
+ * the net-worth chart derive sensibly). A "This Month" facet measured against
+ * `TODAY` would ask for August 2026 and match ZERO of the 25 rows — a filter
+ * that is technically correct, silently empty, and impossible to tell apart
+ * from a broken predicate.
  *
  * Measuring from the newest row keeps the facet DERIVED — move the ledger
  * forward a year and the window follows it, with no literal to update. The
  * alternative was a hardcoded September 2025 boundary, which is the thing this
  * file exists to avoid.
+ *
+ * ────────── GATE 53 MADE THIS THREE CLOCKS, AND IT COST A FILTER ────────────
+ *
+ * THE LEDGER'S PRESENT IS NO LONGER 2025-09-15. Gate 53 added two rows dated
+ * 2026-09-12 — the date printed on the paper they were captured from — so this
+ * function now returns September 2026 while 23 of the 25 rows remain in
+ * September and August 2025. The clocks are `TODAY` (Aug 2026), the newest row
+ * (Sept 2026), and the bulk of the fixture (Sept 2025).
+ *
+ * THE "DERIVED, SO IT FOLLOWS" PROPERTY WORKED EXACTLY AS DESIGNED AND THAT WAS
+ * THE PROBLEM. The window followed the newest row, as promised — straight past
+ * every other row in the ledger. Measured: "This Month" went from matching 18
+ * rows to matching **2**, namely those two, and `TRANSACTION_FILTER_APPLIED`
+ * went 16 -> 2 with it. Nothing was broken; the predicate was correct and the
+ * result was useless.
+ *
+ * SO THE LESSON IS NOT "DON'T DERIVE" — a hardcoded boundary would have gone
+ * silently empty instead, which is worse. It is that A WINDOW ANCHORED TO AN
+ * EXTREMUM IS ONLY AS REPRESENTATIVE AS THAT EXTREMUM. Gate 53's answer was to
+ * stop the one consumer that needed a representative subset from depending on
+ * the date facet at all: `TRANSACTION_FILTER_APPLIED` is now anchored on type
+ * and amount, neither of which moves when a row is added at either end. This
+ * function is UNCHANGED and is still the right anchor for a user-chosen date
+ * facet, where "this month" relative to the data they are looking at is exactly
+ * what a user means.
  */
 export function ledgerNow(transactions: Transaction[]): Date {
   const newest = transactions.reduce(
@@ -800,7 +876,7 @@ export function clearFacet(
  * it is now computed at the call site instead of read off the row.
  *
  * LINEAR SCAN, DELIBERATELY, AND IT IS NOT A PERFORMANCE OVERSIGHT. Ten receipts
- * against 23 rows is 230 comparisons for a whole ledger render. An index would
+ * against 25 rows is 250 comparisons for a whole ledger render. An index would
  * be a second structure to build, memoise and keep in step — the exact shape of
  * the problem this function exists to remove. Build one when a measurement says
  * to, not before.

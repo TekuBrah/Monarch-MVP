@@ -1,5 +1,37 @@
 import { expect, test } from '@playwright/test'
 import { THEMES, activateTab, gotoRoute } from './harness'
+import { TRANSACTIONS } from '../src/data/transactions'
+import { RECEIPTS } from '../src/data/receipts'
+
+/**
+ * THE TWO COUNTS THIS SPEC ASSERTS, DERIVED FROM THE SEED RATHER THAN WRITTEN
+ * DOWN — Gate 53.
+ *
+ * THEY WERE THE LITERALS 23 AND 10, AND GATE 53 BROKE BOTH BY ADDING TWO
+ * LEDGER ROWS. That is a fair cop rather than bad luck: this spec is about
+ * UNLINKING, and it had no reason to hold an opinion about how many rows the
+ * ledger contains — it only needed "the total did not change". A literal made
+ * it assert the ledger's SIZE as a side effect, so a data gate that touched
+ * nothing about unlinking turned it red.
+ *
+ * THE FIX IS TO DERIVE, NOT TO BUMP 23 TO 25. Bumping would leave the same trap
+ * armed for the next row anyone adds. The spec now reads both numbers off the
+ * same modules the app does, so it goes on being correct as the fixture grows
+ * — which is exactly the property the "ten seeded receipts" comment already
+ * claimed for the 10 while the 23 beside it was hand-written.
+ *
+ * IMPORTING `src/data` IN A SPEC IS ALREADY ESTABLISHED. `automatch.spec.ts`
+ * imports `transactions.ts` and `receipts.ts` the same way, in Playwright's
+ * Node context, because nothing in either module reaches the DS runtime or a
+ * browser API.
+ *
+ * `LINKED_RECEIPTS` COUNTS LINKED RECORDS, NOT RECORDS. A receipt with a null
+ * `transactionId` draws no glyph on any row, so the count the glyph probe
+ * should match is the linked subset — all 10 today, and the distinction is what
+ * keeps this honest if an unlinked seed record is ever added.
+ */
+const LEDGER_ROWS = TRANSACTIONS.length
+const LINKED_RECEIPTS = RECEIPTS.filter((r) => r.transactionId !== null).length
 
 /**
  * THE UNLINK WRITE, END TO END — Gate 49.
@@ -71,11 +103,16 @@ for (const theme of THEMES) {
     )
 
     // ── BEFORE ──────────────────────────────────────────────────────────────
-    // TEN OF THE TWENTY-THREE ROWS CARRY A RECEIPT, and that 10 is `receipts.ts`'s
-    // own record count rather than a number chosen here. Asserting the total —
-    // not just the one row — is what makes the "and nothing else" half real.
-    await expect(rows).toHaveCount(23)
-    expect(await glyphRowCount(page), 'ten seeded receipts, ten glyphs').toBe(10)
+    // EVERY LINKED RECEIPT DRAWS A GLYPH ON ITS ROW, and both numbers here come
+    // from the seed modules rather than from this file — see the note on
+    // `LEDGER_ROWS` above for why the literals they replaced were a latent trap.
+    // Asserting the TOTAL — not just the one row — is what makes the "and
+    // nothing else" half real.
+    await expect(rows).toHaveCount(LEDGER_ROWS)
+    expect(
+      await glyphRowCount(page),
+      'one glyph per linked seed receipt',
+    ).toBe(LINKED_RECEIPTS)
     await expect(
       linked.locator('.mn-list-item__amount-row svg'),
       'the linked row draws its receipt glyph before the unlink',
@@ -123,8 +160,11 @@ for (const theme of THEMES) {
       linked.locator('.mn-list-item__amount-row svg'),
       'the glyph is gone from the row, with nothing written to the row',
     ).toHaveCount(0)
-    expect(await glyphRowCount(page), 'exactly one glyph went, not zero and not two').toBe(9)
-    await expect(rows, 'no row was added or removed').toHaveCount(23)
+    expect(
+      await glyphRowCount(page),
+      'exactly one glyph went, not zero and not two',
+    ).toBe(LINKED_RECEIPTS - 1)
+    await expect(rows, 'no row was added or removed').toHaveCount(LEDGER_ROWS)
     await expect(
       linked,
       'the row still prints the receipt-corrected amount and its own date',
