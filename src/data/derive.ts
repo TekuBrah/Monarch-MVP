@@ -875,6 +875,16 @@ export function clearFacet(
  * THE RENDER PATH IS UNCHANGED. `ListItem.hasReceiptIcon` still takes a boolean;
  * it is now computed at the call site instead of read off the row.
  *
+ * AND THAT MOVED THE FAILURE MODE FROM A WRONG VALUE TO AN OMITTED ONE, WHICH
+ * IS HARDER TO SEE — `hasReceiptIcon` DEFAULTS TO `true` (`ListItem.tsx:51`),
+ * so a call site that simply forgets this call draws the glyph on every row and
+ * nothing types, lints or reviews as wrong. Gate 48 wired two of the three
+ * sites that render a ledger row and missed `HoldingDetailScreen`, which drew a
+ * receipt mark on all 21 rows of `/finance/holding/main` against the 8 that
+ * have one, for five gates. `e2e/receipt-glyph.spec.ts` is the guard: it checks
+ * every rendered ledger row against this function at every call site, so the
+ * next omission reddens the suite instead of minting a baseline of itself.
+ *
  * LINEAR SCAN, DELIBERATELY, AND IT IS NOT A PERFORMANCE OVERSIGHT. Ten receipts
  * against 25 rows is 250 comparisons for a whole ledger render. An index would
  * be a second structure to build, memoise and keep in step — the exact shape of

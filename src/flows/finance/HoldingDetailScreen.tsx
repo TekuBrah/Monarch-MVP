@@ -13,7 +13,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
-import { holdingValue } from '../../data/derive'
+import { holdingValue, transactionHasReceipt } from '../../data/derive'
 import { DetailRows } from './components/DetailRows'
 import { HoldingHero } from './components/HoldingHero'
 import { ReminderModal, StatementModal } from './components/PresetModals'
@@ -47,7 +47,7 @@ import './finance.css'
 export function HoldingDetailScreen() {
   const navigate = useNavigate()
   const { holdingId } = useParams()
-  const { holdings, cryptoHoldings, transactions } = useAccounts()
+  const { holdings, cryptoHoldings, transactions, receipts } = useAccounts()
 
   const [openModal, setOpenModal] = useState<'reminder' | 'statement' | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -136,6 +136,27 @@ export function HoldingDetailScreen() {
                     amount={entry.amount}
                     amountInfo={entry.amountInfo}
                     trendDirection={entry.trend}
+                    /*
+                      GATE 53-B — DERIVED, NEVER OMITTED. `ListItem` defaults
+                      `hasReceiptIcon` to TRUE (`ListItem.tsx:51`), so omitting it
+                      drew a `receipt_long` mark on EVERY `default` row of the bank
+                      drill-down — 21 rows on `/finance/holding/main` against the 8
+                      that actually have a receipt. Gate 48 wired the derived value
+                      at `TransactionsLedger` and `HomepageFiat` and missed this,
+                      the third site that renders a ledger row.
+
+                      PASSED UNCONDITIONALLY, INCLUDING ON THE `crypto` BRANCH, AND
+                      THAT IS DELIBERATE. The glyph sits inside `ListItem`’s
+                      `isDefault` block (`ListItem.tsx:85`), so on a `crypto` row the
+                      prop is inert whatever it holds — branching here would add a
+                      condition that changes nothing and a second place to get the
+                      row type wrong. And the entry ids of the non-transaction lists
+                      (fund lines, stock lines, wallet tokens) are disjoint from the
+                      ledger’s `txn-*` namespace — measured — so
+                      `transactionHasReceipt` answers false for them rather than
+                      colliding with a real transaction.
+                    */
+                    hasReceiptIcon={transactionHasReceipt(receipts, entry.id)}
                   />
                 </li>
               ))}

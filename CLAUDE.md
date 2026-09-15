@@ -7926,6 +7926,351 @@ override was added for any**; the G33 workaround class, untouched and still
 carrying its removal condition; branch deletion; `npm audit fix`; and the three
 AA shortfalls on the net-worth card ruled on at Gate 31.
 
+## The holding-screen receipt glyph, and two registered divergences (Gate 53-B)
+
+No DS re-pin — **v2.3.0 throughout**. Two items: a rendering defect that shipped
+for five gates behind a committed baseline of itself, and two Figma divergences
+Gate 53 ruled deliberately which nothing outside a gate narrative recorded.
+**|WALK| stays 40, `OVERLAY_STATES` stays 19, baselines 160 -> 160 (4 changed,
+ZERO added, ZERO deleted), tests 385 -> 392, spec files 14 -> 15.**
+
+### ITEM 1 — THE FAILURE MODE IS AN OMITTED PROP, NOT A WRONG VALUE
+
+**READ THIS BEFORE ADDING ANY `ListItem` TO THIS APP.** `hasReceiptIcon`
+defaults to **`true`** (`ListItem.tsx:51`) and the glyph is rendered inside the
+component's `isDefault` trailing block (`ListItem.tsx:85`):
+
+```tsx
+{hasReceiptIcon && <Icon name="receipt_long" size="s" />}
+```
+
+So a call site that simply does not mention the prop draws a receipt mark on
+every row it renders, and **nothing types, lints, reviews or screenshots as
+wrong** — the type is `hasReceiptIcon?: boolean`, which says nothing about the
+default, and a visual baseline records whatever the screen drew on the day it
+was minted. That is the third instance of this exact trap in this repo:
+`SectionHeader` records the first (omitting `Link`'s `iconBefore` drew an
+`open_in_new` glyph nobody asked for) and `ReceiptCard` the second. **A default
+parameter fires on `undefined`, and "I did not pass it" IS `undefined`.**
+
+Gate 48 deleted the stored `Transaction.hasReceipt` flag and wired
+`transactionHasReceipt(receipts, id)` at **two of the three** sites that render
+a ledger row. `HoldingDetailScreen` was the third.
+
+#### The enumeration — eight `<ListItem>` sites, and there is no ninth
+
+Derived by grepping `<ListItem` across `src/`, then classifying each by the
+`type` it passes and whether it passes the prop. **The `type` column is what
+settles six of the eight without reading any further**, because the glyph is
+unreachable outside `isDefault`:
+
+| # | site | `type` | `hasReceiptIcon` | verdict |
+|---|---|---|---|---|
+| 1 | `ReceiptCard.tsx:152` | `default` | `{false}`, explicit | correct — the card IS the receipt |
+| 2 | `ReceiptViewer.tsx:298` | `default` | `{false}`, explicit | correct, same reason |
+| 3 | `TransactionPicker.tsx:231` | `default` | derived | correct (Gate 51-B) |
+| 4 | `TransactionsLedger.tsx:386` | `default` | derived | correct (Gate 48) |
+| 5 | `HomepageFiat.tsx:55` | `default` | derived | correct (Gate 48) |
+| **6** | **`HoldingDetailScreen.tsx:123`** | `entry.trend ? 'crypto' : 'default'` | **OMITTED** | **the defect** |
+| 7 | `HomepageCrypto.tsx:93` | `crypto` | — | exempt by construction |
+| 8 | `HomepageCrypto.tsx:119` | `crypto` | — | exempt by construction |
+
+**THERE IS NO NINTH ROUTE TO THE GLYPH, AND THAT WAS SWEPT RATHER THAN
+ASSUMED.** `receipt_long` appears in `src/` only in prose (two comments); no
+`ListItem` is imported under an alias; nothing in `src/` renders
+`.mn-list-item` itself; and `DetailRows` — the one composition that looks like
+a row list — emits `<dl>/<dt>/<dd>` with no amount group and no icon, which its
+own header already says is why it is not a `ListItem`.
+
+#### 13 wrong glyphs, on ONE screen — and `joint` was right by coincidence
+
+The bank drill-down is the only list of the three `holdingFields` builds whose
+entries are transactions. Derived from the seed, then confirmed against the
+rendered DOM through a Playwright-launched Chromium at the pinned viewport:
+
+| screen | rows | with a receipt | glyphs drawn, BEFORE | wrong |
+|---|---|---|---|---|
+| `/finance/holding/main` | 21 | 8 | **21** | **13** |
+| `/finance/holding/joint` | 2 | 2 | 2 | **0** |
+
+**SO THE SAME UNWIRED CALL SITE RENDERED CORRECTLY ON ONE OF ITS TWO INSTANCES,
+AND THAT IS WHY IT SURVIVED FIVE GATES.** `joint` holds exactly two
+transactions and both have receipts, so a hard-coded `true` and the derived
+value agree there — the screen was right for the wrong reason, and a reviewer
+checking it would have come away reassured. It is the control group of this
+gate and it is also the thing that hid the defect.
+
+Two controls taken in the same census confirm the instrument rather than the
+conclusion: the Transactions ledger drew **10 glyphs on 25 rows** (the ten
+linked seed receipts) and the Homepage slice **0 on 2** — both correct, both
+Gate 48's wiring.
+
+#### The four crypto sites are exempt BY CONSTRUCTION, not by inspection
+
+`trendOf()` returns `'up' | 'down' | 'flat'` and **never a falsy value**, so
+`entry.trend ? 'crypto' : 'default'` resolves to `crypto` for every entry of the
+stocks, unit-trust, PRS and crypto-wallet lists. The prop is then unreachable.
+Measured: 0 glyphs on all four screens and on `/ [tab:crypto]`, before the fix
+as well as after.
+
+**THAT IS AN ARGUMENT ABOUT DS INTERNALS, WHICH IS EXACTLY THE KIND OF CLAIM
+THIS PROJECT KEEPS FINDING TO HAVE GONE STALE — so it is now asserted in the
+spec** rather than left in a paragraph. A DS release that moved the glyph out of
+the `isDefault` branch would otherwise put a receipt mark on a list of crypto
+tokens with every test green.
+
+#### The fix, and why it is passed unconditionally
+
+One prop, derived the same way the two correct sites derive it. No new
+derivation, no DS prop, no change to the DS default — **the default is correct
+for a component that knows nothing about receipts.**
+
+```tsx
+hasReceiptIcon={transactionHasReceipt(receipts, entry.id)}
+```
+
+**PASSED ON BOTH BRANCHES, INCLUDING `crypto`, WHERE IT IS INERT.** Branching
+would add a condition that changes nothing and a second place to get the row
+type wrong. And the non-transaction lists' entry ids — fund lines, stock lines,
+wallet tokens — are **disjoint from the ledger's `txn-*` namespace** (measured:
+7 such ids, zero collisions against 25 transaction ids), so
+`transactionHasReceipt` answers false for them rather than colliding with a real
+transaction.
+
+### `e2e/receipt-glyph.spec.ts` — 7 tests, no baseline, no walk state
+
+The same shape as `frame-cap`, `tile-fill` and `unlink`: it asserts structure
+rather than pixels, so it adds nothing to `visual.spec.ts` and nothing to the
+snapshot directory.
+
+**THE ASSERTION IS SITE-AGNOSTIC, AND THAT IS THE WHOLE DESIGN.** It does not
+restate which rows each screen chooses to show — that logic lives in
+`holdingFields`, `recentTransactions` and `filterTransactions`, and a copy here
+would be a second definition to keep in step. It asks a narrower question of
+whatever is on screen: **for every rendered ledger row, does it draw the glyph
+exactly when its own transaction has a receipt?** A new surface is covered the
+moment someone points the helper at it, and no screen's row-selection rule can
+drift out of step with a copy kept in the spec, because there is no copy.
+
+**THE JOIN KEY IS THE FORMATTED AMOUNT, AND ITS UNIQUENESS IS ASSERTED RATHER
+THAN ASSUMED** — all 25 seed amounts are distinct, and the spec fails on that
+assertion first if two ever collide. An index was the obvious key and is the
+wrong one: it silently addresses a different row the day a transaction is added
+above it, which is the Gate 49 lesson about `nth-child`.
+
+**`discriminating` IS THE ANTI-VACUITY GUARD AND IT IS THE LOAD-BEARING HALF.**
+A surface whose rows all fall on one side of the question passes a per-row check
+even against a hard-coded prop — `joint` is exactly that surface, and it is why
+this defect was invisible. Where a surface shows both kinds the spec asserts
+that it does, so a hard-coded `true` and a hard-coded `false` each fail
+somewhere.
+
+**ONE STATE'S LIVE DATA DIVERGES FROM THE SEED, AND THE DIVERGENCE IS THE POINT
+RATHER THAN A NUISANCE.** Reaching `[overlay:view-picker]` means UNLINKING a
+receipt first — that is what the state's own prepare steps do — so the
+transaction it pointed at genuinely no longer has one. The spec accounts for it
+by DERIVING which row that is (the state's `title` names the receipt, the
+receipt names its transaction, the transaction gives the amount), never by
+writing the amount down. A row still drawing its glyph there would be the
+derived value failing to follow a live write, which is precisely the ruling
+Gate 48 made when it deleted the stored flag.
+
+**ONE THEME, DELIBERATELY.** Whether an `<svg>` is in the DOM is not a colour
+fact and no rule in either repo makes the glyph conditional on `[data-theme]`,
+so a dark pass would re-assert identical structure at double the cost.
+`unlink.spec.ts` runs both themes because it exercises a WRITE reached by
+clicking, which is where this app has historically found ordering bugs; nothing
+here writes.
+
+#### Mutation-proved at all SIX call sites, against the final tree
+
+The claim is "this would fail if ANY call site stopped passing the derived
+value", so every call site was mutated in turn rather than one representative
+being taken as proof. Each: mutate, run, confirm exit 1 and the message,
+restore, confirm the file's SHA-256.
+
+| site | mutation | failed with |
+|---|---|---|
+| `HoldingDetailScreen` | prop removed | `/finance/holding/main: 13 of 21 rendered rows disagree` |
+| `TransactionsLedger` | prop removed | `/finance [tab:transactions]: 15 of 25 rendered rows disagree` |
+| `HomepageFiat` | prop removed | `/: 2 of 2 rendered rows disagree` |
+| `TransactionPicker` | prop removed | `the link picker: 13 of 22 rendered rows disagree` |
+| `ReceiptCard` | `{false}` removed | `a row nested inside a receipt card drew a receipt glyph` |
+| `ReceiptViewer` | `{false}` removed | `the row nested in the receipt viewer drew a receipt glyph` |
+
+**EACH MUTATION FAILED EXACTLY ONE TEST AND THE OTHER SIX PASSED**, which is the
+attribution working: a failure names its own surface rather than reddening the
+file. All six files restored SHA-256-identical.
+
+The first row is also the third independent derivation of the same 13 — the
+spec counted it in the browser without being told what to expect.
+
+### ITEM 2 — TWO DIVERGENCES FROM FIGMA, REGISTERED
+
+Both were ruled deliberately at Gate 53 and neither is to be reverted. They are
+recorded here because the failure mode is a future reader opening the file,
+finding the app disagrees with it, and reading that as drift.
+
+#### 1 · The Homepage's recent-transactions strip draws two rows Figma does not
+
+| | |
+|---|---|
+| Figma draws | Aeon Big, Caring Pharmacy |
+| the app draws | **iFruits Market, ST Rosyam Wholesale Express** |
+| walk states affected | **exactly one — `index`**, i.e. 4 baselines |
+
+`recentTransactions(transactions, 2)` sorts date-descending and slices two, and
+the two Gate 53 rows are dated **2026-09-12** against a fixture that is
+otherwise September 2025 — verified in this gate, and they are the only two rows
+in the ledger dated 2026.
+
+**THE DATE IS THE RULING, NOT AN ARTEFACT OF ONE.** Gate 53 dated both rows to
+the date printed on the paper receipts they were captured from. The operational
+consequence is what makes it load-bearing: auto-match requires the receipt's
+printed date to be **within three days** of the transaction's, so a row
+back-dated into 2025 could never be paired with its own 2026 paper receipt —
+and pairing them by hand is the whole reason those two rows exist.
+
+`index-crypto` is unaffected and that was measured, not assumed:
+`HomepageCrypto` renders no ledger slice at all, so its list is crypto
+holdings.
+
+**DO NOT RESTORE FIGMA'S TWO ROWS BY RE-DATING A ROW AWAY FROM ITS RECEIPT'S
+PRINTED DATE.**
+
+#### 2 · `TRANSACTION_FILTER_APPLIED` is no longer Figma's four chips
+
+| | |
+|---|---|
+| Figma draws | Payee All · Type All · **This Month** · RM 0-500 |
+| the app applies | Payee All · **Type Card Payment** · **All Time** · RM 0-500 |
+| matches | **14 of 25** |
+
+**THE DATE FACET HAD TO GO BECAUSE IT IS ANCHORED TO AN EXTREMUM.** The facet
+measures back from `ledgerNow()` — the newest row's timestamp — which the two
+2026 rows moved a year forward. Re-measured in this gate against the current
+tree: "This Month" alone now matches **2 of 25**, and Figma's own four chips
+together match **2**. That is not a broken predicate; it is a correct one whose
+result is useless, which is the worse failure because no assertion can smell it.
+
+The one consumer is `[overlay:applied]`, the suite's only photograph of an
+applied filter and its only non-empty chip row. A screenshot of 2 rows out of 25
+demonstrates nothing.
+
+**FIGMA'S PRINTED "Apply Filter (15)" CORRESPONDS TO NOTHING, AND THE DRIFT IS
+TWO GATES DEEP** — Gate 48 broke it first (reconciling receipt-linked amounts
+moved one row under the cap, 15 -> 16) and Gate 53 replaced the facet outright.
+**The frame is the stale party.** Do not restore 15 by moving an amount away
+from its receipt, by re-dating a row, or by narrowing the cap.
+
+`ledgerNow()` itself is UNCHANGED and is still the right anchor for a
+user-chosen date facet, where "this month" relative to the data on screen is
+what a user means.
+
+### Baselines — predicted in writing, and the prediction beat the prompt's
+
+**PREDICTED BEFORE THE PRE-MINT RUN, to a scratch file outside the repo: 4
+changed, 0 added, 0 deleted.** The gate brief expected "the two holding-screen
+walk states"; this gate predicted **one**, on the measurement above — `joint`
+drew 2 glyphs before the fix and 2 after, so it cannot move. Item 2 is
+documentation and cannot reach a pixel; the new spec mints nothing.
+
+**THE PRE-MINT RUN MATCHED IT EXACTLY: 4 failed / 388 passed**, the four being
+`finance-holding-main-{375,430}-{light,dark}` with nothing failing outside that
+set — no route, no section-header, no behaviour spec, and `joint` green at both
+viewports in both themes.
+
+| | |
+|---|---|
+| start | **160** |
+| changed | **4** |
+| added / deleted | **0 / 0** |
+| byte-identical | **156** |
+| end | **160** |
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT BEFORE MINTING** —
+160 files byte-identical to the start manifest, zero untracked files in the
+snapshot directory, zero "writing actual" lines. `updateSnapshots: 'none'`
+honoured.
+
+**ARM 1 OF THE BASELINE GUARD STAYS GREEN AT THIS GATE'S CLOSE**, which is
+unusual enough to say out loud: every recent gate has closed with it red because
+every recent gate ADDED baselines. This one only modifies already-tracked paths,
+so all three arms are green and the suite closes clean.
+
+#### Every differing pixel is a removed glyph — attributed, not inferred
+
+The four diffs were decoded rather than trusted from the pixel count, with a
+PNG decoder built from node builtins (inflate plus the five scanline filters).
+Identical structure on all four:
+
+| | 375 | 430 |
+|---|---|---|
+| bbox | x **233..270**, y 514..1727 | x **285..325**, y 514..1727 |
+| distinct columns | 38 | 41 |
+| contiguous y-bands | 14, of which two are one glyph split by a blank scanline -> **13** | same |
+
+**ONE NARROW VERTICAL STRIP, THIRTEEN BANDS, AND NOTHING ANYWHERE ELSE ON A
+2011px-TALL IMAGE.** The strip is the icon column ahead of the amount; the
+thirteen bands are the thirteen rows that stopped drawing a glyph; the gaps
+between them are the eight rows that keep theirs. Nothing moved, nothing
+reflowed, no text shifted.
+
+**AND THE ATTRIBUTION INCIDENTALLY RE-CONFIRMED THE GATE 30 BLIND SPOT ON LIVE
+DATA.** Playwright reported **1249 / 1233 / 1322 / 1313** differing pixels; the
+decoder, counting any non-zero channel difference, finds **1833 / 1828 / 1931 /
+1925**. About a third of the real difference sits on antialiased glyph edges
+that pixelmatch discards before counting — exactly the mechanism Gate 30
+documented, measured here on an ordinary change rather than on a probe. The
+tests failed anyway, because `expectExactPixels` compares bytes.
+
+### The Gate 53 manifest digest is NOT REPRODUCIBLE, and that is a finding
+
+The gate brief carried Gate 53's closing digest
+(`44e3ba0c…fc76c2b`) as a value this gate should still match. **It does not, and
+no recoverable method reproduces it** — seven candidate manifest formats were
+tried (git-bash `sha256sum` binary and text modes, hashes-only, concatenated,
+and four PowerShell `Get-FileHash` encodings) and none lands on that value. The
+digest was recorded without the command that produced it, so it is a figure that
+cannot be falsified — the exact class of rot this file keeps recording.
+
+**WHAT REPLACED IT IS STRONGER AND IS REPRODUCIBLE.** `git status --porcelain`
+on the snapshot directory was empty at pre-flight, which proves every one of the
+160 baselines is byte-identical to `mvp-gate53` without needing a digest at all.
+This gate's own manifests were taken with a command that is written down:
+
+```bash
+cd e2e/visual.spec.ts-snapshots && ls *.png | sort | while read f; do sha256sum "$f"; done > manifest.txt && sha256sum manifest.txt
+```
+
+Its value at this gate's start was `31d2347d…903706` and at its close
+**`b3cbd728…1ca402`** — and the pair only means anything because the line above
+says exactly how to reproduce them. **A digest quoted without its command is not
+evidence. Quote both, or quote neither and use git.**
+
+### What this gate changed
+
+`src/flows/finance/HoldingDetailScreen.tsx` (the derived prop and its note),
+`src/data/derive.ts` (`transactionHasReceipt`'s header, which now records that
+the failure mode is an omission and names the guard),
+`e2e/receipt-glyph.spec.ts` (new, 7 tests), `CLAUDE.md`, and 4 re-minted
+baselines.
+
+**No CSS rule was touched, no component was added, no DS prop was proposed and
+no DS file was edited.** `lint:tokens` scans **60** files — unchanged, because
+nothing entered `src/` — and reports the same **3** pre-existing exemptions.
+
+### Deliberately not in scope
+
+Reverting either Figma divergence; `ledgerNow()`, unchanged; linking either 2026
+row to a receipt; the DS default, which is correct for a component that knows
+nothing about receipts; a DS `hasReceiptIcon` change of any kind; the DS repo
+and the pin; branch deletion; `npm audit fix`; G6, G13, G14, G17's prop half,
+G19-G23, G28-G33 — all still registered, still deferred, and **no MVP-local
+override was added for any**; the G33 workaround class, untouched and still
+carrying its removal condition; and the three AA shortfalls on the net-worth
+card ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
