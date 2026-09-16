@@ -182,3 +182,40 @@ test('a PDF keeps the filename it arrived with', async ({ page }) => {
     'no generated name reached the PDF',
   ).toHaveCount(0)
 })
+
+
+/*
+  THE STAGED-TILE BADGE, FOR A NAME WITH NO EXTENSION (Gate 55).
+
+  Android's picker hands over an extensionless digit run, and until Gate 55
+  every such file — a PDF included — was badged "img". The MIME type now
+  answers when the name cannot: "jpeg" prints "jpg" the camera-roll way, and
+  "img" is left only for a file that states neither.
+
+  THROUGH THE REAL UI, NOT BY IMPORTING `fileTypeLabel`. `receiptCapture.ts`
+  reaches `extract.ts`, whose lazy imports pull the OCR modules' Vite `?url`
+  imports into this project's typecheck — the coupling Gate 54 split
+  `ocr/types.ts` out to avoid. Staging a file is a real click path anyway, and
+  the badge is what a user sees. Staging extracts nothing, so the walk's
+  never-settling stub stays in place.
+*/
+test('an extensionless file is badged from its MIME type', async ({ page }) => {
+  await gotoRoute(page, '/finance', 'light')
+  await activateTab(page, RECEIPTS_TAB)
+  await page.locator('.mvp-receipts__add .mn-btn').click()
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]')
+  await expect(dialog).toHaveAccessibleName('Add receipts')
+
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    dialog.locator('.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")').click(),
+  ])
+  const bytes = Buffer.from('not decoded by this test')
+  await chooser.setFiles([
+    { name: '1789000000000000001', mimeType: 'image/jpeg', buffer: bytes },
+    { name: '1789000000000000002', mimeType: 'application/pdf', buffer: bytes },
+    // No stated type: the browser reports `application/octet-stream`.
+    { name: '1789000000000000003', mimeType: '', buffer: bytes },
+  ])
+  await expect(dialog.locator('.mvp-add-receipts__badge')).toHaveText(['jpg', 'pdf', 'img'])
+})

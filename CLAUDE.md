@@ -8859,6 +8859,253 @@ fixtures already committed.
 and `LETTERHEAD_END` are all unchanged by it. `LETTERHEAD_END`'s OCR-garble
 alternatives (`nvoice`, `wvorce`) are pre-existing fits to specific misreads.
 
+## Line items from any receipt — the layout-aware parser (Gate 55)
+
+No DS re-pin — **v2.3.0 throughout**. Decision 9 (ruled 16 Sept): stay on-device
+and free, keep `tesseract.js` 7.0.0, and fix the PARSER, not the engine. The
+three receipt-specific line shapes of Gates 50-B and 54 are replaced by one
+general, layout-aware parser. **|WALK| stays 40, `OVERLAY_STATES` stays 19,
+baselines 160 -> 160 (0 changed, 0 added, 0 deleted), tests 411 -> 431, spec files 16 -> 17.**
+`lint:tokens` scans **62** files with the same **3** exemptions — no file entered
+`src/`.
+
+### THE BAR WAS NOT MET, AND THE REASON IS MEASURED: THE REMAINING MISSES ARE READING
+
+Decision 9 set the bar on the 20-receipt development corpus: >= 90% of printed
+items, zero junk, totals exact on >= 18 of 20, seeded no worse than baseline.
+
+| | Phase 1 (Gate 54 parser) | Gate 55 parser |
+|---|---|---|
+| seeded items | 24 / 52 = 46.2% | **27 / 52 = 51.9%** |
+| device items | 9 / 45 = 20.0% | **25 / 45 = 55.6%** |
+| **combined items** | **33 / 97 = 34.0%** | **52 / 97 = 53.6%** |
+| wrong-price | 5 | 7 |
+| junk | 4 | 8 |
+| totals exact | 15 / 20 | **17 / 20** |
+| tax acceptable | 15 / 20 | 16 / 20 |
+
+**EVERY REMAINING MISS, WRONG PRICE, JUNK ROW AND FAILED TOTAL IS A READING
+FAILURE** — the engine's text does not contain the figure or the name. The
+scorer's `--attribute` classifies 53 of 56 mechanically; the other 3 it flags
+as "parsing" are a word and a figure on NEIGHBOURING rows (one row on a device
+receipt, two on `receipt_ikea03`), checked by hand. The dominant forms: a lost
+decimal point (a seeded `1290` for 12.90 — the Gate 50-B strictness rule drops
+it, correctly), a misread digit in a price, a lost or garbled first word, and
+rows the engine never segmented at all (one seeded row on `receipt_tonyroma02`,
+most of one device receipt). **No device-receipt text is quoted here, by rule.**
+
+**ALL 8 JUNK ROWS ARE REAL PURCHASE ROWS WITH MISREAD NAMES.** None is a
+non-purchase — the promotion, discount, tender and points rows that were junk
+on the phone are all classified correctly. Under TRUTH.md's first-word rule a
+misread first word scores as junk; on screen those rows carry the right price
+in 6 of 8 cases.
+
+**SEEDED IS NO WORSE THAN PHASE 1 ON ITEMS, TOTAL, TAX OR DATE, receipt by
+receipt.** One seeded receipt got worse on JUNK: `receipt_ikea03` 0 -> 3
+(2 junk + 1 wrong-price). Its rows were skipped outright before, because a
+leading margin scrap ("G7", "AJ", "/") broke shape A; they are now read, and
+the engine misread all three.
+
+**THE CEILING IS STATED, NOT TUNED PAST.** Nothing on the page recovers a figure
+the engine did not read. Decision 9 ruling 5; the editor covers what is left.
+Teku's phone test on fresh receipts is the held-out measurement — **no rule here
+is proven on unseen receipts.**
+
+### The measurement harness — `npm run ocr:corpus`, NOT PART OF THE SUITE
+
+```bash
+OCR_CORPUS_OUT=<dir outside the repo> npm run ocr:corpus
+```
+
+```bash
+npm run ocr:corpus:score -- <dir> --reparse --detail --attribute
+```
+
+`scripts/ocr-corpus/`. The runner runs the REAL engine over the 10 seeded
+receipts (`public/media/receipts/`) and the 10 device receipts
+(`D:\Claude\_assets\receipts-device\`), a FRESH PAGE per extraction, and writes
+each raw `OcrResult` (with boxes) and its parse to `OCR_CORPUS_OUT` — which it
+REFUSES to accept inside the repository. The scorer is pure Node: truth comes
+from `src/data/receipts.ts` and `TRUTH.md`, and `--reparse` runs the CURRENT
+parser over the cached engine output, so a parser change is measured in
+milliseconds. Engine output was byte-identical across three runs at this gate.
+
+**`playwright.config.ts` sets `testDir: './e2e'`, so the suite never collects
+it**, and `--list` confirms it.
+
+**TWO SCORING DECISIONS, STATED:** names are compared diacritic-folded (the
+engine reads `BLÅHAJ` as `BLAHAJ` — a reading loss, not a wrong item), and a
+reported row whose name matches a real, still-unmatched item at a different
+price is `wrong-price`, not junk, because TRUTH.md does list it.
+
+**⚠️ PERSONAL DATA.** The device photographs carry names, a phone number, a home
+address and card fragments, and so does their OCR text. None is in the repo. The
+harness holds no string from them; the synthetic fixtures below hold none either.
+
+### The parser, in six steps
+
+`src/data/ocr/parseReceipt.ts`. `parseReceipt(ocr)` is still the one entry
+point, still pure, and `ParsedReceipt` / `ReceiptLineItem` did not widen
+(ruling 4). Every rule is about receipts in general; none names a shop.
+
+1. **AMOUNTS** — `readMoney` normalises a token before judging it: brackets and
+   trailing punctuation, a leading `-` or `~`, a currency mark (`RM`, `£`, `$`,
+   `€`, `MYR`, `USD`, `GBP`, `SGD`, `EUR`) before or `RM`/`MYR` after, a
+   trailing minus, ONE trailing tax/flag code (`A-Z * < > § #`), O->0 and l/I->1
+   inside a mostly-numeric token, a decimal comma before exactly two digits.
+   Then Gate 50-B's rule: exactly two decimals, or not money.
+2. **ROWS** — with boxes, the engine's lines are cut where consecutive words jump
+   a whole word height, measured on the DESKEWED page (median slope of the
+   engine's own 3+-word lines), and fragments at the same deskewed height that
+   do not overlap horizontally are joined. Without boxes, lines are rows.
+3. **COLUMN** — the densest cluster of each row's rightmost-amount right edge,
+   tolerance 6% of the page width. A row's price is the amount nearest it.
+4. **KINDS** — negative figure or `- 15%` -> discount; vocabulary -> summary,
+   tender, meta; else a purchase candidate. Parenthesised qualifiers are removed
+   first ("Total (VAT Incl)" is a total, "Total Due (Rounding)" is a total).
+5. **ITEMS** — the region runs from just after the last header row above the
+   first priced candidate (meta, tender, address/phone/postcode/date/URL,
+   legal suffix) to the first summary row. A priced candidate with a 3+-letter
+   word is an item. A priced row with NO such word pairs with the name-only row
+   directly above, unless that row looks like an address or has a numeric token
+   in the price column (a single-row item whose price was misread).
+6. **FIELDS** — total: grand-total candidates, a 0.00 loses to non-zero, a
+   candidate corroborated by a card tender or by items+tax+rounding wins; with
+   none, one card tender, else subtotal + rounding. Tax only from a tax-labelled
+   row not describing a total or an amount gross/net of tax. Date: day-first
+   unless the second number cannot be a month; invalid either way is SKIPPED
+   (Gate 54 emitted a month of 40 for one device receipt); time on the same row,
+   else adjacent.
+
+**THE MERCHANT READER IS UNCHANGED** — Gate 54's rules on engine lines.
+
+### The vocabulary, verbatim
+
+| list | words | where |
+|---|---|---|
+| `SUMMARY_ANYWHERE` | total, subtotal, jumlah, rounding, pembundaran, sst, gst, vat, cukai, discount, diskaun, saving, savings, baki | anywhere |
+| `SUMMARY_FIRST` | sub, tax, service, disc, change, balance, net, amount, grand, round, adjustment, adj | first real word |
+| `TENDER_FIRST` | cash, tunai, card, kad, tendered, paid, bayar, visa, mastercard, master, mydebit, debit, credit, amex, ewallet, e-wallet, tng, grabpay, boost, shopeepay, duitnow, loyalty | first real word |
+| `CARD_TENDER` | card, kad, visa, mastercard, master, mydebit, debit, credit, amex, ewallet, e-wallet, tng, grabpay, boost, shopeepay, duitnow | total fallback |
+| `META_FIRST` | point, points, mata, qty, quantity, item, items, invoice, receipt, cashier, member, order, table, date, time, tel, phone, fax, terminal, trace, approval, app, ref, trans, transaction, description, desc, price, reg, thank, status, salesperson, server, pax, counter, pos, bill | first real word |
+| `DISCOUNT_ANYWHERE` | discount, diskaun, disc, promo, potongan | anywhere |
+| `GRAND_TOTAL` | total, jumlah, pay, due (+ the phrase "total payment") | the figure's label |
+| `NOT_THE_TOTAL` | sub, subtotal, kecil, rounding, round, pembundaran, saving, savings, item, items, qty, quantity, change, point, points, mata, discount, diskaun, disc, cash, tunai, excl, without, before, tendered, paid | the figure's label |
+| `TAX_WORDS` | tax, sst, gst, vat, cukai | the row |
+| `NOT_THE_TAX` | total, incl, inclusive, including, excl, exclusive, excluding, without, before, after, amount, reg, no, id | the row |
+| `SUBTOTAL_PHRASES` | subtotal, sub total, jumlah kecil | the row |
+| `ROUNDING_WORDS` | rounding, pembundaran, round | the figure's label |
+| `ADDRESS_WORDS` | jalan, jln, lorong, taman, persiaran, lebuh, tel, fax, phone, www, http, https | anywhere |
+| `STREET_WORDS` | lot, road, rd, street, avenue, ave, lane, floor, level, lvl, mall, plaza, block, blok | only with a comma on the row |
+
+**`STREET_WORDS` IS SEPARATE BECAUSE STREET WORDS ARE ALSO PRODUCT WORDS** —
+measured: a single list put a device receipt's cleaning-product row in the
+address class, because "floor" was on it, and lost the item.
+
+**TWO JUDGEMENTS WORTH REVISITING ON DEVICE EVIDENCE:** `pay` is a grand-total
+word (a printed "Balance to Pay" can arrive with only "Pay" legible), and a
+leading `~` is read as a minus (how the engine rendered one printed minus).
+
+### The engine's boxes are kept
+
+`recognise.ts` always requested `blocks` and discarded every box. `OcrWord` and
+`OcrLine` now carry an OPTIONAL `bbox` (`OcrBox`, in `ocr/types.ts`); optional so
+every text-only fixture stays valid. Measured: all 530 lines and 2,183 words of
+the corpus carry one, and adding them changed no text, no confidence and no
+parse (Phase 1 re-derived byte-identical).
+
+### Phase 3 — two follow-ups
+
+- **The unread-receipt merchant fallback is the Decision 7B display name**, not
+  `file.name` (reported at Gate 54-B). `bulk-save.spec.ts` now expects
+  `IMG_<stamp>_2.jpg`.
+- **An extensionless staged file is badged from its MIME type** — `image/*`
+  (`jpeg` prints `jpg`) and `application/pdf` only. A first version printed
+  "octet-stream": a file with no stated type arrives as
+  `application/octet-stream`. Tested through the real staging click path,
+  because importing `receiptCapture.ts` into an e2e spec drags the OCR modules'
+  `?url` imports into the e2e typecheck.
+
+### Tests
+
+`e2e/receipt-layout.spec.ts` (new, 19 tests): synthetic OCR pages WITH BOXES,
+one general pattern each — tax code, decimal comma, trailing minus, currency
+mark, separate-block price, price column, Malay summary, discount rows, address
+above a code row, two-row item, misread-price neighbour, component lines, 0.00
+total, card-tender fallback, subtotal + rounding, tax not from a total row,
+month-first date, invalid date, time on the next row. **No string in it comes
+from a receipt.** `capture-name.spec.ts` +1 (the badge). Tests: 411 + 19 + 1 = **431** in 17 files, by `--list`.
+
+**TWO FIXTURES WERE REWRITTEN BECAUSE THEIR FIRST DRAFT COULD NOT FAIL** —
+found while planning the mutations, before running them: the card-tender total
+equalled subtotal + rounding, and a parenthesised `(VAT INCL)` loses its tax
+word to the qualifier strip before the tax rule looks.
+
+**23 MUTATION PROOFS, ON THE FINAL TREE** — mutate, the named test exits 1,
+restore, SHA-256 matches, exit 0. The driver recorded which test failed and how
+many ran (1 each); every restore ran that same test green. 21 target
+`receipt-layout.spec.ts` rules in `parseReceipt.ts` (tax code, decimal comma,
+trailing minus, currency mark, row rebuild, price column, Malay summary,
+negative-is-discount, `- 15%` reduction, address words, two-row pairing,
+`qty x unit`, occupied column, own-name-before-pairing, zero total, card-tender
+fallback, subtotal + rounding, tax-not-from-total, month-first, invalid date,
+adjacent-row time); M22 the badge MIME rule; M23 the merchant fallback.
+
+**ONE PROOF SURVIVED FIRST TIME AND THE FIXTURE WAS WRONG, NOT THE RULE.** The
+zero-total fixture's readable item corroborated the real total arithmetically,
+so corroboration alone picked it. The item's price is now unreadable (`1840`)
+and the proof fails as it should.
+
+**THE FIRST DRIVER RUN WAS INVALID AND WAS DISCARDED.** It passed `-g` through
+`shell: true` unquoted, so only the first word of each test title became the
+grep — M1–M7 ran the whole spec, and M8's stray words matched
+`visual.spec.ts`. Quote every argument when spawning Playwright through a shell.
+
+**`parse-receipt.spec.ts` shape B now expects THREE items**: the middle row
+is read because a quantity is no longer required.
+
+### Auto-match — unchanged, measured on the real engine's output
+
+Leave-one-out **5 correct / 0 wrong / 5 unlinked**, picker **10/10** top-1,
+AEON total **429.19**, and **0 wrong links** across the ten device receipts
+(iFruits and Rosyam still link to their 2026 rows) — identical under the Gate 54
+and Gate 55 parses.
+
+### Reported, not fixed
+
+- **`e2e/parse-receipt.spec.ts` carries device-derived strings in the committed
+  tree** (Gate 54's): its header prints a partial card number, and its fixtures
+  include an invoice number, a terminal ID and item names from the Gate 54
+  photographs. Not touched here beyond one reworded comment. Teku's call whether
+  to scrub them; history keeps them either way.
+- **Seeded receipts are ~250-300px wide**, and most seeded misses are lost
+  decimal points — an engine/resolution limit this gate was ruled not to touch.
+- **Non-MYR receipts report `currency: 'MYR'`** (ruling 4).
+- **A BEHAVIOUR SPEC WAS MISSED IN THE PREDICTION, AGAIN.** `bulk-save.spec.ts`
+  was predicted to move with the merchant fallback; `link-editor.spec.ts`'s
+  "display fallbacks for unread fields" asserted the same value and was not
+  grepped for. Full run 1 went **429 passed / 2 failed** (light and dark) on it
+  alone. Gate 54's lesson, recurring: when a user-visible VALUE changes, grep
+  the suite for the old value.
+
+### Baselines and runs
+
+**Predicted 0 changed / 0 added / 0 deleted, and an `elementFromPoint` probe
+confirmed the painted surfaces**: on `[overlay:add-grid]` the only painted badge
+reads `jpg` (the staged fixture has an extension); on the viewer states the
+painted Merchant value is the seeded "Aeon Big", and on `[overlay:view]` those
+rows sit under the footer and paint nothing. **All 160 baselines byte-identical**
+— digest `0e82ba22…c5fb87f` before and after every run, the Phase 0 command.
+
+Three clean runs of the final tree: **431 passed / 0 failed** each, 13.0 / 13.1 /
+14.2 min. **They are the SECOND set.** Three earlier clean runs were discarded
+because the tree changed after them: an audit of every added line against the
+device receipts' OCR tokens found device figures and phrases in parser comments
+and in "synthetic" fixtures, and all were replaced with invented values. All 23
+mutation proofs were re-run after that change and hold. `npm run build:package` exit 0; the parser ships in the lazy
+`parseReceipt-*.js` chunk (12,392 bytes) and the entry chunk carries none of its
+vocabulary, with `index.html` still at 0 `modulepreload`.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

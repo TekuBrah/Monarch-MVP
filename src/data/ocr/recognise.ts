@@ -1,7 +1,7 @@
 import workerUrl from 'tesseract.js/dist/worker.min.js?url'
 import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url'
 import { normaliseForOcr } from './normalise'
-import type { OcrLine, OcrResult } from './types'
+import type { OcrBox, OcrLine, OcrResult } from './types'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ import type { OcrLine, OcrResult } from './types'
  * RE-EXPORTED RATHER THAN RELOCATED SILENTLY, so `import { OcrResult } from
  * './recognise'` goes on meaning exactly what it always meant.
  */
-export type { OcrLine, OcrResult, OcrWord } from './types'
+export type { OcrBox, OcrLine, OcrResult, OcrWord } from './types'
 
 /**
  * LSTM_ONLY. The value is 1 and it is written as a literal because importing
@@ -292,13 +292,23 @@ export async function recognise(image: Blob): Promise<OcrResult> {
   try {
     const { data } = await worker.recognize(normalised, {}, { text: true, blocks: true })
 
+    // THE BOXES ARE KEPT, AS OF GATE 55. They were requested here all along
+    // (`blocks: true` carries a `bbox` on every line and word) and discarded;
+    // the parser now rebuilds printed rows from them. See `types.ts`, `OcrBox`.
+    const box = (b: { x0: number; y0: number; x1: number; y1: number }): OcrBox => ({
+      x0: b.x0,
+      y0: b.y0,
+      x1: b.x1,
+      y1: b.y1,
+    })
     const lines: OcrLine[] = []
     for (const block of data.blocks ?? []) {
       for (const paragraph of block.paragraphs) {
         for (const line of paragraph.lines) {
           lines.push({
             text: line.text.replace(/\s+$/, ''),
-            words: line.words.map((w) => ({ text: w.text, confidence: w.confidence })),
+            words: line.words.map((w) => ({ text: w.text, confidence: w.confidence, bbox: box(w.bbox) })),
+            bbox: box(line.bbox),
           })
         }
       }

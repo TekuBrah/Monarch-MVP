@@ -145,10 +145,12 @@ test.describe('purchase lines', () => {
       by its TAIL — the last two tokens are amounts and the one before them is a
       small integer — because its head is the name.
 
-      THE MIDDLE ROW IS EXPECTED TO BE MISSED, and that is recorded rather than
-      engineered around: the engine read its quantity as "ASIN]", so there is no
-      quantity to find. Two of the paper's three items is what this shape
-      recovers on this receipt.
+      ⚠️ GATE 55 CHANGED THIS EXPECTATION, AND IN THE RIGHT DIRECTION. Gate 54
+      recorded the middle row as missed — the engine misread its quantity, and
+      the shape needed a quantity to recognise the row. The Gate 55 parser takes
+      the PRICE from the rightmost figure and treats a quantity as optional ("1"
+      when it is not printed cleanly), so the row is now read, at the price the
+      paper prints. All three of the paper's items.
     */
     const parsed = parseReceipt(
       ocr(
@@ -159,6 +161,7 @@ test.describe('purchase lines', () => {
     )
     expect(parsed.lineItems.map((i) => [i.quantity, i.price])).toEqual([
       ['1', 9.2],
+      ['1', 16.9],
       ['5', 12.6],
     ])
     expect(parsed.lineItems[0].name).toBe('{Konic Abalone Sauce 380gm')

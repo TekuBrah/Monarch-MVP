@@ -401,9 +401,14 @@ for (const theme of THEMES) {
     await captured.click()
 
     const rows = page.locator('.mvp-receipt-details__rows')
-    // THE FILE'S OWN NAME WHERE A MERCHANT SHOULD BE — recognisably not a
-    // merchant, which is the point: it reads as "unread", not as a claim.
-    await expect(rows).toContainText('receipt-capture.jpg')
+    // THE RECEIPT'S DISPLAY NAME WHERE A MERCHANT SHOULD BE — recognisably not
+    // a merchant, which is the point: it reads as "unread", not as a claim.
+    // The Decision 7B display name since Gate 55; it was the file's own name
+    // (`receipt-capture.jpg`) until then, which on an Android gallery pick is
+    // an opaque digit run.
+    await expect(rows.locator('.mvp-receipt-details__row', { hasText: 'Merchant' })).toContainText(
+      capturedImageName(PINNED_NOW),
+    )
     // ZERO, NEVER A GUESS.
     await expect(rows).toContainText('RM 0.00')
     // AND THE CAPTURE MOMENT for the date — the harness pins the clock to

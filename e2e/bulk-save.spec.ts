@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { activateTab, gotoRoute } from './harness'
-import { RECEIPTS_TAB } from './capture'
+import { PINNED_NOW, activateTab, gotoRoute } from './harness'
+import { RECEIPTS_TAB, capturedImageName } from './capture'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -161,8 +161,10 @@ test('a failed extraction strands nothing and discards nothing', async ({
   /*
     THE UNREAD ONE IS AN UNREAD RECEIPT, NOT A FABRICATED ONE. `capturedToReceipt`
     applies the same three honest fallbacks it already applies to a field the
-    engine read but could not parse, so the file's own name stands in for the
-    merchant and the total reads 0 — never a guess. Gate 51-B's editor is how
+    engine read but could not parse, so the receipt's display name stands in
+    for the merchant and the total reads 0 — never a guess. The DISPLAY name
+    since Gate 55; it was `file.name` until then. This is the SECOND capture of
+    its selection, so Decision 7B names it with the `_2` suffix. Gate 51-B's editor is how
     the user corrects it, which is why this needs no new state and no new copy.
 
     IT IS ADDRESSED BY ITS MONTH GROUP, NOT BY POSITION. An unread date falls
@@ -187,8 +189,8 @@ test('a failed extraction strands nothing and discards nothing', async ({
       .locator('.mvp-receipt-details__row', { hasText: label })
       .locator('.mvp-receipt-details__row-value')
 
-  await expect(row('Merchant'), 'merchant falls back to the file name').toHaveText(
-    'receipt-capture.jpg',
+  await expect(row('Merchant'), 'merchant falls back to the display name').toHaveText(
+    capturedImageName(PINNED_NOW, 2),
   )
   await expect(row('Total'), 'an unread total is 0, never a guess').toHaveText(
     'RM 0.00',

@@ -187,14 +187,25 @@ export function disambiguateDisplayNames(names: readonly string[]): string[] {
  * they see in their camera roll; `image/jpeg` would print "jpeg" for a file
  * called `.jpg`. Lower case, as the mockup draws it.
  *
- * A NAME WITH NO DOT FALLS BACK TO "img" RATHER THAN TO THE WHOLE NAME. Some
- * Android pickers hand over extensionless names, and a badge that printed the
- * entire filename would overflow its own tile.
+ * A NAME WITH NO EXTENSION IS LABELLED FROM ITS MIME TYPE (Gate 55). Some
+ * Android pickers hand over extensionless names — an opaque digit run — and
+ * until Gate 55 every one of them printed "img", a PDF included. The MIME
+ * subtype is the next-best statement of what the file is, spelled the way a
+ * camera roll spells it (`image/jpeg` prints "jpg"). ONLY THE TWO FAMILIES THE
+ * INPUT ACCEPTS are read — `image/*` and `application/pdf` — because a generic
+ * type says nothing: measured, a file with no stated type arrives as
+ * `application/octet-stream`, and the first version of this printed
+ * "octet-stream" on the tile. With neither an extension nor one of those types
+ * it falls back to "img" — never to the whole name, which would overflow.
  */
-export function fileTypeLabel(filename: string): string {
+export function fileTypeLabel(filename: string, mimeType = ''): string {
   const dot = filename.lastIndexOf('.')
-  if (dot < 0 || dot === filename.length - 1) return 'img'
-  return filename.slice(dot + 1).toLowerCase()
+  if (dot >= 0 && dot < filename.length - 1) return filename.slice(dot + 1).toLowerCase()
+  const type = mimeType.trim().toLowerCase()
+  if (type === 'application/pdf') return 'pdf'
+  const image = /^image\/([a-z0-9.+-]+)$/.exec(type)?.[1]
+  if (!image) return 'img'
+  return image === 'jpeg' ? 'jpg' : image
 }
 
 /** One chosen file, read but not yet a `Receipt`. */
@@ -282,8 +293,11 @@ export async function extractCapture(file: File, sourceUrl: string): Promise<Cap
  * than something plausible — the same three `extract.ts` applied until Gate
  * 50-C, moved here unchanged so nothing on screen moved with them:
  *
- *   merchant    the file's own name — what the user picked, and recognisably
- *               not a merchant, so it reads as "unread" rather than as a claim
+ *   merchant    the receipt's DISPLAY NAME (Decision 7B) — recognisably not a
+ *               merchant, so it reads as "unread" rather than as a claim.
+ *               Until Gate 55 this was `file.name`, which on an Android gallery
+ *               pick is an opaque digit run: 7B renamed `displayName` and left
+ *               this fallback behind (reported at Gate 54-B)
  *   capturedAt  the moment of capture, which is a real fact about this receipt
  *               even when the printed date is unreadable — in LOCAL wall-clock
  *               time, like every other timestamp here (`localWallClock`, Gate 51)
@@ -331,7 +345,7 @@ export function capturedToReceipt(
     */
     displayName,
     capturedAt: extracted.capturedAt ?? localWallClock(new Date()),
-    merchant: extracted.merchant ?? file.name,
+    merchant: extracted.merchant ?? displayName,
     total: extracted.total ?? 0,
     tax: extracted.tax,
     currency: extracted.currency,

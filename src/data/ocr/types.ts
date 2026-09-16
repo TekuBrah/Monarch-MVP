@@ -22,10 +22,38 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * Where on the page the engine found something, in the pixels of the image it
+ * was handed (after `normaliseForOcr`), origin top-left.
+ *
+ * ───────── WHY THE BOXES ARE KEPT, AS OF GATE 55 ────────────────────────────
+ *
+ * `recognise` has always asked the engine for `blocks`, and the engine has
+ * always returned a box on every line and every word — and until Gate 55 every
+ * one of them was thrown away. The engine's LINE split is a guess about layout,
+ * and on a receipt it is wrong in a specific, repeated way: a price printed in
+ * a right-hand column is often placed in a different block from the name it
+ * belongs to, and a centred label is placed on a different line from the figure
+ * at the right margin of the same printed row. Only the geometry can put those
+ * back together. See `parseReceipt.ts`, "rows".
+ *
+ * OPTIONAL, AND THAT IS LOAD-BEARING. Every committed text fixture in
+ * `e2e/parse-receipt.spec.ts` was written without boxes, and the parser falls
+ * back to the engine's own line order when they are absent — so those fixtures
+ * stay valid and a box-less caller still gets a parse.
+ */
+export interface OcrBox {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
 /** One recognised word, with the engine's own confidence in it, 0-100. */
 export interface OcrWord {
   text: string
   confidence: number
+  bbox?: OcrBox
 }
 
 /**
@@ -41,6 +69,7 @@ export interface OcrWord {
 export interface OcrLine {
   text: string
   words: OcrWord[]
+  bbox?: OcrBox
 }
 
 export interface OcrResult {

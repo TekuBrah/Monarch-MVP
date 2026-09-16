@@ -32,11 +32,17 @@ import { exifOrientation, jpegDimensions, normaliseForOcr } from '../src/data/oc
  * ─────────────────────────────────────────────────────────────────────────────
  * IT REQUIRES THE VITE DEV SERVER, AND THAT IS A REAL LIMITATION, STATED.
  *
- * The assertions below need the extractor's RETURN VALUE, and `Receipt.merchant`
- * is rendered NOWHERE in this app — checked at this gate: the only reader in
- * `src/` is the receipt search predicate at `derive.ts:899`. So a DOM-only
- * assertion on the parsed merchant is not possible, and the spec reaches the
- * seam by importing the module the way the app does.
+ * The assertions below need the extractor's RETURN VALUE — every parsed field,
+ * line items included, compared exactly — which is why the spec reaches the
+ * seam by importing the module the way the app does rather than reading the DOM.
+ *
+ * ⚠️ CORRECTED AT GATE 55. This note said `Receipt.merchant` "is rendered
+ * NOWHERE in this app", citing the receipt search predicate at `derive.ts:899`
+ * as its only reader. Both halves had gone stale. Since Gate 51-B the receipt
+ * viewer's "Receipt details" block prints it (`ReceiptViewer.tsx`) and the
+ * receipt editor edits it (`ReceiptEditor.tsx`), and the search predicate —
+ * `filterReceipts` in `derive.ts` — no longer sits at line 899. Cite the
+ * function, not the line: a `file:line` rots as the file grows.
  *
  * `playwright.config.ts` starts `npm run dev`, so `/src/data/extract.ts` is a
  * module the page can import. It is NOT importable from a `vite preview` build,

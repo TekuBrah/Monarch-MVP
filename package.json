@@ -18,7 +18,10 @@
     "pretest:e2e": "npm run lint:linkage && npm run sync:ocr-lang",
     "pretest:e2e:update": "npm run lint:linkage && npm run sync:ocr-lang",
     "test:e2e": "playwright test",
-    "test:e2e:update": "playwright test --update-snapshots=all"
+    "test:e2e:update": "playwright test --update-snapshots=all",
+    "preocr:corpus": "npm run sync:ocr-lang",
+    "ocr:corpus": "playwright test -c scripts/ocr-corpus/playwright.config.mjs",
+    "ocr:corpus:score": "node scripts/ocr-corpus/score.mjs"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",

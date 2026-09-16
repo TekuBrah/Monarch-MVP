@@ -380,7 +380,7 @@ export function AddReceiptsModal({
                   `size="s"` exactly. Measured 28x18 in the file; the DS's own
                   padding decides it here.
                 */}
-                <Tag label={fileTypeLabel(capture.file.name)} appearance="overlay" size="s" />
+                <Tag label={fileTypeLabel(capture.file.name, capture.file.type)} appearance="overlay" size="s" />
               </span>
             </li>
           ))}
