@@ -5,7 +5,7 @@ import { SectionHeader } from '../../components/SectionHeader'
 import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { ReceiptViewerHost } from './components/ReceiptViewer'
-import { capturedToReceipt, type CapturedFile } from './receiptCapture'
+import { capturedToReceipts, type CapturedFile } from './receiptCapture'
 import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
 import { autoMatchBatch } from '../../data/autoMatch'
 
@@ -132,7 +132,7 @@ export function ReceiptsTab() {
     ONCE, OVER THE WHOLE BATCH, AT THE MOMENT IT IS ADDED. `autoMatchBatch`
     reads each capture's RAW extraction — unread fields still `null` — against
     the ledger and the library as they stand before the batch lands, and the
-    display fallbacks are applied only afterwards, by `capturedToReceipt`.
+    display fallbacks are applied only afterwards, when the records are built.
 
     IT IS A HANDLER, NOT A RENDER-TIME DERIVATION, AND THAT IS THE RUN-ONCE
     RULING. Nothing re-matches the library when this tab re-renders, nothing
@@ -151,9 +151,11 @@ export function ReceiptsTab() {
       transactions,
       receipts,
     )
-    captured.forEach((capture, i) =>
-      addReceipt(capturedToReceipt(capture, links[i] ?? null)),
-    )
+    // ONE CLOCK READING FOR THE WHOLE SELECTION, and the names de-duplicated
+    // across it — see `capturedToReceipts`. Every image picked together shares a
+    // wall-clock stamp under Decision 7B, so without the batch step three photos
+    // added at once would land as three cards with one name between them.
+    capturedToReceipts(captured, links, new Date()).forEach(addReceipt)
   }
 
   // GROUPED FROM `capturedAt`, NEVER FROM A STORED MONTH — see

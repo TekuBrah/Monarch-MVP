@@ -206,17 +206,12 @@ export function TransactionsLedger() {
     time rather than at click time is the one that stays correct if they ever
     can.
   */
-  const captureForTransaction = async (files: File[], source: ReceiptSource) => {
+  const captureForTransaction = async (files: File[]) => {
     const file = files[0]
     const targetId = detailId
     if (!file || !targetId) return
     setIsCapturing(true)
-    const receipt = await captureToReceipt(
-      file,
-      URL.createObjectURL(file),
-      targetId,
-      source,
-    )
+    const receipt = await captureToReceipt(file, URL.createObjectURL(file), targetId)
     addReceipt(receipt)
     setIsCapturing(false)
   }

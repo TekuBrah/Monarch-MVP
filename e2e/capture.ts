@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type FileChooser, type Page } from '@playwright/test'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +26,37 @@ export const FIXTURE = 'e2e/fixtures/receipt-capture.jpg'
 /** "RM 250.75" — the magnitude as a ledger row prints it. */
 export function printedMagnitude(amount: number): string {
   return `RM ${Math.abs(amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`
+}
+
+/**
+ * What Decision 7B names an IMAGE capture taken at `now` — Gate 54.
+ *
+ * ───────── WHY EVERY SPEC THAT SAVES A CAPTURE NOW NEEDS THIS ──────────────
+ *
+ * Until Gate 54 a gallery pick kept `File.name`, so five specs located the card
+ * they had just created with `:has-text("receipt-capture.jpg")` — the fixture's
+ * own name. Decision 7B names every image from the clock instead, and those
+ * five went red together. They are updated to the rule rather than the rule
+ * bent back to them: a gallery name is frequently not a name at all on a real
+ * device, which is the finding 7B exists for.
+ *
+ * ONE DERIVATION, SHARED, so the specs cannot disagree about it. It takes `now`
+ * because `capture-time.spec.ts` deliberately re-pins the clock mid-test.
+ *
+ * LOCAL TIME, COMPUTED AS UTC+8 RATHER THAN READ FROM A FORMATTER.
+ * `playwright.config.ts` pins `Asia/Kuala_Lumpur`, which has no DST, so the
+ * offset is constant — and doing the arithmetic here rather than asking
+ * `Intl` keeps this an INDEPENDENT statement of the expected value instead of
+ * a second run of the same conversion the app performs.
+ */
+export function capturedImageName(now: Date, ordinal = 1): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const local = new Date(now.getTime() + 8 * 60 * 60 * 1000)
+  const stamp =
+    `${local.getUTCFullYear()}${pad(local.getUTCMonth() + 1)}${pad(local.getUTCDate())}_` +
+    `${pad(local.getUTCHours())}${pad(local.getUTCMinutes())}${pad(local.getUTCSeconds())}`
+  // The suffix goes BEFORE the extension, as a file manager would write it.
+  return ordinal === 1 ? `IMG_${stamp}.jpg` : `IMG_${stamp}_${ordinal}.jpg`
 }
 
 /**
@@ -61,19 +92,28 @@ export async function installResolvingExtraction(
  * ─────────── `via` SELECTS THE SOURCE ROW, AND DEFAULTS TO GALLERY ───────────
  *
  * Gate 53 made the receipt's `displayName` depend on which row opened the
- * picker, so a spec has to be able to choose. It defaults to 'Photo Gallery' so
- * every caller written before that gate is unchanged — and so the walk states,
- * which stage through `openOverlay`'s own `chooseFiles` step rather than
- * through here, keep matching what these helpers do.
+ * picker, so a spec has to be able to choose. DECISION 7B ENDED THAT DEPENDENCE
+ * — every image is named from the clock and only a PDF keeps its own filename —
+ * but the parameter stays, because `capture-name.spec.ts` still has to prove
+ * the two rows now agree, and proving that needs the ability to pick one.
  *
  * THE TWO ROWS DIFFER ONLY IN THEIR LABEL HERE, AND THAT IS THE POINT: both
  * reach the same `<input>`, and what distinguishes them is the `capture`
  * attribute that `ReceiptFileInput.open()` sets. Clicking the real button is
  * therefore the only way a test can exercise the source at all.
+ *
+ * ─────────── `files` STAGES A WHOLE SELECTION, AND DEFAULTS TO ONE ───────────
+ *
+ * Decision 7B de-duplicates display names ACROSS one selection, so a spec has
+ * to be able to stage more than one file in a single pick — which is a
+ * different thing from calling this twice, and is exactly the difference the
+ * `_2` suffix exists for. Playwright's `setFiles` takes in-memory descriptors
+ * as well as paths, so a second file needs no second committed fixture.
  */
 export async function saveOneCapture(
   page: Page,
   via: 'Photo Gallery' | 'Camera' = 'Photo Gallery',
+  files: Parameters<FileChooser['setFiles']>[0] = FIXTURE,
 ): Promise<void> {
   const add = page.locator('.mvp-receipts__add .mn-btn')
   await expect(add).toHaveAccessibleName('Add new receipt')
@@ -87,8 +127,10 @@ export async function saveOneCapture(
   await expect(source, `the "${via}" row resolved to exactly one control`).toHaveCount(1)
   // Armed BEFORE the click — Chromium raises the event synchronously with it.
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), source.click()])
-  await chooser.setFiles(FIXTURE)
-  await expect(dialog.locator('.mvp-add-receipts__badge')).toHaveText('jpg')
+  await chooser.setFiles(files)
+  // FIRST TILE ONLY — a selection may now stage several, and what this arm
+  // checks is that the pick reached the grid at all.
+  await expect(dialog.locator('.mvp-add-receipts__badge').first()).toHaveText(/^(jpg|pdf)$/)
 
   await dialog.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(dialog, 'Save resolved and the modal closed').toHaveCount(0)

@@ -1,12 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { THEMES, activateTab, gotoRoute } from './harness'
-import {
-  RECEIPTS_TAB,
-  TRANSACTIONS_TAB,
-  installResolvingExtraction,
-  openDialogNames,
-  saveOneCapture,
-} from './capture'
+import { PINNED_NOW, THEMES, activateTab, gotoRoute } from './harness'
+import { RECEIPTS_TAB, TRANSACTIONS_TAB, capturedImageName, installResolvingExtraction, openDialogNames, saveOneCapture } from './capture'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -402,7 +396,7 @@ for (const theme of THEMES) {
     })
     await saveOneCapture(page)
 
-    const captured = page.locator(CARD('receipt-capture.jpg'))
+    const captured = page.locator(CARD(capturedImageName(PINNED_NOW)))
     await expect(captured).toHaveCount(1)
     await captured.click()
 

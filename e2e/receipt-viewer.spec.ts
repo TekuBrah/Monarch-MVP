@@ -1,14 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { activateTab, gotoRoute } from './harness'
-import {
-  RECEIPTS_TAB,
-  TRANSACTIONS_TAB,
-  glyphRowCount,
-  installResolvingExtraction,
-  openDialogNames,
-  printedMagnitude,
-  saveOneCapture,
-} from './capture'
+import { PINNED_NOW, activateTab, gotoRoute } from './harness'
+import { RECEIPTS_TAB, TRANSACTIONS_TAB, capturedImageName, glyphRowCount, installResolvingExtraction, openDialogNames, printedMagnitude, saveOneCapture } from './capture'
 import { RECEIPTS } from '../src/data/receipts'
 import { TRANSACTIONS } from '../src/data/transactions'
 import type { Transaction } from '../src/data/types'
@@ -244,10 +236,10 @@ test.describe('the receipt viewer — Delete', () => {
 
     await activateTab(page, RECEIPTS_TAB)
     await saveOneCapture(page)
-    const capture = cardFor(page, 'receipt-capture.jpg')
+    const capture = cardFor(page, capturedImageName(PINNED_NOW))
     await expect(capture.locator('.mn-chips'), 'an unread capture lands unlinked').toHaveCount(0)
 
-    const viewer = await openFromCard(page, 'receipt-capture.jpg')
+    const viewer = await openFromCard(page, capturedImageName(PINNED_NOW))
     // THE UNLINKED VIEWER: image and Delete only.
     await expect(viewer.getByText('Linked', { exact: true })).toHaveCount(0)
     await expect(viewer.locator('.mn-list-item')).toHaveCount(0)

@@ -108,6 +108,12 @@ declare global {
 /**
  * Is this file a PDF rather than an image?
  *
+ * EXPORTED SO THERE IS ONE DEFINITION, NOT TWO. `receiptCapture.ts` asks the
+ * same question for a different reason — Decision 7B generates a camera-roll
+ * name for every IMAGE and leaves a PDF's own filename alone — and the two
+ * answers have to agree. A second copy of this predicate would eventually
+ * rasterise a file it had just named as though it were a photograph.
+ *
  * BOTH THE MIME TYPE AND THE EXTENSION ARE CHECKED, because neither is reliable
  * alone. `File.type` is whatever the picker chose to report and comes back as
  * the empty string from some Android providers; the extension is missing
@@ -116,7 +122,7 @@ declare global {
  * rasteriser, and a false positive is cheap — `getDocument` rejects and the
  * error surfaces — where a false negative silently OCRs a blank page.
  */
-function looksLikePdf(file: File): boolean {
+export function looksLikePdf(file: File): boolean {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
 }
 

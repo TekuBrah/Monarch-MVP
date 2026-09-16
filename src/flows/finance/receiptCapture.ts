@@ -1,4 +1,4 @@
-import { extractReceipt, type ExtractedReceipt } from '../../data/extract'
+import { extractReceipt, looksLikePdf, type ExtractedReceipt } from '../../data/extract'
 import type { Receipt } from '../../data/types'
 
 /**
@@ -54,12 +54,19 @@ function localWallClock(date: Date): string {
 /**
  * WHICH DEVICE SURFACE A FILE CAME FROM.
  *
- * IT LIVES HERE, NOT IN `ReceiptFileInput`, AS OF GATE 53. It was that
- * component's type while it was only an instruction to an `<input>` — which
- * `multiple` and `capture` to set. It is now a recorded FACT ABOUT A CAPTURE
- * that `capturedToReceipt` reads, so it belongs beside the record it shapes and
- * the dependency runs the way every other one in this flow does: components
- * import from `receiptCapture`, never the reverse.
+ * ⚠️ IT IS AN INSTRUCTION TO AN `<input>` AGAIN, AND NOTHING ELSE — GATE 54.
+ *
+ * Gate 53 moved this type here from `ReceiptFileInput` because it had stopped
+ * being only an instruction (which `multiple` and `capture` to set) and had
+ * become a recorded fact a `Receipt` was shaped by: the display name was chosen
+ * by source. DECISION 7B ENDED THAT — every image is renamed and only a PDF
+ * keeps its own name — so nothing downstream of the `<input>` reads it, and the
+ * propagation through `CapturedFile` was deleted rather than left as a field
+ * with no reader.
+ *
+ * IT STAYS IN THIS FILE ANYWAY, on the dependency-direction argument alone:
+ * components in this flow import from `receiptCapture`, never the reverse.
+ * Moving it back would invert that for no gain.
  */
 export type ReceiptSource = 'camera' | 'gallery'
 
@@ -109,6 +116,70 @@ export function cameraRollName(file: File, now: Date): string {
 }
 
 /**
+ * The display name for one capture — Decision 7B.
+ *
+ * ─────────────── EVERY IMAGE IS RENAMED. ONLY A PDF KEEPS ITS OWN. ───────────
+ *
+ * GATE 53 SPLIT THIS BY SOURCE — a camera capture was renamed and a gallery
+ * pick kept `File.name` — ON THE ARGUMENT THAT "a gallery pick's name is one
+ * the user browsed to and can recognise". DEVICE EVIDENCE OVERTURNED THAT.
+ * A bulk upload from the Receipts tab on a real Android phone produced cards
+ * named like
+ *
+ *   1789492674683328588290775429997...
+ *
+ * — an opaque run of digits, which is what Android's document picker hands back
+ * for a media item it exposes by content URI rather than by path. The premise
+ * was wrong: a gallery name is frequently not a name at all, and it is never a
+ * name the user typed.
+ *
+ * THERE IS STILL NO PREDICATE FOR "THIS FILENAME IS RUBBISH", and that is
+ * exactly why the rule is now categorical rather than a heuristic. Gate 53
+ * recorded that no such test exists and split by source to avoid needing one;
+ * 7B reaches the same conclusion from the other side — since the app cannot
+ * tell a good device name from a bad one, it stops depending on the
+ * distinction and names every photograph the way a camera roll would.
+ *
+ * A PDF IS DIFFERENT IN KIND, NOT IN QUALITY. An emailed invoice arrives as a
+ * document the user received and may well search for by name, and it is not a
+ * photograph, so a camera-roll stamp would be a lie about what it is.
+ *
+ * `filename` IS UNTOUCHED BY ALL OF THIS. It and `displayName` are two separate
+ * facts (see `Receipt` in `types.ts`): `filename` remains the honest record of
+ * what the device handed over, INCLUDING when that is an unusable digit run.
+ */
+export function receiptDisplayName(file: File, now: Date): string {
+  return looksLikePdf(file) ? file.name : cameraRollName(file, now)
+}
+
+/**
+ * Make one selection's display names unique: `_2`, `_3`, … in selection order.
+ *
+ * WHY COLLISIONS ARE THE NORMAL CASE RATHER THAN AN EDGE ONE. `cameraRollName`
+ * is built from a wall-clock stamp accurate to the second, and a bulk selection
+ * is named in a single synchronous pass — so every image picked together gets
+ * the SAME stamp, and a user adding three photographs would otherwise see three
+ * cards with one name between them.
+ *
+ * THE SUFFIX GOES BEFORE THE EXTENSION, which is what a file manager does and
+ * what keeps `fileTypeLabel` reading the real type off the end of the string.
+ *
+ * IT IS APPLIED IN SELECTION ORDER AND THE FIRST KEEPS THE BARE NAME, so the
+ * numbering matches the order the tiles were staged in rather than depending on
+ * which extraction finished first.
+ */
+export function disambiguateDisplayNames(names: readonly string[]): string[] {
+  const seen = new Map<string, number>()
+  return names.map((name) => {
+    const count = (seen.get(name) ?? 0) + 1
+    seen.set(name, count)
+    if (count === 1) return name
+    const dot = name.lastIndexOf('.')
+    return dot > 0 ? `${name.slice(0, dot)}_${count}${name.slice(dot)}` : `${name}_${count}`
+  })
+}
+
+/**
  * The badge text on a staged tile — "jpg", "png", "heic".
  *
  * FROM THE FILE'S OWN NAME, NOT FROM ITS MIME TYPE. The badge is telling the
@@ -133,11 +204,6 @@ export interface CapturedFile {
   sourceUrl: string
   /** Exactly what extraction returned, unread fields still `null`. */
   extracted: ExtractedReceipt
-  /**
-   * Which device surface produced it — `capturedToReceipt` needs it to decide
-   * the display name, and only the `<input>` that set `capture` knows it.
-   */
-  source: ReceiptSource
 }
 
 /**
@@ -190,16 +256,12 @@ const UNREAD: ExtractedReceipt = {
  * `capturedToReceipt(await extractCapture(...))`, so the sheet had the same
  * strand (`setIsCapturing(false)` never running) and one catch closes both.
  */
-export async function extractCapture(
-  file: File,
-  sourceUrl: string,
-  source: ReceiptSource,
-): Promise<CapturedFile> {
+export async function extractCapture(file: File, sourceUrl: string): Promise<CapturedFile> {
   try {
-    return { file, sourceUrl, source, extracted: await extractReceipt(file) }
+    return { file, sourceUrl, extracted: await extractReceipt(file) }
   } catch (error) {
     console.error(`receipt extraction failed for ${file.name}`, error)
-    return { file, sourceUrl, source, extracted: UNREAD }
+    return { file, sourceUrl, extracted: UNREAD }
   }
 }
 
@@ -238,8 +300,9 @@ export async function extractCapture(
 export function capturedToReceipt(
   capture: CapturedFile,
   transactionId: string | null,
+  displayName: string,
 ): Receipt {
-  const { file, sourceUrl, extracted, source } = capture
+  const { file, sourceUrl, extracted } = capture
   return {
     id: `receipt-capture-${(captureSeq += 1)}`,
     // WHERE THE BYTES CAME FROM, UNTOUCHED BY GATE 53. `filename` and
@@ -249,23 +312,24 @@ export function capturedToReceipt(
     // name is unusable.
     filename: file.name,
     /*
-      CAMERA-ROLL STYLE — AND FOR A CAMERA CAPTURE THAT MEANS A GENERATED ONE.
+      HANDED IN, SO THIS STAYS THE ONLY WRITER OF THE FIELD AND `receiptDisplayName`
+      STAYS THE ONLY DECIDER OF ITS VALUE.
 
-      THIS WAS `file.name` FOR BOTH SOURCES UNTIL GATE 53, and the defect it
-      produced is worth stating because the mechanism is NOT the obvious one.
-      A card printed `"ESPEN EER BCs rf 42. i EH EER eer Spates Le"` — which
-      reads exactly like OCR output, so the natural diagnosis is that extraction
-      leaked into this field. IT DID NOT: `displayName` has exactly ONE writer
-      in `src/`, this line, and it has never read `extracted`. That garbled
-      string WAS `File.name`, handed over by the device's own camera intent.
+      IT IS A PARAMETER RATHER THAN A CALL BECAUSE OF DE-DUPLICATION, which is a
+      property of a whole SELECTION and cannot be computed from one capture:
+      every image picked together shares a wall-clock stamp, so the `_2`/`_3`
+      suffixes have to be assigned across the batch. `capturedToReceipts` below
+      is where that happens, and it is the only thing that should call this.
 
-      SO THE SPLIT IS BY SOURCE, NOT BY WHETHER THE NAME LOOKS SENSIBLE. There
-      is no predicate for "this filename is rubbish" that is not a guess, and a
-      gallery pick's name is one the user chose and can recognise — discarding it
-      would be a regression. A camera capture has no such name to protect.
+      THE HISTORY IS WORTH KEEPING BECAUSE THE MECHANISM IS NOT THE OBVIOUS ONE.
+      A card once printed `"ESPEN EER BCs rf 42. i EH EER eer Spates Le"`, which
+      reads exactly like OCR output — so the natural diagnosis was that
+      extraction had leaked into this field. IT HAD NOT: `displayName` has never
+      read `extracted`, and that garbled string WAS `File.name`, handed over by
+      the device's own camera intent. Gate 54 saw the same thing again from the
+      gallery, as an opaque digit run.
     */
-    displayName:
-      source === 'camera' ? cameraRollName(file, new Date()) : file.name,
+    displayName,
     capturedAt: extracted.capturedAt ?? localWallClock(new Date()),
     merchant: extracted.merchant ?? file.name,
     total: extracted.total ?? 0,
@@ -281,14 +345,40 @@ export function capturedToReceipt(
 }
 
 /**
+ * Build every `Receipt` for ONE selection, names de-duplicated across it.
+ *
+ * THE ONLY CALLER OF `capturedToReceipt`, and the reason that function takes a
+ * display name rather than computing one: the `_2`/`_3` suffixes can only be
+ * assigned by something that can see the whole batch at once.
+ *
+ * `now` IS A PARAMETER SO THE CLOCK IS READ EXACTLY ONCE PER SELECTION. Reading
+ * it per capture would let a slow batch straddle a second boundary, which would
+ * hide collisions in testing and produce them in the field — the worst possible
+ * split. One instant per selection also means the stamp records when the user
+ * added the receipts, not how long extraction took.
+ */
+export function capturedToReceipts(
+  captures: readonly CapturedFile[],
+  links: readonly (string | null)[],
+  now: Date,
+): Receipt[] {
+  const names = disambiguateDisplayNames(captures.map((c) => receiptDisplayName(c.file, now)))
+  return captures.map((capture, i) => capturedToReceipt(capture, links[i] ?? null, names[i]))
+}
+
+/**
  * Extract one captured image and build its `Receipt` — the detail sheet's path,
  * where the link is known before extraction starts and auto-match never runs.
+ *
+ * A SELECTION OF ONE, THROUGH THE SAME FUNCTION AS A SELECTION OF MANY. There
+ * is nothing to de-duplicate against, so `disambiguateDisplayNames` is a no-op
+ * here — but routing through it means this path cannot drift from the bulk one.
  */
 export async function captureToReceipt(
   file: File,
   sourceUrl: string,
   transactionId: string | null,
-  source: ReceiptSource,
 ): Promise<Receipt> {
-  return capturedToReceipt(await extractCapture(file, sourceUrl, source), transactionId)
+  const capture = await extractCapture(file, sourceUrl)
+  return capturedToReceipts([capture], [transactionId], new Date())[0]
 }

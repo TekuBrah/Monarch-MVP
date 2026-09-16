@@ -1,13 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { activateTab, gotoRoute } from './harness'
-import {
-  RECEIPTS_TAB,
-  TRANSACTIONS_TAB,
-  glyphRowCount,
-  installResolvingExtraction,
-  printedMagnitude,
-  saveOneCapture,
-} from './capture'
+import { PINNED_NOW, activateTab, gotoRoute } from './harness'
+import { RECEIPTS_TAB, TRANSACTIONS_TAB, capturedImageName, glyphRowCount, installResolvingExtraction, printedMagnitude, saveOneCapture } from './capture'
 import { autoMatchBatch, candidatesFor, type MatchFields } from '../src/data/autoMatch'
 import { RECEIPTS } from '../src/data/receipts'
 import { TRANSACTIONS } from '../src/data/transactions'
@@ -294,7 +287,7 @@ test.describe('auto-match — wired into the Receipts tab', () => {
     await activateTab(page, RECEIPTS_TAB)
     await saveOneCapture(page)
 
-    const card = page.locator('.mvp-receipt-card:has-text("receipt-capture.jpg")')
+    const card = page.locator(`.mvp-receipt-card:has-text("${capturedImageName(PINNED_NOW)}")`)
     await expect(card, 'the capture reached the library').toHaveCount(1)
     await expect(card.locator('.mn-chips'), 'and claims to be linked').toHaveText('Linked')
     const nested = card.locator('.mn-list-item')
@@ -358,7 +351,7 @@ test.describe('auto-match — wired into the Receipts tab', () => {
     // The Save DID auto-match — its own capture is linked — so the receipt above
     // stayed unlinked because auto-match ran over the batch, not the library.
     await expect(
-      page.locator('.mvp-receipt-card:has-text("receipt-capture.jpg") .mn-chips'),
+      page.locator(`.mvp-receipt-card:has-text("${capturedImageName(PINNED_NOW)}") .mn-chips`),
     ).toHaveText('Linked')
   })
 })

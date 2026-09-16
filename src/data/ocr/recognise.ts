@@ -1,5 +1,7 @@
 import workerUrl from 'tesseract.js/dist/worker.min.js?url'
 import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url'
+import { normaliseForOcr } from './normalise'
+import type { OcrLine, OcrResult } from './types'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -118,32 +120,18 @@ import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url'
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-/** One recognised word, with the engine's own confidence in it, 0-100. */
-export interface OcrWord {
-  text: string
-  confidence: number
-}
-
 /**
- * One recognised line.
+ * THE THREE SHAPES RECOGNITION PRODUCES, RE-EXPORTED FROM `./types`.
  *
- * THE PARSER WORKS ON LINES-OF-WORDS RATHER THAN ON A TEXT BLOB, and that is
- * what makes a per-field confidence exact instead of a guess. Given only the
- * newline-joined text, "which word produced this number" has to be answered by
- * searching for the token, which is ambiguous the moment a page prints the same
- * figure twice — and every one of the ten seeded receipts prints its total
- * twice, once on the Total row and once on the tender row.
+ * They were declared here until Gate 54 and moved so that the pure parser —
+ * and any spec that wants to exercise it — can reach them without reaching
+ * this module's two `?url` imports, which only resolve in a project carrying
+ * Vite's ambient client types. See `types.ts` for the full reasoning.
+ *
+ * RE-EXPORTED RATHER THAN RELOCATED SILENTLY, so `import { OcrResult } from
+ * './recognise'` goes on meaning exactly what it always meant.
  */
-export interface OcrLine {
-  text: string
-  words: OcrWord[]
-}
-
-export interface OcrResult {
-  lines: OcrLine[]
-  /** The engine's overall confidence in the page, 0-100. */
-  confidence: number
-}
+export type { OcrLine, OcrResult, OcrWord } from './types'
 
 /**
  * LSTM_ONLY. The value is 1 and it is written as a literal because importing
@@ -268,6 +256,24 @@ export async function recognise(image: Blob): Promise<OcrResult> {
 
   await assertLanguageModelIsServed()
 
+  // ─── EVERY IMAGE IS ORIENTED AND SIZED HERE, AND THAT IS WHY IT IS HERE ───
+  //
+  // This is the single chokepoint: both capture surfaces reach the engine
+  // through `recognise`, and so does the rasterised first page of a PDF. Doing
+  // it in `extract.ts` instead would leave a second way in — a future caller of
+  // `recognise` would silently get the un-oriented behaviour this fixes.
+  //
+  // IT RUNS ON THE PDF PATH TOO, AND IS A NO-OP THERE BY CONSTRUCTION.
+  // `rasterisePdfFirstPage` already returns an upright PNG inside the same
+  // long-edge budget, so normalising it rotates nothing and scales nothing — it
+  // decodes and re-encodes the same pixels. Uniformity is worth the
+  // milliseconds: the invariant "the engine only ever sees normalised pixels"
+  // then has no exceptions for anyone to remember.
+  //
+  // BEFORE `createWorker`, so a capture this cannot decode fails without having
+  // spun up a 3.9 MB WebAssembly engine and a 2.82 MB language model first.
+  const normalised = await normaliseForOcr(image)
+
   const worker = await createWorker('eng', OEM_LSTM_ONLY, {
     workerPath: workerUrl,
     corePath: coreUrl,
@@ -284,7 +290,7 @@ export async function recognise(image: Blob): Promise<OcrResult> {
   })
 
   try {
-    const { data } = await worker.recognize(image, {}, { text: true, blocks: true })
+    const { data } = await worker.recognize(normalised, {}, { text: true, blocks: true })
 
     const lines: OcrLine[] = []
     for (const block of data.blocks ?? []) {

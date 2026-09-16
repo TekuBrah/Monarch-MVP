@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { PINNED_NOW, activateTab, gotoRoute } from './harness'
-import { RECEIPTS_TAB, installResolvingExtraction, saveOneCapture } from './capture'
+import { RECEIPTS_TAB, capturedImageName, installResolvingExtraction, saveOneCapture } from './capture'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -50,10 +50,19 @@ test('an unread date records the capture moment in LOCAL time, not UTC', async (
   await activateTab(page, RECEIPTS_TAB)
   await saveOneCapture(page)
 
-  const card = page.locator('.mvp-receipt-card:has-text("receipt-capture.jpg")')
+  const card = page.locator(`.mvp-receipt-card:has-text("${capturedImageName(PINNED_NOW)}")`)
   await expect(card, 'the unread capture reached the library').toHaveCount(1)
   await expect(card.locator('.mvp-receipt-card__date')).toHaveText('15 Aug, 09:41')
 })
+
+/**
+ * 04:00 on 1 September in Kuala Lumpur, and 20:00 on 31 August in UTC.
+ *
+ * NAMED RATHER THAN INLINE SINCE GATE 54, because two things now derive from
+ * it: the clock the test pins, and — under Decision 7B — the name the capture
+ * is given. A second literal would let those two drift apart silently.
+ */
+const RE_PINNED = new Date('2026-08-31T20:00:00.000Z')
 
 test('a capture across the UTC date line groups under its LOCAL month', async ({ page }) => {
   await gotoRoute(page, '/finance', 'light')
@@ -63,13 +72,13 @@ test('a capture across the UTC date line groups under its LOCAL month', async ({
   // mis-files the receipt a month early, not merely eight hours out.
   // `gotoRoute` pinned the clock before navigation; re-pinning after it moves
   // only what `new Date()` returns from here on.
-  await page.clock.setFixedTime(new Date('2026-08-31T20:00:00.000Z'))
+  await page.clock.setFixedTime(RE_PINNED)
 
   await installResolvingExtraction(page, UNREADABLE)
   await activateTab(page, RECEIPTS_TAB)
   await saveOneCapture(page)
 
-  const card = page.locator('.mvp-receipt-card:has-text("receipt-capture.jpg")')
+  const card = page.locator(`.mvp-receipt-card:has-text("${capturedImageName(RE_PINNED)}")`)
   await expect(card).toHaveCount(1)
   await expect(card.locator('.mvp-receipt-card__date')).toHaveText('01 Sept, 04:00')
 

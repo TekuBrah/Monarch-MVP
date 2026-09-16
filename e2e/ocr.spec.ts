@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { expect, test } from '@playwright/test'
 import { PINNED_NOW } from './harness'
+import { exifOrientation, jpegDimensions, normaliseForOcr } from '../src/data/ocr/normalise'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -63,6 +64,13 @@ import { PINNED_NOW } from './harness'
  * this path to drift.
  */
 const FIXTURE = 'e2e/fixtures/receipt-capture.jpg'
+
+/**
+ * The same receipt, stored sideways. See the Gate 54 test at the foot of this
+ * file for how it is built and why it is a synthetic rotation rather than one
+ * of the two real device photographs.
+ */
+const ROTATED_FIXTURE = 'e2e/fixtures/receipt-capture-rotated.jpg'
 
 /** The seam, as the dev server serves it. See the `import()` note below. */
 const MODULE_PATH = '/src/data/extract.ts'
@@ -135,6 +143,54 @@ const EXPECTED = {
   /** DERIVED — the sum of the two line items, never transcribed. */
   subtotal: 129.8,
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE NORMALISER'S PASS-THROUGH IS AN IDENTITY, NOT AN APPROXIMATION.
+ * Gate 54.
+ *
+ * WHY THIS IS WORTH A TEST OF ITS OWN. The first version of `normaliseForOcr`
+ * redrew EVERY image, on the reasonable-sounding argument that at 1:1 with no
+ * rotation a decode -> draw -> encode round-trip is pixel-exact and therefore
+ * inert. MEASURED OVER THE TEN SEEDED RECEIPTS, IT IS NOT: `receipt_aia01` fell
+ * from confidence 77 with its whole letterhead and date read to 35 with
+ * neither, and `receipt_jayagrocer01` lost a line item. The round-trip is
+ * faithful to the canvas, but the canvas is filled by Chromium's JPEG decoder
+ * where the engine would otherwise have used Leptonica's.
+ *
+ * SO THE PASS-THROUGH IS A CORRECTNESS REQUIREMENT, NOT AN OPTIMISATION, and
+ * "returns the same bytes" has to be asserted rather than assumed. These run in
+ * Node with no page, because the pass-through path reads bytes and never
+ * touches a canvas — which is exactly the property under test.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+test.describe('the capture normaliser', () => {
+  test('an upright, in-budget image is returned UNTOUCHED', async () => {
+    const blob = new Blob([fs.readFileSync(FIXTURE)], { type: 'image/jpeg' })
+    const out = await normaliseForOcr(blob)
+    // THE SAME OBJECT, not merely an equal one. Anything else means a redraw
+    // happened, and a redraw is what cost `receipt_aia01` its letterhead.
+    expect(out, 'the identical Blob comes back').toBe(blob)
+  })
+
+  test('the orientation tag is read from the bytes, and its absence is null', () => {
+    expect(exifOrientation(new Uint8Array(fs.readFileSync(ROTATED_FIXTURE)))).toBe(6)
+    expect(exifOrientation(new Uint8Array(fs.readFileSync(FIXTURE)))).toBeNull()
+  })
+
+  test('stored dimensions come off the frame header, before any rotation', () => {
+    // The rotated fixture is stored LANDSCAPE and displays portrait. Reading the
+    // stored frame is what lets the long-edge budget be tested without decoding.
+    expect(jpegDimensions(new Uint8Array(fs.readFileSync(ROTATED_FIXTURE)))).toEqual({
+      width: 517,
+      height: 287,
+    })
+    expect(jpegDimensions(new Uint8Array(fs.readFileSync(FIXTURE)))).toEqual({
+      width: 287,
+      height: 517,
+    })
+  })
+})
 
 test.describe('real OCR behind the extraction seam', () => {
   // The engine loads a 3.72 MB WebAssembly core and a 2.82 MB language model
@@ -269,5 +325,128 @@ test.describe('real OCR behind the extraction seam', () => {
     expect(fetched('worker.min'), 'the Tesseract worker was served').toBe(true)
     expect(fetched('tesseract-core'), 'the WebAssembly engine was served').toBe(true)
     expect(fetched('traineddata'), 'the language model was served').toBe(true)
+  })
+
+  /**
+   * ───────────────────────────────────────────────────────────────────────────
+   * A PHOTOGRAPH STORED SIDEWAYS READS THE SAME AS ONE STORED UPRIGHT.
+   * Gate 54.
+   *
+   * THE DEFECT THIS GUARDS: the engine's own EXIF reader honours the
+   * Orientation tag only when the TIFF header is BIG-ENDIAN ("MM"), and every
+   * phone camera writes LITTLE-ENDIAN ("II"). Tesseract never uses the
+   * browser's decoder — `tesseract.js/src/worker/browser/loadImage.js:63` hands
+   * a `File`'s raw bytes straight to the engine — so a phone photograph reached
+   * it lying on its side and came back as noise. Measured on two real receipts:
+   * confidence 35 and 38, no total, no date, no items. `normaliseForOcr` in
+   * `src/data/ocr/normalise.ts` reads the tag in both byte orders and applies
+   * the rotation itself.
+   *
+   * ───────── WHY THE FIXTURE IS A ROTATED COPY OF THE ONE ABOVE ─────────────
+   *
+   * `receipt-capture-rotated.jpg` is `receipt-capture.jpg` with its PIXELS
+   * turned 90° anticlockwise and an EXIF Orientation of 6 ("rotate 90°
+   * clockwise to display") spliced in — so it is stored 517x287 landscape and
+   * displays as the same upright 287x517 receipt.
+   *
+   * ⚠️ ITS EXIF IS LITTLE-ENDIAN ON PURPOSE, AND THE FIRST VERSION WAS NOT.
+   * Built big-endian, this test PASSED WITH THE FIX BYPASSED — the engine
+   * honoured the tag by itself, so the fixture proved nothing. That was found
+   * by mutation, not by reading it. A fixture for a device defect has to be
+   * written the way the device writes it.
+   *
+   * THE TWO REAL DEVICE PHOTOGRAPHS ARE DELIBERATELY NOT COMMITTED. They carry
+   * a cashier's full name, a member name, partial card numbers
+   * (`467851XXXXXX9472`) and an e-invoice QR — so they are held as local
+   * evidence and this synthetic stand-in guards the mechanism instead. It is
+   * also the better instrument: it isolates orientation as the ONLY variable,
+   * where a second real receipt would vary in layout, print quality and
+   * lighting all at once.
+   *
+   * IT ASSERTS THE SAME `EXPECTED` AS THE UPRIGHT FIXTURE, FIELD FOR FIELD, and
+   * that equality is the whole claim: after the fix, how a capture happens to be
+   * stored is invisible to the parser. The fixture is encoded at quality 1.0
+   * precisely so the comparison is exact — at 0.95 the second line item read
+   * 4.9 rather than 49.9, which would have made this assert a degradation
+   * artifact of the fixture rather than a property of the app.
+   *
+   * BEFORE THE FIX THIS TEST FAILS AT THE FIRST ASSERTION, with a merchant of
+   * scan noise and a `null` total.
+   * ───────────────────────────────────────────────────────────────────────────
+   */
+  test('a sideways-stored capture parses identically to the upright one', async ({ page }) => {
+    await page.clock.setFixedTime(PINNED_NOW)
+    await page.goto('/', { waitUntil: 'networkidle' })
+
+    const base64 = fs.readFileSync(ROTATED_FIXTURE).toString('base64')
+    const extracted = await page.evaluate<ExtractedShape, EvaluateArg>(
+      async ({ base64, modulePath }) => {
+        const binary = atob(base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+        const file = new File([bytes], 'receipt-capture-rotated.jpg', { type: 'image/jpeg' })
+        let mod: { extractReceipt: (f: File) => Promise<ExtractedShape> }
+        try {
+          mod = await import(modulePath)
+        } catch (cause) {
+          throw new Error(
+            `could not import ${modulePath} — this spec needs the Vite dev ` +
+              'server (playwright.config.ts starts `npm run dev`). It cannot run ' +
+              'against a `vite preview` build, where the sources are bundled. ' +
+              `Underlying error: ${String(cause)}`,
+          )
+        }
+        return mod.extractReceipt(file)
+      },
+      { base64, modulePath: MODULE_PATH },
+    )
+
+    expect(extracted.merchant).toBe(EXPECTED.merchant)
+    expect(extracted.capturedAt).toBe(EXPECTED.capturedAt)
+    expect(extracted.total).toBe(EXPECTED.total)
+    expect(extracted.tax).toBe(EXPECTED.tax)
+    expect(extracted.currency).toBe(EXPECTED.currency)
+    expect(extracted.lineItems).toHaveLength(EXPECTED.itemCount)
+    expect(extracted.lineItems.map((i) => i.price)).toEqual([79.9, 49.9])
+    expect(extracted.lineItems[0].name).toBe('BLAHAJ Soft Toy')
+    expect(extracted.lineItems[1].name).toBe('IKEA 365+ Food Container')
+
+    /*
+      ── NOT VACUOUS: THE FIXTURE REALLY IS STORED SIDEWAYS ──────────────────
+
+      Without this, the test would pass just as well if someone quietly
+      replaced the fixture with an upright copy — and would then be asserting
+      nothing at all about orientation.
+
+      CHECKED FROM THE BYTES AND FROM THE BROWSER, NOT FROM `normalise.ts`.
+      Using this app's own `exifOrientation` here would be the module agreeing
+      with itself: if it stopped reading the tag, the fix and the check would
+      fail together and silently.
+    */
+    const marker = Buffer.from('Exif\0\0', 'latin1')
+    expect(
+      fs.readFileSync(ROTATED_FIXTURE).includes(marker),
+      'the rotated fixture carries an EXIF segment',
+    ).toBe(true)
+    expect(
+      fs.readFileSync(FIXTURE).includes(marker),
+      'the upright fixture carries none — so the two are genuinely different files',
+    ).toBe(false)
+
+    // And the browser has to ROTATE it to display it: the stored frame is
+    // landscape, so an EXIF-honouring decode comes back portrait.
+    const decoded = await page.evaluate(async (b64) => {
+      const binary = atob(b64)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+      const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }), {
+        imageOrientation: 'from-image',
+      })
+      return { width: bitmap.width, height: bitmap.height }
+    }, base64)
+    expect(decoded, 'EXIF turns the stored 517x287 frame into an upright 287x517').toEqual({
+      width: 287,
+      height: 517,
+    })
   })
 })

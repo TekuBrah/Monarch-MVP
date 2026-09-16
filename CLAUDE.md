@@ -5811,6 +5811,11 @@ a resolving stub.**
 census describe the same recognition, so splitting them would run the slowest
 thing in the suite twice to assert the same two things.
 
+**THE FILE HOLDS 5 TESTS SINCE GATE 54, AND THE RULE ABOVE IS UNBROKEN.** Three
+are Node-context normaliser checks that run no engine at all, and the fourth is
+a SECOND recognition — of a sideways-stored capture, which is a different input
+rather than a second assertion about the same one.
+
 It asserts merchant, `capturedAt`, total, tax, currency, item count, both item
 names, both prices, and the DERIVED subtotal — then the request census. **No
 baseline and no pixel assertion of any kind**, so the suite went 268 -> 269 with
@@ -7827,7 +7832,16 @@ name is one the user browsed to and can recognise — discarding it would be a
 regression. A camera capture has no such name to protect: the photograph did not
 exist until the shutter fired.
 
-`cameraRollName(file, now)` -> `IMG_20260912_160512.jpg`, for `'camera'` only.
+**⚠ THE SOURCE SPLIT WAS OVERTURNED AT GATE 54 BY DECISION 7B, AND THE PREMISE
+ABOVE IS PRECISELY WHAT DEVICE EVIDENCE FALSIFIED.** Android's picker hands back
+an opaque digit run (`1789492674683328588290775429997...`) for a media item it
+exposes by content URI, so a gallery name is frequently not a name at all, and is
+never one the user typed. EVERY image capture is now named from the clock and
+only a PDF keeps `File.name`. The paragraph above is Gate 53's record and is left
+as written; the single-writer finding it rests on is unchanged and still correct.
+
+`cameraRollName(file, now)` -> `IMG_20260912_160512.jpg`, for `'camera'` only
+*(for EVERY image since Gate 54 — see Decision 7B)*.
 
 - **THE STAMP IS DERIVED FROM `localWallClock`, NOT FORMATTED AGAIN.** One
   definition of "the local wall-clock moment", reshaped — so a camera-roll name
@@ -7851,7 +7865,16 @@ because it is now a recorded fact about a capture rather than an instruction to
 an `<input>`, and the dependency then runs the way every other one in the flow
 does.
 
-`e2e/capture-name.spec.ts` (2 tests, no baseline). **It cannot reproduce an
+**⚠ THE SOURCE IS NO LONGER REPORTED AT ALL — GATE 54.** Decision 7B stopped the
+display name depending on it, leaving nothing downstream of the `<input>` to read
+it, so the `sourceRef` and the whole propagation through `CapturedFile` were
+deleted rather than left reporting a fact with no reader. The type survives, as
+what it was before Gate 53: an instruction `open()` uses to set `capture` and
+`multiple`. It stays in `receiptCapture.ts` on the dependency-direction argument
+alone.
+
+`e2e/capture-name.spec.ts` (2 tests, no baseline; **4 since Gate 54**, which
+overturned the gallery arm). **It cannot reproduce an
 Android camera's `File.name` and says so** — `capture` is a hint desktop
 Chromium ignores, so both rows receive the same `File`. That is precisely what
 makes it the right instrument for the FIX: the two rows differ in nothing except
@@ -8270,6 +8293,319 @@ G19-G23, G28-G33 — all still registered, still deferred, and **no MVP-local
 override was added for any**; the G33 workaround class, untouched and still
 carrying its removal condition; and the three AA shortfalls on the net-worth
 card ruled on at Gate 31.
+
+## Real-paper OCR, and receipt display names (Gate 54)
+
+No DS re-pin — **v2.3.0 throughout**. Two items: a real user-facing defect whose
+mechanism took four experiments to pin down and whose first regression test was
+worthless, and Decision 7B on capture naming. **|WALK| stays 40,
+`OVERLAY_STATES` stays 19, and ALL 160 BASELINES ARE BYTE-IDENTICAL — 0 changed,
+0 added, 0 deleted.** Tests **392 -> 410**, spec files **15 -> 16**.
+`lint:tokens` scans **62** files (was 60) with the same **3** pre-existing
+exemptions — no new raw value entered the tree.
+
+### THE DEVICE WALK, AND WHAT EACH SYMPTOM TURNED OUT TO BE
+
+Teku, Android phone, `monarchmvp.netlify.app` at `main@1da2ea8`, 16 Sept:
+
+| | symptom | cause |
+|---|---|---|
+| **F1** | camera capture linked, but Items empty and Subtotal/Total RM 0.00 | **EXIF byte order** — below |
+| **F2** | bulk uploads named `1789492674683328588290775429997...` | Android's picker `File.name`; Decision 7B |
+| **F3** | neither receipt auto-linked | consequence of F1 — a `null` total cannot satisfy auto-match |
+| **F4** | manual link worked, detail sheet showed no line items | consequence of F1 — there were none to show |
+
+**THE REVIEW THREAD'S READING WAS RIGHT, AND IT WAS CHECKED RATHER THAN
+ASSUMED.** "RM 0.00" is `capturedToReceipt`'s display fallback for
+`total === null`, so F3 and F4 are consequences and not separate defects.
+`autoMatch.ts` and the link path were NOT touched, and measurement confirms they
+never needed to be: once extraction reads the page, both close on their own —
+proven end-to-end with the real engine below.
+
+### PHASE 0 — THE MECHANISM IS EXIF **BYTE ORDER**, AND THREE WRONG ANSWERS CAME FIRST
+
+Both device photographs are **4000x2252 stored landscape with EXIF Orientation
+6** (rotate 90° clockwise to display). The ten seeded receipts carry **no EXIF at
+all** and are all <=531px on the long edge — which is why a year of gates never
+saw this.
+
+**THE FAILURE REPRODUCES ON THE DESKTOP, SO IT IS NOT ENVIRONMENT-SPECIFIC.**
+Through the shipped pipeline in Chromium:
+
+| | confidence | lines | merchant | total |
+|---|---|---|---|---|
+| rosyam | 35 | 37 | `nl als Ei SaReR ERR Saks mg WE g` | `null` |
+| ifruits | 38 | 62 | `a e PE TICT fA ams fe BN` | `null` |
+| **AEON control** | **78** | **24** | **`AEON BIG`** | **429.19** |
+
+The control reads exactly as Gate 50-B recorded, so the instrument was sound and
+the failing stage was **recognition**, not parsing.
+
+#### The four experiments, in the order they were run
+
+**1 · "Tesseract never sees EXIF, because Leptonica ignores it."** Read from
+source — `tesseract.js/src/worker/browser/loadImage.js:63` hands a `File`'s raw
+bytes straight to the engine — and supported by a control: the same photograph
+drawn UPRIGHT to a canvas read 75/55 where the raw file read 35/38, and drawn
+SIDEWAYS through the identical resize and re-encode read 33/34. **That control is
+still valid and still proves rotation is the variable.** The mechanism attached
+to it was wrong.
+
+**2 · THE FIRST REGRESSION FIXTURE PASSED WITH THE FIX BYPASSED, AND ONLY A
+MUTATION PROOF FOUND IT.** `receipt-capture-rotated.jpg` — the committed IKEA
+fixture turned 90° with an Orientation tag spliced in — read perfectly at
+confidence 83 with `normaliseForOcr` removed from the path. A test that cannot
+fail is worse than no test, and nothing short of running the mutation would have
+said so.
+
+**3 · "It is SIZE — the engine gives up on a 50 KB EXIF block, or a 4000px
+frame."** Refuted twice. Stripping the EXIF from the small fixture moved it 83 ->
+27, so the tag IS honoured there; and a sideways re-encode of the device
+photograph carrying a hand-built tag read correctly at **every** long edge from
+800 to 4000 (67 / 77 / 77 / 74 / 68 / 67).
+
+**4 · THE ANSWER. Same compressed pixels, same sideways frame, same Orientation
+value — only the EXIF block varied:**
+
+| EXIF block | engine confidence |
+|---|---|
+| `II` little-endian, 36 bytes | **27 — tag NOT honoured** |
+| `MM` big-endian, 34 bytes | 83 — honoured |
+| `MM` big-endian, 48 KB | 83 — honoured |
+| `II` little-endian, 48 KB | **27 — NOT honoured** |
+
+**SO IT IS BYTE ORDER, NOT BLOCK SIZE.** Confirmed on the real photograph with
+its pixels untouched: replacing rosyam's own 50,363-byte `II` EXIF with a
+34-byte `MM` one carrying the same Orientation moved it from **35 to 69**.
+
+**BOTH DEVICE PHOTOGRAPHS ARE `II`, AS ESSENTIALLY ALL CAMERA EXIF IS** — which
+is exactly why this reaches real phones and nothing else. The engine's reader
+honours only big-endian, so every phone photograph arrives unrotated.
+
+### The fix — `src/data/ocr/normalise.ts`, called from `recognise.ts`
+
+It parses the Orientation tag itself **in both byte orders**, redraws the image
+upright, and caps the long edge at 2000. One chokepoint: both capture surfaces
+and the PDF rasteriser reach the engine through `recognise`, so there is no
+second way in, and the OCR chunk stays lazy (measured through
+`npm run build:package`: the normaliser lands in `recognise-*.js` at 3,304 bytes
+with **zero** occurrences in the entry chunk, none of the four heavy assets named
+there, and zero `modulepreload`).
+
+**THE CAP IS NOT WHAT FIXES IT, AND SAYING SO MATTERS.** Correctly oriented, the
+page reads at every size measured; 2000 buys a few points of confidence and a
+much smaller decode (a 4000x2252 frame is ~36 MB of RGBA, and captures arrive in
+batches). Rotation is the fix. **Do not tune the cap to 1200 on the strength of
+one receipt.**
+
+**IT IS THE OPPOSITE OF `rasterise.ts`'s `TARGET_LONG_EDGE`**, which uses
+`Math.max` and deliberately ENLARGES because a PDF page is vector. Do not unify
+the two constants; they express opposite intentions that share a number.
+
+#### THE PASS-THROUGH IS A CORRECTNESS REQUIREMENT, NOT AN OPTIMISATION
+
+An image needing neither rotation nor shrinking is returned **as the identical
+`Blob`**. The first version redrew everything, on the reasonable argument that at
+1:1 a decode -> draw -> encode round-trip is pixel-exact and therefore inert.
+**MEASURED OVER THE TEN SEEDED RECEIPTS, IT IS NOT:** `receipt_aia01` fell from
+confidence 77 with its whole letterhead and date read to **35** with neither, and
+`receipt_jayagrocer01` lost a line item. The round-trip is faithful to the
+canvas, but the canvas is filled by Chromium's JPEG decoder where the engine
+would otherwise have used its own.
+
+**SO INERTNESS HERE IS AN IDENTITY RATHER THAN AN ARGUMENT**, and that is what
+makes it checkable: with the pass-through in place, all ten seeded receipts parse
+identically to the pre-gate control **including every raw OCR line** — 10 of 12
+byte-identical, the two device photographs being the only things that moved.
+
+### The parser — five changes, each with a measured cause
+
+| change | the line that forced it | before -> after |
+|---|---|---|
+| `readTotal` judges the label ADJACENT to the figure | `Total Item 6 Sub Total 70.84` | took the SUBtotal -> takes `Total 70.85` |
+| …and rejects `rounding`/`cash`/`saving`/`item` | `Total Rounding RM 0.00` | returned **0** -> falls through to the tender line, 38.60 |
+| dates accept a two-digit year | `ice No: … 12/09/26` | `null` -> `2026-09-12` |
+| times accept seconds | `Date: 12/09/2026 16:13:02` | midnight -> `16:13` |
+| two new purchase-line shapes | below | 0 items -> 4 and 2 |
+| the legal-name scan ignores `LETTERHEAD_END` | iFruits prints `Invoice No:` ABOVE its letterhead | merchant `NX a` -> `IFruits Market` |
+
+**A TWO-COLUMN ROW CANNOT BE JUDGED AS A LINE, and that is the generalisable
+point.** A receipt prints two labelled figures on one physical row, so the row
+carrying the real total also carries the word "Saving" and the row carrying the
+subtotal also carries the word "Total". The label is therefore the tokens between
+the PREVIOUS amount and this one, never the whole line.
+
+**SHAPE B** is `name … qty unit total` (iFruits), recognised by its tail.
+**SHAPE C** is an article-number line taking its name from the line ABOVE
+(ST Rosyam) — the only shape that reads two physical lines, which is why the loop
+is indexed. **Shape A, the leading quantity, is tried first and is unchanged**,
+so nothing that parsed before this gate takes a different branch.
+
+**THE RECOVERED COUNTS ARE STATED AGAINST THE PAPER, NOT ROUNDED UP: rosyam 4 of
+6, ifruits 2 of 3.** Every miss is an OCR misread of that line's own figure
+(`3 G6)` for 5.50, `11,08` for 11.08) or of its quantity (`ASIN]` for 1) — not a
+shape the parser declines to handle. No OCR-tolerant spelling of "total" was
+added; that would be fitting the parser to one receipt.
+
+### What the two receipts now yield — and the one thing still blocked
+
+| | rosyam | ifruits |
+|---|---|---|
+| printed total | **70.85 ✓** | **38.60 ✓** |
+| date | `2026-09-12` ✓ | `2026-09-12T16:13` ✓ |
+| items | 4 of 6 | 2 of 3 |
+| merchant | `ROSYAM WHOLESALE EXPRESS` | `IFruits Market` |
+| `merchantMatches` vs its seeded payee | **false** | true |
+| auto-links | **no** | **yes** |
+
+**ROSYAM'S PAYEE IS THE ONLY THING BLOCKING ITS MATCH, AND THAT IS TEKU'S DATA
+CALL — THE SEED WAS NOT EDITED.** `totalMatches` and `withinWindow` both return
+true; the seeded payee is `ST Rosyam Wholesale Express`, whose token `st` has no
+counterpart in the receipt's `["rosyam","wholesale","express"]`, because OCR
+split the leading "ST" into the logo-noise line `STH 7. 3 2`. A two-letter token
+must match exactly, by design.
+
+**THE ONE-LINE EDIT, IF TEKU WANTS IT:** change that payee to
+`Rosyam Wholesale Express` in `src/data/transactions.ts`. Verified — with that
+string `merchantMatches` returns **true**. It would move the four `index`
+baselines, because that row is one of the Homepage's two.
+
+**THE PICKER RECOVERS IT ANYWAY, WHICH IS WHAT THAT SURFACE IS FOR.** Driven
+through the real UI with the real engine, ST Rosyam is the **top** suggestion for
+the unlinked capture, and linking it by hand produces a ledger glyph and a detail
+sheet listing all four recovered items.
+
+**F3 AND F4 PROVEN END TO END WITH THE REAL ENGINE, NOT THE STUB** — the walk's
+never-settling stub deleted from `window` after navigation, both originals
+bulk-added from the Receipts tab in ONE selection: library 10 -> 12 cards
+(nothing lost, so Gate 52's sequential-save fix holds on two 4000px files),
+iFruits auto-linked, its ledger row drew the glyph, and its sheet listed its
+items. Names came out `IMG_20260815_094100.jpg` and `…_2.jpg` — Decision 7B and
+the de-duplication, on real files.
+
+**REGRESSION, MEASURED, UNCHANGED:** ten-receipt leave-one-out is **5 of 10
+correct, 0 wrong**, and the picker is **10/10 top-1** — exactly Gate 50-C's
+figures, as predicted, since the seeded parse is byte-identical.
+
+### ⚠️ THE TWO DEVICE PHOTOGRAPHS ARE NOT IN THIS REPO, AND MUST NOT BE
+
+Inspected before anything was committed. Legible on them, beyond merchant, items,
+totals and date:
+
+- a **cashier's full name**, and the card member's own name;
+- **partial card numbers** — `467851XXXXXX9472` (BIN plus last four) and
+  `MYDEBIT 9472`;
+- two phone numbers, an invoice number, a terminal id, and **e-invoice QR codes**.
+
+They are held as local evidence at `D:\Claude\_assets\receipts-device\` only, and
+the regression tests were built without them.
+
+### The tests — 392 -> 410, and how each change is guarded without the photographs
+
+| spec | | |
+|---|---|---|
+| `ocr.spec.ts` | 1 -> **5** | + 3 normaliser tests, + the sideways end-to-end case |
+| `parse-receipt.spec.ts` | **new, 12** | the parser, in Node, on measured text |
+| `capture-name.spec.ts` | 2 -> **4** | Decision 7B |
+
+**`e2e/fixtures/receipt-capture-rotated.jpg` IS THE COMMITTED IKEA FIXTURE,
+ROTATED, WITH A LITTLE-ENDIAN TAG.** Derived from an image this repo already
+ships, so it carries no personal data, and it isolates orientation as the ONLY
+variable where a second real receipt would vary in layout, print quality and
+lighting at once. **Its EXIF is `II` on purpose** — built `MM`, it passed with
+the fix bypassed.
+
+**THE PARSER TESTS USE TEXT, NOT IMAGES**, and only the lines the rules under
+test read, with every PII-bearing line omitted. They run in Playwright's Node
+context in milliseconds. That needed `OcrWord`/`OcrLine`/`OcrResult` moved out of
+`recognise.ts` into `src/data/ocr/types.ts`: reaching `recognise.ts` means
+reaching its two `?url` imports, which resolve only in a project carrying Vite's
+ambient client types — `tsconfig.app.json` has them through `src/vite-env.d.ts`,
+`tsconfig.e2e.json` does not. `recognise.ts` re-exports them, so no existing
+importer changed.
+
+**THIRTEEN MUTATION PROOFS, ALL AGAINST THE FINAL TREE**, each restored and
+hash-verified; every one failed the test it was aimed at and no other.
+
+### Item 2 — Decision 7B: every IMAGE capture is named from the clock
+
+`IMG_YYYYMMDD_HHMMSS.<ext>` from `localWallClock`, through Gate 53's existing
+generator. **A PDF keeps `File.name`.** Within one selection, repeats take `_2`,
+`_3` … in selection order, before the extension. **`filename` is untouched** —
+`filename` and `displayName` remain two facts.
+
+**THIS OVERTURNS GATE 53, ON DEVICE EVIDENCE.** That gate split the rule by
+SOURCE and justified keeping a gallery name because "a gallery pick's name is one
+the user browsed to and can recognise". Android's picker returns an opaque digit
+run for a media item exposed by content URI, so the premise was false: a gallery
+name is frequently not a name at all, and never one the user typed.
+
+**THE FIELD'S SINGLE WRITER IS UNCHANGED**, which is the part worth keeping from
+Gate 53: `displayName` is written in exactly one place and has never read
+`extracted`. Both garbled strings were `File.name`. 7B changes which value that
+writer is given, not where it is written.
+
+**DE-DUPLICATION IS A PROPERTY OF A SELECTION, SO THE CLOCK IS READ ONCE PER
+SELECTION** and the names are assigned across the batch by `capturedToReceipts`.
+Reading it per capture would let a slow batch straddle a second boundary —
+hiding collisions in testing and producing them in the field, which is the worst
+possible split.
+
+**`ReceiptSource` IS AN INSTRUCTION TO AN `<input>` AGAIN, AND NOTHING ELSE.**
+With the name no longer chosen by source, its propagation through `CapturedFile`
+had no reader, so it was deleted rather than left as a field that exists to be
+ignored — `extractCapture`, `captureToReceipt`, `StagedFile` and
+`ReceiptFileInput`'s `sourceRef` all lost it. The type itself survives: `open()`
+still uses it to set `capture` and `multiple`.
+
+### THE BASELINE PREDICTION HELD; THE SPEC PREDICTION WAS NOT MADE AT ALL
+
+**BASELINES: 0 changed, 0 added, 0 deleted — predicted in writing before the
+first run, and exact.** Item 1 moves nothing because NO WALK STATE RUNS THE REAL
+ENGINE (`installExtractionStub` is a never-settling promise on all 40). Item 2
+moves nothing because NO WALK STATE RENDERS A CAPTURED CARD: `add-grid` stages
+without saving, and `add-saving` clicks Save against a stub that never settles,
+so `onSave` never fires.
+
+**AND THE STAGED GRID COULD NOT SHOW A 7B NAME EVEN IF IT DID.** A tile's only
+text is its type badge and its remove button's accessible name, and that name is
+built from `capture.file.name` — the device's own filename — not from
+`displayName`, which exists only once a `Receipt` has been built. So the two
+states that DO stage a file are structurally incapable of rendering a generated
+name, which is the reason the prediction was safe rather than lucky.
+
+**BUT THE FIRST FULL RUN CAME BACK 7 FAILED / 403 PASSED, AND NONE OF THE SEVEN
+WAS PREDICTED.** Every one was a BEHAVIOUR spec locating a just-created card by
+`:has-text("receipt-capture.jpg")` — the fixture's own name, which under 7B a
+gallery pick no longer keeps: two in `automatch`, two in `capture-time`, two in
+`link-editor`, one in `receipt-viewer`. Zero visual, zero baseline.
+
+**THE LESSON IS THAT A BASELINE PREDICTION IS NOT A TEST PREDICTION.** This gate
+reasoned carefully about which walk states render a captured card and answered
+correctly — and never asked the adjacent question, which is which SPECS assert on
+one. When a user-visible VALUE changes, grep the suite for the old value; the
+walk-state argument only covers pixels.
+
+They were updated to the new rule rather than the rule bent back to them, and the
+derivation was consolidated: `capturedImageName(now, ordinal)` in `e2e/capture.ts`
+is now the single expression of what 7B names a capture, shared by all five
+specs, replacing `capture-name.spec.ts`'s private copy.
+
+### Deliberately not in scope
+
+Editing the seeded `ST Rosyam Wholesale Express` payee (Teku's data call, above);
+the confidence-marker and field-edit affordances, still collapsed on Gate 50-B's
+measurement; re-transcribing the six receipts whose subtotals do not reconcile;
+an OCR-tolerant spelling of "total"; the Receipts-tab card's PDF thumbnail;
+`npm audit fix`; the DS repo and the pin; branch deletion; G6, G13, G14, G17's
+prop half, G19-G23, G28-G33 — all still registered, still deferred, and **no
+MVP-local override was added for any**; the G33 workaround class, untouched and
+still carrying its removal condition; and the three AA shortfalls on the
+net-worth card ruled on at Gate 31.
+
+**ONE UPSTREAM DEFECT RECORDED, NOT FILED:** the engine's EXIF reader honours
+only big-endian TIFF headers. It is worth reporting to tesseract.js, and this app
+no longer depends on it either way.
 
 ## Known conditions of this setup
 

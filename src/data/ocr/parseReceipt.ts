@@ -1,5 +1,5 @@
 import type { Amount, CurrencyCode, ReceiptLineItem } from '../types'
-import type { OcrLine, OcrResult, OcrWord } from './recognise'
+import type { OcrLine, OcrResult, OcrWord } from './types'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -228,7 +228,18 @@ function readMerchant(lines: OcrLine[]): { value: string; confidence: number | n
   }
   const searched = window.length > 0 ? window : lines.slice(0, 1)
 
-  const legal = searched.find((l) => LEGAL_SUFFIX.test(l.text))
+  // THE LEGAL-SUFFIX SEARCH IGNORES `LETTERHEAD_END` AND THE FALLBACK DOES NOT,
+  // and the asymmetry is the point. `LETTERHEAD_END` exists to stop the
+  // most-letters fallback wandering into the body of the receipt; the legal
+  // suffix needs no such protection because "Sdn Bhd" identifies the letterhead
+  // on its own, wherever in the opening lines it appears.
+  //
+  // MEASURED AT GATE 54: the iFruits Market receipt prints "Invoice No:
+  // 580111174" ABOVE its letterhead, so the scan stopped one line short of
+  // "IFruits Market (M) Sdn Bhd" and the merchant came back as "NX a" — scan
+  // noise from the logo. AEON prints the same label BELOW the letterhead, which
+  // is why ten seeded receipts never exposed this.
+  const legal = lines.slice(0, LETTERHEAD_WINDOW).find((l) => LEGAL_SUFFIX.test(l.text))
   if (legal) {
     const cut = legal.text.search(LEGAL_SUFFIX)
     const cleaned = cleanMerchant(legal.text.slice(0, cut))
@@ -282,11 +293,27 @@ function cleanMerchant(raw: string): string {
  */
 function readDate(lines: OcrLine[]): { value: string | null; confidence: number | null } {
   for (const line of lines) {
-    const dateToken = tokensOf(line).find((t) => /^[0-9]{2}\/[0-9]{2}\/[0-9]{4}$/.test(t))
+    // A TWO-DIGIT YEAR IS ACCEPTED, AND ONLY IN THE YEAR POSITION. Measured at
+    // Gate 54: "ice No: R00201202609120263 12/09/26" — the ST Rosyam receipt
+    // prints DD/MM/YY, and requiring four digits read its date as `null`. The
+    // day and month stay fixed at two digits, so this cannot start matching a
+    // ratio or a fraction that happens to carry slashes.
+    const dateToken = tokensOf(line).find((t) =>
+      /^[0-9]{2}\/[0-9]{2}\/(?:[0-9]{4}|[0-9]{2})$/.test(t),
+    )
     if (!dateToken) continue
-    const [dd, mm, yyyy] = dateToken.split('/')
+    const [dd, mm, year] = dateToken.split('/')
+    // 20xx, because these are receipts for purchases that have happened. There
+    // is no ambiguity to resolve: a 19xx thermal receipt is not a case this app
+    // has, and a sliding window would be a guess dressed as a rule.
+    const yyyy = year.length === 4 ? year : `20${year}`
 
-    const timeToken = tokensOf(line).find((t) => /^[0-9]{1,2}:[0-9]{2}$/.test(t))
+    // SECONDS ARE OPTIONAL AND DISCARDED. Both device receipts print HH:MM:SS
+    // ("16:05:52", "16:13:02") and the previous pattern matched neither, so the
+    // time silently fell back to midnight even where it had been read
+    // perfectly. `Receipt.capturedAt` carries minutes, so the seconds are read
+    // only to be dropped.
+    const timeToken = tokensOf(line).find((t) => /^[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?$/.test(t))
     const [hh, mi] = timeToken ? timeToken.split(':') : ['00', '00']
 
     const confidences = [confidenceOfToken(line, dateToken)]
@@ -315,6 +342,68 @@ function readSummary(
 }
 
 /**
+ * Words that, standing next to an amount, say it is NOT the bill's grand total.
+ *
+ * MEASURED, NOT IMAGINED. Every entry here was put there by a real line on a
+ * real receipt that the previous rule read as the total:
+ *
+ *   "Total Item 6 Sub Total 70.84"        -> sub, item   (the SUBtotal)
+ *   "Total Rounding RM 0.00"              -> rounding    (read as a 0.00 total)
+ *   "Total Cash Paid RM0.00"              -> cash        (the cash tendered)
+ *   "Total Saving 1.51 Total 70.85"       -> the real one, and it must survive
+ *
+ * THE LAST ROW IS WHY THE LABEL IS THE TOKENS BETWEEN THE PREVIOUS AMOUNT AND
+ * THIS ONE, rather than the whole line. A two-column receipt prints two
+ * different labelled figures on one physical row, so the whole line carries
+ * both "Saving" and "Total" and judging it as a unit disqualifies the very
+ * figure being looked for.
+ */
+const NOT_THE_TOTAL =
+  /\b(?:sub|rounding|round\s*off|saving|savings|item|items|qty|quantity|change|point|points|discount|balance|due|cash)\b/i
+
+/**
+ * The tokens that label the last amount on a line.
+ *
+ * They run from just after the PREVIOUS amount on that line to just before the
+ * last one — which on a single-column row is the whole prefix, and on a
+ * two-column row is only the label that actually belongs to this figure.
+ */
+function labelOfLastAmount(line: OcrLine): string | null {
+  const tokens = tokensOf(line)
+  let last = -1
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    if (amountOfToken(tokens[i]) !== null) { last = i; break }
+  }
+  if (last < 0) return null
+  let start = 0
+  for (let i = last - 1; i >= 0; i -= 1) {
+    if (amountOfToken(tokens[i]) !== null) { start = i + 1; break }
+  }
+  return tokens.slice(start, last).join(" ")
+}
+
+/**
+ * The bill's grand total.
+ *
+ * SAME SCAN ORDER AS BEFORE — first line that qualifies — SO THE ONLY CHANGE IS
+ * WHICH LINES QUALIFY. A line is skipped when the label attached to its figure
+ * disqualifies it (see `NOT_THE_TOTAL`); everything else behaves exactly as the
+ * previous `readSummary(lines, /\btotal\b/i)` did, which is what keeps the ten
+ * seeded receipts reading identically.
+ */
+function readTotal(lines: OcrLine[]): { value: number | null; confidence: number | null } {
+  for (const line of lines) {
+    const label = labelOfLastAmount(line)
+    if (label === null) continue
+    if (!/\btotal\b/i.test(label)) continue
+    if (NOT_THE_TOTAL.test(label)) continue
+    const hit = lastAmountOnLine(line)
+    if (hit) return { value: hit.value, confidence: confidenceOfToken(line, hit.token) }
+  }
+  return { value: null, confidence: null }
+}
+
+/**
  * Every purchase line: an integer quantity, a name, and a price with a decimal.
  *
  * SUMMARY ROWS ARE REJECTED BY THEIR TEXT, NOT BY THEIR SHAPE, and one measured
@@ -322,26 +411,85 @@ function readSummary(
  * parse as three Subtotals at RM 74.70. Reading the words is the only reliable
  * way to tell a purchase from a total.
  */
+/** A name has to contain real letters. "1 3 12.90" is a misread, not an item. */
+function looksLikeAName(name: string): boolean {
+  return (name.match(/[A-Za-z]/g) ?? []).length >= 2
+}
+
+/**
+ * An article number: the long digit run a barcode receipt prints for each item.
+ *
+ * FIVE DIGITS, NOT THIRTEEN. A full EAN-13 is the common case
+ * ("9557384106381") but the same column also carries short internal PLUs
+ * ("100682" on the ST Rosyam receipt), and both are article numbers. Five is
+ * comfortably longer than any quantity this parser would otherwise confuse it
+ * with, which is the only thing the bound has to achieve.
+ */
+const ARTICLE_NUMBER = /^[0-9]{5,}$/
+
 function readLineItems(lines: OcrLine[]): { items: ReceiptLineItem[]; confidence: number[] } {
   const items: ReceiptLineItem[] = []
   const confidence: number[] = []
 
-  for (const line of lines) {
+  const push = (name: string, quantity: string, price: number, line: OcrLine) => {
+    items.push({ name: name.trim(), quantity, price })
+    confidence.push(confidenceOfLine(line) ?? 0)
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]
     if (SUMMARY_ROW.test(line.text)) continue
     const tokens = tokensOf(line)
     if (tokens.length < 3) continue
 
-    if (!/^[0-9]{1,3}$/.test(tokens[0])) continue
     const price = amountOfToken(tokens[tokens.length - 1])
-    if (price === null) continue
 
-    const name = tokens.slice(1, -1).join(' ').trim()
-    // A name needs real letters in it. "1 3 12.90" is a misread, not an item.
-    if ((name.match(/[A-Za-z]/g) ?? []).length < 2) continue
+    // ── SHAPE A: "1 Nestle Milo 2kg 52.90" ─────────────────────────────────
+    // Quantity first. The original shape, unchanged, and still tried first so
+    // no receipt that parsed before this gate can take a different branch.
+    if (/^[0-9]{1,3}$/.test(tokens[0]) && price !== null) {
+      const name = tokens.slice(1, -1).join(' ')
+      if (looksLikeAName(name)) {
+        push(name, tokens[0], price, line)
+        continue
+      }
+    }
 
-    items.push({ name, quantity: tokens[0], price })
-    const worst = confidenceOfLine(line)
-    confidence.push(worst ?? 0)
+    // ── SHAPE B: "Konic Abalone Sauce 380gm 1 9.20 9.20" ───────────────────
+    // Quantity in the MIDDLE, between the name and a unit-price/line-total
+    // pair. Recognised by its tail rather than its head: the last two tokens
+    // are both amounts and the one before them is a small integer. Requiring
+    // BOTH trailing amounts is what stops this matching shape A's single
+    // trailing price and re-reading the name's last word as a quantity.
+    if (price !== null && tokens.length >= 5) {
+      const unit = amountOfToken(tokens[tokens.length - 2])
+      const qty = tokens[tokens.length - 3]
+      if (unit !== null && /^[0-9]{1,3}$/.test(qty)) {
+        const name = tokens.slice(0, -3).join(' ')
+        if (looksLikeAName(name)) {
+          push(name, qty, price, line)
+          continue
+        }
+      }
+    }
+
+    // ── SHAPE C: a name line, then "9557384106381 5.50*1 5.50" ─────────────
+    // The article number leads its own line and the NAME IS THE LINE ABOVE.
+    // This is the only shape that reads two physical lines, which is why the
+    // loop is indexed rather than a for-of.
+    //
+    // THE QUANTITY IS NOT RECOVERED AND IS RECORDED AS "1". On this layout it
+    // is printed as part of a "unit*qty" token that OCR mangles more often than
+    // not ("5.50%1", "19,50%*1", "20.5%0,420" for a weight) — and a quantity
+    // guessed out of a mangled token is worse than one stated plainly. The
+    // PRICE is the line total, which is the figure that matters.
+    if (price !== null && ARTICLE_NUMBER.test(tokens[0]) && i > 0) {
+      const above = lines[i - 1]
+      if (!SUMMARY_ROW.test(above.text) && looksLikeAName(above.text)) {
+        push(above.text, '1', price, line)
+        continue
+      }
+    }
   }
 
   return { items, confidence }
@@ -363,7 +511,7 @@ export function parseReceipt(ocr: OcrResult): ParsedReceipt {
   const tax = readSummary(lines, /\b(?:sst|gst)\b/i)
   const { items, confidence: itemConfidence } = readLineItems(lines)
 
-  let total = readSummary(lines, /\btotal\b/i)
+  let total = readTotal(lines)
   if (total.value === null) {
     // THE PAYMENT LINE IS THE FALLBACK, and it is a real reading rather than a
     // guess: "Card (Visa) 79.18" is what was actually charged, so when the

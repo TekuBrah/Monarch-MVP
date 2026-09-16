@@ -101,17 +101,20 @@ export interface ReceiptFileInputProps {
    * cancelled" must not look the same as "the user chose nothing", because the
    * second would drop the surface into its processing state with no work to do.
    *
-   * ───────── THE SOURCE IS REPORTED FROM HERE, AND ONLY FROM HERE ────────────
+   * ───────── THE SOURCE IS NO LONGER REPORTED — GATE 54 ─────────────────────
    *
-   * This element is the one thing that KNOWS: `open()` is what sets `capture`
-   * and `multiple`, so it is the single point of truth for which surface these
-   * files came from. A consumer that remembered its own last-clicked source
-   * would be a second copy of that fact, and copies drift — a re-render between
-   * the click and the `change` event, or a consumer that opens the picker from
-   * two places, and the record would name the wrong source. Gate 53 needs it to
-   * be right, because it decides what the receipt card prints.
+   * It used to be, and this element was the right place to report it from:
+   * `open()` sets `capture` and `multiple`, so it is the single point of truth
+   * for which surface a pick came from. WHAT CHANGED IS THAT NOTHING
+   * DOWNSTREAM ASKS ANY MORE. Gate 53 chose the receipt's display name by
+   * source; Decision 7B names every image the same way and leaves only a PDF's
+   * own filename alone, so the answer stopped being used.
+   *
+   * SO THE `sourceRef` THAT CARRIED IT ACROSS THE PICKER IS GONE TOO, rather
+   * than left reporting a fact with no reader. `open(source)` still takes one —
+   * it is what configures the element — but it ends there.
    */
-  onFiles: (files: File[], source: ReceiptSource) => void
+  onFiles: (files: File[]) => void
 }
 
 export const ReceiptFileInput = forwardRef<
@@ -119,15 +122,6 @@ export const ReceiptFileInput = forwardRef<
   ReceiptFileInputProps
 >(function ReceiptFileInput({ onFiles }, ref) {
   const inputRef = useRef<HTMLInputElement>(null)
-  /*
-    A REF, NOT STATE, AND THAT IS THE POINT. The `change` event fires long after
-    `open()` returns — the OS picker is up in between — so this has to survive
-    that gap without causing a render, and it must be readable synchronously
-    inside the handler. State would re-render the surface mid-pick for no visual
-    reason and would be read through a stale closure.
-  */
-  const sourceRef = useRef<ReceiptSource>('gallery')
-
   useImperativeHandle(ref, () => ({
     open(source) {
       const input = inputRef.current
@@ -136,7 +130,6 @@ export const ReceiptFileInput = forwardRef<
       // attributes are whatever the LAST caller asked for — which is why they
       // are written here, immediately before the click, rather than bound to a
       // piece of state that a re-render could reset underneath an open picker.
-      sourceRef.current = source
       input.multiple = source === 'gallery'
       if (source === 'camera') input.setAttribute('capture', 'environment')
       else input.removeAttribute('capture')
@@ -156,7 +149,7 @@ export const ReceiptFileInput = forwardRef<
         // row fires no `change` event at all, because the input's value has not
         // changed — a bug that looks exactly like a broken handler.
         e.target.value = ''
-        if (files.length > 0) onFiles(files, sourceRef.current)
+        if (files.length > 0) onFiles(files)
       }}
     />
   )
