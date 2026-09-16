@@ -173,10 +173,10 @@ export const TRANSACTIONS: Transaction[] = [
   //
   //   · THE HOMEPAGE'S TWO-ROW STRIP NOW DRAWS THESE TWO. `recentTransactions`
   //     sorts date-descending and slices, so `/` and `/ [tab:crypto]` show
-  //     iFruits Market and ST Rosyam where Figma's frame draws Aeon Big
-  //     (15 Sept) and Caring Pharmacy (13 Sept). That divergence from the drawn
-  //     frame is ACCEPTED, not overlooked — see the Gate 53 section of
-  //     CLAUDE.md, which names the affected walk states.
+  //     iFruits Market and Rosyam Wholesale Express where Figma's frame
+  //     draws Aeon Big (15 Sept) and Caring Pharmacy (13 Sept). That
+  //     divergence from the drawn frame is ACCEPTED, not overlooked — see
+  //     the Gate 53 section of CLAUDE.md, which names the affected states.
   //   · A DATE-ANCHORED FILTER BECOMES USELESS HERE. "This Month" measured back
   //     from the newest row means September 2026, which matches exactly these
   //     two rows and nothing else. That is why Gate 53 re-anchored
@@ -208,10 +208,42 @@ export const TRANSACTIONS: Transaction[] = [
     occurredAt: '2026-09-12T16:13:00',
     category: 'groceries',
   },
+  //
+  // ─────────── THE ROSYAM PAYEE DROPS THE "ST", DELIBERATELY (Gate 54-B) ─────
+  //
+  // The shopfront and the paper receipt both read "ST ROSYAM WHOLESALE
+  // EXPRESS". This row is deliberately named WITHOUT the "ST", and that is a
+  // data ruling (Teku, decision 8A) rather than a transcription slip — do not
+  // "correct" it back.
+  //
+  // WHY, MEASURED WITH THE REAL ENGINE ON THE REAL PHOTOGRAPH. Tesseract splits
+  // the letterhead across two lines and the leading "ST" lands in the logo
+  // noise rather than in the legal-name line:
+  //
+  //     STH 7. 3 2
+  //     ROSYAM WHOLESALE EXPRESS SDN BHD
+  //
+  // so readMerchant returns "ROSYAM WHOLESALE EXPRESS". Auto-match requires
+  // EVERY payee token to appear in the read merchant, and a token of two
+  // letters must match exactly — so the payee token "st" had no counterpart and
+  // a real capture of this receipt did not link, with totalMatches and
+  // withinWindow BOTH TRUE. It was the only one of the three criteria failing.
+  //
+  // THE FIX IS THE DATA, NOT THE RULE. Loosening merchantMatches to forgive a
+  // missing short token would also link "kfc" to a "kfd" and "ikea" to an
+  // "idea", and a false link is the worse failure — the rule stands at 0 wrong
+  // links and was not touched. See merchantMatches in autoMatch.ts; the
+  // regression arm is in e2e/automatch.spec.ts.
+  //
+  // THE id AND THE PHOTOGRAPH'S FILENAME STILL SAY "rosyam"/"st-rosyam" AND
+  // THAT IS CORRECT. `transactionLogoUrl` resolves the image by `filename`, not
+  // by payee, so the signage photograph is unaffected by the rename; and the id
+  // is an opaque key. Renaming either would be churn with a migration cost and
+  // no reader.
   {
     id: 'txn-rosyam-0912',
     accountId: 'main',
-    merchant: 'ST Rosyam Wholesale Express',
+    merchant: 'Rosyam Wholesale Express',
     logo: { kind: 'image', filename: 'st-rosyam.jpg' },
     method: 'Card Payment',
     amount: -70.85,

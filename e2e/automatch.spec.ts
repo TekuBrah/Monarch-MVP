@@ -1,7 +1,14 @@
 import { expect, test } from '@playwright/test'
 import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 import { RECEIPTS_TAB, TRANSACTIONS_TAB, capturedImageName, glyphRowCount, installResolvingExtraction, printedMagnitude, saveOneCapture } from './capture'
-import { autoMatchBatch, candidatesFor, type MatchFields } from '../src/data/autoMatch'
+import {
+  autoMatchBatch,
+  candidatesFor,
+  merchantMatches,
+  totalMatches,
+  withinWindow,
+  type MatchFields,
+} from '../src/data/autoMatch'
 import { RECEIPTS } from '../src/data/receipts'
 import { TRANSACTIONS } from '../src/data/transactions'
 import type { Receipt, Transaction } from '../src/data/types'
@@ -209,6 +216,71 @@ test.describe('auto-match — the rule', () => {
     const fields = { ...fieldsOf(IKEA02), merchant: 'KEA Southeast Asia' }
     expect(candidatesFor(fields, TRANSACTIONS, libraryWithout(IKEA02.id))).toEqual([])
     expect(autoMatchBatch([fields], TRANSACTIONS, libraryWithout(IKEA02.id))).toEqual([null])
+  })
+
+  test('the Rosyam payee is the one the real engine can read (Gate 54-B)', () => {
+    /*
+      THE REGRESSION ARM FOR DECISION 8A, AND THE ONLY TEST IN THIS FILE BUILT
+      ON A PHOTOGRAPH THAT IS NOT IN THE REPO.
+
+      Gate 54 ran the real engine on the ST Rosyam device photograph against
+      this row and found `totalMatches` and `withinWindow` both TRUE and
+      `merchantMatches` FALSE — a capture of a real receipt that could not link,
+      with two of three criteria already satisfied. The cause is where Tesseract
+      puts the letterhead's leading "ST":
+
+          STH 7. 3 2                        <- the logo line takes it
+          ROSYAM WHOLESALE EXPRESS SDN BHD  <- the legal-name line does not
+
+      so `readMerchant` returns MEASURED_MERCHANT below. Every payee token must
+      appear in the read merchant and a two-letter token must match exactly, so
+      the payee token "st" had no counterpart.
+
+      TEKU'S RULING (decision 8A) WAS TO CHANGE THE DATA, NOT THE RULE, and this
+      asserts the outcome of that ruling rather than the ruling itself. The
+      payee is READ FROM THE SEED, never retyped — restoring "ST " to it turns
+      the link below into `[null]`.
+
+      THE PHOTOGRAPH ITSELF IS NOT COMMITTED AND MUST NOT BE. It carries a
+      cashier's name, a member name, masked card digits and phone numbers. The
+      three values below are what the engine read off it: a company name, a
+      date and a total. Nothing personal travels into this repo.
+    */
+    const MEASURED_MERCHANT = 'ROSYAM WHOLESALE EXPRESS'
+    const MEASURED_DATE = '2026-09-12T00:00:00'
+    const MEASURED_TOTAL = 70.85
+
+    const row = seededRow('txn-rosyam-0912')
+    const fields = {
+      merchant: MEASURED_MERCHANT,
+      capturedAt: MEASURED_DATE,
+      total: MEASURED_TOTAL,
+    }
+
+    // The two criteria that were ALREADY true before the rename. If either of
+    // these ever goes red the cause is the row's amount or date, not its name.
+    expect(totalMatches(MEASURED_TOTAL, row), 'the total already agreed').toBe(true)
+    expect(withinWindow(MEASURED_DATE, row), 'the date already agreed').toBe(true)
+
+    // The one that the rename fixed.
+    expect(
+      merchantMatches(MEASURED_MERCHANT, row.merchant),
+      `the engine reads ${JSON.stringify(MEASURED_MERCHANT)} off this receipt, and every ` +
+        `token of the payee ${JSON.stringify(row.merchant)} must appear in it`,
+    ).toBe(true)
+
+    // End to end, through the same call the Receipts-tab Save makes.
+    expect(autoMatchBatch([fields], TRANSACTIONS, RECEIPTS), 'a real capture links').toEqual([
+      row.id,
+    ])
+
+    // AND THE CONTROL THAT NAMES THE CAUSE. Derived from whatever the payee is
+    // now, so it documents the mechanism without restating the old literal:
+    // put the "ST" back in front and the match is lost again.
+    expect(
+      merchantMatches(MEASURED_MERCHANT, `ST ${row.merchant}`),
+      'a leading two-letter token the page does not carry is what broke it',
+    ).toBe(false)
   })
 
   test('a credit whose magnitude equals the total is not a candidate', () => {

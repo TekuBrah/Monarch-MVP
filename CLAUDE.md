@@ -8607,6 +8607,258 @@ net-worth card ruled on at Gate 31.
 only big-endian TIFF headers. It is worth reporting to tesseract.js, and this app
 no longer depends on it either way.
 
+## The Rosyam payee, so a real receipt auto-links (Gate 54-B)
+
+No DS re-pin — **v2.3.0 throughout**. One data change, one regression test, and
+a measurement that overturned this gate's own baseline prediction. **|WALK|
+stays 40, `OVERLAY_STATES` stays 19, baselines 160 -> 160 (20 changed, ZERO
+added, ZERO deleted), tests 410 -> 411, spec files stay 16.** `lint:tokens`
+scans **62** files with the same **3** pre-existing exemptions — no new raw
+value entered the tree, and no file entered `src/`.
+
+### The defect, re-measured rather than carried
+
+Gate 54 recorded that the real engine, on the real ST Rosyam photograph, failed
+to auto-link against its seeded row with **two of the three criteria already
+true**. That was re-measured here before anything was edited, on the unmodified
+tree, through the dev server:
+
+| | before | after |
+|---|---|---|
+| engine merchant | `"ROSYAM WHOLESALE EXPRESS"` | unchanged |
+| `merchantMatches` | **false** | **true** |
+| `totalMatches` | true | true |
+| `withinWindow` | true | true |
+| `candidatesFor` | **`[]`** | **`["txn-rosyam-0912"]`** |
+| `autoMatchBatch([rosyam, ifruits])` | **`[null, "txn-ifruits-0912"]`** | **`["txn-rosyam-0912", "txn-ifruits-0912"]`** |
+
+**THE CAUSE IS WHERE TESSERACT PUTS THE LEADING "ST", AND THE RAW LINES ARE THE
+EVIDENCE.** The engine splits the letterhead in two and the "ST" lands in the
+logo noise rather than in the legal-name line:
+
+```
+STH 7. 3 2
+ROSYAM WHOLESALE EXPRESS SDN BHD
+```
+
+so `readMerchant` returns `ROSYAM WHOLESALE EXPRESS`, and the payee token `st`
+has no counterpart. A two-letter token must match exactly, by design.
+
+**TEKU'S DECISION 8A: CHANGE THE DATA, NOT THE RULE.** `merchantMatches` is
+untouched. Forgiving a missing short token would link `kfc` to a `kfd` and
+`ikea` to an `idea`; a false link is the worse failure, and the rule stands at
+**0 wrong links**.
+
+### What did NOT change, and why the photograph was never at risk
+
+`transactionLogoUrl` resolves the signage photograph by **`filename`**, not by
+payee, so the rename could not reach it — and that was proven rather than
+argued. Measured off the live DOM on `/finance [tab:transactions]`:
+
+```
+src           /media/transactions/st-rosyam.jpg
+complete      true      naturalWidth 447   naturalHeight 447
+rendered      32 x 32   object-fit cover   .mn-avatar--photo .mn-avatar--m
+payee         "Rosyam Wholesale Express"
+```
+
+The row's `id` (`txn-rosyam-0912`) and the file's name (`st-rosyam.jpg`) both
+still say "rosyam"/"st-rosyam", deliberately: the id is an opaque key and the
+filename records the shopfront, which really does read ST ROSYAM. Renaming
+either would be churn with a migration cost and no reader.
+
+### THE BASELINE PREDICTION WAS WRONG, AND THE INSTRUMENT IS WHY
+
+**PREDICTED 48 CHANGED. ACTUAL 20.** The prediction was written down before the
+first run, from a probe that walked all 40 states and counted the payee in
+`document.body.textContent` and `innerText`. **12 states contain the string; only
+5 of them move a pixel.**
+
+**`textContent` AND `innerText` DO NOT MODEL Z-ORDER.** In the other seven the
+payee's box is covered by an **opaque overlay panel** — the transaction detail
+sheet, the filter sheet, or the link picker — sometimes with a further scrim
+above it. The text is in the DOM, is laid out, and is painted over.
+
+**`document.elementFromPoint` AT THE TEXT'S CENTRE IS THE CORRECT INSTRUMENT, AND
+IT PARTITIONS ALL TWELVE EXACTLY.** Measured at 375, light:
+
+| state | what the hit test returns | moved? |
+|---|---|---|
+| `/` | the payee element itself | **yes** |
+| `/finance [tab:transactions]` | itself | **yes** |
+| `/finance/holding/main` | itself | **yes** |
+| `[overlay:applied]` | itself — the sheet is CLOSED at capture | **yes** |
+| `[overlay:view-picker]` | itself — the row is INSIDE the picker | **yes** |
+| `[overlay:filter]` | `.mn-toggle-chip` | no |
+| `[overlay:detail]` | `.mvp-txn-detail__method` | no |
+| `[overlay:detail-linked]` | `.mvp-txn-detail__receipt-head` | no |
+| `[overlay:add-source]` | `.mn-blanket` | no |
+| `[overlay:add-library]` | `.mn-blanket` | no |
+| `[overlay:add-library-filled]` | `.mn-blanket` | no |
+| `[overlay:view-replace]` | `.mn-modal__title` | no |
+
+**THE THREE `.mn-blanket` CASES ARE THE ONES WORTH UNDERSTANDING**, because a
+blanket is TRANSLUCENT and a dimmed difference would still be a difference.
+They are two-stack states: the row sits under the OPAQUE detail-sheet panel,
+and the second overlay's blanket paints above that panel. So the hit test
+reports the blanket while the thing actually hiding the row is the panel
+beneath it. Sampling that region confirms it — 107 distinct colours and a
+luminance range of 72 — but the content there is the dimmed **panel**, not the
+ledger.
+
+**SO THE REUSABLE RULE: TO PREDICT WHICH BASELINES A TEXT CHANGE MOVES, ASK WHAT
+IS PAINTED AT THE TEXT'S COORDINATES, NOT WHETHER THE STRING IS IN THE DOM.**
+A DOM census over-predicts by every occluded state, and this app now has a lot
+of them — 19 of 40 walk states carry an overlay.
+
+**THE BEHAVIOUR-SPEC HALF OF THE PREDICTION HELD EXACTLY: ZERO.** Derived
+before the run rather than hoped for — every ledger and picker row locator in
+`e2e/` is keyed by FORMATTED AMOUNT (the Gate 49 ruling), `automatch.spec.ts`'s
+`receiptLessRow()` filters `logo.kind === 'merchant'` and so skips both 2026
+image-logo rows, and the only three `Rosyam` hits in `e2e/` are in
+`parse-receipt.spec.ts` — two comments and the OCR **letterhead** fixture
+`'ST ROSYAM WHOLESALE EXPRESS SDN BHD'`, which is text read off the photograph
+and not the seeded payee. Gate 54's first run cost it seven unpredicted spec
+failures; naming the locator convention in advance is what avoided a repeat.
+
+### The 20, attributed to the pixel
+
+Every changed baseline was diffed against its committed predecessor by decoding
+both. **All 20 have the same shape: exactly ONE contiguous y-band, 17px tall, in
+the merchant-title column, and ZERO differing pixels anywhere else** on images
+that run to 2170px.
+
+| | 375 | 430 |
+|---|---|---|
+| differing pixels, light | 1,850 | 2,316 |
+| differing pixels, dark | 1,878 | 2,352 |
+| max channel delta | 195 light / 201 dark | same |
+| contiguous bands | **1** | **1** |
+
+The counts are identical across the four 375 states because it is literally the
+same two strings in the same style — which is itself a check that nothing else
+crept in. No image changed size.
+
+**ONE VISIBLE CONSEQUENCE BEYOND THE NAME.** At 430 the payee now fits in full;
+at 375 it still truncates, at a different point (`Rosyam Wholesale Exp…` where
+it read `ST Rosyam Wholesale…`). The signage photograph, the amount, the method
+and the timestamp are untouched in all 20.
+
+### The regression arm
+
+`e2e/automatch.spec.ts` gains one test, **the only test in this repo built on a
+photograph that is not in the repo**. It asserts the two criteria that were
+already true, the one the rename fixed, and the end-to-end `autoMatchBatch`
+link — with the payee **read from the seed, never retyped** — then a control
+that names the cause: prefixing `ST ` to whatever the payee now is makes the
+match fail again.
+
+**THE THREE VALUES IT CARRIES ARE A COMPANY NAME, A DATE AND A TOTAL.** The
+photographs hold a cashier's name, a member name, masked card digits (BIN plus
+last four), phone numbers, an invoice number, a terminal id and e-invoice QR
+codes. They stay at `D:\Claude\_assets\receipts-device\` and **must never be
+committed** — not as a fixture, not in a log.
+
+**MUTATION-PROVED AGAINST THE FINAL TREE:** restoring `ST ` to the payee fails
+with the test's own message, naming both strings —
+
+> the engine reads "ROSYAM WHOLESALE EXPRESS" off this receipt, and every token
+> of the payee "ST Rosyam Wholesale Express" must appear in it
+
+— and `src/data/transactions.ts` restored SHA-256-identical
+(`d5ca25f9...430785`) with the test green again.
+
+### The regression figures are unchanged, and that is the point
+
+Re-measured with the REAL ENGINE over the ten seeded images, one page per
+extraction:
+
+| | Gate 54 | here |
+|---|---|---|
+| leave-one-out auto-match | 5 correct, 0 wrong | **5 correct, 0 wrong** |
+| picker top-1 | 10/10 | **10/10** |
+| AEON control (`receipt-aeonbig01`) | CORRECT, 429.19 | unchanged |
+| IKEA fixture (`ocr.spec.ts`'s) | 137.59, tax 7.19, 2 items | unchanged |
+
+The same five misses, for the same reasons Gate 54 recorded — two dates unread,
+one date misread by six months, one letterhead replaced by an address line, one
+by a line item. **None of them is a merchant this rename could have helped**,
+which is why the figure had to stay at 5 rather than rise.
+
+### Deliberately not in scope
+
+Loosening `merchantMatches`; renaming the row id or the photograph's filename;
+re-transcribing the six receipts whose subtotals do not reconcile; the
+confidence-marker and field-edit affordances, still collapsed on Gate 50-B's
+measurement; the parser overfits reported below — reported, not removed;
+`npm audit fix`; the DS repo and the pin; branch deletion; G6, G13, G14, G17's
+prop half, G19-G23, G28-G33 — all still registered, still deferred, and **no
+MVP-local override was added for any**; the G33 workaround class, untouched and
+still carrying its removal condition; and the three AA shortfalls on the
+net-worth card ruled on at Gate 31.
+
+### Reported, not changed
+
+**1 · `Receipt.merchant` IS NOW RENDERED, AND TWO LIVE COMMENTS SAY IT IS NOT.**
+Gate 50-B recorded *"`Receipt.merchant` is rendered NOWHERE in this app — the
+only reader in `src/` is the receipt search predicate at `derive.ts:899`"*, and
+`e2e/ocr.spec.ts`'s header still carries that sentence. **It has been false
+since Gate 51-B**, which added the viewer's "Receipt details" block. The readers
+today are `ReceiptViewer.tsx:196` (the Merchant row, in both viewer states),
+`ReceiptEditor.tsx:155`/`:83` (the editable Merchant field) and
+`derive.ts:1045` (the search predicate — note the line number moved from 899,
+the usual `file:line` rot). Left uncorrected only because this gate's
+report-only scope forbade the edit.
+
+**2 · THE MERCHANT FALLBACK IS STILL THE RAW DEVICE FILENAME.**
+`receiptCapture.ts:334` reads `merchant: extracted.merchant ?? file.name` —
+**`file.name`, not the Decision 7B display name**. So on an Android gallery pick
+whose OCR fails, the viewer's Merchant row and the editor's Merchant field both
+show the picker's opaque digit run. That is honest (it is recognisably not a
+merchant) and it is the case the editor exists for, but it is worth knowing that
+7B renamed `displayName` only.
+
+**3 · THE STAGED TILE SHOWS FAR LESS OF THAT NAME THAN IT SOUNDS.** A tile's
+only painted text is its type badge, `fileTypeLabel(capture.file.name)` — the
+substring after the last dot. **An Android name with no dot at all yields the
+literal badge `img`** (the `dot < 0` branch), not `jpg`. The filename itself
+reaches only the remove button's accessible name (`Remove <file.name>`); there
+is no `title`, so there is no tooltip. A sighted user sees the photo, a
+three-letter badge and a ×.
+
+**4 · THE TWO FILES THAT TOOK `lint:tokens` FROM 60 TO 62** are
+`src/data/ocr/normalise.ts` and `src/data/ocr/types.ts`, both added at Gate 54,
+both `.ts` and so both inside the scanner's `EXTS`.
+
+### Gate 54's parser changes — a generalisation audit
+
+**WHY THIS MATTERS MORE THAN THE FIGURES ABOVE: line items on NEW, unseen
+receipts are the product's core promise, and these two photographs are the only
+real-paper evidence this repo has.** Every rule below was written against text
+measured from them.
+
+| # | rule | general, or fitted to these two papers? |
+|---|---|---|
+| 1 | **`readTotal` judges the label ADJACENT to the figure** (`labelOfLastAmount`: the tokens between the previous amount and this one) | **GENERAL, and the strongest change here.** Two-column summary rows are ubiquitous; `Total Item 6 Sub Total 70.84` carries the word "Total" beside the SUBtotal. Judging the label per figure rather than per line is structural |
+| 2 | **`NOT_THE_TOTAL` denylist** — `sub, rounding, round off, saving(s), item(s), qty, quantity, change, point(s), discount, balance, due, cash` | **MOSTLY GENERAL.** Most of it is universal till vocabulary. `rounding`/`round off` is the Malaysian 5-sen rounding line (also AU/NZ/CA). **The real limit is that it is ENGLISH-ONLY** — a receipt printing `Jumlah` or `Diskaun` is not covered, and Malaysian receipts do print Malay |
+| 3 | **two-digit years** — `12/09/26` -> `2026` | **GENERAL** in shape; the `20` + `yy` expansion is an assumption, not a derivation (a `99` would read 2099). Harmless for receipts. Note it still demands **two-digit day and month**, so `1/9/2026` is unmatched — a pre-existing limit Gate 54 did not widen |
+| 4 | **times accept seconds**, seconds discarded | **GENERAL**, trivially |
+| 5 | **shape B — `name ... qty unit total`** (three numeric tail tokens in a fixed order) | **GENERAL-ISH.** Keyed to column ORDER, not to any wording; the other common order (`unit qty total`) is **skipped rather than misread**, because the quantity slot is tested against `^[0-9]{1,3}$`. It fails safe |
+| 6 | **shape C — an article-number line takes its name from the LINE ABOVE** | **THE HIGHEST OVERFIT RISK, and the only rule that reads two physical lines.** Fires on any line whose first token is 5+ digits and which carries a price. Its only guards are `!SUMMARY_ROW` and `looksLikeAName`, and **`looksLikeAName` requires just TWO letters** — so an address line, or a phone-number line with a couple of letters, can be taken as a product name. It also hardcodes `quantity: '1'`, so it can never recover a real quantity |
+| 7 | **the legal-suffix scan now ignores `LETTERHEAD_END`** (iFruits prints `Invoice No:` ABOVE its letterhead) | **GENERAL.** Whether the invoice label sits above or below the legal name is a per-vendor accident, and the suffix itself is the discriminator. The limit is `LETTERHEAD_WINDOW = 6`: a 7-line logo block loses its legal name |
+
+**A GENERAL FORM FOR SHAPE C, IF IT IS EVER TIGHTENED** — not done here, because
+tightening a rule on the strength of two papers is the same error as writing it
+that way: require the line above to have at least two WORDS of two or more
+letters; require the article-number line itself to carry no alphabetic name
+field; and restrict the shape to lines below the letterhead window and above the
+first summary row. Each is checkable against the twelve `parse-receipt.spec.ts`
+fixtures already committed.
+
+**NOT GATE 54'S, AND WORTH NOT MISATTRIBUTING:** `SUMMARY_ROW`, `LEGAL_SUFFIX`
+and `LETTERHEAD_END` are all unchanged by it. `LETTERHEAD_END`'s OCR-garble
+alternatives (`nvoice`, `wvorce`) are pre-existing fits to specific misreads.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
