@@ -1000,7 +1000,7 @@ function readMerchant(lines: OcrLine[]): { value: string; confidence: number | n
   // on its own, wherever in the opening lines it appears.
   //
   // MEASURED AT GATE 54: the iFruits Market receipt prints "Invoice No:
-  // 580111174" ABOVE its letterhead, so the scan stopped one line short of
+  // 271828182" ABOVE its letterhead, so the scan stopped one line short of
   // "IFruits Market (M) Sdn Bhd" and the merchant came back as "NX a" — scan
   // noise from the logo. AEON prints the same label BELOW the letterhead, which
   // is why ten seeded receipts never exposed this.

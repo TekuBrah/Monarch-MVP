@@ -263,15 +263,18 @@ export async function recognise(image: Blob): Promise<OcrResult> {
   // it in `extract.ts` instead would leave a second way in — a future caller of
   // `recognise` would silently get the un-oriented behaviour this fixes.
   //
-  // IT RUNS ON THE PDF PATH TOO, AND IS A NO-OP THERE BY CONSTRUCTION.
-  // `rasterisePdfFirstPage` already returns an upright PNG inside the same
-  // long-edge budget, so normalising it rotates nothing and scales nothing — it
-  // decodes and re-encodes the same pixels. Uniformity is worth the
-  // milliseconds: the invariant "the engine only ever sees normalised pixels"
-  // then has no exceptions for anyone to remember.
+  // IT RUNS ON THE PDF PATH TOO, AND SINCE GATE 56 IT DOES WORK THERE.
+  // `rasterisePdfFirstPage` returns an upright 2000px PNG and this scales it to
+  // the 1600px long edge the Gate 56 sweep chose. (Gate 54's note here said it
+  // "decodes and re-encodes the same pixels"; it was a no-op, but it decoded
+  // nothing — a PNG was never inspected, so it passed straight through.)
   //
-  // BEFORE `createWorker`, so a capture this cannot decode fails without having
-  // spun up a 3.9 MB WebAssembly engine and a 2.82 MB language model first.
+  // NO ENGINE PARAMETER IS SET, ON MEASUREMENT. Page segmentation modes 3, 4 and
+  // 11 and a declared 300 DPI were swept at Gate 56 against the engine's own
+  // default; none met the selection rule — see the table in `normalise.ts`.
+  //
+  // BEFORE `createWorker`, so the image work is done before a 3.9 MB WebAssembly
+  // engine and a 2.82 MB language model are spun up.
   const normalised = await normaliseForOcr(image)
 
   const worker = await createWorker('eng', OEM_LSTM_ONLY, {

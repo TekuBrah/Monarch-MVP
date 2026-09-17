@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { expect, test } from '@playwright/test'
 import { PINNED_NOW } from './harness'
-import { exifOrientation, jpegDimensions, normaliseForOcr } from '../src/data/ocr/normalise'
+import { exifOrientation, jpegDimensions } from '../src/data/ocr/normalise'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -118,16 +118,23 @@ interface EvaluateArg {
  * 7.79, total 137.59 — and notes it as one of only three of the ten that
  * reconcile exactly.
  *
- * THE ENGINE AGREES ON EVERYTHING EXCEPT THE TAX, AND THE EXPECTATION BELOW
- * RECORDS THE DISAGREEMENT RATHER THAN HIDING IT. Tesseract reads the SST line
- * as `7.19` where the paper prints `7.79`. That is a genuine misread of a real
- * receipt by a real engine, and the honest thing for a test to assert is what
- * the engine produces — so `EXPECTED.tax` is 7.19.
+ * THE ENGINE AGREES ON EVERYTHING EXCEPT THE TAX AND THE MONTH, AND THE
+ * EXPECTATION BELOW RECORDS BOTH DISAGREEMENTS RATHER THAN HIDING THEM.
  *
- * IF THIS ASSERTION EVER STARTS FAILING WITH 7.79, THE ENGINE GOT BETTER AND
- * THE FIX IS TO UPDATE THE NUMBER — not to widen the assertion into a range.
- * A tolerance here would stop the spec noticing that OCR quality had moved at
- * all, in either direction, which is most of what it is for.
+ * ⚠️ BOTH MOVED AT GATE 56, WHEN THE NORMALISER STARTED ENLARGING SMALL IMAGES
+ * TO A 1600px LONG EDGE. Until then this 287x517 receipt reached the engine at
+ * native size and read the SST line as `7.19` with the date right. At 1600 it
+ * reads the SST line as `71.79` and the printed `06/09/2025` as `06/08/2025`.
+ * Over the whole 20-receipt corpus the same change took correct items from 52
+ * to 79 of 97 and auto-match from 5 to 9 correct links of 10 — this receipt is
+ * the one of ten that got WORSE on its date, and the one that no longer
+ * auto-links because of it. It is recorded, not tuned away: a setting chosen to
+ * rescue this fixture would be fitting the pipeline to one test.
+ *
+ * IF THESE ASSERTIONS START FAILING WITH THE PAPER'S 7.79 OR SEPTEMBER, READING
+ * GOT BETTER AND THE FIX IS TO UPDATE THE NUMBERS — not to widen the assertion
+ * into a range. A tolerance here would stop the spec noticing that OCR quality
+ * had moved at all, in either direction, which is most of what it is for.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 const EXPECTED = {
@@ -139,11 +146,14 @@ const EXPECTED = {
    * `parseReceipt.ts`'s `readMerchant`.
    */
   merchant: 'IKEA Southeast Asia',
-  /** DD/MM/YYYY read day-first, as a Malaysian receipt prints it. */
-  capturedAt: '2025-09-06T08:00:00',
+  /**
+   * DD/MM/YYYY read day-first, as a Malaysian receipt prints it. The engine's
+   * reading: the paper prints 06/09/2025 — see the note above.
+   */
+  capturedAt: '2025-08-06T08:00:00',
   total: 137.59,
   /** The engine's reading. The paper prints 7.79 — see the note above. */
-  tax: 7.19,
+  tax: 71.79,
   currency: 'MYR',
   itemCount: 2,
   /** DERIVED — the sum of the two line items, never transcribed. */
@@ -152,31 +162,153 @@ const EXPECTED = {
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * THE NORMALISER'S PASS-THROUGH IS AN IDENTITY, NOT AN APPROXIMATION.
- * Gate 54.
+ * THE NORMALISER (Gate 54; sizing rewritten at Gate 56).
  *
- * WHY THIS IS WORTH A TEST OF ITS OWN. The first version of `normaliseForOcr`
- * redrew EVERY image, on the reasonable-sounding argument that at 1:1 with no
- * rotation a decode -> draw -> encode round-trip is pixel-exact and therefore
- * inert. MEASURED OVER THE TEN SEEDED RECEIPTS, IT IS NOT: `receipt_aia01` fell
- * from confidence 77 with its whole letterhead and date read to 35 with
- * neither, and `receipt_jayagrocer01` lost a line item. The round-trip is
- * faithful to the canvas, but the canvas is filled by Chromium's JPEG decoder
- * where the engine would otherwise have used Leptonica's.
+ * `normaliseForOcr` scales every decodable image — up or down — to a 1600px
+ * long edge, applies a JPEG's EXIF orientation, flattens onto white and encodes
+ * PNG. See the sweep table in `src/data/ocr/normalise.ts` for why.
  *
- * SO THE PASS-THROUGH IS A CORRECTNESS REQUIREMENT, NOT AN OPTIMISATION, and
- * "returns the same bytes" has to be asserted rather than assumed. These run in
- * Node with no page, because the pass-through path reads bytes and never
- * touches a canvas — which is exactly the property under test.
+ * THE BYTE READERS RUN IN NODE; EVERYTHING ELSE RUNS IN THE BROWSER, AND THAT
+ * SPLIT IS NOW LOAD-BEARING. Gate 54's pass-through test ran in Node on the
+ * argument that the pass-through never touches a canvas. Since Gate 56 almost
+ * every image IS redrawn — and Node has no `createImageBitmap`, so the module's
+ * "cannot decode, return unchanged" branch would hand the same Blob back for any
+ * input and a Node-side identity test would pass for the wrong reason. So every
+ * test that depends on a decode runs in a page, through the dev server.
+ *
+ * THE IMAGES ARE SYNTHETIC, DRAWN IN THE TEST. No receipt photograph is used:
+ * each one is built to isolate a single property, and a device capture could
+ * not be committed anyway.
  * ─────────────────────────────────────────────────────────────────────────────
  */
+
+const NORMALISE_PATH = '/src/data/ocr/normalise.ts'
+
+/** What the page reports about one normalised synthetic image. */
+interface NormaliseResult {
+  sameBlob: boolean
+  width: number
+  height: number
+  /** RGBA of the output's top-centre and bottom-centre pixels. */
+  top: number[]
+  bottom: number[]
+}
+
+type ImageRecipe = {
+  width: number
+  height: number
+  type: 'image/png' | 'image/jpeg'
+  /** Paint the stored frame's LEFT half black and the right half white. */
+  split?: boolean
+  /** Leave every pixel fully transparent. */
+  transparent?: boolean
+  /** Splice a LITTLE-ENDIAN EXIF Orientation tag into a JPEG. */
+  orientation?: number
+}
+
+async function normaliseSynthetic(
+  page: import('@playwright/test').Page,
+  recipe: ImageRecipe,
+): Promise<NormaliseResult> {
+  await page.goto('/', { waitUntil: 'networkidle' })
+  return page.evaluate(
+    async ({ recipe, modulePath }) => {
+      const canvas = new OffscreenCanvas(recipe.width, recipe.height)
+      const ctx = canvas.getContext('2d')!
+      if (!recipe.transparent) {
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0, 0, recipe.width, recipe.height)
+      }
+      if (recipe.split) {
+        ctx.fillStyle = 'black'
+        ctx.fillRect(0, 0, recipe.width / 2, recipe.height)
+      }
+      let blob = await canvas.convertToBlob({ type: recipe.type, quality: 1 })
+
+      if (recipe.orientation) {
+        // APP1 "Exif\0\0", TIFF header "II" (little-endian, as phone cameras
+        // write it), one IFD0 entry: tag 0x0112, SHORT, count 1, the value.
+        const exif = new Uint8Array([
+          0xff, 0xe1, 0x00, 0x22, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00,
+          0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+          0x01, 0x00, 0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00,
+          recipe.orientation, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ])
+        const jpeg = new Uint8Array(await blob.arrayBuffer())
+        const spliced = new Uint8Array(jpeg.length + exif.length)
+        spliced.set(jpeg.subarray(0, 2), 0)
+        spliced.set(exif, 2)
+        spliced.set(jpeg.subarray(2), 2 + exif.length)
+        blob = new Blob([spliced], { type: 'image/jpeg' })
+      }
+
+      const mod: { normaliseForOcr: (b: Blob) => Promise<Blob> } = await import(modulePath)
+      const out = await mod.normaliseForOcr(blob)
+      const bitmap = await createImageBitmap(out, { imageOrientation: 'none' })
+      const read = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!
+      read.drawImage(bitmap, 0, 0)
+      const px = (x: number, y: number) => Array.from(read.getImageData(x, y, 1, 1).data)
+      return {
+        sameBlob: out === blob,
+        width: bitmap.width,
+        height: bitmap.height,
+        top: px(Math.floor(bitmap.width / 2), Math.floor(bitmap.height * 0.1)),
+        bottom: px(Math.floor(bitmap.width / 2), Math.floor(bitmap.height * 0.9)),
+      }
+    },
+    { recipe, modulePath: NORMALISE_PATH },
+  )
+}
+
 test.describe('the capture normaliser', () => {
-  test('an upright, in-budget image is returned UNTOUCHED', async () => {
-    const blob = new Blob([fs.readFileSync(FIXTURE)], { type: 'image/jpeg' })
-    const out = await normaliseForOcr(blob)
-    // THE SAME OBJECT, not merely an equal one. Anything else means a redraw
-    // happened, and a redraw is what cost `receipt_aia01` its letterhead.
-    expect(out, 'the identical Blob comes back').toBe(blob)
+  test('a small image is ENLARGED to the 1600px long edge', async ({ page }) => {
+    // The seeded receipts are ~290x525 and reached the engine at native size
+    // until Gate 56. Enlarging them is what took corpus items from 52 to 79.
+    const out = await normaliseSynthetic(page, { width: 200, height: 400, type: 'image/png' })
+    expect(out.sameBlob, 'a redraw happened').toBe(false)
+    expect({ width: out.width, height: out.height }).toEqual({ width: 800, height: 1600 })
+  })
+
+  test('an oversized image is SHRUNK to the 1600px long edge', async ({ page }) => {
+    const out = await normaliseSynthetic(page, { width: 3200, height: 800, type: 'image/png' })
+    expect({ width: out.width, height: out.height }).toEqual({ width: 1600, height: 400 })
+  })
+
+  test('a little-endian EXIF orientation is still applied', async ({ page }) => {
+    // Stored 400x200 LANDSCAPE, left half black, Orientation 6 ("rotate 90° clockwise
+    // to display"). Upright it is portrait with the black half on TOP — so the
+    // assertion is on content, not only on dimensions a mere transpose would pass.
+    const out = await normaliseSynthetic(page, {
+      width: 400,
+      height: 200,
+      type: 'image/jpeg',
+      split: true,
+      orientation: 6,
+    })
+    expect({ width: out.width, height: out.height }).toEqual({ width: 800, height: 1600 })
+    expect(out.top[0], 'the black half is on top after rotation').toBeLessThan(64)
+    expect(out.bottom[0], 'the white half is at the bottom').toBeGreaterThan(192)
+  })
+
+  test('a transparent image flattens to WHITE, not black', async ({ page }) => {
+    const out = await normaliseSynthetic(page, {
+      width: 100,
+      height: 200,
+      type: 'image/png',
+      transparent: true,
+    })
+    expect(out.sameBlob).toBe(false)
+    expect(out.top, 'opaque white').toEqual([255, 255, 255, 255])
+  })
+
+  test('an upright image already at 1600 is returned UNTOUCHED', async ({ page }) => {
+    // THE SAME OBJECT, not merely an equal one. Gate 54 measured a 1:1 redraw
+    // costing `receipt_aia01` its letterhead; where no work is needed, none is done.
+    // Both the JPEG path (size read from the bytes) and the decode path (a PNG).
+    const jpeg = await normaliseSynthetic(page, { width: 800, height: 1600, type: 'image/jpeg' })
+    expect(jpeg.sameBlob, 'the identical JPEG Blob comes back').toBe(true)
+    const png = await normaliseSynthetic(page, { width: 1600, height: 900, type: 'image/png' })
+    expect(png.sameBlob, 'the identical PNG Blob comes back').toBe(true)
   })
 
   test('the orientation tag is read from the bytes, and its absence is null', () => {
@@ -363,7 +495,7 @@ test.describe('real OCR behind the extraction seam', () => {
    *
    * THE TWO REAL DEVICE PHOTOGRAPHS ARE DELIBERATELY NOT COMMITTED. They carry
    * a cashier's full name, a member name, partial card numbers
-   * (`467851XXXXXX9472`) and an e-invoice QR — so they are held as local
+   * (`400012XXXXXX3456`, an invented same-shape stand-in since Gate 56) and an e-invoice QR — so they are held as local
    * evidence and this synthetic stand-in guards the mechanism instead. It is
    * also the better instrument: it isolates orientation as the ONLY variable,
    * where a second real receipt would vary in layout, print quality and

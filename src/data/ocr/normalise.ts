@@ -1,113 +1,110 @@
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * ORIENT AND SIZE A CAPTURED IMAGE BEFORE THE ENGINE READS IT (Gate 54).
+ * ORIENT A CAPTURED IMAGE AND SIZE IT FOR THE ENGINE (Gate 54, re-sized Gate 56).
  *
- * THE DEFECT THIS EXISTS FOR: THE ENGINE'S OWN EXIF READER IGNORES THE
- * ORIENTATION TAG WHEN THE TIFF HEADER IS LITTLE-ENDIAN — WHICH IS WHAT EVERY
- * PHONE CAMERA WRITES.
+ * WHAT IS DONE NOW, IN FULL: the EXIF orientation is applied, and the image is
+ * scaled — UP OR DOWN — so its long edge is `OCR_LONG_EDGE` (1600px), then
+ * encoded as PNG on a white ground. Nothing else: no greyscale, no contrast
+ * change, no sharpening, no thresholding, no engine parameter. An image that is
+ * already upright with a long edge of exactly 1600 is returned untouched.
  *
- * Tesseract never uses the browser's image decoder. Read from the installed
- * source rather than inferred: `tesseract.js/src/worker/browser/loadImage.js:63`
- * handles a `File` or `Blob` by reading its RAW BYTES (`readFromBlobOrFile`) and
- * handing a `Uint8Array` straight to the engine, which decodes the JPEG itself.
- * That decoder DOES look for an Orientation tag — but only finds it in one of
- * the two byte orders TIFF permits.
- *
- * ⚠️ AN EARLIER VERSION OF THIS NOTE SAID THE TAG WAS IGNORED OUTRIGHT. THAT IS
- * WRONG, AND IT WAS A MUTATION PROOF THAT CAUGHT IT: a fixture built with a
- * BIG-ENDIAN tag read perfectly with this whole module bypassed, so the test
- * meant to guard the fix was passing either way.
- *
- * MEASURED AT GATE 54 ON ONE IMAGE, VARYING ONLY THE EXIF BLOCK — same
- * compressed pixels, same sideways 517x287 frame, same Orientation value of 6:
- *
- *   EXIF block                              engine confidence
- *   "II" little-endian, 36 bytes                  27   <- tag NOT honoured
- *   "MM" big-endian,    34 bytes                  83   <- honoured
- *   "MM" big-endian,    48 KB                     83   <- honoured
- *   "II" little-endian, 48 KB                     27   <- NOT honoured
- *
- * SO IT IS BYTE ORDER, NOT BLOCK SIZE. Size was the first hypothesis — the two
- * device photographs carry 50 KB EXIF blocks with an embedded thumbnail, a
- * MakerNote, XMP in a second APP1 and an MPF segment, against 34 bytes for a
- * hand-built one — and the 48 KB rows above are what refuted it.
- *
- * CONFIRMED ON THE REAL PHOTOGRAPH, PIXELS UNTOUCHED: replacing one device
- * receipt's own 50,363-byte "II" EXIF with a 34-byte "MM" one carrying the same
- * Orientation moved it from confidence 35 (noise, no total, no date) to 69. Both
- * device photographs are "II", as essentially all camera EXIF is.
+ * Until Gate 56 this module only ever SHRANK, to a 2000px ceiling, and never
+ * enlarged. The ten seeded receipts are ~290x525, so they reached the engine at
+ * their native size with a median word-box height of 9-10px — far below what
+ * Tesseract reads reliably — and nearly every miss Gate 55 attributed to
+ * "reading" (lost decimal points, misread digits, lost first words) was that.
  * ─────────────────────────────────────────────────────────────────────────────
- * AND ROTATION REALLY IS THE VARIABLE, WHICH IS A SEPARATE CLAIM.
+ * WHY 1600, AND WHY NOTHING ELSE — THE GATE 56 SWEEP.
  *
- * Measured on the same two photographs, through an explicit canvas:
+ * Measured over the 20-receipt development corpus (10 seeded + 10 real-paper
+ * device photographs, 97 printed items), the real engine and the real parser,
+ * varying ONE thing at a time from today's pipeline, then combining. Items are
+ * correct items / 97; "tot" is printed totals read exactly, of 20.
  *
- *   variant                       confidence     printed total
- *   raw file, as shipped before    35 / 38       null / null     <- noise
- *   upright, long edge 2000        75 / 55       read  / read
- *   SIDEWAYS, long edge 2000       33 / 34       null / null     <- the control
+ *   configuration                         items  tot  junk  wrong-price  seeded merchant
+ *   today (shrink to 2000 only)             52   17     8      7            7/10
+ *   long edge 1200                          77   18     7      1           10/10
+ *   long edge 1400                          80   18     5      3            9/10
+ *   long edge 1600          <- shipped      79   18     6      2           10/10
+ *   long edge 1800                          79   18     4      4            9/10
+ *   long edge 2000                          79   16     5      4            9/10
+ *   long edge 3000                          75   18     6      5            9/10
+ *   word height 20 / 30 / 40 / 50px       77/75/75/72  (none better than a fixed edge)
+ *   greyscale, native size                  48   16    10      5            5/10
+ *   Otsu / Sauvola, native size           33 / 28      (binarising 9px text destroys it)
+ *   page segmentation 3 / 4 / 11          42 / 36 / 57   (11 reads more, junk 16)
+ *   1600 + greyscale                        78   18     6      3           10/10
+ *   1600 + Otsu / Sauvola                 68 / 69      (Tesseract binarises better itself)
+ *   1600 + high-quality smoothing           79   18     6      2           10/10
+ *   1600 + high smoothing + greyscale       80   17     6      3           10/10
+ *   1600 + page segmentation 11             82   17    12      3            9/10
  *
- * The sideways row takes the identical resize and re-encode and differs only in
- * rotation, and it reproduces the failure exactly. So the defect is orientation
- * reaching the engine unapplied — not scale, and not the re-encode.
+ * The plateau runs from 1200 to 2000 and 1600 is inside it rather than on a
+ * spike. The rows that read one or three more items all fail something: 1400,
+ * 1800 and 2000 each lose a seeded merchant, segmentation 11 doubles the junk,
+ * and smoothing + greyscale reads one more item but one fewer total and makes
+ * three receipts worse on items. 1600 is the only configuration measured on
+ * which NO receipt reads fewer items or loses a total it had before.
+ *
+ * THE ONE-ITEM MARGINS IN THAT TABLE ARE INSIDE THE NOISE OF ONE CORPUS. Do not
+ * re-tune the edge by a hundred pixels on the strength of a single receipt; the
+ * case for 1600 is the whole row, not the item count.
  * ─────────────────────────────────────────────────────────────────────────────
- * WHY THIS CANNOT BE FIXED BY PASSING A DIFFERENT KIND OF OBJECT.
+ * ⚠️ THE REDRAW IS NO LONGER AVOIDED — AND THE RISK GATE 54 RECORDED WAS CHECKED.
  *
- * `loadImage` has branches for `HTMLCanvasElement` and `OffscreenCanvas`, and
- * both end in the same place: the canvas is converted to a blob and read as raw
- * bytes. There is no input type that makes Tesseract ask the browser to decode.
- * The only way to hand it upright pixels is to REDRAW them upright ourselves.
+ * Gate 54 returned an untouched image whenever it could, because a redraw at
+ * 1:1 is not neutral: the canvas is filled by Chromium's JPEG decoder where the
+ * engine would otherwise use Leptonica's, and `receipt_aia01` fell from
+ * confidence 77, letterhead and date read, to 35 with neither. The Gate 56 sweep
+ * reproduced that exactly (a 1:1 redraw: aia01 77 -> 35).
  *
- * SO THIS MODULE READS THE TAG ITSELF, IN BOTH BYTE ORDERS (`exifOrientation`
- * below honours the header rather than assuming one), AND APPLIES THE ROTATION
- * ITSELF. It therefore does not depend on the engine's reader at all, and an
- * upstream fix to that reader would make it redundant rather than wrong.
+ * What changed is that the redraw now ENLARGES, and at 1600 the same receipt
+ * reads at confidence 87 with its merchant matching its payee — as do all ten
+ * seeded merchants, against seven before. The hazard was the decoder difference
+ * at a size too small to survive it, not the redraw as such. The pass-through
+ * remains for the one case where it still applies (upright, already 1600).
  * ─────────────────────────────────────────────────────────────────────────────
- * ⚠️ THE REDRAW IS NOT NEUTRAL, AND THAT IS WHY IT IS AVOIDED WHEN IT IS NOT
- * NEEDED. THIS IS THE LOAD-BEARING DESIGN DECISION IN THIS FILE.
+ * WHICH FORMATS IT APPLIES TO.
  *
- * A first version of this module redrew EVERY image, on the argument that at
- * 1:1 with no rotation a decode -> draw -> encode round-trip is pixel-exact and
- * therefore inert. MEASURED OVER THE TEN SEEDED RECEIPTS, IT IS NOT:
- * `receipt_aia01.jpg` went from confidence 77 with its whole letterhead and its
- * date read to confidence 35 with neither, and `receipt_jayagrocer01.jpg` lost
- * a line item. The round-trip is faithful to the CANVAS, but the canvas was
- * filled by Chromium's JPEG decoder where the engine would otherwise have used
- * Leptonica's — two different IDCT and chroma-upsampling implementations, whose
- * outputs differ slightly everywhere. On a 292x531 photograph of thermal print
- * that is enough to move glyph decisions.
+ * ORIENTATION IS STILL JPEG-ONLY, as Gate 54 stated: only a JPEG's EXIF is read,
+ * so a sideways-stored PNG, WebP or HEIC is not rotated. (`createImageBitmap`
+ * applies orientation where the browser knows it, so this is a limit of what is
+ * DETECTED as needing work, not of the redraw.)
  *
- * SO AN IMAGE THAT NEEDS NO WORK IS RETURNED UNTOUCHED, and the inertness claim
- * stops being an argument about round-trips and becomes an identity: the engine
- * receives the very same bytes it received before this gate. That is what makes
- * the ten seeded receipts, `e2e/fixtures/receipt-capture.jpg` and the whole
- * `ocr.spec.ts` expectation set provably unaffected — and it is why the
- * pass-through is a correctness requirement rather than an optimisation.
+ * SIZING NOW APPLIES TO ANY IMAGE THE BROWSER CAN DECODE — PNG, WebP, and the
+ * rasterised first page of a PDF (a 2000px PNG from `rasterise.ts`, reduced here
+ * to 1600). The corpus is all JPEG, so for every other format this is a CHOICE,
+ * recorded rather than measured: the benefit comes from text size, which is not
+ * a property of the container. An image the browser cannot decode is returned
+ * unchanged, which is exactly what it received before this gate.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY THE ENGINE CANNOT DO THIS ITSELF, KEPT FROM GATE 54.
+ *
+ * Tesseract never uses the browser's decoder: `tesseract.js/src/worker/browser/
+ * loadImage.js:63` hands a `File`'s raw bytes to the engine, and its own EXIF
+ * reader (`worker-script/utils/setImage.js`) matches the Orientation tag only in
+ * BIG-ENDIAN byte order — while every phone camera writes little-endian. Measured
+ * at Gate 54, same pixels, varying only the EXIF block: "II" -> confidence 27,
+ * "MM" -> 83. `loadImage`'s canvas branches also end in raw bytes, so the only
+ * way to hand it upright, correctly-sized pixels is to redraw them here.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 /**
- * The long edge a captured photograph is reduced to before recognition.
+ * The long edge every captured image is scaled to — up or down — before
+ * recognition. See the Gate 56 table in the header for how it was chosen.
  *
- * ⚠️ THIS IS A CEILING, NEVER A TARGET. It is the OPPOSITE of
- * `TARGET_LONG_EDGE` in `rasterise.ts`, which uses `Math.max` and deliberately
- * ENLARGES: a PDF page is vector, so drawing it bigger renders real additional
- * glyph detail. A photograph is a raster, so enlarging it only interpolates —
- * cost with no information. Do not unify the two constants; they express
- * opposite intentions that happen to share a number.
+ * ⚠️ IT IS NOW A TARGET, NOT A CEILING. Gate 54 set a 2000px ceiling and noted
+ * it was the opposite of `rasterise.ts`'s `TARGET_LONG_EDGE`; that is no longer
+ * true, since both now enlarge. They stay separate constants because the PDF
+ * value renders VECTOR text and was not measured here — there is no PDF in the
+ * corpus — so unifying them would claim a measurement nobody made.
  *
- * IT IS NOT WHAT FIXES THE DEFECT, AND SAYING SO MATTERS. Rotation is. Measured
- * on one device photograph, correctly oriented, varying only the long edge:
- *
- *   800 -> 67    1200 -> 77    1600 -> 77    2000 -> 74    3000 -> 68    4000 -> 67
- *
- * The page reads at every size, so the cap buys a few points of confidence and
- * a much smaller decode — a 4000x2252 frame is ~36 MB of RGBA, and captures
- * arrive in batches — rather than correctness. 2000 sits at the top of the flat
- * part of that curve and matches `rasterise.ts`'s budget, so one number serves
- * both paths. DO NOT TUNE IT TO 1200 ON THE STRENGTH OF ONE RECEIPT: the
- * difference is inside the noise of a single measurement on a single page.
+ * MEMORY: the largest canvas this can produce is 1600x1600 RGBA, 10.24 MB. The
+ * transient decode of the source is unchanged from Gate 54 — a 4000x2252 phone
+ * photograph is ~36 MB of RGBA, released as soon as it is drawn.
  */
-export const MAX_LONG_EDGE = 2000
+export const OCR_LONG_EDGE = 1600
 
 /**
  * The EXIF Orientation of a JPEG, or `null` for any image that does not say.
@@ -177,12 +174,12 @@ export function exifOrientation(bytes: Uint8Array): number | null {
  *
  * "STORED" IS THE POINT: these are the dimensions before EXIF rotation. A
  * rotation cannot change which number is the LONG edge, only which axis carries
- * it, so the budget can be tested without decoding.
+ * it, so the pass-through (long edge already `OCR_LONG_EDGE`) can be tested
+ * without decoding.
  *
- * A `null` means "not a JPEG, or one this cannot parse", and the caller reads
- * that as "no shrink needed". THE CONSERVATIVE DIRECTION IS DELIBERATE: an
- * unrecognised image then passes through to the engine exactly as it did before
- * this gate, so a format this does not understand cannot be made worse by it.
+ * A `null` means "not a JPEG, or one this cannot parse". Since Gate 56 the caller
+ * then DECODES to learn the size, rather than reading `null` as "no work" as
+ * Gate 54 did — sizing now applies to every decodable format.
  */
 export function jpegDimensions(bytes: Uint8Array): { width: number; height: number } | null {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
@@ -215,22 +212,19 @@ export function jpegDimensions(bytes: Uint8Array): { width: number; height: numb
   return null
 }
 
+
 /**
- * Orient `image` upright and shrink it to `MAX_LONG_EDGE`, or return it as-is.
+ * Orient `image` upright and scale its long edge to `OCR_LONG_EDGE`, or return
+ * it as-is when neither is needed.
  *
- * THE PASS-THROUGH IS THE COMMON CASE AND IT IS EXACT — see the header. An
- * image already upright and already within budget comes back as the identical
- * `Blob`, so the engine reads the same bytes it always did.
+ * THE PASS-THROUGH IS NOW RARE AND STILL EXACT: an upright image whose long edge
+ * is already 1600 comes back as the identical `Blob`. For a JPEG that is decided
+ * from the bytes without decoding; any other format has to be decoded to learn
+ * its size, and is still returned untouched when no work turns out to be needed.
  *
- * ⚠️ ONLY JPEG IS INSPECTED, AND THAT IS A STATED LIMITATION RATHER THAN AN
- * OVERSIGHT. Both readers below return `null` for anything else, so a PNG, WebP
- * or HEIC capture passes straight through — neither rotated nor shrunk. That is
- * EXACTLY the behaviour every capture had before this gate, so no format can be
- * made worse by this module; what it means is that the defect would return for a
- * non-JPEG photograph carrying an orientation tag. It has not been seen: the
- * device photographs that opened Gate 54 are JPEG, as camera output almost
- * always is. Widen it when a real capture needs it, with a fixture — not
- * pre-emptively.
+ * AN IMAGE THE BROWSER CANNOT DECODE IS RETURNED UNCHANGED, so the engine
+ * receives exactly what it received before this module existed and fails, or
+ * succeeds, on its own terms.
  */
 export async function normaliseForOcr(image: Blob): Promise<Blob> {
   const bytes = new Uint8Array(await image.arrayBuffer())
@@ -240,17 +234,29 @@ export async function normaliseForOcr(image: Blob): Promise<Blob> {
   // is a malformed file rather than an instruction.
   const needsRotation = orientation !== null && orientation >= 2 && orientation <= 8
 
+  // A SHORTCUT, NOT THE GUARANTEE: a JPEG whose frame header already says 1600
+  // skips the decode. The identity itself is guaranteed by the check after the
+  // decode below, which also covers every other format — measured at Gate 56 by
+  // mutation: disabling this line leaves the pass-through test green, disabling
+  // that one turns it red.
   const stored = jpegDimensions(bytes)
-  const needsShrink = stored !== null && Math.max(stored.width, stored.height) > MAX_LONG_EDGE
+  if (stored !== null && !needsRotation && Math.max(stored.width, stored.height) === OCR_LONG_EDGE) {
+    return image
+  }
 
-  if (!needsRotation && !needsShrink) return image
-
-  const bitmap = await createImageBitmap(image, { imageOrientation: 'from-image' })
+  let bitmap: ImageBitmap
+  try {
+    bitmap = await createImageBitmap(image, { imageOrientation: 'from-image' })
+  } catch {
+    return image
+  }
   try {
     // `from-image` has ALREADY applied the rotation, so these are the upright
     // dimensions and nothing here transposes them a second time.
     const longEdge = Math.max(bitmap.width, bitmap.height)
-    const scale = longEdge > MAX_LONG_EDGE ? MAX_LONG_EDGE / longEdge : 1
+    if (!needsRotation && longEdge === OCR_LONG_EDGE) return image
+
+    const scale = OCR_LONG_EDGE / longEdge
     const width = Math.max(1, Math.round(bitmap.width * scale))
     const height = Math.max(1, Math.round(bitmap.height * scale))
 
@@ -264,18 +270,20 @@ export async function normaliseForOcr(image: Blob): Promise<Blob> {
     // A token would be wrong here: `--mapped-surface-page` dark-flips.
     context.fillStyle = 'white'
     context.fillRect(0, 0, width, height)
+    // The browser's DEFAULT smoothing, deliberately. `imageSmoothingQuality:
+    // 'high'` was measured at Gate 56 and read the same 79 items while making
+    // three receipts worse; the default is what the shipped numbers describe.
     context.drawImage(bitmap, 0, 0, width, height)
 
-    // PNG, NOT JPEG. This runs on an image the camera has already JPEG-encoded
-    // once; re-encoding would add a second generation of loss to exactly the
+    // PNG, NOT JPEG. A second lossy generation would damage exactly the
     // high-frequency edges the engine reads letters from.
     const blob = await canvas.convertToBlob({ type: 'image/png' })
     if (!blob) throw new Error('could not encode the normalised capture')
     return blob
   } finally {
     // Frees the decoded bitmap now rather than at the next GC. A 4000x2252
-    // photograph is ~36 MB of RGBA and captures arrive in batches.
+    // photograph is ~36 MB of RGBA and captures arrive in batches. The canvas
+    // is a local and is unreachable once this returns.
     bitmap.close()
   }
 }
-

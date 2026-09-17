@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
+import { register } from 'node:module'
 import path from 'node:path'
 
 /**
@@ -161,6 +162,27 @@ function matchItems(truthItems, reported, tolerated) {
 }
 
 const truth = { seeded: await seededTruth(), device: deviceTruth() }
+
+// SEEDED MERCHANT: does the parsed merchant satisfy auto-match's own merchant rule
+// against the payee of the transaction the receipt is linked to (Gate 56)? The
+// device receipts have no seeded payee, so theirs is recorded, never scored.
+//
+// `autoMatch.ts` imports `./derive` with no extension, which Vite resolves and plain
+// Node does not. This hook retries a failed relative specifier with `.ts` — the
+// only thing it does.
+register(
+  'data:text/javascript,' +
+    encodeURIComponent(
+      'export async function resolve(s, c, next) { try { return await next(s, c) } catch (e) { if (s.startsWith(".") && !s.split("/").pop().includes(".")) return next(s + ".ts", c); throw e } }',
+    ),
+)
+const { RECEIPTS } = await import(pathToFileURL(path.join(REPO, 'src', 'data', 'receipts.ts')).href)
+const { TRANSACTIONS } = await import(pathToFileURL(path.join(REPO, 'src', 'data', 'transactions.ts')).href)
+const { merchantMatches } = await import(pathToFileURL(path.join(REPO, 'src', 'data', 'autoMatch.ts')).href)
+const payeeOf = (stem) => {
+  const receipt = RECEIPTS.find((x) => x.filename.replace(/.[^.]+$/, '') === stem)
+  return TRANSACTIONS.find((x) => x.id === receipt?.transactionId)?.merchant ?? null
+}
 const parseReceipt = REPARSE
   ? (await import(pathToFileURL(path.join(REPO, 'src', 'data', 'ocr', 'parseReceipt.ts')).href)).parseReceipt
   : null
@@ -168,8 +190,13 @@ const parseReceipt = REPARSE
 const rows = []
 for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device)-.+\.json$/.test(f)).sort()) {
   const rec = JSON.parse(fs.readFileSync(path.join(OUT, file), 'utf8'))
-  const t = truth[rec.set][rec.stem]
-  if (!t) throw new Error(`no truth for ${rec.set}/${rec.stem}`)
+  // A device stem ending `-phone` or `-camera` is the same paper captured another
+  // way, so it is scored against the TRUTH.md section named by the stem WITHOUT
+  // that suffix (Gate 56). `rosyam` and `rosyam-phone` both present are two
+  // receipts, scored apart.
+  const truthStem = rec.set === 'device' ? rec.stem.replace(/-(phone|camera)$/, '') : rec.stem
+  const t = truth[rec.set][truthStem]
+  if (!t) throw new Error(`no truth for ${rec.set}/${rec.stem} (section ${truthStem})`)
   const parsed = REPARSE ? parseReceipt(rec.ocr) : rec.parsed
   const m = matchItems(t.items, parsed.lineItems, t.tolerated)
   const totalOk = parsed.total !== null && cents(parsed.total) === cents(t.total)
@@ -181,20 +208,25 @@ for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device)-.+\.json$
   else if (t.date.value !== null && got === t.date.value) date = 'correct'
   else if (t.date.value !== null && got.slice(0, 10) === t.date.value.slice(0, 10)) date = 'date-only'
   else date = 'wrong'
-  rows.push({ set: rec.set, stem: rec.stem, printed: t.items.length, ...m, totalOk, taxOk, date, parsed, t })
+  const payee = rec.set === 'seeded' ? payeeOf(rec.stem) : null
+  const merchantOk = payee === null ? null : parsed.merchant !== null && merchantMatches(parsed.merchant, payee)
+  rows.push({ set: rec.set, stem: rec.stem, printed: t.items.length, ...m, totalOk, taxOk, date, merchantOk, ms: rec.ms ?? null, parsed, t })
 }
 
 const pad = (s, n) => String(s).padEnd(n)
-console.log(`${pad('set', 7)}${pad('receipt', 22)}${pad('items', 8)}${pad('miss', 5)}${pad('wrong$', 7)}${pad('junk', 5)}${pad('total', 6)}${pad('tax', 5)}date`)
-const blank = () => ({ correct: 0, printed: 0, wrongPrice: 0, junk: 0, totals: 0, tax: 0, receipts: 0 })
+console.log(`${pad('set', 7)}${pad('receipt', 22)}${pad('items', 8)}${pad('miss', 5)}${pad('wrong$', 7)}${pad('junk', 5)}${pad('total', 6)}${pad('tax', 5)}${pad('merch', 6)}${pad('ms', 7)}date`)
+const blank = () => ({ correct: 0, printed: 0, wrongPrice: 0, junk: 0, totals: 0, tax: 0, receipts: 0, merchants: 0, merchantScored: 0, dates: 0, msSum: 0, msMax: 0 })
 const sums = {}
 for (const r of rows) {
   console.log(
-    `${pad(r.set, 7)}${pad(r.stem, 22)}${pad(`${r.correct.length}/${r.printed}`, 8)}${pad(r.missed.length, 5)}${pad(r.wrongPrice.length, 7)}${pad(r.junk.length, 5)}${pad(r.totalOk ? 'Y' : 'N', 6)}${pad(r.taxOk ? 'Y' : 'N', 5)}${r.date}`,
+    `${pad(r.set, 7)}${pad(r.stem, 22)}${pad(`${r.correct.length}/${r.printed}`, 8)}${pad(r.missed.length, 5)}${pad(r.wrongPrice.length, 7)}${pad(r.junk.length, 5)}${pad(r.totalOk ? 'Y' : 'N', 6)}${pad(r.taxOk ? 'Y' : 'N', 5)}${pad(r.merchantOk === null ? '-' : r.merchantOk ? 'Y' : 'N', 6)}${pad(r.ms ?? '-', 7)}${r.date}`,
   )
   const s = (sums[r.set] ??= blank())
   s.correct += r.correct.length; s.printed += r.printed; s.wrongPrice += r.wrongPrice.length; s.junk += r.junk.length
   s.totals += r.totalOk ? 1 : 0; s.tax += r.taxOk ? 1 : 0; s.receipts += 1
+  if (r.merchantOk !== null) { s.merchantScored += 1; s.merchants += r.merchantOk ? 1 : 0 }
+  s.dates += r.date === 'correct' || r.date === 'null(ok)' ? 1 : 0
+  s.msSum += r.ms ?? 0; s.msMax = Math.max(s.msMax, r.ms ?? 0)
   if (DETAIL) {
     console.log(`         total got ${r.parsed.total} want ${r.t.total}; tax got ${r.parsed.tax}; date got ${r.parsed.capturedAt}`)
     for (const x of r.missed) console.log(`         MISSED ${x.name} ${x.price}`)
@@ -203,16 +235,17 @@ for (const r of rows) {
   }
 }
 const all = blank()
-for (const s of Object.values(sums)) for (const k of Object.keys(all)) all[k] += s[k]
+for (const s of Object.values(sums)) for (const k of Object.keys(all)) all[k] = k === 'msMax' ? Math.max(all[k], s[k]) : all[k] + s[k]
 for (const [name, s] of [...Object.entries(sums), ['combined', all]]) {
   console.log(
-    `${pad(name, 9)} items ${s.correct}/${s.printed} = ${((100 * s.correct) / s.printed).toFixed(1)}%  wrong-price ${s.wrongPrice}  junk ${s.junk}  totals ${s.totals}/${s.receipts}  tax ${s.tax}/${s.receipts}`,
+    `${pad(name, 9)} items ${s.correct}/${s.printed} = ${((100 * s.correct) / s.printed).toFixed(1)}%  wrong-price ${s.wrongPrice}  junk ${s.junk}  totals ${s.totals}/${s.receipts}  tax ${s.tax}/${s.receipts}  merchant ${s.merchants}/${s.merchantScored}  date ${s.dates}/${s.receipts}  ms mean ${Math.round(s.msSum / s.receipts)} max ${s.msMax}`,
   )
 }
 fs.writeFileSync(
   path.join(OUT, REPARSE ? 'score-reparse.json' : 'score.json'),
   JSON.stringify(rows.map(({ parsed, t, ...r }) => r), null, 1),
 )
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ ...sums, combined: all }, null, 1))
 
 // ─── ATTRIBUTION: was each miss a READING or a PARSING failure? ─────────────
 //

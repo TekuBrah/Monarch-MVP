@@ -8493,8 +8493,9 @@ Inspected before anything was committed. Legible on them, beyond merchant, items
 totals and date:
 
 - a **cashier's full name**, and the card member's own name;
-- **partial card numbers** — `467851XXXXXX9472` (BIN plus last four) and
-  `MYDEBIT 9472`;
+- **partial card numbers** — `400012XXXXXX3456` (BIN plus last four) and
+  `MYDEBIT 3456` (both invented values of the real shape — the real ones were
+  removed from the tree at Gate 56);
 - two phone numbers, an invoice number, a terminal id, and **e-invoice QR codes**.
 
 They are held as local evidence at `D:\Claude\_assets\receipts-device\` only, and
@@ -9105,6 +9106,98 @@ and in "synthetic" fixtures, and all were replaced with invented values. All 23
 mutation proofs were re-run after that change and hold. `npm run build:package` exit 0; the parser ships in the lazy
 `parseReceipt-*.js` chunk (12,392 bytes) and the entry chunk carries none of its
 vocabulary, with `index.html` still at 0 `modulepreload`.
+
+## Reading quality — the image is sized for the engine (Gate 56)
+
+No DS re-pin — **v2.3.0 throughout**. Decision 9 still in force: on-device, free,
+`tesseract.js` 7.0.0, no new dependency. **|WALK| stays 40, baselines 160 -> 160
+(0 changed, 0 added, 0 deleted), tests 431 -> 435, spec files 17.**
+`lint:tokens` scans **62** files with the same **3** exemptions — no file entered `src/`.
+
+### THE FIX IS SIZE, AND ONLY SIZE
+
+`normaliseForOcr` now scales every decodable image **up or down** to a **1600px
+long edge** (`OCR_LONG_EDGE`), applies a JPEG's EXIF orientation, flattens onto
+white and encodes PNG. No greyscale, contrast, sharpening, thresholding or engine
+parameter. Until this gate it only shrank, to 2000, so the ~290x525 seeded
+receipts reached the engine with a median word-box height of 9-10px.
+
+**THE SWEEP TABLE IS IN THE HEADER OF `src/data/ocr/normalise.ts` — read it there,
+not here.** In short, over the 20-receipt corpus (97 items):
+
+| | items | totals | junk | wrong-price | seeded merchant |
+|---|---|---|---|---|---|
+| Gate 55 pipeline | 52 | 17 | 8 | 7 | 7/10 |
+| **1600px long edge** | **79** | **18** | **6** | **2** | **10/10** |
+
+Auto-match on the real engine's output: leave-one-out **9 correct / 0 wrong**
+(was 5/0), picker 10/10, AEON 429.19, device receipts 0 wrong links.
+
+**NOTHING BUT SIZE MET THE SELECTION RULE.** Binarisation (Otsu, Sauvola, mean)
+hurts at every size — Tesseract binarises better itself. Page segmentation 3/4
+lose items; 11 reads more but doubles the junk. Sizing by measured word height is
+no better than a fixed edge. 1400, 1800 and 2000 each lose a seeded merchant
+(always `receipt_ikea02`, a fragile letterhead). 1600 + high smoothing + greyscale
+read 80 items but 17 totals, missing the >=18 bar, and made three receipts worse;
+1600 is the only configuration measured with no receipt worse on items or total.
+
+**THE ONE-ITEM MARGINS ARE INSIDE ONE CORPUS'S NOISE, AND NOTHING HERE IS PROVEN
+ON UNSEEN RECEIPTS.** The held-out measurement is Teku's phone test.
+
+### The Gate 54 redraw hazard was re-measured, not waved away
+
+A 1:1 redraw still costs `receipt_aia01` its letterhead (confidence 77 -> 35,
+reproduced exactly). ENLARGED to 1600 the same receipt reads at 87 with its
+merchant matching. The hazard was the decoder difference at a size too small to
+survive it. The pass-through remains for an upright image already at 1600, and
+its identity is guaranteed by the check AFTER the decode — mutation-proved; the
+JPEG-header shortcut before it is only an optimisation and a mutation of it
+survives by design.
+
+**SIZING NOW APPLIES TO EVERY DECODABLE FORMAT, INCLUDING THE PDF RASTER** (2000 ->
+1600). The corpus is all JPEG, so that is a recorded choice. Orientation is still
+detected for JPEG only.
+
+### The fixture's reading moved, and the spec records it
+
+`e2e/fixtures/receipt-capture.jpg` (= `receipt_ikea02`) now reads its SST as
+**71.79** (paper 7.79; was 7.19) and its date as **2025-08-06** (paper
+2025-09-06; was right). It is the one seeded receipt worse on its date and the one
+that no longer auto-links. `ocr.spec.ts`'s `EXPECTED` records the engine's reading;
+do not tune the pipeline to rescue it.
+
+**THE OLD "UNTOUCHED" TEST RAN IN NODE AND WOULD NOW PASS VACUOUSLY** — Node has no
+`createImageBitmap`, so the "cannot decode, return unchanged" branch answers for
+any input. It was replaced by five in-browser tests on synthetic images: enlarge,
+shrink, little-endian orientation (asserted on content), transparent -> white, and
+pass-through for JPEG and PNG.
+
+### The sweep instrument
+
+`scripts/ocr-corpus/sweep.spec.mjs` + `probe.js`, selected by setting
+`OCR_SWEEP_CONFIGS` (so `npm run ocr:corpus` never collects it). Each config is
+data — size mode, pixel ops, engine parameters — and writes a directory
+`score.mjs` scores unchanged. `score.mjs` now maps a device stem ending
+`-phone`/`-camera` to the `TRUTH.md` section without the suffix, and reports
+seeded merchant (auto-match's own `merchantMatches` against the linked payee),
+date and timing. Harness only; nothing in `src/` imports it.
+
+### Personal strings scrubbed forward
+
+The card mask, its `MYDEBIT` last four and two invoice numbers taken from the
+Gate 54 photographs were replaced in `CLAUDE.md`, `e2e/ocr.spec.ts`,
+`e2e/parse-receipt.spec.ts` and a `parseReceipt.ts` comment by invented values of
+the same shape. The two fixture tests that used them as input were
+mutation-proved again. **History still holds the originals; this is forward
+only.**
+
+### Deliberately not in scope
+
+A stronger engine; running several configurations and voting (15 of the 18
+remaining misses are read correctly by SOME other swept configuration, at the
+cost of time and of junk elsewhere — the obvious next lever); re-measuring Gate
+50-B's confidence finding at the new size; changing `rasterise.ts`'s 2000 target;
+the DS repo and the pin; branch deletion; `npm audit fix`.
 
 ## Known conditions of this setup
 

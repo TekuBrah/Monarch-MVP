@@ -23,7 +23,9 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: '.',
-  testMatch: /corpus\.spec\.mjs$/,
+  // The Gate 56 preprocessing sweep is selected by its own input being set, so
+  // `npm run ocr:corpus` never collects it and the sweep never re-runs the corpus.
+  testMatch: process.env.OCR_SWEEP_CONFIGS ? /sweep\.spec\.mjs$/ : /corpus\.spec\.mjs$/,
   fullyParallel: false,
   workers: 1,
   retries: 0,

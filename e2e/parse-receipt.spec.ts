@@ -16,8 +16,8 @@ import type { OcrLine, OcrResult } from '../src/data/ocr/types'
  *
  * Gate 54 was opened by two real photographs of paper receipts, and THOSE
  * IMAGES ARE DELIBERATELY NOT IN THIS REPO: between them they show a cashier's
- * full name, a member name, partial card numbers (`467851XXXXXX9472`, `MYDEBIT
- * 9472`) and e-invoice QR codes. They are held as local evidence only.
+ * full name, a member name, partial card numbers (`400012XXXXXX3456`, `MYDEBIT
+ * 3456`, both invented same-shape stand-ins since Gate 56) and e-invoice QR codes. They are held as local evidence only.
  *
  * WHAT IS REPRODUCED HERE IS THEIR TEXT, AND ONLY THE LINES THE RULES UNDER
  * TEST ACTUALLY READ. Every string below was copied from the engine's measured
@@ -111,7 +111,7 @@ test.describe('the printed date', () => {
   test('a two-digit year is read as 20xx', () => {
     // The ST Rosyam receipt prints DD/MM/YY. Requiring four digits read its
     // date as `null`, which is why auto-match could not see it at all.
-    const parsed = parseReceipt(ocr('ice No: R00201202609120263 12/09/26'))
+    const parsed = parseReceipt(ocr('ice No: R00314159265358979 12/09/26'))
     expect(parsed.capturedAt).toBe('2026-09-12T00:00:00')
   })
 
@@ -228,7 +228,7 @@ test.describe('the merchant letterhead', () => {
       ocr(
         'a a  \\',
         'NX a. |',
-        'Invoice No: 580111174 |',
+        'Invoice No: 271828182 |',
         'IFruits Market (M) Sdn Bhd ~(1376893-Y) |',
       ),
     )
