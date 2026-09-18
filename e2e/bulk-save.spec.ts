@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { expect, test, type Page } from '@playwright/test'
 import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 import { RECEIPTS_TAB, capturedImageName } from './capture'
@@ -195,4 +197,124 @@ test('a failed extraction strands nothing and discards nothing', async ({
   await expect(row('Total'), 'an unread total is 0, never a guess').toHaveText(
     'RM 0.00',
   )
+})
+
+test('five images in one selection become five distinct receipts', async ({
+  page,
+}) => {
+  await openReceipts(page)
+
+  /*
+    ─────────────── THE REPORTED DEFECT, AND WHAT IT ACTUALLY WAS ─────────────
+
+    "A bulk add of five receipts produced only two entries in the Receipts
+    list." The natural reading is that three records were lost, and the natural
+    suspect is Decision 7B: every image in one selection is named from the same
+    clock reading, so five images share one stamp, and something downstream
+    keyed on that name would collapse them.
+
+    MEASURED, NOTHING COLLIDES AND NOTHING IS LOST. Five images through the real
+    click path produce five records: the id is a counter, `addReceipt` appends
+    through the functional updater, and every card is keyed by id. What the user
+    saw is that three of the five were filed under the date PRINTED ON THE
+    PAPER, which on kept till paper is routinely years back — so they sorted
+    below every seeded receipt, more than a thousand pixels past the fold, while
+    the two whose printed date the engine could not read fell back to the moment
+    of capture and appeared at the top, where all five were expected.
+
+    SO THIS TEST ASSERTS THE PROPERTY THAT WAS DOUBTED — five in, five out, all
+    distinct — WITHOUT ASSERTING WHERE THEY LAND. Where they land is the
+    grouping rule, which is a product decision and is untouched here.
+
+    ─────────── AND IT CATCHES THE ONE REAL COLLISION THAT WAS THERE ──────────
+
+    Two of the five arrive with different extensions. Until Gate 57
+    de-duplication counted whole names, so `IMG_….jpg` and `IMG_….jfif` were two
+    distinct strings, neither took a suffix, and two cards showed what a reader
+    sees as one name twice.
+  */
+  await page.evaluate(() => {
+    const w = window as unknown as Record<string, unknown>
+    w.__monarchExtractReceipt = async () => ({
+      merchant: null,
+      // UNREAD, DELIBERATELY. A printed date would file each card under its own
+      // month and this test would be asserting the grouping rule by accident.
+      capturedAt: null,
+      total: null,
+      tax: null,
+      currency: 'MYR',
+      lineItems: [],
+    })
+  })
+
+  const before = await page.locator('.mvp-receipt-card').count()
+
+  await page.locator('.mvp-receipts__add .mn-btn').click()
+  const dialog = page.locator('[role="dialog"][aria-modal="true"]')
+  await expect(dialog).toHaveAccessibleName('Add receipts')
+  const gallery = dialog.locator('.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")')
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), gallery.click()])
+
+  /*
+    THE SAME BYTES FIVE TIMES, UNDER TWO EXTENSIONS. `setFiles` accepts
+    in-memory descriptors, so the second container needs no second committed
+    fixture — and the bytes being identical is what makes the extension the only
+    variable.
+  */
+  const bytes = readFileSync(SECOND)
+  await chooser.setFiles([
+    { name: 'a.jpg', mimeType: 'image/jpeg', buffer: bytes },
+    { name: 'b.jfif', mimeType: 'image/jpeg', buffer: bytes },
+    { name: 'c.jpg', mimeType: 'image/jpeg', buffer: bytes },
+    { name: 'd.jpg', mimeType: 'image/jpeg', buffer: bytes },
+    { name: 'e.jpg', mimeType: 'image/jpeg', buffer: bytes },
+  ])
+  await expect(
+    dialog.locator('.mvp-add-receipts__tile:not(.mvp-add-receipts__tile--more)'),
+    'five files staged',
+  ).toHaveCount(5)
+
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(dialog, 'Save resolved and the modal closed').toHaveCount(0)
+
+  await expect(
+    page.locator('.mvp-receipt-card'),
+    'five in, five out — nothing collapsed and nothing was discarded',
+  ).toHaveCount(before + 5)
+
+  /*
+    DISTINCT BY WHAT THE CARD SHOWS, not by the ids underneath it. An id
+    collision and a name collision look identical to a user, and asserting the
+    visible name covers both.
+  */
+  const names = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.mvp-receipt-card .mvp-receipt-card__name')).map(
+      (el) => el.textContent?.trim() ?? '',
+    ),
+  )
+  expect(names.length, 'every card printed a name').toBe(before + 5)
+  expect(
+    new Set(names).size,
+    `every receipt is distinguishable on screen — got ${JSON.stringify(names)}`,
+  ).toBe(names.length)
+
+  /*
+    ─────────── AND DISTINCT BEFORE THE EXTENSION, WHICH IS THE STRONGER CLAIM ──
+
+    Two of the five arrive under different extensions. Until Gate 57
+    de-duplication counted WHOLE NAMES, so `IMG_….jpg` and `IMG_….jfif` were two
+    distinct strings and neither took an ordinal — the assertion above passes on
+    that, which is why it is not the one that proves the fix.
+
+    THEY ARE NOT THE SAME STRING, SO THIS IS A READABILITY INVARIANT RATHER THAN
+    A COLLISION: two cards carrying one timestamp, told apart only by three
+    characters of file extension in small type. The `_2`/`_3` ordinals exist
+    precisely so that one selection's cards are told apart by the NAME, and this
+    is that property stated.
+  */
+  const stems = names.map((n) => (n.lastIndexOf('.') > 0 ? n.slice(0, n.lastIndexOf('.')) : n))
+  expect(
+    new Set(stems).size,
+    `no two receipts in one selection share a stamp without an ordinal — got ${JSON.stringify(names)}`,
+  ).toBe(stems.length)
 })

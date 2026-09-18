@@ -326,3 +326,183 @@ test.describe('dates are read without guessing', () => {
     expect(parsed.capturedAt).toBe('2023-04-21T19:07:00')
   })
 })
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * GATE 57. Five shapes the blind test exposed, each stated as a rule about
+ * receipts in general and each given the smallest page that exercises it.
+ *
+ * EVERY FIGURE, NAME AND CODE BELOW IS INVENTED, like every other fixture in
+ * this file. The first draft of this block was written straight off the
+ * development corpus and carried its barcodes, its PLU codes, two product names
+ * and a dozen of its amounts; an audit of the diff against the OCR tokens of
+ * all thirty images caught them, and they were replaced. Only the SHAPES come
+ * from real paper — which is the whole of what these rules are about.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+test.describe('a rounded total is the amount paid', () => {
+  test('a rounded total outranks the total it rounds', () => {
+    /*
+      The till prints the bill, then the adjustment, then the rounded bill. All
+      three rows carry a rounding word, so the word cannot tell them apart —
+      only the figures can.
+    */
+    const parsed = parseReceipt(
+      page(
+        line(100, [['PILLOW', 20], at500('44.71')]),
+        line(130, [['Sub', 20], ['Total', 60], at500('44.71')]),
+        line(160, [['Total:', 20], at500('44.71')]),
+        line(190, [['Rnd', 20], ['Adj', 60], at500('0.05-')]),
+        line(220, [['Ttl', 20], ['Aft', 60], ['Rnd', 110], at500('44.66')]),
+      ),
+    )
+    expect(parsed.total, 'the ROUNDED figure is what the customer paid').toBe(44.66)
+  })
+
+  test('a rounding adjustment is never mistaken for the total', () => {
+    /*
+      The same vocabulary with no rounded total printed: the only rounding row
+      states the adjustment, and it is nowhere near the bill.
+    */
+    const parsed = parseReceipt(
+      page(
+        line(100, [['TOWEL', 20], at500('61.23')]),
+        line(130, [['Sub', 20], ['Total', 60], at500('61.23')]),
+        line(160, [['Rounding', 20], at500('0.03')]),
+        line(190, [['Total', 20], at500('61.26')]),
+      ),
+    )
+    expect(parsed.total).toBe(61.26)
+  })
+
+  test('a rounded total alone on the page is still the total', () => {
+    const parsed = parseReceipt(
+      page(
+        line(100, [['MUG', 20], at500('18.72')]),
+        line(130, [['Total', 20], ['After', 70], ['Rounding', 130], at500('18.75')]),
+      ),
+    )
+    expect(parsed.total).toBe(18.75)
+  })
+})
+
+test.describe('a total of zero is not a total', () => {
+  test('with no non-zero figure anywhere the total is unread, not zero', () => {
+    /*
+      THE ITEM'S PRICE IS UNREADABLE ON PURPOSE (a lost decimal point), so
+      nothing else on the page can stand in for the total. Before Gate 57 this
+      returned 0 and the card read "RM 0.00" as though the bill had been free.
+    */
+    const parsed = parseReceipt(
+      page(
+        line(100, [['NOTEBOOK', 20], at500('4416')]),
+        line(130, [['Total', 20], at500('0.00')]),
+      ),
+    )
+    expect(parsed.total, 'unread, not a bill of nothing').toBeNull()
+  })
+})
+
+test.describe('a total outranks a subtotal', () => {
+  test('a candidate equal to the printed subtotal loses to one that differs', () => {
+    /*
+      The engine lost the "Sub" from the second label, so BOTH rows read as
+      totals and the subtotal's figure prints first. The paper's own subtotal
+      line is what breaks the tie — not where on the page a row sits.
+    */
+    const parsed = parseReceipt(
+      page(
+        line(100, [['LAMP', 20], at500('5148')]),
+        line(130, [['Subtotal', 20], at500('51.48')]),
+        line(160, [['total', 20], at500('51.48')]),
+        line(190, [['Sales', 20], ['Tax', 80], at500('4.12')]),
+        line(220, [['TOTAL', 20], at500('55.60')]),
+      ),
+    )
+    expect(parsed.total).toBe(55.6)
+  })
+})
+
+test.describe('quantity and weight lines are not items', () => {
+  test('a quantity continuation line gives its amount to the name above it', () => {
+    /*
+      "AT" is two letters and already below the name bar; "FOR" is three, so
+      without the connective list this row reads as a product called "AT 1 FOR"
+      and takes its item's amount with it.
+    */
+    const parsed = items(
+      page(
+        line(100, [['BROWN', 20], ['RICE', 90], ['9911220033441', 220]]),
+        line(130, [['4', 20], ['AT', 50], ['1', 80], ['FOR', 100], ['0.55', 160], at500('2.20')]),
+        line(160, [['SWEET', 20], ['CORN', 90], ['9911220033442', 220]]),
+        line(190, [['2.40', 20], ['kg', 60], ['@', 90], ['1', 110], ['kg', 130], ['/1.75', 170], at500('4.35')]),
+        line(220, [['SUBTOTAL', 20], at500('6.55')]),
+      ),
+    )
+    expect(parsed, 'two items, and no product called "AT 1 FOR"').toEqual([
+      ['BROWN RICE', '4', 2.2],
+      ['SWEET CORN', '1', 4.35],
+    ])
+  })
+})
+
+test.describe('a name and its charge may be several rows apart', () => {
+  test('a barcode line and a promotion line between them do not break the pair', () => {
+    const parsed = items(
+      page(
+        line(100, [['Widget', 20], ['Starter', 100], ['Set', 190]]),
+        line(130, [['5512340067891', 20], ['K2', 200]]),
+        line(160, [['(1', 20], ['@', 50], ['31.98)', 80], ['PROMO', 180], ['50%', 250], ['(15.99)', 320]]),
+        line(190, [['(1', 20], ['@', 50], ['15.99)', 80], at500('15.99')]),
+        line(220, [['Subtotal', 20], at500('15.99')]),
+      ),
+    )
+    expect(parsed).toEqual([['Widget Starter Set', '1', 15.99]])
+  })
+
+  test('the search stops at the first row that could be an item itself', () => {
+    /*
+      A PRICED ROW ENDS THE WALK. Without that, the unpriced name three rows up
+      would be paired with a figure that already belongs to something else.
+    */
+    const parsed = items(
+      page(
+        line(100, [['Orphan', 20], ['Name', 110]]),
+        line(130, [['Kettle', 20], at500('18.00')]),
+        line(160, [['5512340067892', 20]]),
+        line(190, [['(1', 20], ['@', 50], ['9.00)', 80], at500('9.00')]),
+        line(220, [['Subtotal', 20], at500('27.00')]),
+      ),
+    )
+    expect(parsed, 'the orphan name is not reached past a priced row').toEqual([
+      ['Kettle', '1', 18],
+    ])
+  })
+})
+
+test.describe('a bracketed figure is not the charge', () => {
+  test('a list price in brackets loses to the charge printed beside it', () => {
+    /*
+      A "was" price prints to the RIGHT of what was actually charged, so the
+      rightmost-amount fallback takes it — and that fallback is what runs
+      whenever the engine returns no boxes, which is why this page has none.
+    */
+    const textLine = (text: string): OcrLine => ({
+      text,
+      words: text.split(' ').map((t) => ({ text: t, confidence: 80 })),
+    })
+    const parsed = items({
+      lines: [
+        textLine('Poster 4.99 (9.49)'),
+        textLine('Frame 11.50 (21.50)'),
+        textLine('Subtotal 16.49'),
+      ],
+      confidence: 80,
+    })
+    expect(parsed).toEqual([
+      ['Poster', '1', 4.99],
+      ['Frame', '1', 11.5],
+    ])
+  })
+})

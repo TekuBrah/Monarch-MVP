@@ -27,6 +27,7 @@ import { test, expect } from '@playwright/test'
 const REPO = path.resolve(import.meta.dirname, '..', '..')
 const SEEDED_DIR = path.join(REPO, 'public', 'media', 'receipts')
 const DEVICE_DIR = process.env.OCR_CORPUS_DEVICE_DIR ?? 'D:/Claude/_assets/receipts-device'
+const BLIND_DIR = process.env.OCR_CORPUS_BLIND_DIR ?? 'D:/Claude/_assets/receipts-blind'
 const OUT = process.env.OCR_CORPUS_OUT
 const ONLY = process.env.OCR_CORPUS_ONLY ? new Set(process.env.OCR_CORPUS_ONLY.split(',')) : null
 
@@ -38,17 +39,23 @@ function assertOutsideRepo(dir) {
   }
 }
 
+// `.jfif` IS THE JPEG CONTAINER'S OTHER EXTENSION, and one blind image carries it.
+// An extension filter that omits it silently drops a receipt from the corpus, which
+// is the same class of failure as a hand-written route list (Gate 54 hit this on a
+// source file's name). Filter on the formats the engine can decode, not on `.jpg`.
 function listJpegs(dir, set) {
   return fs
     .readdirSync(dir)
-    .filter((f) => /\.jpe?g$/i.test(f))
+    .filter((f) => /\.(jpe?g|jfif|png|webp)$/i.test(f))
     .sort()
     .map((f) => ({ set, stem: f.replace(/\.[^.]+$/, ''), file: path.join(dir, f) }))
 }
 
-const CORPUS = [...listJpegs(SEEDED_DIR, 'seeded'), ...listJpegs(DEVICE_DIR, 'device')].filter(
-  (e) => !ONLY || ONLY.has(e.stem),
-)
+const CORPUS = [
+  ...listJpegs(SEEDED_DIR, 'seeded'),
+  ...listJpegs(DEVICE_DIR, 'device'),
+  ...listJpegs(BLIND_DIR, 'blind'),
+].filter((e) => !ONLY || ONLY.has(e.stem))
 
 test('recognise and parse the development corpus', async ({ browser }) => {
   assertOutsideRepo(OUT)

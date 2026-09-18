@@ -29,6 +29,7 @@ import { test, expect } from '@playwright/test'
 const REPO = path.resolve(import.meta.dirname, '..', '..')
 const SEEDED_DIR = path.join(REPO, 'public', 'media', 'receipts')
 const DEVICE_DIR = process.env.OCR_CORPUS_DEVICE_DIR ?? 'D:/Claude/_assets/receipts-device'
+const BLIND_DIR = process.env.OCR_CORPUS_BLIND_DIR ?? 'D:/Claude/_assets/receipts-blind'
 const OUT = process.env.OCR_CORPUS_OUT
 const ONLY = process.env.OCR_CORPUS_ONLY ? new Set(process.env.OCR_CORPUS_ONLY.split(',')) : null
 
@@ -43,13 +44,15 @@ function assertOutsideRepo(dir) {
 const listJpegs = (dir, set) =>
   fs
     .readdirSync(dir)
-    .filter((f) => /\.jpe?g$/i.test(f))
+    .filter((f) => /\.(jpe?g|jfif|png|webp)$/i.test(f))
     .sort()
     .map((f) => ({ set, stem: f.replace(/\.[^.]+$/, ''), file: path.join(dir, f) }))
 
-const CORPUS = [...listJpegs(SEEDED_DIR, 'seeded'), ...listJpegs(DEVICE_DIR, 'device')].filter(
-  (e) => !ONLY || ONLY.has(e.stem),
-)
+const CORPUS = [
+  ...listJpegs(SEEDED_DIR, 'seeded'),
+  ...listJpegs(DEVICE_DIR, 'device'),
+  ...listJpegs(BLIND_DIR, 'blind'),
+].filter((e) => !ONLY || ONLY.has(e.stem))
 
 test('preprocessing sweep', async ({ browser }) => {
   test.setTimeout(6 * 60 * 60_000)

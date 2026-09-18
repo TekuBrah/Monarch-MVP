@@ -167,15 +167,32 @@ export function receiptDisplayName(file: File, now: Date): string {
  * IT IS APPLIED IN SELECTION ORDER AND THE FIRST KEEPS THE BARE NAME, so the
  * numbering matches the order the tiles were staged in rather than depending on
  * which extraction finished first.
+ *
+ * ──────── IT COUNTS STEMS, NOT WHOLE NAMES, AND THAT IS NOT A DETAIL ─────────
+ *
+ * Until Gate 57 the key was the whole string, extension included. Under
+ * Decision 7B every image in one selection is named from the same clock, so two
+ * pictures whose source files carried DIFFERENT extensions produced
+ * `IMG_20260918_021007.jpg` and `IMG_20260918_021007.jfif` — two distinct
+ * strings, neither given a suffix, and two cards a reader sees as one name
+ * twice. Measured with a five-image selection off a real gallery, where a
+ * `.jfif` and a `.jpg` collided exactly that way.
+ *
+ * THE EXTENSION IS NOT PART OF THE NAME A USER IS TELLING APART. It records
+ * which container the bytes arrived in — `fileTypeLabel` still reads it off the
+ * end — so counting it as identity makes the display name unique in a sense
+ * nobody can see. Keying on the stem is what makes the numbering mean what the
+ * card shows.
  */
 export function disambiguateDisplayNames(names: readonly string[]): string[] {
   const seen = new Map<string, number>()
   return names.map((name) => {
-    const count = (seen.get(name) ?? 0) + 1
-    seen.set(name, count)
-    if (count === 1) return name
     const dot = name.lastIndexOf('.')
-    return dot > 0 ? `${name.slice(0, dot)}_${count}${name.slice(dot)}` : `${name}_${count}`
+    const stem = dot > 0 ? name.slice(0, dot) : name
+    const count = (seen.get(stem) ?? 0) + 1
+    seen.set(stem, count)
+    if (count === 1) return name
+    return dot > 0 ? `${stem}_${count}${name.slice(dot)}` : `${name}_${count}`
   })
 }
 

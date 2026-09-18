@@ -9199,6 +9199,316 @@ cost of time and of junk elsewhere — the obvious next lever); re-measuring Gat
 50-B's confidence finding at the new size; changing `rasterise.ts`'s 2000 target;
 the DS repo and the pin; branch deletion; `npm audit fix`.
 
+## The blind test — five general parsing shapes, and a defect that was not one (Gate 57)
+
+No DS re-pin — **v2.3.0 throughout**. Decision 9 still in force: on-device, free,
+`tesseract.js` 7.0.0, no new dependency. **|WALK| stays 40, baselines 160 -> 160 (0 changed,
+0 added, 0 deleted), tests 435 -> 445, spec files 17.** `lint:tokens` scans **62** files with
+the same **3** exemptions — no file entered `src/`.
+
+Teku ran the Gate 56 pipeline on his phone against five receipts no session and no review
+thread had seen. **The blind set is development data from this gate on**; a future blind test
+needs paper nobody here has touched.
+
+### THE REPORTED BULK DEFECT IS NOT A DATA LOSS, AND THE OBVIOUS HYPOTHESIS IS WRONG
+
+"A bulk add of five receipts produced only two entries in the Receipts list."
+
+The natural reading is that three records were lost, and the natural suspect is Decision 7B:
+every image in one selection is named from ONE clock reading, so five images share one stamp,
+and something downstream keyed on that name would collapse them.
+
+**MEASURED THROUGH THE REAL CLICK PATH WITH THE REAL ENGINE, NOTHING COLLIDES AND NOTHING IS
+LOST.** Five gallery images staged in one selection produced **fifteen cards from ten seeded
+plus five new**, zero page errors. Every link in the chain was checked rather than argued:
+the id is a module counter (`receipt-capture-N`), `addReceipt` appends through the functional
+updater, every card is keyed by `receipt.id`, and `disambiguateDisplayNames` already assigned
+`_2`/`_3`/`_4`.
+
+**WHAT THE USER SAW IS THE MONTH GROUPING.** `groupReceiptsByMonth` files a receipt under
+`capturedAt`, which is the date PRINTED ON THE PAPER. Three of the five printed dates the
+engine read correctly — and they are years back — so those three sorted BELOW all ten seeded
+receipts. Measured at 375x812, document offsets of the three month headings: **2124, 2228 and
+2332**, against an 812-tall viewport. The two whose printed date the engine could not read
+fell back to the moment of capture and appeared at the top, which is where all five were
+expected.
+
+**SO THE COUNT THE USER REPORTED IS EXACTLY THE COUNT THAT IS VISIBLE WITHOUT SCROLLING PAST
+THE WHOLE SEEDED LIBRARY.** Two.
+
+**NOTHING WAS CHANGED ABOUT THE GROUPING.** Filing a receipt under its printed date is what a
+receipt archive is for, and changing it is a product decision with a visible consequence on
+every screen that groups — it is Teku's, and it is recorded at the end of this section rather
+than taken here.
+
+#### A NEAR-collision was there, and calling it a collision would have been wrong
+
+`disambiguateDisplayNames` counted WHOLE NAMES, extension included. Under Decision 7B every
+image in one selection is named from the same clock, so two pictures whose source files
+carried different extensions produced names differing only past the dot — and neither took an
+ordinal. Measured in the five-image selection, where a `.jfif` and a `.jpg` did exactly that.
+
+**THEY ARE NOT THE SAME STRING, AND THE FIRST VERSION OF THIS GATE'S TEST COULD NOT TELL.**
+A distinctness assertion over the rendered names PASSES on the unfixed code — the mutation
+proof survived, which is what exposed it. So this is a READABILITY invariant, not a
+collision: two cards carrying one timestamp, told apart only by three characters of file
+extension in small type. The `_2`/`_3` ordinals exist precisely so that one selection's cards
+are told apart by the name, and the test now asserts that no two share a STEM.
+
+**A MUTATION THAT SURVIVES IS THE ONLY THING THAT CATCHES AN OVERSTATED CLAIM.** The fix was
+written against a defect described as a collision; the proof said otherwise, and the
+description changed rather than the assertion being stretched to fit.
+
+`disambiguateDisplayNames` now counts stems. The extension records which container the bytes
+arrived in — `fileTypeLabel` still reads it off the end — so counting it as identity made the
+display name unique in a sense nobody can see.
+
+**`filename` AND `displayName` ARE STILL TWO FACTS, AND THE 7B FORMAT IS UNCHANGED**:
+`IMG_YYYYMMDD_HHMMSS.<ext>`, with the ordinal before the extension. Extraction is still
+sequential, one worker per call, and `extractCapture` still cannot reject.
+
+### The five parsing rules, each as a sentence about receipts in general
+
+Every rule below was written against a SHAPE, not a receipt. The fixtures that cover them
+carry no figure, name or code from any corpus image — see the scrub note at the end.
+
+| rule | the general sentence | rescued | risked |
+|---|---|---|---|
+| **1** | *Where a till prints the bill and then the bill after rounding, the rounded figure is what the customer paid.* | one blind receipt's total | a rounding row whose figure the engine loses |
+| **2** | *A total of zero is not a total; with no non-zero figure anywhere the receipt is reported without one.* | nothing on this corpus — see below | a genuinely free bill |
+| **3** | *A total candidate equal to the printed subtotal is the subtotal restated, and loses to one that differs.* | nothing on this corpus — a guard | nothing measured |
+| **4** | *A row whose only words are quantity connectives is a continuation of the item above it, never a purchase.* | two items and two junk rows | a product named only with connectives |
+| **5** | *A name and its charge may be several rows apart, and the rows between are not items.* | four items on one receipt | a heading paired with a distant figure |
+| **6** | *A long run of digits leading a row that names nothing is an article number, never an item.* | used as rule 5's skip test | nothing measured |
+| **7** | *A figure the paper printed in brackets is a list price or a deduction, never the charge.* | the four items of rule 5 | nothing measured |
+
+**RULE 1'S DISCRIMINATOR IS ARITHMETIC, NOT VOCABULARY, AND THAT IS THE ONE TO UNDERSTAND.**
+Three different rows carry a rounding word: the adjustment, the rounded total, and — on one
+device receipt already in the corpus — a zero "Total Rounding" trap. **So the word cannot tell
+them apart.** The figures can: an adjustment is a few cents, a rounded total is the bill. A
+rounding row is therefore the rounded total when its figure is **nearer another total on the
+same receipt than it is to zero**, and the adjustment otherwise. There is no threshold in
+that, nothing to tune, and no assumption about a currency's rounding increment. With nothing
+to compare against, a rounding row is the total only if its label also says total.
+
+`ROUNDING_WORDS` gained `rnd` and `rounded`, both printed abbreviations of the same word;
+`SUMMARY_ANYWHERE` gained them too, because a rounding row is never a purchase.
+
+**IT INTERACTS WITH THE CORROBORATION LOGIC BY PRE-EMPTING IT.** A rounded total is returned
+before the candidate ranking runs at all, because corroboration by items-plus-tax-plus-rounding
+would pick the PRE-rounding figure — that arithmetic is exactly what rounding adjusts away.
+The adjustment still feeds `rounding` for the subtotal fallback.
+
+**RULE 2 RESCUED NOTHING, AND THE REASON MATTERS.** One blind receipt displayed `RM 0.00`, and
+the investigation expected a zero candidate being returned. Measured, the parser already
+returned `null` there and the **display fallback** turned it into 0 (`capturedToReceipt`,
+"total 0, never a guess"). The zero-candidate path was real but unreached on this corpus.
+Rule 2 removes it anyway: a zero says the customer paid nothing, it is a figure auto-match
+could in principle link on, and on screen it is indistinguishable from a real reading.
+
+**RULE 4 EXISTS BECAUSE ONE CONNECTIVE IS THREE LETTERS LONG.** Every other connective a till
+prints is one or two characters and so is already below `hasNameWord`'s three-letter bar.
+`FOR` is not, so a quantity line read as a product called "AT 1 FOR" and took its item's
+amount with it.
+
+**RULE 5 RESOLVES UPWARD AND IS BOUNDED AT THREE.** Upward because the charge completes an
+item the paper has already named — measured on a second receipt, a quantity line carrying its
+line amount sits BELOW the name it belongs to, not above it. Three because that is what the
+deepest observed layout needs (a barcode line and a promotion line between the name and its
+charge) and nothing more. **Only a row that cannot itself be an item may be stepped over** — a
+discount, an article number, or a row with neither a figure nor a word — so a name row is
+never passed in favour of a more distant one.
+
+### What it measures — the bar was NOT met, and the reason is reading
+
+`--reparse` over the cached engine output of all 30 images, which is the designed instrument:
+a parser change cannot alter what the engine read, so the engine is not re-run.
+
+| | Gate 56 | Gate 57 |
+|---|---|---|
+| **development items (20 receipts, 97 printed)** | 79 | **79** |
+| development totals | 18/20 | **18/20** |
+| development junk / wrong-price | 6 / 2 | **6 / 2** |
+| development seeded merchants | 10/10 | **10/10** |
+| **blind-gallery items (5 receipts, 39 printed)** | 20 | **26** (66.7%) |
+| blind-gallery totals | 2/5 | **3/5** |
+| blind-camera items | 0/39 | **0/39** |
+
+**NO DEVELOPMENT RECEIPT MOVED AT ALL** — a per-receipt diff of the before and after scores
+reports exactly three changed rows, all blind, all improvements: `barnes_noble` 0 -> 4 items,
+`walmart` 14 -> 16 items with its two junk rows gone, `sushiking` total N -> Y.
+
+**THE BAR WAS 30/39 ITEMS AND 4/5 TOTALS. IT IS NOT REACHABLE BY PARSING, AND THE
+ATTRIBUTION SAYS SO MECHANICALLY.** Of the 13 blind-gallery items still missing, **every one
+is a reading failure**: three prices that are not on the page in any form, four figures the
+engine rendered without a decimal point or with a digit too many, one name whose first word
+was replaced, and rows the engine never segmented. Of the two missing totals, one is printed
+as an unreadable token and the other's rounded figure was read as `0.00`.
+
+The bar assumed most of the twenty missing items were parsing failures. **Measured, six were.**
+All six are recovered.
+
+### Camera against gallery — a photograph reads far worse, and NOT because it is small
+
+The blind set holds the same five receipts twice.
+
+| | gallery | camera |
+|---|---|---|
+| items | **26/39** | **0/39** |
+| totals | 3/5 | 0/5 |
+| tax | 1/5 | 0/5 |
+| engine page confidence | 55, 56, 64, 75, 77 | **31, 33, 34, 35, 43** |
+
+**THE OBVIOUS EXPLANATION IS REFUTED BY MEASUREMENT.** The hypothesis was that the receipt is
+a small subject in a 4000x2252 frame, so scaling to a 1600px long edge leaves the text tiny.
+It does not: median word-box height in the normalised frame is **38-70px on the photographs**
+against **17-43px on the gallery images**, and the photographed text extent fills the frame
+(~900x1550 of a 900x1600 page). **The photographs' text is BIGGER and still unreadable.**
+
+So the gap is capture QUALITY — focus, motion blur, glare, and paper that is not flat — and
+**it is not something the sizing stage can reach.** Do not re-tune `OCR_LONG_EDGE` for it.
+
+**THE APP'S OWN CAPTURE PATH IS IMPLICATED ONLY IN WHAT IT DOES NOT DO.** It hands the picker
+a hint and accepts whatever comes back. The lever this measurement argues for is the one Gate
+50-B already identified and did not build: page-level confidence correlates with coverage
+(r = 0.88 excluding one shape mismatch), and on this corpus every camera capture scores 31-43
+while every other image scores 44-89 — a gap of one point at the boundary, so a threshold
+separates them but only just. That is the evidence for a "this photograph is too poor to read
+— take another" affordance, and it is still a screen change and still not built.
+
+**AND ONE PREPROCESSING CONFIGURATION DOES MOVE THEM, WHICH IS THE OTHER LEVER.** Measured in
+the voting sweep below: **greyscale plus high-quality smoothing reads 11 of the 39 camera
+items and one camera total, where the shipped pipeline reads none.** It is not shippable as
+the default — Gate 56 rejected it because it costs a development total and makes three
+receipts worse, and it costs four blind-gallery items here — but it is direct evidence that
+the photograph gap is reachable by preprocessing rather than by sizing. **The shape that
+would follow is a SECOND pass, taken only when the first reads poorly**, which is a different
+proposal from voting (below) because it is conditional and therefore costs nothing on a
+receipt that already read. Not built, not measured as such.
+
+### Per-field voting — measured, and NOT shipped
+
+Three configurations, chosen from Gate 56's own sweep table as the two that read DIFFERENTLY
+rather than better: the shipped 1600px pipeline (A), page segmentation 11 (B, recorded there
+as reading more with double the junk), and 1600 + high smoothing + greyscale (C, recorded as
+one more item but one fewer total).
+
+**THE VOTING RULE, EXACTLY.** An item is keyed by its price in cents and the first real word
+of its name, folded; a key is accepted at the MEDIAN of its three per-run multiplicities,
+which is majority generalised to a receipt that lists the same line twice. Total, date, tax
+and merchant take the value with the most votes **among the runs that read one** — a null is
+an absence of evidence, not a vote for "no total". A tie, and a three-way disagreement, fall
+to the control.
+
+| | A (shipped) | B (psm 11) | C (grey) | **voted** |
+|---|---|---|---|---|
+| development items (of 97) | 79 | 83 | 80 | **79** |
+| development totals | 18/20 | 17/20 | 17/20 | **18/20** |
+| blind-gallery items (of 39) | **26** | 10 | 22 | **23** |
+| blind-gallery totals | 3/5 | 2/5 | 3/5 | **4/5** |
+| blind-camera items (of 39) | 0 | 2 | **11** | 1 |
+| combined junk | 9 | 19 | 17 | **3** |
+| ms mean / max per receipt | 2433 / 4637 | 2263 / 3694 | 2332 / 4368 | **7028 / 11381** |
+
+**IT FAILS THREE OF THE SHIP CONDITIONS INDEPENDENTLY.** Blind-gallery items were required to
+rise by at least 3 and **fell by 3**. Max time per receipt was required to stay under 6
+seconds and is **11.4**, with a mean of 7.0 against a bar of 4. And two development receipts
+read FEWER items under the vote than under the control (`marks_spensers` 5 -> 4,
+`parksonselite` 2 -> 1), even though the total is unchanged at 79.
+
+**IT DOES MEET THE TOTALS HALF OF THE BAR, 4/5, AND THAT IS NOT ENOUGH.** A vote is a filter:
+it can only choose among readings the runs produced, and it discards an item only one run
+read. On this corpus that is exactly the wrong trade, because coverage is what is short.
+
+**TWO RESULTS ARE WORTH KEEPING FOR A LATER GATE.** Voting cuts junk from **9 to 3** —
+agreement across differently-preprocessed runs is a good filter for rows that are not
+purchases and a poor one for recovering rows the engine did not read. And configuration C
+alone reads **11 camera items and one camera total where the shipped pipeline reads none**,
+which is the only measurement in this gate that moves a photographed receipt at all.
+
+### The fixtures were written off the corpus, and the audit caught it
+
+**THE FIRST DRAFT OF THIS GATE'S NINE NEW FIXTURES CARRIED CORPUS CONTENT** — two barcodes,
+two PLU codes, two product names and about a dozen amounts, plus nine amounts quoted in the
+parser's own comments. Every one was replaced with an invented value of the same shape. This
+is the Gate 55 lesson recurring in the same place, and the instrument that caught it is worth
+keeping: tokenise the diff's added lines and the OCR text of every corpus image the same way,
+treating `\d+\.\d+` as ONE token, and intersect.
+
+**A FIRST RUN OF THAT AUDIT MISSED EVERY DECIMAL FIGURE**, because it split on non-alphanumerics
+and `12.49` became `12` and `49`, both below the length floor. A tokeniser that breaks the
+thing you are looking for reports a clean bill of health.
+
+**THE LINE BETWEEN VOCABULARY AND CONTENT, stated because the audit needs one.** Generic till
+labels — "Total", "Subtotal", "Rounding", "Ttl Aft Rnd" — are VOCABULARY: the parser's own
+lists must contain them, and they identify nothing. Product names, barcodes, article numbers,
+amounts, dates, staff and member names, phone numbers and card fragments are CONTENT, and none
+may be committed. **A corpus file's STEM is the exception, and a deliberate one**: `walmart` or
+`barnes_noble` names which image a measurement came from, the same way `rosyam` and `ifruits`
+have since Gate 54 — it is how a result stays attributable, and it reveals nothing the image
+alone would not. Quote the stem, never what the image says.
+
+The prescribed grep over the tracked tree returns only the two planning-document lines, as
+predicted.
+
+### What it cost, and what proves it
+
+| | |
+|---|---|
+| tests | 435 -> **445** (bulk-save 2 -> 3, receipt-layout 19 -> 28) |
+| baselines | **160, all byte-identical**; the snapshot digest is unchanged at `0e82ba22…c5fb87f` |
+| \|WALK\| / `OVERLAY_STATES` | **40 / 19**, unchanged |
+| `lint:tokens` | **62 files, 3 exemptions** — unchanged, no file entered `src/` |
+| OCR chunk | `parseReceipt-*.js` **12,392 -> 13,481 bytes** |
+| entry chunk | **5,799,170 bytes, unchanged to the byte** — the lazy boundary holds, as it did at Gate 50-B |
+
+**THREE CLEAN RUNS OF THE FINAL TREE: 445 passed / 0 failed each**, 15.2 / 13.7 / 14.1 min,
+with the full log of every run kept outside the repo and the snapshot digest `0e82ba22…c5fb87f`
+after each — the Phase 0 command, unchanged from Gate 56.
+
+**TEN MUTATION PROOFS, ALL ON THE FINAL TREE**, each mutated to exit 1, restored, the file's
+sha256 confirmed, and the same test re-run to exit 0. Nine on the parser — rule 1 has three
+(the rounded total, the adjustment, the no-reference case), rule 5 two (the bound and the stop
+condition), rules 2, 3, 4 and 7 one each — and one for the Phase 1 fix. **Rule 6 has NO
+dedicated proof**: it is exercised only as rule 5's skip predicate, so rule 5's bound proof
+covers the path through it but nothing isolates it. Stated rather than counted.
+
+**THE DRIVER'S FIRST RUN WAS INVALID AND WAS DISCARDED.** It passed `-g <pattern>` through a
+shell without quoting, so Playwright read the pattern's later words as FILE filters and ran
+most of the suite for each mutation — minutes apiece, and a "2 failed / 48 passed" line that
+says nothing about the test under proof. **That is the Gate 55 lesson recurring verbatim**:
+quote every argument when spawning Playwright through a shell. A second latent fault in the
+same driver — anchors written with `\n` against a CRLF working tree — silently SKIPPED a
+mutation rather than failing, which is why the driver now reports an unmatched anchor as
+"NO PROOF" instead of moving on.
+
+### The measurement instrument, and why `--reparse` is the right one
+
+A parser change cannot alter what the engine read, so the corpus is scored by re-running the
+CURRENT parser over cached engine output rather than re-running the engine. **Confirmed
+rather than assumed at this gate**: a fresh full engine run of the final tree reproduces the
+re-parse figures exactly — development 79/97 items and 18/20 totals, blind gallery 26/39 and
+3/5, the same per-receipt rows throughout.
+
+### Open for Teku — the grouping decision this gate deliberately did not take
+
+A receipt added today is filed under the date printed on the paper. For a receipt ARCHIVE that
+is right; for the moment just after a bulk add it means the user's new captures scatter, three
+of five landing below every seeded receipt and past the fold. Nothing is lost and nothing is
+broken, and the app currently gives no sign that anything arrived. **Recorded, not acted on.**
+
+### Deliberately not in scope
+
+Changing the month grouping or adding an "added on" field; a confidence-based capture-quality
+affordance; re-tuning `OCR_LONG_EDGE`, which the camera measurement shows is not the lever;
+running several recognitions and voting, measured above and declined; a rule that strips a
+trailing digit from a three-decimal figure (it would newly admit genuine three-decimal unit
+prices as money, and it is fitted to two lines); re-transcribing the six seeded receipts whose
+subtotals do not reconcile; `npm audit fix`; the DS repo and the pin; branch deletion; G6,
+G13, G14, G17's prop half, G19-G23, G28-G33 — all still registered, still deferred, and **no
+MVP-local override was added for any**; the G33 workaround class, untouched and still carrying
+its removal condition; and the three AA shortfalls on the net-worth card ruled on at Gate 31.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

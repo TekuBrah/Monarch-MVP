@@ -121,7 +121,7 @@ export interface ParsedReceipt {
  * read that row as a purchase.
  */
 const SUMMARY_ANYWHERE: readonly string[] = [
-  'total', 'subtotal', 'jumlah', 'rounding', 'pembundaran',
+  'total', 'subtotal', 'jumlah', 'rounding', 'rounded', 'rnd', 'pembundaran',
   'sst', 'gst', 'vat', 'cukai', 'discount', 'diskaun', 'saving', 'savings',
   'baki',
 ]
@@ -206,8 +206,37 @@ const NOT_THE_TAX: readonly string[] = [
 /** SUBTOTAL labels, for the no-grand-total fallback. */
 const SUBTOTAL_PHRASES: readonly string[] = ['subtotal', 'sub total', 'jumlah kecil']
 
-/** ROUNDING labels, for the same fallback. */
-const ROUNDING_WORDS: readonly string[] = ['rounding', 'pembundaran', 'round']
+/**
+ * ROUNDING labels. A row carrying one states EITHER the rounding adjustment or
+ * the total after it, and `readTotal` tells the two apart by their figures
+ * rather than by their wording — see the rounded-total rule there.
+ *
+ * `rnd` AND `rounded` ARRIVED AT GATE 57, both as printed abbreviations of the
+ * same word. A till that prints `Ttl Aft Rnd` is stating a rounded total in
+ * four fewer characters; without the abbreviation the row is invisible to this
+ * rule and the pre-rounding figure a line above it wins.
+ */
+const ROUNDING_WORDS: readonly string[] = ['rounding', 'rounded', 'rnd', 'pembundaran', 'round']
+
+/**
+ * QUANTITY CONNECTIVES: the words a till prints when it spells out how a line
+ * amount was arrived at — "6 AT 1 FOR 0.85", "2.40 kg @ 1 kg /1.75", "3 x
+ * 2.50 EACH". A row built only from these, numbers and figures is a
+ * CONTINUATION of the item above it, never a purchase of its own.
+ *
+ * `for` AND `at` ARE WHY THIS LIST EXISTS. Every other connective a till prints
+ * is one or two characters and so is already below `hasNameWord`'s
+ * three-letter bar; `AT` is two, but `FOR` is three, so a quantity line reads
+ * as a product called "AT 1 FOR" and takes its item's amount with it. Measured
+ * on the blind set: two items lost and two junk rows produced, on one receipt.
+ *
+ * UNITS BELONG HERE TOO, because a weight line is the same shape with a unit in
+ * place of the connective, and `each`/`per` are the same idea spelled out.
+ */
+const QTY_CONNECTIVES: readonly string[] = [
+  'at', 'for', 'each', 'ea', 'per', 'x', 'lb', 'lbs', 'kg', 'kgs', 'g', 'gm',
+  'gms', 'ml', 'l', 'ltr', 'oz', 'pc', 'pcs', 'pkt', 'unit', 'units',
+]
 
 /**
  * ADDRESS-LIKE words. A row carrying one cannot be the name half of a two-row
@@ -330,7 +359,25 @@ interface Token {
   box: OcrBox | null
   money: Money | null
   unitQty: { unit: Money; qty: string } | null
+  /**
+   * The paper printed this figure inside brackets. `readMoney` strips them, so
+   * without this flag `(31.98)` and `31.98` are indistinguishable downstream —
+   * and they are not the same claim. See `BRACKETED`.
+   */
+  bracketed: boolean
 }
+
+/**
+ * A FIGURE THE PAPER PRINTED IN BRACKETS IS NOT THE AMOUNT CHARGED.
+ *
+ * It is a list price the line was discounted from, or a deduction stated
+ * positively — both conventions print inside brackets and both sit on the same
+ * row as the real charge. "(1 @ 31.98) 31.98" charges 31.98 ONCE.
+ *
+ * An opening bracket alone is enough, because the engine loses the closing one
+ * as often as it keeps it.
+ */
+const BRACKETED = /^[([{]/
 
 interface Row {
   tokens: Token[]
@@ -345,6 +392,7 @@ function toToken(word: OcrWord): Token {
     box: word.bbox ?? null,
     money: readMoney(word.text),
     unitQty: readUnitQty(word.text),
+    bracketed: BRACKETED.test(word.text.trim()),
   }
 }
 
@@ -498,9 +546,17 @@ type Column = ReturnType<typeof findPriceColumn>
  * edge within tolerance. Without a column, the rightmost amount on the row —
  * the rightmost AMOUNT, not the last token, so a trailing tax code, a stray
  * quantity or scan noise after the figure no longer hides it.
+ *
+ * A BRACKETED FIGURE IS SET ASIDE WHERE THE ROW ALSO PRINTS AN UNBRACKETED ONE
+ * (Gate 57). The column usually settles this on its own, because a list price
+ * prints to the LEFT of the charge — but only where the engine gave boxes and
+ * the column was found. Doing it here means "(1 @ 31.98) 31.98" charges 31.98
+ * on every path, including the fallback that takes the rightmost amount.
  */
 function priceTokenOf(row: Row, column: Column): Token | null {
-  const amounts = row.tokens.filter((t) => t.money)
+  const all = row.tokens.filter((t) => t.money)
+  const plain = all.filter((t) => !t.bracketed)
+  const amounts = plain.length > 0 ? plain : all
   if (amounts.length === 0) return null
   if (!column || amounts.some((t) => !t.box)) return amounts[amounts.length - 1]
   let best: Token | null = null
@@ -587,6 +643,40 @@ function looksLikeAddress(row: Row): boolean {
   // A postcode: a standalone five-digit number beside words.
   if (row.tokens.some((t) => /^[0-9]{5},?$/.test(t.text)) && row.tokens.some((t) => isWord(t.text))) return true
   return false
+}
+
+/**
+ * A QUANTITY OR WEIGHT CONTINUATION ROW: "6 AT 1 FOR 0.85", "2.40 kg @ 1 kg
+ * /1.75", "2 x 3.40". It says how the line above was priced, and it often
+ * carries that line's AMOUNT — so it is not an item, and its figure is not its
+ * own.
+ *
+ * THE TEST IS THAT NOTHING ON THE ROW NAMES ANYTHING: every token is a number,
+ * a figure, a quantity connective, a unit, or a scrap of one or two characters.
+ * One product word anywhere and the row is an ordinary item again, which is
+ * what keeps a product called "Lane Cake 12.40" out of this.
+ */
+function isContinuationRow(row: Row): boolean {
+  const words = row.tokens.filter((t) => /[A-Za-z]{2}/.test(t.text) && !/[0-9]/.test(t.text))
+  if (words.length === 0) return false
+  return words.every((t) => QTY_CONNECTIVES.includes(t.text.toLowerCase().replace(/[^a-z]/g, '')))
+}
+
+/**
+ * AN ARTICLE-NUMBER OR BARCODE ROW: a long run of digits leading a row that
+ * names nothing. Some tills print it under the product name, and the line
+ * amount often prints on it — which is why it is not simply discarded. What it
+ * can never be is an item in its own right, and it is a row the search for a
+ * name may step over.
+ *
+ * SIX DIGITS, because that is longer than any printed quantity, date part,
+ * time, price or percentage, and shorter than every barcode and article number
+ * a till prints.
+ */
+function isArticleRow(row: Row): boolean {
+  const first = row.tokens[0]
+  if (!first || !/^[0-9]{6,}/.test(first.text)) return false
+  return !hasNameWord(row.tokens)
 }
 
 /** A legal-entity suffix marks the letterhead. */
@@ -738,7 +828,10 @@ function readLineItems(rows: Row[], kinds: Kind[], column: Column) {
     if (!price) continue
     const left = row.tokens.slice(0, row.tokens.indexOf(price))
 
-    if (hasNameWord(left)) {
+    // A CONTINUATION ROW NEVER NAMES ITS OWN ITEM, however word-like its
+    // connectives look. It goes down the two-row path with the rows that carry
+    // no name at all, so its amount reaches the item it continues.
+    if (hasNameWord(left) && !isContinuationRow(row)) {
       const name = nameOf(left)
       if (name.length === 0) continue
       items.push({ name, quantity: quantityOf(row.tokens, price), price: price.money!.value })
@@ -746,26 +839,59 @@ function readLineItems(rows: Row[], kinds: Kind[], column: Column) {
       continue
     }
 
-    const a = i - 1
-    if (a < start || usedAsName.has(a) || kinds[a] !== 'candidate') continue
-    const above = rows[a]
-    if (priceTokenOf(above, column) !== null) continue
-    if (!hasNameWord(above.tokens) || looksLikeAddress(above)) continue
-    if (column) {
-      const occupied = above.tokens.some(
-        (t) =>
-          t.box &&
-          /[0-9]/.test(t.text) &&
-          !/[A-Za-z]{2}/.test(t.text) &&
-          Math.abs(t.box.x1 - column.x1) <= column.tolerance,
-      )
-      if (occupied) continue
+    /*
+      THE NAME MAY BE SEVERAL ROWS UP, AND THE ROWS BETWEEN ARE NOT ITEMS.
+
+      A till that prints the charge on its own line puts the barcode and the
+      promotion in between: name / barcode / "(1 @ 31.98) PROMO 50% (15.99)" /
+      "(1 @ 15.99) 15.99". Pairing only with the row DIRECTLY above finds a
+      promotion row there and gives up, losing every item on such a receipt —
+      measured, four of four.
+
+      THE WALK IS UPWARD AND IT IS BOUNDED AT THREE, which is what that layout
+      needs and nothing more. It is upward because the amount is what completes
+      an item the paper has already named: measured on a second receipt, a
+      quantity line carrying its line amount sits BELOW the name it belongs to,
+      not above it. A deeper bound would start pairing a figure with a heading
+      or an address several rows away, which is the Gate 54 overfit this
+      function's guards exist to prevent.
+
+      ONLY A ROW THAT CANNOT ITSELF BE AN ITEM MAY BE STEPPED OVER — a discount,
+      an article number, or a row with neither a figure nor a word. Anything
+      else ends the walk, so a name row is never passed in favour of a more
+      distant one.
+    */
+    const SEARCH = 3
+    for (let step = 1; step <= SEARCH; step += 1) {
+      const a = i - step
+      if (a < start || usedAsName.has(a)) break
+      const above = rows[a]
+      const skippable =
+        kinds[a] === 'discount' ||
+        isArticleRow(above) ||
+        (!hasNameWord(above.tokens) && !above.tokens.some((t) => t.money))
+      if (kinds[a] !== 'candidate' && !skippable) break
+      if (kinds[a] === 'candidate' && priceTokenOf(above, column) === null && hasNameWord(above.tokens)) {
+        if (looksLikeAddress(above) || isContinuationRow(above)) break
+        if (column) {
+          const occupied = above.tokens.some(
+            (t) =>
+              t.box &&
+              /[0-9]/.test(t.text) &&
+              !/[A-Za-z]{2}/.test(t.text) &&
+              Math.abs(t.box.x1 - column.x1) <= column.tolerance,
+          )
+          if (occupied) break
+        }
+        const name = nameOf(above.tokens)
+        if (name.length === 0) break
+        usedAsName.add(a)
+        items.push({ name, quantity: quantityOf(row.tokens, price), price: price.money!.value })
+        confidence.push(minConfidence([...above.tokens, price]))
+        break
+      }
+      if (!skippable) break
     }
-    const name = nameOf(above.tokens)
-    if (name.length === 0) continue
-    usedAsName.add(a)
-    items.push({ name, quantity: quantityOf(row.tokens, price), price: price.money!.value })
-    confidence.push(minConfidence([...above.tokens, price]))
   }
   return { items, confidence }
 }
@@ -823,9 +949,9 @@ const cents = (n: number) => Math.round(n * 100)
  */
 function readTotal(rows: Row[], items: ReceiptLineItem[], tax: Field): Field {
   const candidates: { value: number; confidence: number }[] = []
+  const roundingRows: { value: number; confidence: number; totalWord: boolean }[] = []
   const cardTenders = new Set<number>()
   let subtotal: number | null = null
-  let rounding = 0
 
   for (const row of rows) {
     const fig = lastFigure(row)
@@ -836,7 +962,20 @@ function readTotal(rows: Row[], items: ReceiptLineItem[], tax: Field): Field {
 
     if (hasAny(whole, CARD_TENDER) && CARD_TENDER.includes(firstWord(row))) cardTenders.add(cents(value))
     if (subtotal === null && SUBTOTAL_PHRASES.some((p) => whole.includes(` ${p} `))) subtotal = value
-    if (hasAny(label, ROUNDING_WORDS)) rounding = value
+
+    /*
+      A ROUNDING ROW IS SET ASIDE AND JUDGED AFTER THE WHOLE RECEIPT IS READ.
+      It cannot be classified here, because what it is depends on the other
+      figures on the paper — see the resolution below.
+    */
+    if (hasAny(label, ROUNDING_WORDS)) {
+      roundingRows.push({
+        value,
+        confidence: token.confidence,
+        totalWord: hasAny(label, GRAND_TOTAL) || / total payment /.test(label),
+      })
+      continue
+    }
 
     if (!hasAny(label, GRAND_TOTAL) && !/ total payment /.test(label)) continue
     if (hasAny(label, NOT_THE_TOTAL)) continue
@@ -844,19 +983,73 @@ function readTotal(rows: Row[], items: ReceiptLineItem[], tax: Field): Field {
     candidates.push({ value, confidence: token.confidence })
   }
 
+  /*
+    ─── A ROUNDED TOTAL OUTRANKS THE TOTAL IT ROUNDS ────────────────────────
+
+    Where a till rounds the bill it prints both figures, and the ROUNDED one is
+    what the customer pays. Both rows carry a rounding word, and so does the row
+    that states the adjustment alone, so the word cannot tell them apart:
+    "Rounding Adj 0.05-", "Total After Rounding 18.75" and "Ttl Aft Rnd 44.66"
+    are the same vocabulary saying three different things.
+
+    THEIR FIGURES CAN. An adjustment is a few cents; a rounded total is the
+    bill. So a rounding row is the rounded total when its figure is NEARER
+    another total on the same receipt than it is to zero, and the adjustment
+    otherwise. That is a comparison between figures the paper itself prints —
+    there is no threshold in it, nothing to tune, and nothing that assumes a
+    currency's rounding increment.
+
+    WITH NOTHING TO COMPARE AGAINST, a rounding row is the total only if its
+    label also says total. That is the receipt that prints the rounded figure
+    and no other, where the word is the only evidence there is.
+  */
+  const references = [...candidates.map((c) => c.value), ...(subtotal === null ? [] : [subtotal])]
+  const isRoundedTotal = (r: { value: number; totalWord: boolean }) =>
+    cents(r.value) !== 0 &&
+    (references.length > 0
+      ? references.some((ref) => Math.abs(cents(r.value) - cents(ref)) < Math.abs(cents(r.value)))
+      : r.totalWord)
+
+  const roundedTotals = roundingRows.filter(isRoundedTotal)
+  if (roundedTotals.length > 0) {
+    const chosen = roundedTotals[roundedTotals.length - 1]
+    return { value: chosen.value, confidence: chosen.confidence }
+  }
+  const adjustments = roundingRows.filter((r) => !isRoundedTotal(r))
+  const rounding = adjustments.length > 0 ? adjustments[adjustments.length - 1].value : 0
+
+  /*
+    A CANDIDATE EQUAL TO THE PRINTED SUBTOTAL IS THE SUBTOTAL RESTATED, and
+    loses to one that differs from it. A receipt prints "Subtotal 51.48" and
+    "TOTAL 55.60" with a tax line between them; where the engine loses the
+    "Sub", both rows read as totals and the first one wins by position alone.
+    Comparing against the subtotal the paper ALSO prints is what breaks that
+    tie without any rule about where on the page a total sits.
+  */
   const nonZero = candidates.filter((c) => cents(c.value) !== 0)
-  if (nonZero.length > 0) {
+  const differs = subtotal === null ? nonZero : nonZero.filter((c) => cents(c.value) !== cents(subtotal))
+  const ranked = differs.length > 0 ? differs : nonZero
+  if (ranked.length > 0) {
     const arithmetic = cents(items.reduce((a, i) => a + i.price, 0) + (tax.value ?? 0) + rounding)
-    const byTender = nonZero.find((c) => cardTenders.has(cents(c.value)))
-    const byArithmetic = nonZero.find((c) => cents(c.value) === arithmetic)
-    const chosen = byTender ?? byArithmetic ?? nonZero[0]
+    const byTender = ranked.find((c) => cardTenders.has(cents(c.value)))
+    const byArithmetic = ranked.find((c) => cents(c.value) === arithmetic)
+    const chosen = byTender ?? byArithmetic ?? ranked[0]
     return { value: chosen.value, confidence: chosen.confidence }
   }
 
   const tenders = [...cardTenders].filter((c) => c !== 0)
   if (tenders.length === 1) return { value: tenders[0] / 100, confidence: null }
   if (subtotal !== null && subtotal !== 0) return { value: (cents(subtotal) + cents(rounding)) / 100, confidence: null }
-  if (candidates.length > 0) return { value: candidates[0].value, confidence: candidates[0].confidence }
+  /*
+    NO NON-ZERO FIGURE ANYWHERE, SO THE TOTAL IS UNREAD — NOT ZERO.
+
+    Until Gate 57 a receipt whose only total-labelled row read "Total 0.00",
+    because the engine lost the figure, was reported as a bill of nothing. A
+    zero is a claim: it says the customer paid nothing, it is a figure
+    auto-match could in principle link on, and on screen it is indistinguishable
+    from a real reading. `null` says the one true thing — that this was not
+    read — and the surfaces already have an answer for it.
+  */
   return NONE
 }
 

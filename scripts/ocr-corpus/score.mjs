@@ -37,6 +37,7 @@ const REPARSE = args.includes('--reparse')
 const DETAIL = args.includes('--detail')
 const ATTRIBUTE = args.includes('--attribute')
 const DEVICE_DIR = process.env.OCR_CORPUS_DEVICE_DIR ?? 'D:/Claude/_assets/receipts-device'
+const BLIND_DIR = process.env.OCR_CORPUS_BLIND_DIR ?? 'D:/Claude/_assets/receipts-blind'
 if (!OUT) throw new Error('usage: score.mjs <OCR_CORPUS_OUT> [--reparse] [--detail]')
 
 const cents = (n) => Math.round(n * 100)
@@ -161,7 +162,48 @@ function matchItems(truthItems, reported, tolerated) {
   return { correct, missed: unmatched, wrongPrice, junk, toleratedHits }
 }
 
-const truth = { seeded: await seededTruth(), device: deviceTruth() }
+// ─── blind truth, from the blind set's own TRUTH.md (Gate 57) ────────────────
+//
+// A DIFFERENT SHAPE FROM THE DEVICE FILE, AND IT IS PARSED SEPARATELY RATHER
+// THAN THE TWO BEING FORCED INTO ONE GRAMMAR: items are a markdown table, and
+// the totals are one labelled line each. Writing one parser for both would mean
+// loosening each pattern until it also matched the other, which is how a truth
+// reader starts silently reading the wrong number.
+//
+// THE TOTAL IS THE AMOUNT PAID, i.e. AFTER ROUNDING, as that file states. Where
+// a receipt prints a pre-rounding figure too, the truth is the rounded one.
+function blindTruth() {
+  const md = fs.readFileSync(path.join(BLIND_DIR, 'TRUTH.md'), 'utf8')
+  const out = {}
+  for (const section of md.split(/^## /m).slice(1)) {
+    const heading = section.split('\n')[0].trim()
+    if (!/^[a-z0-9_]+$/.test(heading)) continue
+    const lines = section.split('\n')
+    const field = (label) => lines.find((l) => l.startsWith(`**${label}:**`))?.slice(label.length + 6).trim() ?? ''
+
+    const items = []
+    for (const line of lines) {
+      const m = /^\|\s*[0-9]+\s*\|\s*(.+?)\s*\|\s*(-?[0-9]+\.[0-9]{2})\s*\|\s*$/.exec(line)
+      if (m) items.push({ name: m[1], price: Number(m[2]) })
+    }
+
+    const total = Number(/^(-?[0-9]+\.[0-9]{2})/.exec(field('Total'))[1])
+    const taxText = field('Tax')
+    const taxMatch = /^([0-9]+\.[0-9]{2})/.exec(taxText)
+    const tax = taxMatch ? { values: [Number(taxMatch[1])], nullOk: false } : { values: [], nullOk: true }
+    const dateMatch = /^([0-9]{4}-[0-9]{2}-[0-9]{2})/.exec(field('Date'))
+    // A receipt with no printed date has NO date truth: any reading is recorded
+    // and neither right nor wrong, so both a date and a null are acceptable.
+    const date = dateMatch
+      ? { value: dateMatch[1], nullOk: false, dateOnly: true }
+      : { value: null, nullOk: true, unknown: true }
+
+    out[heading] = { items, tolerated: [], total, tax, date }
+  }
+  return out
+}
+
+const truth = { seeded: await seededTruth(), device: deviceTruth(), blind: blindTruth() }
 
 // SEEDED MERCHANT: does the parsed merchant satisfy auto-match's own merchant rule
 // against the payee of the transaction the receipt is linked to (Gate 56)? The
@@ -188,13 +230,13 @@ const parseReceipt = REPARSE
   : null
 
 const rows = []
-for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device)-.+\.json$/.test(f)).sort()) {
+for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device|blind)-.+\.json$/.test(f)).sort()) {
   const rec = JSON.parse(fs.readFileSync(path.join(OUT, file), 'utf8'))
   // A device stem ending `-phone` or `-camera` is the same paper captured another
   // way, so it is scored against the TRUTH.md section named by the stem WITHOUT
   // that suffix (Gate 56). `rosyam` and `rosyam-phone` both present are two
   // receipts, scored apart.
-  const truthStem = rec.set === 'device' ? rec.stem.replace(/-(phone|camera)$/, '') : rec.stem
+  const truthStem = rec.set === 'seeded' ? rec.stem : rec.stem.replace(/-(phone|camera)$/, '')
   const t = truth[rec.set][truthStem]
   if (!t) throw new Error(`no truth for ${rec.set}/${rec.stem} (section ${truthStem})`)
   const parsed = REPARSE ? parseReceipt(rec.ocr) : rec.parsed
@@ -204,9 +246,14 @@ for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device)-.+\.json$
     parsed.tax === null ? t.tax.nullOk : t.tax.values.some((v) => v !== null && cents(v) === cents(parsed.tax))
   const got = parsed.capturedAt ? parsed.capturedAt.slice(0, 16) : null
   let date
-  if (got === null) date = t.date.value === null ? 'correct' : t.date.nullOk ? 'null(ok)' : 'null'
-  else if (t.date.value !== null && got === t.date.value) date = 'correct'
-  else if (t.date.value !== null && got.slice(0, 10) === t.date.value.slice(0, 10)) date = 'date-only'
+  // A receipt that prints no date has NO date truth: whatever is read is
+  // recorded and scored neither right nor wrong (blind TRUTH.md).
+  if (t.date.unknown) date = got === null ? 'none(ok)' : 'unknown'
+  else if (got === null) date = t.date.value === null ? 'correct' : t.date.nullOk ? 'null(ok)' : 'null'
+  else if (got === t.date.value) date = 'correct'
+  else if (t.date.value !== null && got.slice(0, 10) === t.date.value.slice(0, 10))
+    // Where the truth states a date and no time, the day IS the whole truth.
+    date = t.date.dateOnly ? 'correct' : 'date-only'
   else date = 'wrong'
   const payee = rec.set === 'seeded' ? payeeOf(rec.stem) : null
   const merchantOk = payee === null ? null : parsed.merchant !== null && merchantMatches(parsed.merchant, payee)
@@ -225,7 +272,9 @@ for (const r of rows) {
   s.correct += r.correct.length; s.printed += r.printed; s.wrongPrice += r.wrongPrice.length; s.junk += r.junk.length
   s.totals += r.totalOk ? 1 : 0; s.tax += r.taxOk ? 1 : 0; s.receipts += 1
   if (r.merchantOk !== null) { s.merchantScored += 1; s.merchants += r.merchantOk ? 1 : 0 }
-  s.dates += r.date === 'correct' || r.date === 'null(ok)' ? 1 : 0
+  // `unknown` / `none(ok)` are receipts whose paper prints no date: not scored
+  // either way, so they are not counted as failures.
+  s.dates += ['correct', 'null(ok)', 'none(ok)', 'unknown'].includes(r.date) ? 1 : 0
   s.msSum += r.ms ?? 0; s.msMax = Math.max(s.msMax, r.ms ?? 0)
   if (DETAIL) {
     console.log(`         total got ${r.parsed.total} want ${r.t.total}; tax got ${r.parsed.tax}; date got ${r.parsed.capturedAt}`)
