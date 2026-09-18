@@ -11,6 +11,7 @@ import { HOLDINGS } from '../data/holdings'
 import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
 import {
+  backfillAddedAt,
   cryptoWalletChange,
   cryptoWalletTotal,
   netWorth,
@@ -288,7 +289,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   // once per mount, so `TRANSACTIONS` and `RECEIPTS` remain the single authored
   // source and this holds the live version of each.
   const [transactions, setTransactions] = useState<Transaction[]>(TRANSACTIONS)
-  const [receipts, setReceipts] = useState<Receipt[]>(RECEIPTS)
+  // BACKFILLED ONCE, IN THE INITIALISER — Gate 58. The seed predates
+  // `Receipt.addedAt`, and the Receipts tab orders on it; see `backfillAddedAt`.
+  const [receipts, setReceipts] = useState<Receipt[]>(() => backfillAddedAt(RECEIPTS))
 
   // `useCallback` so the context value's identity is stable across renders that
   // do not change the ledger — without it the memo below rebuilds every render

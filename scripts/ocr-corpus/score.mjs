@@ -36,6 +36,11 @@ const OUT = args.find((a) => !a.startsWith('--'))
 const REPARSE = args.includes('--reparse')
 const DETAIL = args.includes('--detail')
 const ATTRIBUTE = args.includes('--attribute')
+// Gate 58. `--pass=plain` scores the first pass alone (the control), `--pass=photo`
+// the 'photo' preparation alone (needs OCR_CORPUS_BOTH output for images that
+// did not trigger). Default: the shipped rule — the first pass, re-read only
+// when `firstPassFailed`, the better reading kept by `chooseReading`.
+const PASS = (args.find((a) => a.startsWith('--pass=')) ?? '--pass=shipped').slice(7)
 const DEVICE_DIR = process.env.OCR_CORPUS_DEVICE_DIR ?? 'D:/Claude/_assets/receipts-device'
 const BLIND_DIR = process.env.OCR_CORPUS_BLIND_DIR ?? 'D:/Claude/_assets/receipts-blind'
 if (!OUT) throw new Error('usage: score.mjs <OCR_CORPUS_OUT> [--reparse] [--detail]')
@@ -225,6 +230,9 @@ const payeeOf = (stem) => {
   const receipt = RECEIPTS.find((x) => x.filename.replace(/.[^.]+$/, '') === stem)
   return TRANSACTIONS.find((x) => x.id === receipt?.transactionId)?.merchant ?? null
 }
+const { firstPassFailed, chooseReading } = await import(
+  pathToFileURL(path.join(REPO, 'src', 'data', 'ocr', 'secondPass.ts')).href
+)
 const parseReceipt = REPARSE
   ? (await import(pathToFileURL(path.join(REPO, 'src', 'data', 'ocr', 'parseReceipt.ts')).href)).parseReceipt
   : null
@@ -239,7 +247,35 @@ for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device|blind)-.+\
   const truthStem = rec.set === 'seeded' ? rec.stem : rec.stem.replace(/-(phone|camera)$/, '')
   const t = truth[rec.set][truthStem]
   if (!t) throw new Error(`no truth for ${rec.set}/${rec.stem} (section ${truthStem})`)
-  const parsed = REPARSE ? parseReceipt(rec.ocr) : rec.parsed
+  // THE READING TO SCORE. Without --reparse it is what the run recorded. With
+  // it, each cached pass is re-parsed and the Gate 58 rule re-applied, so a
+  // change to the parser OR to the trigger/choice is measured without the engine.
+  const photoOcr = rec.passes?.[1]?.ocr ?? rec.photo?.ocr ?? null
+  let parsed
+  let triggered = null
+  // The engine output of the reading actually scored — `--attribute` must read
+  // THAT reading's words, not the first pass's, when the second pass was kept.
+  let scoredOcr = rec.ocr
+  if (!REPARSE) {
+    parsed = rec.parsed
+    if (rec.chosen === 1) scoredOcr = rec.passes[1].ocr
+  }
+  else {
+    const first = parseReceipt(rec.ocr)
+    const photo = photoOcr ? parseReceipt(photoOcr) : null
+    triggered = firstPassFailed(first)
+    if (PASS === 'plain') parsed = first
+    else if (PASS === 'photo') {
+      if (!photo) throw new Error(`no 'photo' reading cached for ${rec.stem} — run with OCR_CORPUS_BOTH=1`)
+      parsed = photo
+      scoredOcr = photoOcr
+    } else if (triggered) {
+      if (!photo) throw new Error(`${rec.stem} triggers the second pass but none is cached`)
+      const second = chooseReading(first, photo) === 'second'
+      parsed = second ? photo : first
+      if (second) scoredOcr = photoOcr
+    } else parsed = first
+  }
   const m = matchItems(t.items, parsed.lineItems, t.tolerated)
   const totalOk = parsed.total !== null && cents(parsed.total) === cents(t.total)
   const taxOk =
@@ -257,18 +293,21 @@ for (const file of fs.readdirSync(OUT).filter((f) => /^(seeded|device|blind)-.+\
   else date = 'wrong'
   const payee = rec.set === 'seeded' ? payeeOf(rec.stem) : null
   const merchantOk = payee === null ? null : parsed.merchant !== null && merchantMatches(parsed.merchant, payee)
-  rows.push({ set: rec.set, stem: rec.stem, printed: t.items.length, ...m, totalOk, taxOk, date, merchantOk, ms: rec.ms ?? null, parsed, t })
+  const group = rec.set !== 'blind' ? 'development' : /-camera$/.test(rec.stem) ? 'blind-camera' : 'blind-gallery'
+  rows.push({ scoredOcr, group, triggered, chosen: rec.chosen ?? null, set: rec.set, stem: rec.stem, printed: t.items.length, ...m, totalOk, taxOk, date, merchantOk, ms: rec.ms ?? null, parsed, t })
 }
 
 const pad = (s, n) => String(s).padEnd(n)
 console.log(`${pad('set', 7)}${pad('receipt', 22)}${pad('items', 8)}${pad('miss', 5)}${pad('wrong$', 7)}${pad('junk', 5)}${pad('total', 6)}${pad('tax', 5)}${pad('merch', 6)}${pad('ms', 7)}date`)
-const blank = () => ({ correct: 0, printed: 0, wrongPrice: 0, junk: 0, totals: 0, tax: 0, receipts: 0, merchants: 0, merchantScored: 0, dates: 0, msSum: 0, msMax: 0 })
+const blank = () => ({ correct: 0, printed: 0, wrongPrice: 0, junk: 0, totals: 0, tax: 0, receipts: 0, merchants: 0, merchantScored: 0, dates: 0, msSum: 0, msMax: 0, triggered: 0, msTrigMax: 0 })
 const sums = {}
 for (const r of rows) {
   console.log(
-    `${pad(r.set, 7)}${pad(r.stem, 22)}${pad(`${r.correct.length}/${r.printed}`, 8)}${pad(r.missed.length, 5)}${pad(r.wrongPrice.length, 7)}${pad(r.junk.length, 5)}${pad(r.totalOk ? 'Y' : 'N', 6)}${pad(r.taxOk ? 'Y' : 'N', 5)}${pad(r.merchantOk === null ? '-' : r.merchantOk ? 'Y' : 'N', 6)}${pad(r.ms ?? '-', 7)}${r.date}`,
+    `${pad(r.set, 7)}${pad(r.stem, 22)}${pad(r.triggered ? '2p' : '', 3)}${pad(`${r.correct.length}/${r.printed}`, 8)}${pad(r.missed.length, 5)}${pad(r.wrongPrice.length, 7)}${pad(r.junk.length, 5)}${pad(r.totalOk ? 'Y' : 'N', 6)}${pad(r.taxOk ? 'Y' : 'N', 5)}${pad(r.merchantOk === null ? '-' : r.merchantOk ? 'Y' : 'N', 6)}${pad(r.ms ?? '-', 7)}${r.date}`,
   )
-  const s = (sums[r.set] ??= blank())
+  const s = (sums[r.group] ??= blank())
+  s.triggered = (s.triggered ?? 0) + (r.triggered ? 1 : 0)
+  if (r.triggered) s.msTrigMax = Math.max(s.msTrigMax ?? 0, r.ms ?? 0)
   s.correct += r.correct.length; s.printed += r.printed; s.wrongPrice += r.wrongPrice.length; s.junk += r.junk.length
   s.totals += r.totalOk ? 1 : 0; s.tax += r.taxOk ? 1 : 0; s.receipts += 1
   if (r.merchantOk !== null) { s.merchantScored += 1; s.merchants += r.merchantOk ? 1 : 0 }
@@ -284,15 +323,15 @@ for (const r of rows) {
   }
 }
 const all = blank()
-for (const s of Object.values(sums)) for (const k of Object.keys(all)) all[k] = k === 'msMax' ? Math.max(all[k], s[k]) : all[k] + s[k]
+for (const s of Object.values(sums)) for (const k of Object.keys(all)) all[k] = (k === 'msMax' || k === 'msTrigMax') ? Math.max(all[k], s[k]) : all[k] + s[k]
 for (const [name, s] of [...Object.entries(sums), ['combined', all]]) {
   console.log(
-    `${pad(name, 9)} items ${s.correct}/${s.printed} = ${((100 * s.correct) / s.printed).toFixed(1)}%  wrong-price ${s.wrongPrice}  junk ${s.junk}  totals ${s.totals}/${s.receipts}  tax ${s.tax}/${s.receipts}  merchant ${s.merchants}/${s.merchantScored}  date ${s.dates}/${s.receipts}  ms mean ${Math.round(s.msSum / s.receipts)} max ${s.msMax}`,
+    `${pad(name, 14)} items ${s.correct}/${s.printed} = ${((100 * s.correct) / s.printed).toFixed(1)}%  wrong-price ${s.wrongPrice}  junk ${s.junk}  totals ${s.totals}/${s.receipts}  tax ${s.tax}/${s.receipts}  merchant ${s.merchants}/${s.merchantScored}  date ${s.dates}/${s.receipts}  ms mean ${Math.round(s.msSum / s.receipts)} max ${s.msMax}  second-pass ${s.triggered ?? 0} (max ms ${s.msTrigMax ?? '-'})`,
   )
 }
 fs.writeFileSync(
   path.join(OUT, REPARSE ? 'score-reparse.json' : 'score.json'),
-  JSON.stringify(rows.map(({ parsed, t, ...r }) => r), null, 1),
+  JSON.stringify(rows.map(({ parsed, t, scoredOcr, ...r }) => r), null, 1),
 )
 fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ ...sums, combined: all }, null, 1))
 
@@ -310,7 +349,7 @@ if (ATTRIBUTE) {
   const tally = { reading: 0, parsing: 0 }
   for (const r of rows) {
     const rec = JSON.parse(fs.readFileSync(path.join(OUT, `${r.set}-${r.stem}.json`), 'utf8'))
-    const lines = rec.ocr.lines.map((l) => l.words.map((w) => w.text))
+    const lines = r.scoredOcr.lines.map((l) => l.words.map((w) => w.text))
     const priceOn = (i, p) => (lines[i] ?? []).some((w) => { const m = readMoney(w); return m && cents(m.value) === cents(p) })
     const wordOn = (i, name) => (lines[i] ?? []).some((w) => fold(w).includes(fold(firstRealWord(name))))
     const hasPrice = (p) => lines.some((_, i) => priceOn(i, p))

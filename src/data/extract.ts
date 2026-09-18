@@ -166,12 +166,16 @@ export function looksLikePdf(file: File): boolean {
  * receipts already print subtotals their own line items do not sum to, and the
  * detail sheet has shown that disagreement since Gate 49. A parser that quietly
  * balanced the books would be hiding the one thing worth seeing.
+ *
+ * ─────────────── ONE PASS, OR TWO (Gate 58) ──────────────────────────────────
+ *
+ * `readReceipt` reads the image with the Gate 56 pipeline and, only when that
+ * reading has no line items or no total, reads it once more with a greyscale,
+ * high-quality-resampled preparation and keeps the better reading. The rules
+ * are in `ocr/secondPass.ts`; nothing about this seam's shape changed.
  */
 const ocrExtractReceipt: ReceiptExtractor = async (file) => {
-  const [{ recognise }, { parseReceipt }] = await Promise.all([
-    import('./ocr/recognise'),
-    import('./ocr/parseReceipt'),
-  ])
+  const { readReceipt } = await import('./ocr/read')
 
   // A PDF IS DRAWN BEFORE IT IS READ. See `rasterise.ts` — the engine reads
   // pixels, and a PDF carries none until something renders it.
@@ -179,7 +183,7 @@ const ocrExtractReceipt: ReceiptExtractor = async (file) => {
     ? await (await import('./ocr/rasterise')).rasterisePdfFirstPage(file)
     : file
 
-  const parsed = parseReceipt(await recognise(image))
+  const { parsed } = await readReceipt(image)
 
   // RAW, NOT FILLED. `parseReceipt` reports an unread merchant as the empty
   // string and an unread date or total as `null`; all three reach the caller as

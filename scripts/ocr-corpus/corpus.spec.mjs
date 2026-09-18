@@ -21,9 +21,21 @@ import { test, expect } from '@playwright/test'
  * number, a home address and card fragments, and so does their OCR text. None
  * of it may be written inside the repo, staged, or committed. This file holds
  * no string taken from any of them.
+ *
+ * SINCE GATE 58 IT READS THROUGH `readReceipt`, the app's own one-or-two-pass
+ * path, and `ms` is that call's wall clock — so a receipt that triggers the
+ * second pass is timed with both passes, as a user would wait for them. Every
+ * pass's engine output is cached (`passes`), and `score.mjs --reparse`
+ * re-applies the trigger and the choice to it.
+ *
+ * `OCR_CORPUS_BOTH=1` ALSO READS EVERY IMAGE THAT DID NOT TRIGGER with the
+ * 'photo' preparation, timed separately as `photoMs` and never counted in
+ * `ms`. That is analysis only — it is how a different trigger is measured
+ * without running the corpus again.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+const BOTH = process.env.OCR_CORPUS_BOTH === '1'
 const REPO = path.resolve(import.meta.dirname, '..', '..')
 const SEEDED_DIR = path.join(REPO, 'public', 'media', 'receipts')
 const DEVICE_DIR = process.env.OCR_CORPUS_DEVICE_DIR ?? 'D:/Claude/_assets/receipts-device'
@@ -70,20 +82,39 @@ test('recognise and parse the development corpus', async ({ browser }) => {
 
     const base64 = fs.readFileSync(entry.file).toString('base64')
     const started = Date.now()
-    const result = await page.evaluate(async ({ base64 }) => {
+    const result = await page.evaluate(async ({ base64, BOTH }) => {
       const binary = atob(base64)
       const bytes = new Uint8Array(binary.length)
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
       const file = new File([bytes], 'capture.jpg', { type: 'image/jpeg' })
       const heapBefore = performance.memory?.usedJSHeapSize ?? null
-      const { recognise } = await import('/src/data/ocr/recognise.ts')
-      const { parseReceipt } = await import('/src/data/ocr/parseReceipt.ts')
-      const ocr = await recognise(file)
-      const parsed = parseReceipt(ocr)
+      const { readReceipt } = await import('/src/data/ocr/read.ts')
+      const t0 = performance.now()
+      const reading = await readReceipt(file)
+      const ms = Math.round(performance.now() - t0)
       const heapAfter = performance.memory?.usedJSHeapSize ?? null
-      return { ocr, parsed, heapBefore, heapAfter }
-    }, { base64 })
-    const ms = Date.now() - started
+      let photo = null
+      if (BOTH && reading.passes.length === 1) {
+        const { recognise } = await import('/src/data/ocr/recognise.ts')
+        const t1 = performance.now()
+        const ocr = await recognise(file, 'photo')
+        photo = { ocr, ms: Math.round(performance.now() - t1) }
+      }
+      return {
+        ocr: reading.passes[0].ocr,
+        parsed: reading.parsed,
+        passes: reading.passes.map(({ preparation, ocr }) => ({ preparation, ocr })),
+        chosen: reading.chosen,
+        readMs: ms,
+        photo,
+        heapBefore,
+        heapAfter,
+      }
+    }, { base64, BOTH })
+    // MEASURED THE WAY GATES 55-57 MEASURED IT — around the whole evaluate, so
+    // the figures stay comparable — MINUS the forced analysis pass, which a user
+    // never waits for. `readMs` (the read alone, timed in the page) is kept too.
+    const ms = Date.now() - started - (result.photo?.ms ?? 0)
 
     fs.writeFileSync(
       path.join(OUT, `${entry.set}-${entry.stem}.json`),
@@ -97,6 +128,8 @@ test('recognise and parse the development corpus', async ({ browser }) => {
       lines: result.ocr.lines.length,
       boxedLines: boxed,
       pageConfidence: result.ocr.confidence,
+      passes: result.passes.length,
+      chosen: result.chosen,
       heapBefore: result.heapBefore,
       heapAfter: result.heapAfter,
       pageErrors: pageErrors.length,

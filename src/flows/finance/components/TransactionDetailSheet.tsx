@@ -6,11 +6,18 @@ import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
 import { CapturingBlock } from './CapturingBlock'
 import {
-  receiptSubtotal,
+  receiptSubtotalRead,
+  receiptTaxRead,
+  receiptTotalRead,
   transactionAccount,
   transactionCategory,
 } from '../../../data/derive'
-import { formatMyr, formatSignedMyr, formatTimestamp } from '../../../data/format'
+import {
+  formatMyr,
+  formatMyrOrUnread,
+  formatSignedMyr,
+  formatTimestamp,
+} from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
 
 /**
@@ -352,7 +359,10 @@ function ReceiptBlock({
   onUnlink: () => void
   onView: () => void
 }) {
-  const subtotal = receiptSubtotal(receipt)
+  // GATE 58: a figure that was never read renders an em dash, not "RM 0.00" —
+  // see the three `receipt*Read` derivations in `derive.ts`.
+  const subtotal = receiptSubtotalRead(receipt)
+  const tax = receiptTaxRead(receipt)
 
   return (
     <div className="mvp-txn-detail__receipt">
@@ -417,21 +427,23 @@ function ReceiptBlock({
 
       <div className="mvp-txn-detail__total-row">
         <span className="type-body-sm">Subtotal</span>
-        <span className="type-body-sm">{formatMyr(subtotal)}</span>
+        <span className="type-body-sm">{formatMyrOrUnread(subtotal)}</span>
       </div>
 
       {/*
         NO TAX ROW WHERE THE PAPER PRINTS NO TAX LINE. `receipt-aia01` is the one
         insurance receipt — one premium, one total, no SST — so it carries
         `tax: null` and this row is absent rather than showing "RM 0.00", which
-        would assert a zero the receipt does not.
+        would assert a zero the receipt does not. A MACHINE-READ receipt whose tax
+        was not read keeps the row with an em dash instead (Gate 58) — the engine
+        cannot know the line was absent. `receiptTaxRead` decides which.
       */}
-      {receipt.tax !== null && (
+      {tax !== 'no-row' && (
         <>
           <Divider />
           <div className="mvp-txn-detail__total-row">
             <span className="type-body-sm">Sales Tax (6% SST)</span>
-            <span className="type-body-sm">{formatMyr(receipt.tax)}</span>
+            <span className="type-body-sm">{formatMyrOrUnread(tax)}</span>
           </div>
         </>
       )}
@@ -443,7 +455,9 @@ function ReceiptBlock({
           Total{' '}
           <span className="mvp-txn-detail__total-note type-body-sm">Incl 6% SST</span>
         </span>
-        <span className="type-body-sm-semibold">{formatMyr(receipt.total)}</span>
+        <span className="type-body-sm-semibold">
+          {formatMyrOrUnread(receiptTotalRead(receipt))}
+        </span>
       </div>
 
       {/*

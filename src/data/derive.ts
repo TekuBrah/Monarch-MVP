@@ -907,22 +907,60 @@ export function receiptForTransaction(
 }
 
 /**
- * Receipts newest-capture-first — the order the Receipts tab renders in.
+ * Fill `addedAt` on every receipt that lacks one, from its `capturedAt` — run
+ * ONCE, on first load, over the seed (Gate 58).
  *
- * SORTED ON `capturedAt`, NEVER ON `displayName`. The camera-roll numbers
- * happen to rise with capture date today (see `receipts.ts`), and sorting on
- * them would be sorting on a coincidence that the next authored receipt could
- * break silently. The timestamp is the fact.
+ * THE SEED PREDATES THE FIELD, and its receipts were "added" when they were
+ * authored, which is no fact at all. Their printed date is the ordering they
+ * have always had, so backfilling from it keeps all ten exactly where they sit
+ * today, and places them below anything added from now on — a capture's
+ * `addedAt` is the device clock, and the seed is dated 2025.
+ *
+ * `.000` IS APPENDED so every `addedAt` has one shape and compares as a string.
+ * A receipt that already carries one is returned unchanged.
+ */
+export function backfillAddedAt(receipts: Receipt[]): Receipt[] {
+  return receipts.map((r) => (r.addedAt ? r : { ...r, addedAt: `${r.capturedAt}.000` }))
+}
+
+/** A receipt's `addedAt`, which the Receipts tab cannot order without. */
+function addedAtOf(receipt: Receipt): string {
+  if (!receipt.addedAt) {
+    throw new Error(
+      `receipt ${receipt.id} has no addedAt — every receipt is backfilled on load ` +
+        '(backfillAddedAt) and every capture is stamped (capturedToReceipt)',
+    )
+  }
+  return receipt.addedAt
+}
+
+/**
+ * Receipts newest-ADDED-first — the order the Receipts tab renders in (Gate 58).
+ *
+ * SORTED ON `addedAt`, TO THE MILLISECOND, and never on `capturedAt` any more:
+ * see `Receipt.addedAt` for Teku's ruling. Nor on `displayName` — the camera-
+ * roll numbers are a coincidence, the timestamp is the fact.
+ *
+ * AN EXACT TIE KEEPS LIBRARY ORDER, EXPLICITLY. Every receipt from one
+ * selection shares one `addedAt` (the clock is read once per selection), and
+ * `addReceipt` appends them in the order the files were picked — so the
+ * earlier library position sorts first and the batch reads in pick order
+ * rather than shuffling. The index is compared rather than trusting sort
+ * stability, so the rule is written where it can be read and mutated.
  */
 export function receiptsNewestFirst(receipts: Receipt[]): Receipt[] {
-  return [...receipts].sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))
+  return receipts
+    .map((receipt, index) => ({ receipt, index, addedAt: addedAtOf(receipt) }))
+    .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || a.index - b.index)
+    .map(({ receipt }) => receipt)
 }
 
 /**
  * One month's worth of receipts, with the heading that month prints.
  *
  * Figma's Receipts tab groups by month under a section heading. The groups are
- * DERIVED from `capturedAt` rather than stored on the record, for the reason a
+ * DERIVED from `addedAt` (since Gate 58; `capturedAt` until then) rather than
+ * stored on the record, for the reason a
  * month is not a property of a receipt: it is a property of how this one screen
  * chooses to slice them, and a second screen slicing by merchant would have to
  * ignore a stored field.
@@ -936,7 +974,8 @@ export interface ReceiptMonthGroup {
 }
 
 /**
- * Group receipts into months, newest month first, newest receipt first inside.
+ * Group receipts into months, newest month first, newest receipt first inside —
+ * by when each was ADDED (Gate 58), so the headings read as when things arrived.
  *
  * THE LABEL IS FORMATTED HERE RATHER THAN IN `format.ts` BECAUSE IT IS NOT A
  * MONEY OR TIMESTAMP FORMAT — it is this grouping's own heading, and it has
@@ -952,7 +991,7 @@ export interface ReceiptMonthGroup {
 export function groupReceiptsByMonth(receipts: Receipt[]): ReceiptMonthGroup[] {
   const groups = new Map<string, Receipt[]>()
   for (const receipt of receiptsNewestFirst(receipts)) {
-    const key = receipt.capturedAt.slice(0, 7)
+    const key = addedAtOf(receipt).slice(0, 7)
     const bucket = groups.get(key)
     if (bucket) bucket.push(receipt)
     else groups.set(key, [receipt])
@@ -1001,7 +1040,7 @@ export interface TransactionMonthGroup {
  * the manual link picker's "Everything else" list (Gate 51-B).
  *
  * DERIVED FROM `occurredAt`, never stored, for the same reason
- * `groupReceiptsByMonth` derives from `capturedAt`: a month is a property of how
+ * `groupReceiptsByMonth` derives from `addedAt`: a month is a property of how
  * one screen slices the rows, not of a row.
  *
  * THE LEDGER ITSELF DOES **NOT** GROUP BY MONTH — it renders one flat
@@ -1079,6 +1118,59 @@ export function filterReceipts(receipts: Receipt[], search = ''): Receipt[] {
 export function receiptSubtotal(receipt: Receipt): Amount {
   const sum = receipt.lineItems.reduce((acc, item) => acc + item.price, 0)
   return Math.round(sum * 100) / 100
+}
+
+/**
+ * ─────────────── WHICH OF A RECEIPT'S FIGURES WERE ACTUALLY READ (Gate 58) ─────
+ *
+ * The three money rows a receipt prints — subtotal, tax, total — each render an
+ * em dash (`formatMyrOrUnread`) where the figure was never read, instead of a
+ * "RM 0.00" that reads as a free bill. The row still renders: an absent row
+ * hides that something was expected there, and nothing here is invented from
+ * the line items. Each is decided from what the record ALREADY holds — no field
+ * was added for it (Gate 58's ruling 2 permits only `addedAt`).
+ */
+
+/**
+ * The receipt's total, or `null` when it was never read.
+ *
+ * ZERO IS THE UNREAD MARK, AND IT IS EXACT RATHER THAN A GUESS. A capture whose
+ * total was not read is stored as 0 (`capturedToReceipt`, "never a guess");
+ * the parser never returns 0 as a total (Gate 57, rule 2 — "a total of zero is
+ * not a total"); the editor refuses one (`ReceiptEditor`, `> 0`); and every
+ * seeded receipt's total is positive. So a stored 0 has exactly one origin.
+ */
+export function receiptTotalRead(receipt: Receipt): Amount | null {
+  return receipt.total > 0 ? receipt.total : null
+}
+
+/**
+ * The derived subtotal, or `null` when no line item was read. A sum over no
+ * lines is not a subtotal of RM 0.00; it is the absence of one.
+ */
+export function receiptSubtotalRead(receipt: Receipt): Amount | null {
+  return receipt.lineItems.length > 0 ? receiptSubtotal(receipt) : null
+}
+
+/**
+ * The tax row: the printed figure; `null` for a tax that was not READ; or
+ * `'no-row'` for a receipt whose paper prints no tax line at all.
+ *
+ * `tax: null` MEANS TWO DIFFERENT THINGS, AND ONLY PROVENANCE SEPARATES THEM.
+ * On a TRANSCRIBED receipt (the seed) a person read the paper, so `null` is a
+ * fact — `receipt-aia01` prints no SST line — and Gate 49's ruling stands: no
+ * row. On a MACHINE-READ receipt the engine cannot tell "no tax line" from "a
+ * tax line it could not read", so `null` is "not read" and the row renders a
+ * dash. A capture is the receipt that carries `sourceUrl` — its bytes are an
+ * in-memory upload, and no seeded record has one (see `Receipt.sourceUrl`).
+ *
+ * THAT IS A PROXY, STATED. Provenance is not a field; `sourceUrl` is where the
+ * image lives, which today coincides exactly with who read it. Reported at
+ * Gate 58 as a decision for Teku rather than widened (ruling 2).
+ */
+export function receiptTaxRead(receipt: Receipt): Amount | null | 'no-row' {
+  if (receipt.tax !== null) return receipt.tax
+  return receipt.sourceUrl !== undefined ? null : 'no-row'
 }
 
 /**

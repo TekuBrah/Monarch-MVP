@@ -158,8 +158,8 @@ export function ReceiptsTab() {
     capturedToReceipts(captured, links, new Date()).forEach(addReceipt)
   }
 
-  // GROUPED FROM `capturedAt`, NEVER FROM A STORED MONTH — see
-  // `groupReceiptsByMonth`. Search narrows BEFORE grouping so a month whose
+  // GROUPED FROM `addedAt` SINCE GATE 58 (`capturedAt` until then), NEVER FROM
+  // A STORED MONTH — see `groupReceiptsByMonth` and `Receipt.addedAt`. Search narrows BEFORE grouping so a month whose
   // every receipt is filtered out disappears with them rather than leaving an
   // empty heading behind.
   const groups = useMemo(

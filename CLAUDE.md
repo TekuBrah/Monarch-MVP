@@ -9495,7 +9495,7 @@ re-parse figures exactly — development 79/97 items and 18/20 totals, blind gal
 A receipt added today is filed under the date printed on the paper. For a receipt ARCHIVE that
 is right; for the moment just after a bulk add it means the user's new captures scatter, three
 of five landing below every seeded receipt and past the fold. Nothing is lost and nothing is
-broken, and the app currently gives no sign that anything arrived. **Recorded, not acted on.**
+broken, and the app currently gives no sign that anything arrived. **Recorded, not acted on.** *(Ruled at Gate 58, option C: the Receipts tab now groups and orders by when a receipt was ADDED. See the Gate 58 section.)*
 
 ### Deliberately not in scope
 
@@ -9508,6 +9508,149 @@ subtotals do not reconcile; `npm audit fix`; the DS repo and the pin; branch del
 G13, G14, G17's prop half, G19-G23, G28-G33 — all still registered, still deferred, and **no
 MVP-local override was added for any**; the G33 workaround class, untouched and still carrying
 its removal condition; and the three AA shortfalls on the net-worth card ruled on at Gate 31.
+
+## A second reading pass, the added-on order, and unread figures (Gate 58)
+
+No DS re-pin — **v2.3.0 throughout**. Decision 9 still in force: on-device, free,
+`tesseract.js` 7.0.0, no new dependency. Three changes, and they must be read apart.
+**|WALK| stays 40, baselines 160 -> 160 (0 changed, 0 added, 0 deleted — predicted in writing
+before the first run), tests 445 -> 467, spec files 17 -> 20.** `lint:tokens` scans **64**
+files (62 + `src/data/ocr/read.ts` + `src/data/ocr/secondPass.ts`) with the same **3**
+exemptions.
+
+### Phase 1 — a second reading pass, and the ONE bar it does not meet
+
+`readReceipt` (`src/data/ocr/read.ts`) reads the image with the Gate 56 pipeline. When that
+reading has **no line items OR no total** (`firstPassFailed`, `secondPass.ts`) it reads the
+image once more with `normaliseForOcr(image, 'photo')` — the same orientation and the same
+1600px long edge, plus `imageSmoothingQuality: 'high'` and a Rec. 601 greyscale — and keeps
+the better reading (`chooseReading`): more items wins; equal counts, a total beats none;
+otherwise the FIRST pass, including when both read nothing. No engine parameter is set.
+Sequential, one worker per call, each terminated before the next starts; a second pass that
+throws returns the first reading; `extractCapture` still never rejects.
+
+**THE TRIGGER IS THE OUTCOME, NEVER CONFIDENCE** (Gate 57 measured the confidence gap at one
+point). **"OR" AND NOT "AND"**: two of the five photographed receipts read two rows and no
+total, and would escape an "and". On the 30 images it triggers on **8**: all five blind
+camera shots, two blind gallery images that already failed (one with no items, one with no
+total) and one device receipt that reads nothing. **No receipt that reads items and a total
+is re-read**, by construction, so no development receipt that read correctly costs a
+millisecond more.
+
+**THE 'photo' READING IS GATE 57'S CONFIGURATION C, REPRODUCED** — scored alone it reads
+11/39 camera items and 1 camera total, development 80 items / 17 totals, gallery 22 — so the
+sweep's number transferred to the app's code rather than to a lookalike.
+
+| aggregate | Gate 57 | shipped rule |
+|---|---|---|
+| development (20) | 79/97 items, 18/20 totals, junk 6, wrong-price 2, merchants 10/10 | **identical** |
+| blind gallery (5) | 26/39, 3/5 | **26/39, 3/5** (junk 1 -> 2) |
+| blind camera (5) | 0/39, 0/5 | **11/39, 1/5** |
+| mean / max per receipt | 2.3 s / 4.2 s | **2.9 s / 7.6 s** |
+
+**⚠ THE 6-SECOND CEILING IS NOT MET, AND IT CANNOT BE WITHIN THE RULINGS.** The five camera
+shots take **5.1 / 6.7 / 5.6 / 7.6 / 6.5 s** with both passes. A per-stage probe on those
+five: recognition 2.0-3.4 s on the first pass and 1.4-2.8 s on the second; a worker start
+~350-450 ms each; preparation ~190-270 ms. Reusing one worker and one decode — which the
+"one worker per call" ruling forbids anyway — would still leave the worst at ~6.8 s.
+**Recognition itself is the cost.** The mean bar (under 4 s) is met at 2.9 s. Shipped as
+built and reported to Teku as a conflict: accept ~7.6 s on a bad photograph, or drop the
+second pass.
+
+**NO RECEIPT IS WORSE ON ITS TOTAL, BY CONSTRUCTION** — every triggered receipt had no total
+on the first pass. Auto-match is unchanged: leave-one-out 9 / 0 / 1 (ikea02), picker 10/10,
+AEON 429.19, the two deliberate device links, 0 blind links.
+
+**THE CORPUS HARNESS READS THROUGH `readReceipt`** since this gate, caching every pass.
+`OCR_CORPUS_BOTH=1` also reads the non-triggered images with 'photo' (timed apart, never
+counted in `ms`). `score.mjs` reports the three aggregates — development, blind gallery,
+blind camera — and `--pass=plain|photo` scores either reading alone.
+
+### Phase 2 — the Receipts tab orders by when a receipt was ADDED
+
+Teku's ruling, 18 Sept, option C. **`Receipt.addedAt?: string`**, `YYYY-MM-DDTHH:mm:ss.SSS`
+local wall clock to the millisecond — the one field this gate added to the record.
+`groupReceiptsByMonth` and `receiptsNewestFirst` key on it. `capturedAt` still prints on the
+card and is still auto-match's only date.
+
+- **Backfill**: `backfillAddedAt` runs once, in `AccountsProvider`'s `useState` initialiser,
+  stamping each seed `${capturedAt}.000`. The ten seeds keep today's order and headings and
+  sit below anything added — which is why **no baseline moved**: no walk state saves a capture.
+- **Stamp**: `capturedToReceipts` reads the clock once per selection (Decision 7B) and gives
+  every receipt in the selection `localWallClockMs(now)`.
+- **Tie**: an exact tie keeps LIBRARY order, compared by index rather than by trusting sort
+  stability. `addReceipt` appends in pick order, so a bulk save reads in pick order.
+- **A receipt with no `addedAt` throws** rather than being guessed at. Every path that makes
+  one stamps it.
+
+The Receipt library list inside the source picker is NOT ordered by this: it is library
+order, unchanged.
+
+### Phase 3 — a figure that was never read is an em dash
+
+`UNREAD_FIGURE` / `formatMyrOrUnread` (`format.ts`). Three derivations decide "not read"
+from what the record already holds (`derive.ts`):
+
+| figure | not read when | why that is exact |
+|---|---|---|
+| total | `total === 0` | the capture fallback stores 0; the parser never returns 0 (Gate 57 rule 2); the editor refuses one; every seed is positive |
+| subtotal | no line items | a sum over no lines is the absence of a subtotal |
+| tax | `null` on a MACHINE-READ receipt | see below |
+
+**THE TAX ROW USES A PROXY, AND IT IS A DECISION FOR TEKU.** `tax: null` on a transcribed
+seed means the paper prints no tax line (`receipt-aia01`; Gate 49: no row). On a capture it
+means the engine did not read one. Only provenance separates the two, and provenance is not a
+field — `sourceUrl`, which only captures carry, stands in for it. The alternative is a
+widening that ruling 2 forbids.
+
+The rows render `—` in the detail sheet's receipt block, the viewer's details block and the
+link picker's context line. The editor opens with an EMPTY total rather than `0.00`, and the
+total-mismatch line is suppressed when the total was not read, because there is no comparison
+to state. **0 baselines moved**: no walk state renders an unread figure.
+
+### Tests and proofs
+
+467 = 445 + `second-pass` 8 + `receipt-order` 8 + `unread-figures` 5 + one `ocr` normaliser
+test ('photo' is greyscale at the same edge and never passes through). `bulk-save` and
+`link-editor` were updated for the dash, and for the two captures of one selection sharing
+the newest group — both predicted before the run.
+
+**13 MUTATION PROOFS ON THE FINAL TREE**, each mutate -> exit 1 -> restore -> sha256 match ->
+exit 0: trigger or->and; pick total tie-break removed; pick item comparison reversed; order on
+`capturedAt`; month key from `capturedAt`; backfill fills nothing; backfill not wired; ms
+dropped; tie reversed (Node, and in the UI); formatter draws 0.00; 0 counted as read; tax row
+omitted when unread. **The driver's first attempt at the UI tie proof ran ZERO tests** — its
+`-g` named no title — and still exited 1. A mutation run that ran nothing is not a proof:
+count the tests before reading the exit code.
+
+**THREE CLEAN RUNS OF THE FINAL TREE: 467 passed / 0 failed each** (14.0 / 14.2 / 14.8 min),
+the snapshot digest `0e82ba22…c5fb87f` after every run by the Phase 0 command.
+
+**ONE HARNESS-ONLY EDIT FOLLOWED THE RUNS, AND IT IS STATED RATHER THAN HIDDEN.**
+`score.mjs --attribute` read the FIRST pass's words even where the second pass was kept, so
+it attributed a triggered receipt's misses against text that was not scored. It now reads the
+kept reading. Nothing in the suite imports `scripts/` (`testDir: './e2e'`); `--list` is 467
+before and after. Corrected, the shipped rule's misses attribute **73 reading / 10 parsing**,
+and 9 of the 10 flags sit on second-pass readings — by hand, mostly a price the second pass's
+segmentation put on the wrong row, which is reading. Read the flags, do not count them.
+
+### Bundle, measured through `build:package`
+
+Entry chunk **5,799,170 -> 5,799,883** (+713: the Phase 2/3 app code, and one dynamic import
+where there were two). `recognise-*.js` 3,414 -> 3,715 (the 'photo' preparation);
+`parseReceipt-*.js` 13,481, unchanged; a new lazy `read-*.js` of 1,053 bytes, which holds
+`secondPass`; `modulepreload` still 0.
+
+**THE GATE 56 -> 57 SIX BYTES ARE RECONCILED.** Both tags were rebuilt from `git archive`
+(5,799,176 and 5,799,170 reproduced exactly). The whole difference is Gate 57's stem-based
+`disambiguateDisplayNames`, minified 189 -> 183 characters. The three lazy-chunk hashes it
+references were renamed at equal length.
+
+### Deliberately not in scope
+
+Reusing a worker across the two passes; a confidence gate; re-tuning `OCR_LONG_EDGE`; engine
+parameters; a sort control, toast or flat list on the Receipts tab; ordering the source
+picker's library list; a provenance field for tax; `npm audit fix`; the DS repo and the pin.
 
 ## Known conditions of this setup
 

@@ -575,6 +575,24 @@ export interface Receipt {
   displayName: string
   /** ISO 8601 local timestamp, transcribed from the receipt's own printed date. */
   capturedAt: string
+  /**
+   * WHEN THIS RECEIPT ENTERED THE LIBRARY — Gate 58. `YYYY-MM-DDTHH:mm:ss.SSS`,
+   * zone-less local wall clock like every other timestamp here, TO THE
+   * MILLISECOND.
+   *
+   * THE RECEIPTS TAB GROUPS AND ORDERS ON THIS, NOT ON `capturedAt` (Teku's
+   * ruling, 18 Sept, option C). Filing by the printed date put a receipt a user
+   * had just added under its paper's month — years back for old till paper, and
+   * three screens below everything else. `capturedAt` is still what the card
+   * prints and still the only date auto-match reads.
+   *
+   * OPTIONAL ON THE TYPE ONLY BECAUSE THE SEED PREDATES IT. `backfillAddedAt`
+   * (`derive.ts`) fills it on first load from `capturedAt`, so every receipt
+   * the app holds carries one; `capturedToReceipt` writes it for a capture. A
+   * receipt that reaches the Receipts tab without one is a defect, and the
+   * grouping says so rather than guessing.
+   */
+  addedAt?: string
   /** The merchant as the receipt's own letterhead prints it. */
   merchant: string
   /**

@@ -214,8 +214,30 @@ export function jpegDimensions(bytes: Uint8Array): { width: number; height: numb
 
 
 /**
+ * WHICH PREPARATION A READING USES (Gate 58).
+ *
+ *   'plain'  the Gate 56 pipeline: orient, size, white ground, PNG. The FIRST
+ *            pass, and the only one a receipt that reads well ever receives.
+ *   'photo'  the same, plus the browser's high-quality resampling and a
+ *            luminance greyscale. The SECOND pass, run only when the first one
+ *            failed — see `secondPass.ts` for the trigger and for how the two
+ *            readings are chosen between.
+ *
+ * WHY THESE TWO STEPS AND NO OTHERS. Gate 57 measured this exact configuration
+ * reading 11 of the 39 items on five photographed receipts where 'plain' reads
+ * none — the only preprocessing in any sweep that moved a photograph at all.
+ * Gate 56 rejected it as the DEFAULT because it costs a development total and
+ * makes three receipts worse; run only on a failed first pass, and kept only
+ * when it reads more, that cost cannot reach a receipt that already read.
+ *
+ * THE LONG EDGE IS THE SAME 1600 AND NO ENGINE PARAMETER IS SET. Rotation and
+ * size are shared; only resampling and colour differ.
+ */
+export type OcrPreparation = 'plain' | 'photo'
+
+/**
  * Orient `image` upright and scale its long edge to `OCR_LONG_EDGE`, or return
- * it as-is when neither is needed.
+ * it as-is when neither is needed. `'photo'` always redraws — see above.
  *
  * THE PASS-THROUGH IS NOW RARE AND STILL EXACT: an upright image whose long edge
  * is already 1600 comes back as the identical `Blob`. For a JPEG that is decided
@@ -226,7 +248,11 @@ export function jpegDimensions(bytes: Uint8Array): { width: number; height: numb
  * receives exactly what it received before this module existed and fails, or
  * succeeds, on its own terms.
  */
-export async function normaliseForOcr(image: Blob): Promise<Blob> {
+export async function normaliseForOcr(
+  image: Blob,
+  preparation: OcrPreparation = 'plain',
+): Promise<Blob> {
+  const photo = preparation === 'photo'
   const bytes = new Uint8Array(await image.arrayBuffer())
 
   const orientation = exifOrientation(bytes)
@@ -240,7 +266,12 @@ export async function normaliseForOcr(image: Blob): Promise<Blob> {
   // mutation: disabling this line leaves the pass-through test green, disabling
   // that one turns it red.
   const stored = jpegDimensions(bytes)
-  if (stored !== null && !needsRotation && Math.max(stored.width, stored.height) === OCR_LONG_EDGE) {
+  if (
+    !photo &&
+    stored !== null &&
+    !needsRotation &&
+    Math.max(stored.width, stored.height) === OCR_LONG_EDGE
+  ) {
     return image
   }
 
@@ -254,26 +285,47 @@ export async function normaliseForOcr(image: Blob): Promise<Blob> {
     // `from-image` has ALREADY applied the rotation, so these are the upright
     // dimensions and nothing here transposes them a second time.
     const longEdge = Math.max(bitmap.width, bitmap.height)
-    if (!needsRotation && longEdge === OCR_LONG_EDGE) return image
+    if (!photo && !needsRotation && longEdge === OCR_LONG_EDGE) return image
 
     const scale = OCR_LONG_EDGE / longEdge
     const width = Math.max(1, Math.round(bitmap.width * scale))
     const height = Math.max(1, Math.round(bitmap.height * scale))
 
     const canvas = new OffscreenCanvas(width, height)
-    const context = canvas.getContext('2d')
+    // `willReadFrequently` ONLY FOR 'photo', which reads its pixels back. It
+    // picks a CPU-backed canvas, and the backing decides the resampler — so
+    // setting it on 'plain' could move the first pass's pixels, which Gate 56
+    // measured and Gate 58 must not change.
+    const context = canvas.getContext('2d', photo ? { willReadFrequently: true } : undefined)
     if (!context) throw new Error('could not get a 2d context to normalise the capture')
 
     // WHITE FIRST, for the reason `rasterise.ts` records: a canvas starts
     // transparent, and transparent pixels flatten to BLACK on encode — which
     // would hand the engine black-on-black wherever the source carries alpha.
     // A token would be wrong here: `--mapped-surface-page` dark-flips.
+    if (photo) context.imageSmoothingQuality = 'high'
     context.fillStyle = 'white'
     context.fillRect(0, 0, width, height)
     // The browser's DEFAULT smoothing, deliberately. `imageSmoothingQuality:
     // 'high'` was measured at Gate 56 and read the same 79 items while making
     // three receipts worse; the default is what the shipped numbers describe.
     context.drawImage(bitmap, 0, 0, width, height)
+
+    // 'photo' ONLY: luminance greyscale, Rec. 601 weights, rounded — the same
+    // arithmetic the Gate 57 sweep measured (`scripts/ocr-corpus/probe.js`), so
+    // the measurement transfers to this code rather than to a lookalike.
+    if (photo) {
+      const pixels = context.getImageData(0, 0, width, height)
+      const d = pixels.data
+      for (let p = 0; p < d.length; p += 4) {
+        const v = Math.round(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2])
+        d[p] = v
+        d[p + 1] = v
+        d[p + 2] = v
+        d[p + 3] = 255
+      }
+      context.putImageData(pixels, 0, 0)
+    }
 
     // PNG, NOT JPEG. A second lossy generation would damage exactly the
     // high-frequency edges the engine reads letters from.

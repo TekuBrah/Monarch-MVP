@@ -1,6 +1,6 @@
 import workerUrl from 'tesseract.js/dist/worker.min.js?url'
 import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url'
-import { normaliseForOcr } from './normalise'
+import { normaliseForOcr, type OcrPreparation } from './normalise'
 import type { OcrBox, OcrLine, OcrResult } from './types'
 
 /**
@@ -251,7 +251,12 @@ async function assertLanguageModelIsServed(): Promise<void> {
  * milliseconds — and a leaked worker surviving a failed parse is the harder bug
  * to find of the two.
  */
-export async function recognise(image: Blob): Promise<OcrResult> {
+export async function recognise(
+  image: Blob,
+  // Gate 58: which preparation the image receives — see `OcrPreparation`. The
+  // default is the Gate 56 pipeline, so every existing caller is unchanged.
+  preparation: OcrPreparation = 'plain',
+): Promise<OcrResult> {
   const { createWorker } = await import('tesseract.js')
 
   await assertLanguageModelIsServed()
@@ -275,7 +280,7 @@ export async function recognise(image: Blob): Promise<OcrResult> {
   //
   // BEFORE `createWorker`, so the image work is done before a 3.9 MB WebAssembly
   // engine and a 2.82 MB language model are spun up.
-  const normalised = await normaliseForOcr(image)
+  const normalised = await normaliseForOcr(image, preparation)
 
   const worker = await createWorker('eng', OEM_LSTM_ONLY, {
     workerPath: workerUrl,

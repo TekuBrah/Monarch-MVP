@@ -192,6 +192,8 @@ interface NormaliseResult {
   /** RGBA of the output's top-centre and bottom-centre pixels. */
   top: number[]
   bottom: number[]
+  /** RGBA a quarter of the way across, half way down — inside a split's left half. */
+  left: number[]
 }
 
 type ImageRecipe = {
@@ -204,6 +206,10 @@ type ImageRecipe = {
   transparent?: boolean
   /** Splice a LITTLE-ENDIAN EXIF Orientation tag into a JPEG. */
   orientation?: number
+  /** Paint the left half this colour instead of black (with `split`). */
+  splitColour?: string
+  /** Gate 58: which `OcrPreparation` to normalise with. Default 'plain'. */
+  preparation?: 'plain' | 'photo'
 }
 
 async function normaliseSynthetic(
@@ -220,7 +226,7 @@ async function normaliseSynthetic(
         ctx.fillRect(0, 0, recipe.width, recipe.height)
       }
       if (recipe.split) {
-        ctx.fillStyle = 'black'
+        ctx.fillStyle = recipe.splitColour ?? 'black'
         ctx.fillRect(0, 0, recipe.width / 2, recipe.height)
       }
       let blob = await canvas.convertToBlob({ type: recipe.type, quality: 1 })
@@ -242,8 +248,8 @@ async function normaliseSynthetic(
         blob = new Blob([spliced], { type: 'image/jpeg' })
       }
 
-      const mod: { normaliseForOcr: (b: Blob) => Promise<Blob> } = await import(modulePath)
-      const out = await mod.normaliseForOcr(blob)
+      const mod: { normaliseForOcr: (b: Blob, p?: string) => Promise<Blob> } = await import(modulePath)
+      const out = await mod.normaliseForOcr(blob, recipe.preparation)
       const bitmap = await createImageBitmap(out, { imageOrientation: 'none' })
       const read = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!
       read.drawImage(bitmap, 0, 0)
@@ -254,6 +260,7 @@ async function normaliseSynthetic(
         height: bitmap.height,
         top: px(Math.floor(bitmap.width / 2), Math.floor(bitmap.height * 0.1)),
         bottom: px(Math.floor(bitmap.width / 2), Math.floor(bitmap.height * 0.9)),
+        left: px(Math.floor(bitmap.width / 4), Math.floor(bitmap.height / 2)),
       }
     },
     { recipe, modulePath: NORMALISE_PATH },
@@ -309,6 +316,25 @@ test.describe('the capture normaliser', () => {
     expect(jpeg.sameBlob, 'the identical JPEG Blob comes back').toBe(true)
     const png = await normaliseSynthetic(page, { width: 1600, height: 900, type: 'image/png' })
     expect(png.sameBlob, 'the identical PNG Blob comes back').toBe(true)
+  })
+
+  test("the 'photo' preparation is greyscale at the SAME 1600px edge, and never passes through", async ({
+    page,
+  }) => {
+    // Gate 58's second pass. An upright 1600x900 PNG would pass through 'plain'
+    // untouched (above); 'photo' must redraw it, keep the size, and turn a pure
+    // red half into its Rec. 601 luminance — round(0.299 x 255) = 76.
+    const out = await normaliseSynthetic(page, {
+      width: 1600,
+      height: 900,
+      type: 'image/png',
+      split: true,
+      splitColour: 'rgb(255, 0, 0)',
+      preparation: 'photo',
+    })
+    expect(out.sameBlob, "'photo' always redraws").toBe(false)
+    expect({ width: out.width, height: out.height }).toEqual({ width: 1600, height: 900 })
+    expect(out.left, 'red became grey').toEqual([76, 76, 76, 255])
   })
 
   test('the orientation tag is read from the bytes, and its absence is null', () => {

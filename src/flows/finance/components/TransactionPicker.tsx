@@ -7,9 +7,10 @@ import {
   TRANSACTION_FILTER_ALL,
   filterTransactions,
   groupTransactionsByMonth,
+  receiptTotalRead,
   transactionHasReceipt,
 } from '../../../data/derive'
-import { formatMyr, formatSignedMyr, formatTimestamp } from '../../../data/format'
+import { formatMyrOrUnread, formatSignedMyr, formatTimestamp } from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
 
 /**
@@ -136,7 +137,7 @@ export function TransactionPicker({
         <span className="mvp-link-picker__context-merchant type-body-sm-semibold">
           {receipt.merchant}
         </span>
-        {` · ${formatTimestamp(receipt.capturedAt)} · ${formatMyr(receipt.total)}`}
+        {` · ${formatTimestamp(receipt.capturedAt)} · ${formatMyrOrUnread(receiptTotalRead(receipt))}`}
       </p>
 
       {/*

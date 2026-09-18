@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 import { RECEIPTS_TAB, capturedImageName } from './capture'
+import { UNREAD_FIGURE } from '../src/data/format'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -164,24 +165,28 @@ test('a failed extraction strands nothing and discards nothing', async ({
     THE UNREAD ONE IS AN UNREAD RECEIPT, NOT A FABRICATED ONE. `capturedToReceipt`
     applies the same three honest fallbacks it already applies to a field the
     engine read but could not parse, so the receipt's display name stands in
-    for the merchant and the total reads 0 — never a guess. The DISPLAY name
+    for the merchant and the total is stored as 0 — never a guess — and, since
+    Gate 58, DISPLAYED as an em dash rather than "RM 0.00". The DISPLAY name
     since Gate 55; it was `file.name` until then. This is the SECOND capture of
     its selection, so Decision 7B names it with the `_2` suffix. Gate 51-B's editor is how
     the user corrects it, which is why this needs no new state and no new copy.
 
-    IT IS ADDRESSED BY ITS MONTH GROUP, NOT BY POSITION. An unread date falls
-    back to the moment of capture, which under the pinned clock is August 2026 —
-    strictly newer than every seeded receipt and than the readable capture's own
-    2025-09-04. `groupReceiptsByMonth` sorts groups descending, so it is alone in
-    the FIRST group, and asserting that count is what makes the click land on it
-    by evidence rather than by luck.
+    IT IS ADDRESSED BY ITS MONTH GROUP AND ITS PICK POSITION (Gate 58). The
+    Receipts tab groups by when a receipt was ADDED, and both captures of one
+    selection share one `addedAt` — the pinned clock, August 2026, newer than
+    every backfilled seed — so the FIRST group holds exactly these two, in the
+    order they were picked: the readable one, then the unread `_2`. Asserting
+    the count and the second card's name is what makes the click land on it by
+    evidence rather than by luck. Until Gate 58 the readable one filed under its
+    printed September 2025 and the unread one sat alone in the first group.
   */
   const newest = page.locator('.mvp-receipts__month').first()
-  await expect(
-    newest.locator('.mvp-receipt-card'),
-    'the unread capture is alone in the newest month group',
-  ).toHaveCount(1)
-  await newest.locator('.mvp-receipt-card').click()
+  const cards = newest.locator('.mvp-receipt-card')
+  await expect(cards, 'both captures of the selection are in the newest group').toHaveCount(2)
+  await expect(cards.nth(1), 'the unread capture is second, in pick order').toContainText(
+    capturedImageName(PINNED_NOW, 2),
+  )
+  await cards.nth(1).click()
 
   const viewer = page.locator('[role="dialog"][aria-modal="true"]')
   await expect(viewer).toHaveCount(1)
@@ -194,8 +199,8 @@ test('a failed extraction strands nothing and discards nothing', async ({
   await expect(row('Merchant'), 'merchant falls back to the display name').toHaveText(
     capturedImageName(PINNED_NOW, 2),
   )
-  await expect(row('Total'), 'an unread total is 0, never a guess').toHaveText(
-    'RM 0.00',
+  await expect(row('Total'), 'an unread total is an em dash, never "RM 0.00"').toHaveText(
+    UNREAD_FIGURE,
   )
 })
 

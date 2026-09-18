@@ -12,7 +12,13 @@ import { useAccounts } from '../../../accounts/AccountsProvider'
 import { SectionHeader } from '../../../components/SectionHeader'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
-import { formatMyr, formatSignedMyr, formatTimestamp } from '../../../data/format'
+import { receiptTotalRead } from '../../../data/derive'
+import {
+  formatMyr,
+  formatMyrOrUnread,
+  formatSignedMyr,
+  formatTimestamp,
+} from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
 import { fileTypeLabel } from '../receiptCapture'
 import {
@@ -146,6 +152,10 @@ function toCents(value: number): number {
  * float `!==` here would report a mismatch on values that print identically.
  */
 function totalsDisagree(receipt: Receipt, transaction: Transaction): boolean {
+  // A TOTAL THAT WAS NEVER READ CANNOT DISAGREE WITH ANYTHING (Gate 58). The
+  // Total row already shows the dash; a line reading "This receipt's total
+  // is —" would state a comparison that was never made.
+  if (receiptTotalRead(receipt) === null) return false
   return toCents(receipt.total) !== toCents(-transaction.amount)
 }
 
@@ -195,7 +205,7 @@ function ReceiptDetails({ receipt, onEdit }: { receipt: Receipt; onEdit: () => v
       <dl className="mvp-receipt-details__rows">
         <DetailRow label="Merchant" value={receipt.merchant} />
         <DetailRow label="Date" value={formatTimestamp(receipt.capturedAt)} />
-        <DetailRow label="Total" value={formatMyr(receipt.total)} />
+        <DetailRow label="Total" value={formatMyrOrUnread(receiptTotalRead(receipt))} />
       </dl>
     </section>
   )

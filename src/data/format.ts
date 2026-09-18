@@ -20,6 +20,21 @@ export function formatMyr(amount: Amount): string {
   return `RM ${MYR.format(Math.abs(amount))}`
 }
 
+/**
+ * A money figure the app did NOT read — Gate 58. An em dash, never "RM 0.00".
+ *
+ * A receipt printing a confident zero it never read is worse than one printing
+ * nothing: it reads as a free bill. `null` is "not read"; the three derivations
+ * in `derive.ts` (`receiptTotalRead`, `receiptSubtotalRead`, `receiptTaxRead`)
+ * decide when a receipt's figure is `null`, and this only draws the answer.
+ */
+export const UNREAD_FIGURE = '—'
+
+/** `formatMyr`, or `UNREAD_FIGURE` for a figure that was not read. */
+export function formatMyrOrUnread(amount: Amount | null): string {
+  return amount === null ? UNREAD_FIGURE : formatMyr(amount)
+}
+
 /** `-250.75` -> `"-RM 250.75"`, `1568` -> `"+RM 1,568.00"`. Sign always shown. */
 export function formatSignedMyr(amount: Amount): string {
   return `${amount < 0 ? '-' : '+'}${formatMyr(amount)}`

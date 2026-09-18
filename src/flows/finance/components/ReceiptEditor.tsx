@@ -1,5 +1,6 @@
 import { Field } from '@monarch/design-system'
 import type { ReceiptEdit } from '../../../accounts/AccountsProvider'
+import { receiptTotalRead } from '../../../data/derive'
 import type { Receipt } from '../../../data/types'
 
 /**
@@ -83,7 +84,10 @@ export function draftFrom(receipt: Receipt): EditorDraft {
     merchant: receipt.merchant,
     date: receipt.capturedAt.slice(0, 10),
     time: receipt.capturedAt.slice(11, 16),
-    total: receipt.total.toFixed(2),
+    // EMPTY WHEN THE TOTAL WAS NEVER READ (Gate 58), not "0.00" — the field is
+    // where the user supplies it, and a pre-filled zero is the same false figure
+    // the dash replaced everywhere else.
+    total: receiptTotalRead(receipt)?.toFixed(2) ?? '',
   }
 }
 

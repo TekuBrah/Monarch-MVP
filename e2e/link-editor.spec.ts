@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { PINNED_NOW, THEMES, activateTab, gotoRoute } from './harness'
 import { RECEIPTS_TAB, TRANSACTIONS_TAB, capturedImageName, installResolvingExtraction, openDialogNames, saveOneCapture } from './capture'
+import { UNREAD_FIGURE } from '../src/data/format'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -409,8 +410,12 @@ for (const theme of THEMES) {
     await expect(rows.locator('.mvp-receipt-details__row', { hasText: 'Merchant' })).toContainText(
       capturedImageName(PINNED_NOW),
     )
-    // ZERO, NEVER A GUESS.
-    await expect(rows).toContainText('RM 0.00')
+    // NOT READ, SO NOT A FIGURE: an em dash since Gate 58, where "RM 0.00" once
+    // read as a free bill. Stored as 0 — never a guess — and drawn as unread.
+    await expect(rows.locator('.mvp-receipt-details__row', { hasText: 'Total' })).toContainText(
+      UNREAD_FIGURE,
+    )
+    await expect(rows).not.toContainText('RM 0.00')
     // AND THE CAPTURE MOMENT for the date — the harness pins the clock to
     // 2026-08-15, so a fallback date is that day and a read one could not be.
     await expect(rows).toContainText('15 Aug')

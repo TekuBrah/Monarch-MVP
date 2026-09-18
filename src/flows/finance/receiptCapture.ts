@@ -52,6 +52,19 @@ function localWallClock(date: Date): string {
 }
 
 /**
+ * `localWallClock` TO THE MILLISECOND — the shape of `Receipt.addedAt` (Gate 58).
+ *
+ * DERIVED FROM `localWallClock`, NOT FORMATTED AGAIN, so the two can never
+ * disagree about which second it is. The milliseconds are what separate two
+ * saves made within the same second; one selection shares one reading of the
+ * clock, and its receipts are ordered among themselves by pick order instead
+ * (`receiptsNewestFirst`).
+ */
+export function localWallClockMs(date: Date): string {
+  return `${localWallClock(date)}.${String(date.getMilliseconds()).padStart(3, '0')}`
+}
+
+/**
  * WHICH DEVICE SURFACE A FILE CAME FROM.
  *
  * ⚠️ IT IS AN INSTRUCTION TO AN `<input>` AGAIN, AND NOTHING ELSE — GATE 54.
@@ -318,7 +331,9 @@ export async function extractCapture(file: File, sourceUrl: string): Promise<Cap
  *   capturedAt  the moment of capture, which is a real fact about this receipt
  *               even when the printed date is unreadable — in LOCAL wall-clock
  *               time, like every other timestamp here (`localWallClock`, Gate 51)
- *   total       0, never a guess
+ *   total       0, never a guess — and since Gate 58 DRAWN as an em dash, not
+ *               "RM 0.00" (`receiptTotalRead` in `derive.ts`): 0 is the mark,
+ *               never a figure a user sees
  *
  * THESE ARE FOR THE SCREEN ONLY. Auto-match has already run on the raw fields
  * by the time this is called, so a filled date or merchant can never make a
@@ -332,6 +347,7 @@ export function capturedToReceipt(
   capture: CapturedFile,
   transactionId: string | null,
   displayName: string,
+  addedAt: string,
 ): Receipt {
   const { file, sourceUrl, extracted } = capture
   return {
@@ -362,6 +378,9 @@ export function capturedToReceipt(
     */
     displayName,
     capturedAt: extracted.capturedAt ?? localWallClock(new Date()),
+    // WHEN IT WAS ADDED, handed in for the same reason `displayName` is: the
+    // clock is read once per selection, by `capturedToReceipts`.
+    addedAt,
     merchant: extracted.merchant ?? displayName,
     total: extracted.total ?? 0,
     tax: extracted.tax,
@@ -394,7 +413,8 @@ export function capturedToReceipts(
   now: Date,
 ): Receipt[] {
   const names = disambiguateDisplayNames(captures.map((c) => receiptDisplayName(c.file, now)))
-  return captures.map((capture, i) => capturedToReceipt(capture, links[i] ?? null, names[i]))
+  const addedAt = localWallClockMs(now)
+  return captures.map((capture, i) => capturedToReceipt(capture, links[i] ?? null, names[i], addedAt))
 }
 
 /**
