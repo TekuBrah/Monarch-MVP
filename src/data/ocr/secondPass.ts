@@ -46,8 +46,17 @@ import type { ParsedReceipt } from './parseReceipt'
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-/** Did this reading fail badly enough to earn a second pass? */
-export function firstPassFailed(parsed: ParsedReceipt): boolean {
+/**
+ * Did this reading fail badly enough to earn a second pass?
+ *
+ * GATE 60 APPLIES IT A SECOND TIME, TO THE READING KEPT — through
+ * `receiptReadFailed` in `derive.ts`, which is what decides whether a receipt
+ * shows the "we couldn't read this photo" advisory. So the parameter is the two
+ * fields the rule reads rather than a whole `ParsedReceipt`: a stored `Receipt`
+ * can supply exactly those two, and the advisory can then call THIS function
+ * instead of restating the rule beside it. One rule, two moments.
+ */
+export function firstPassFailed(parsed: Pick<ParsedReceipt, 'lineItems' | 'total'>): boolean {
   return parsed.lineItems.length === 0 || parsed.total === null
 }
 

@@ -9802,6 +9802,184 @@ the raw text in the copied JSON; `aria-expanded` on the toggle; the merchant or
 date in the diagnostic (not asked for, and both are paper content); the DS repo
 and the pin; `npm audit fix`.
 
+## The failed-reading advisory, and the retake (Gate 60)
+
+No DS re-pin — **v2.3.0 throughout**. No OCR work was added: the engine, the
+normaliser, the parser and the second pass are untouched, and the corpus figures
+are unchanged. What changed is that a reading which FAILED now says so, on the
+receipt, and offers a retake. **|WALK| 40 -> 43, `OVERLAY_STATES` 19 -> 22,
+baselines 160 -> 172 (12 added, 0 changed, 0 deleted — predicted in writing
+before the first run), tests 477 -> 509, spec files 21 -> 22.** `lint:tokens`
+scans **69** files (67 + `ReceiptAdvisory.tsx` + `useReceiptRetake.tsx`) with the
+same **3** exemptions.
+
+### The failure test is Gate 58's trigger, CALLED on the stored record
+
+`receiptReadFailed(receipt)` in `derive.ts` is
+`firstPassFailed({ lineItems: receipt.lineItems, total: receiptTotalRead(receipt) })`
+— the second-pass trigger, applied once more to the reading KEPT. It is called
+rather than restated, so the advisory and the trigger cannot drift apart;
+`firstPassFailed`'s parameter narrowed to `Pick<ParsedReceipt, 'lineItems' | 'total'>`
+so a stored record can supply exactly the two fields it reads.
+
+**NO FIELD WAS ADDED; THE RECORD ALREADY CARRIES THE ANSWER.** `lineItems` is
+copied through unchanged, and an unread total is stored as 0, which
+`receiptTotalRead` reads back as `null` (0 has one origin — Gate 58). Measured
+over the cached readings of all 30 corpus images through the current parser,
+second pass and choice: **the record-level and parse-level answers agree on all
+30**, and **the advisory fires on 7**:
+
+| set | fires | which |
+|---|---|---|
+| seeded (10) | **0** | — |
+| device (10) | **1** | `kfc` (no items, no total) |
+| blind gallery (5) | **2** | `7eleven` (items, no total), `mydin` (items, no total) |
+| blind camera (5) | **4** | `7eleven-camera`, `mydin-camera`, `sushiking-camera`, `walmart-camera` — all items, no total |
+
+The second pass TRIGGERS on 8; it rescues one (`barnes_noble-camera`, which the
+kept photo reading gives items and a total), so 7 fail after it.
+
+**WHAT IT CANNOT SEE, STATED.** A reading that got SOME items and a total looks
+successful. `watsons-phone` is on the corpus as exactly that: a total that is
+wrong and three items, and no advisory. A receipt printing more lines than came
+back, or one whose "total" is a fragment of a phone number, is the same case.
+Nothing in the app knows what the paper printed. **No confidence threshold was
+added** — Gate 57 measured confidence gating dead at one point.
+
+**IT CANNOT FIRE ON A TRANSCRIBED RECEIPT** (asserted in `retake.spec.ts`), and
+it **does not clear when the user corrects the total by hand**: the editor never
+edits line items, so an edited receipt with no items still reports a failed
+reading. That is true of the photograph, which is what the copy talks about.
+
+### Where it appears, and what it says
+
+| surface | why there | form |
+|---|---|---|
+| **Receipts-tab card** | where a bulk add lands | one caption line: `Couldn't read this photo` |
+| **Receipt viewer** | where the card opens; the only surface with room | full advisory ABOVE the image, framed, with the retake |
+| **Detail-sheet receipt block** | where a capture from a transaction lands | full advisory under the head row, unframed, with the retake |
+
+The card is a `<button>`, so it carries no retake of its own — a button inside a
+button is invalid. The Receipt-library list in the source picker reuses the card
+and therefore shows the caption too. No modal, no interruption of the save.
+
+**Copy** — title `We couldn't read this photo` (`file` for a PDF); body names
+the half that did not come through, derived from the same two record facts:
+`no items or total came through` / `no items came through` / `the total didn't
+come through`, then `Try again with the receipt flat, in good light and in focus
+— or keep this one and edit it by hand.` (a PDF: `Try another copy of the
+receipt`).
+
+**COMPOSED, NOT A PRIMITIVE.** The DS ships no inline-message or banner
+component; the advisory is `PromptBlock`'s own composition — title, body, one
+`Button` — on the same surface and border. **Two DS observations, reported not
+worked around:** there is no camera glyph (`photo_camera` is absent under
+v2.3.0), so the retake button is text-only `secondary` (not `tertiary`, per the
+G25 device finding); and `--mapped-text-warning-default` **fails AA as caption
+text on the card — 2.34:1 light, 4.22:1 dark** — so the caption uses
+`--mapped-text-default-default`. Separately, `--mapped-text-subtle-default` on
+`--mapped-surface-subtlest-default` is **4.33:1** in light, under AA for 14px
+body copy — which the advisory avoids by using the default text colour, and
+which the pre-existing `PromptBlock` body line still has.
+
+### The retake — a NEW receipt, and the original is not touched at all
+
+`useReceiptRetake` (`src/flows/finance/`), used by the viewer host and by the
+ledger for the detail sheet.
+
+- **It reopens the surface the receipt came from** — the camera (`capture=
+  "environment"`) for a camera capture, the file picker for an upload — and
+  **one file only** (`ReceiptFileInput.open(source, { single: true })`).
+- **The source is known through a session side store, not a field.** Gate 54
+  deleted the source's propagation because nothing read it; the retake reads it,
+  so `ReceiptFileInput` notes it against each `File` and `capturedToReceipt`
+  binds it to the id — the shape Gate 59's diagnostic store already uses. In
+  memory only (D3).
+- **The original is not edited, unlinked, replaced or deleted.** Its record, its
+  link and its advisory stay as they were; the user deletes it if they want it
+  gone, and Delete asks first.
+- **The new receipt is linked by auto-match at add time**, like any
+  Receipts-tab capture. Auto-match never takes a transaction that already has a
+  receipt, so a retake of a LINKED receipt arrives UNLINKED; moving the link is
+  the existing "Link to transaction" pick, whose Replace confirmation asks
+  before anything moves (P3).
+- **The viewer then opens on the new receipt**, so the user sees how the second
+  photograph read before deciding anything. From the detail sheet this swaps the
+  sheet for the viewer in one update, exactly as "View" does.
+- **No new OCR work.** A retake is one ordinary capture through
+  `extractCapture` — one-or-two passes, one worker per call (D8) — and
+  `extractCapture` still cannot reject.
+
+### The harness — an `extraction` field, and three walk states
+
+`OverlayState.extraction` answers the seam with a FIXED value for one state,
+written onto `window.__monarchExtractReceipt` after navigation and before the
+opening click. It is the change `installExtractionStub`'s own note asks for
+("resolve to a FIXED value here rather than let the app's own stub run"); every
+other state still gets the never-settling stub, and no state runs the engine.
+
+| state | reached by | captures |
+|---|---|---|
+| `/finance [tab:receipts] [overlay:add-unread]` | Add -> Photo Gallery -> Save (`confirm`) | the list, the new card's caption |
+| `/finance [tab:receipts] [overlay:view-unread]` | the same, then the new card | the viewer's advisory |
+| `/finance [tab:transactions] [overlay:detail-unread]` | the `detail` row -> Add Receipt -> Photo Gallery | the sheet's advisory |
+
+**`PINNED_NOW` MOVED ABOVE `OVERLAY_STATES`**, because `view-unread` names the
+card Decision 7B makes from that clock (`capturedImageName(PINNED_NOW)`), and a
+`const` read before its declaration is a TDZ error at module load.
+
+### Tests, baselines, proofs
+
+`e2e/retake.spec.ts`, 8 tests, no baseline: 2 in Node (the rule IS the trigger
+over 9 record shapes; no seeded receipt fires) and 6 in the browser (gallery
+retake end to end with the original untouched; camera retake opens the camera;
+detail-sheet retake leaves the original linked and opens the new one unlinked; a
+read capture shows no advisory; half a reading names the right half; the seeded
+library shows none). **The readable extraction's values are invented and were
+checked against the corpus token set** — two first choices collided and were
+replaced.
+
+**509 = 477 + 3 walk states x 8 + 8.** Baselines: the pre-mint run failed
+exactly the 12 predicted "snapshot doesn't exist" tests and wrote nothing
+(digest still `0e82ba22…c5fb87f`); the mint added exactly those 12 and changed
+none of the 160.
+
+**11 MUTATION PROOFS ON THE FINAL TREE, EACH RUNNING EXACTLY ONE TEST** —
+mutate, exit 1, restore, sha256 match, exit 0. The driver spawns Playwright
+with an argument array (node + the CLI script, no shell) and reports NO PROOF
+when a run counts anything but one test; none did. Targets: the rule reading the
+raw total (M1); the trigger's `||` -> `&&` (M2); the viewer, card and sheet
+conditions (M3-M5); the retake source (M6), `single` (M7), the source note and
+its binding (M8, M11); the viewer not moving to the new receipt (M9); the retake
+taking over the original's link (M10). **M6, M8 and M11 fail by a 30-second
+timeout**, not an assertion: the gallery-labelled button no longer exists, so
+the click inside `Promise.all` with `waitForEvent('filechooser')` never lands.
+The mechanism is right; the message is slow.
+
+**BUNDLE, through `build:package`, before (`mvp-gate59`, rebuilt from
+`git archive` and reproducing Gate 59's recorded entry exactly) and after:**
+
+| chunk | before | after |
+|---|---|---|
+| entry | 5,805,029 | **5,808,338** (+3,309) |
+| CSS | 178,115 | **178,610** (+495) |
+| `read-*.js` | 2,053 | **1,092** (-961) |
+| `diagnose-*.js` | 2,472 | 2,491 |
+| `recognise-*.js` / `parseReceipt-*.js` | 4,368 / 13,481 | unchanged |
+
+**`secondPass.ts` MOVED INTO THE ENTRY CHUNK**, which is most of the `read`
+chunk's shrink: `derive.ts` now imports `firstPassFailed` statically, and
+`secondPass.ts` imports nothing that runs, so the engine and the parser stay
+lazy. `modulepreload` is still 0.
+
+### Deliberately not in scope
+
+Any OCR, normaliser, parser or second-pass change; a confidence threshold;
+detecting a PARTIAL reading; moving a link automatically on retake; deleting
+the original on retake; a camera glyph or an inline-message primitive (DS-side);
+the pre-existing `PromptBlock` subtle-on-subtlest contrast; persistence; the DS
+repo and the pin; `npm audit fix`.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

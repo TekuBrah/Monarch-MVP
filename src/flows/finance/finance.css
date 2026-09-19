@@ -964,6 +964,19 @@
 }
 
 /*
+  GATE 60 — the card's one-line advisory, in the DEFAULT text colour so it does
+  not read as a second date (which is subtle).
+
+  THE WARNING TOKEN WAS TRIED FIRST AND FAILS AA ON THIS CARD, measured in the
+  harness: --mapped-text-warning-default is 2.34:1 on the light card and 4.22:1
+  on the dark one, against 4.5:1 for 12px text. Reported as a DS finding, not
+  worked around with a raw value.
+*/
+.mvp-receipt-card__advisory {
+  color: var(--mapped-text-default-default);
+}
+
+/*
   The divider row: two rules flanking the `link` glyph.
 
   THE RULES FLEX RATHER THAN CARRYING A WIDTH. Figma draws them as two 145.5-wide
@@ -1420,6 +1433,50 @@ button.mvp-receipt-card:focus-visible {
 .mvp-txn-detail__prompt-body {
   margin: 0;
   color: var(--mapped-text-subtle-default);
+}
+
+/*
+  ── THE RECEIPT ADVISORY (Gate 60) ─────────────────────────────────────────
+
+  The prompt block's composition — title, body, button, 8px gaps — because it
+  is the same kind of thing: a short statement and one action. FRAMED in the
+  viewer, where it sits on the modal's own surface and needs the prompt card's
+  surface, border and radius to read as one unit. UNFRAMED inside the detail
+  sheet's receipt card, which already paints that surface.
+
+  THE BUTTON HUGS ITS LABEL. `align-items: flex-start` stops the column
+  stretching it to the full width, which would make an advisory action look
+  like the surface's primary one.
+*/
+.mvp-receipt-advisory {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-200);
+}
+
+.mvp-receipt-advisory--framed {
+  padding: var(--spacing-300);
+  background: var(--mapped-surface-subtlest-default);
+  border: var(--brand-scale-25) solid var(--mapped-border-default-default);
+  border-radius: var(--brand-scale-200);
+}
+
+.mvp-receipt-advisory__title {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+/*
+  DEFAULT, NOT SUBTLE, AND THAT IS A MEASUREMENT. --mapped-text-subtle-default
+  on --mapped-surface-subtlest-default is 4.33:1 in light — under AA for 14px
+  body copy — and both places this renders sit on that surface. The same
+  pairing is pre-existing in the prompt block's body line; reported, not
+  touched here.
+*/
+.mvp-receipt-advisory__body {
+  margin: 0;
+  color: var(--mapped-text-default-default);
 }
 
 /* ── Transaction info ──────────────────────────────────────────────────── */

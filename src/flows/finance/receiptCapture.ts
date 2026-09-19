@@ -78,11 +78,46 @@ export function localWallClockMs(date: Date): string {
  * propagation through `CapturedFile` was deleted rather than left as a field
  * with no reader.
  *
+ * ⚠ "AND NOTHING ELSE" STOPPED BEING TRUE AT GATE 60 — the retake reads it
+ * again, through the side store below. The paragraph above is Gate 54's record.
+ *
  * IT STAYS IN THIS FILE ANYWAY, on the dependency-direction argument alone:
  * components in this flow import from `receiptCapture`, never the reverse.
  * Moving it back would invert that for no gain.
  */
 export type ReceiptSource = 'camera' | 'gallery'
+
+/**
+ * ─────────────── WHICH SURFACE EACH CAPTURE CAME FROM — GATE 60 ───────────────
+ *
+ * THE SOURCE HAS A READER AGAIN. Gate 54 stopped propagating it because nothing
+ * downstream asked; Gate 60's retake has to reopen THE SAME SURFACE a failed
+ * receipt came from — the camera for a camera capture, the file picker for an
+ * upload — so it needs to know which one that was.
+ *
+ * NOT A FIELD ON `Receipt`, AND NOT THREADED THROUGH `CapturedFile`. It is a
+ * session-only side store in the shape Gate 59's diagnostic store already
+ * uses: `ReceiptFileInput` notes the source against the `File` it handed over
+ * (the element that set `capture` is the single point of truth for it), and
+ * `capturedToReceipt` binds it to the receipt's id once that id exists. In
+ * memory only (D3); a reload forgets it, as it forgets the captures themselves.
+ *
+ * A RECEIPT WITH NO RECORDED SOURCE — every seeded one — answers `undefined`.
+ * Those never show the advisory (see `receiptReadFailed`), so the retake never
+ * has to guess for them.
+ */
+const sourceByFile = new WeakMap<File, ReceiptSource>()
+const sourceByReceipt = new Map<string, ReceiptSource>()
+
+/** Called by `ReceiptFileInput` for every file a pick hands over. */
+export function noteCaptureSource(file: File, source: ReceiptSource): void {
+  sourceByFile.set(file, source)
+}
+
+/** The surface a captured receipt came from, or `undefined` for a seeded one. */
+export function captureSourceFor(receiptId: string): ReceiptSource | undefined {
+  return sourceByReceipt.get(receiptId)
+}
 
 /**
  * A camera-roll-style name for a photograph the user just took.
@@ -356,6 +391,9 @@ export function capturedToReceipt(
   // id did not exist yet. Constant `false` without `?diag=1`; see
   // `data/captureDiagnostics.ts`.
   if (CAPTURE_DIAGNOSTICS) bindDiagnostic(file, id)
+  // Gate 60: bind the surface this file came from, for the retake.
+  const source = sourceByFile.get(file)
+  if (source) sourceByReceipt.set(id, source)
   return {
     id,
     // WHERE THE BYTES CAME FROM, UNTOUCHED BY GATE 53. `filename` and

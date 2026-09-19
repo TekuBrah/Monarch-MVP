@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react'
-import type { ReceiptSource } from '../receiptCapture'
+import { noteCaptureSource, type ReceiptSource } from '../receiptCapture'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -88,8 +88,15 @@ import type { ReceiptSource } from '../receiptCapture'
 const ACCEPT_IMAGE_AND_PDF = 'image/*,application/pdf'
 
 export interface ReceiptFileInputHandle {
-  /** Open the OS picker for this source. */
-  open: (source: ReceiptSource) => void
+  /**
+   * Open the OS picker for this source.
+   *
+   * `single` (Gate 60) drops `multiple` from a gallery pick. A RETAKE replaces
+   * one receipt's photograph, so offering a multi-select there would advertise
+   * a capability the action does not have — the same reason `multiple` is
+   * already omitted for the camera.
+   */
+  open: (source: ReceiptSource, options?: { single?: boolean }) => void
 }
 
 export interface ReceiptFileInputProps {
@@ -122,15 +129,23 @@ export const ReceiptFileInput = forwardRef<
   ReceiptFileInputProps
 >(function ReceiptFileInput({ onFiles }, ref) {
   const inputRef = useRef<HTMLInputElement>(null)
+  /*
+    GATE 60 — THE SOURCE IS REPORTED AGAIN, THROUGH A SIDE STORE. The `sourceRef`
+    Gate 54 deleted comes back because the retake reads it: set in `open()`,
+    read in `onChange`, and noted against each `File` via `noteCaptureSource`.
+    The `onFiles` signature is unchanged, so no caller had to learn about it.
+  */
+  const sourceRef = useRef<ReceiptSource>('gallery')
   useImperativeHandle(ref, () => ({
-    open(source) {
+    open(source, options) {
       const input = inputRef.current
       if (!input) return
+      sourceRef.current = source
       // SET PER OPEN, NOT PER RENDER. One element serves both sources, so the
       // attributes are whatever the LAST caller asked for — which is why they
       // are written here, immediately before the click, rather than bound to a
       // piece of state that a re-render could reset underneath an open picker.
-      input.multiple = source === 'gallery'
+      input.multiple = source === 'gallery' && !options?.single
       if (source === 'camera') input.setAttribute('capture', 'environment')
       else input.removeAttribute('capture')
       input.click()
@@ -149,6 +164,7 @@ export const ReceiptFileInput = forwardRef<
         // row fires no `change` event at all, because the input's value has not
         // changed — a bug that looks exactly like a broken handler.
         e.target.value = ''
+        for (const file of files) noteCaptureSource(file, sourceRef.current)
         if (files.length > 0) onFiles(files)
       }}
     />

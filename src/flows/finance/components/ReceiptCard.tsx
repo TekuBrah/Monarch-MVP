@@ -2,8 +2,10 @@ import { useId } from 'react'
 import { Chips, Divider, Icon, ListItem } from '@monarch/design-system'
 import { receiptImageUrl } from '../../../config/media'
 import { TransactionMark } from '../../../components/TransactionMark'
+import { receiptReadFailed } from '../../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
+import { advisoryCaption } from './ReceiptAdvisory'
 
 /**
  * Figma `Item/receipts` — one captured receipt, in both of its variants.
@@ -84,6 +86,8 @@ export function ReceiptCard({
   const isLinked = receipt.transactionId !== null && transaction !== undefined
   const nameId = useId()
   const dateId = useId()
+  const advisoryId = useId()
+  const failed = receiptReadFailed(receipt)
 
   return (
     <button
@@ -91,7 +95,7 @@ export function ReceiptCard({
       className="mvp-receipt-card"
       onClick={onOpen}
       aria-labelledby={nameId}
-      aria-describedby={dateId}
+      aria-describedby={failed ? `${dateId} ${advisoryId}` : dateId}
     >
       <div className="mvp-receipt-card__head">
         {/*
@@ -112,6 +116,18 @@ export function ReceiptCard({
           <span id={dateId} className="mvp-receipt-card__date type-body-caption">
             {formatTimestamp(receipt.capturedAt)}
           </span>
+          {/*
+            GATE 60 — THE ADVISORY'S ONE-LINE FORM. The card is a `<button>`, so
+            it carries no retake control of its own — a button inside a button is
+            invalid and unreachable. It says what went wrong; the viewer the card
+            opens carries the full advisory and the retake. Absent on every
+            receipt that read, so no existing card changes shape.
+          */}
+          {failed && (
+            <span id={advisoryId} className="mvp-receipt-card__advisory type-body-caption">
+              {advisoryCaption(receipt)}
+            </span>
+          )}
         </div>
         {isLinked && (
           /*

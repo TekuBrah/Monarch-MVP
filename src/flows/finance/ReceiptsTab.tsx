@@ -289,7 +289,7 @@ export function ReceiptsTab() {
         ALWAYS MOUNTED, AND IT RENDERS NOTHING WHILE IDLE — its toast has to
         outlive the viewer it reports on. See `ReceiptViewerHost`.
       */}
-      <ReceiptViewerHost receiptId={viewingId} onClose={closeViewer} />
+      <ReceiptViewerHost receiptId={viewingId} onClose={closeViewer} onShow={setViewingId} />
     </div>
   )
 }

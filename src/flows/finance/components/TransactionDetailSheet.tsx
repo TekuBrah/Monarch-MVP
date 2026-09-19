@@ -5,7 +5,9 @@ import { HOLDINGS } from '../../../data/holdings'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
 import { CapturingBlock } from './CapturingBlock'
+import { ReceiptAdvisory } from './ReceiptAdvisory'
 import {
+  receiptReadFailed,
   receiptSubtotalRead,
   receiptTaxRead,
   receiptTotalRead,
@@ -112,6 +114,12 @@ export interface TransactionDetailSheetProps {
    * holds none of its own.
    */
   isCapturing: boolean
+  /**
+   * Retake the linked receipt's photograph — Gate 60. Offered only when that
+   * receipt's reading failed (`receiptReadFailed`); see `useReceiptRetake`
+   * for what a retake does and, as importantly, what it leaves alone.
+   */
+  onRetake: (receipt: Receipt) => void
   onClose: () => void
 }
 
@@ -122,6 +130,7 @@ export function TransactionDetailSheet({
   onView,
   onAddReceipt,
   isCapturing,
+  onRetake,
   onClose,
 }: TransactionDetailSheetProps) {
   const category = transactionCategory(transaction.category)
@@ -190,6 +199,7 @@ export function TransactionDetailSheet({
           receipt={receipt}
           onUnlink={() => onUnlink(receipt.id)}
           onView={() => onView(receipt.id)}
+          onRetake={() => onRetake(receipt)}
         />
       ) : (
         <PromptBlock onAddReceipt={onAddReceipt} />
@@ -354,10 +364,12 @@ function ReceiptBlock({
   receipt,
   onUnlink,
   onView,
+  onRetake,
 }: {
   receipt: Receipt
   onUnlink: () => void
   onView: () => void
+  onRetake: () => void
 }) {
   // GATE 58: a figure that was never read renders an em dash, not "RM 0.00" —
   // see the three `receipt*Read` derivations in `derive.ts`.
@@ -398,6 +410,20 @@ function ReceiptBlock({
         */}
         <Chips label="Linked" appearance="success" isBold />
       </div>
+
+      {/*
+        GATE 60 — THE ADVISORY, DIRECTLY UNDER THE HEAD ROW. This sheet is where
+        a user lands after capturing from a transaction, and the items and totals
+        below are exactly what did not come through, so it is said before them.
+        UNFRAMED: this card already paints the surface a framed box would, and a
+        box on its own ground is invisible (the Gate 52 finding).
+      */}
+      {receiptReadFailed(receipt) && (
+        <>
+          <Divider />
+          <ReceiptAdvisory receipt={receipt} onRetake={onRetake} framed={false} />
+        </>
+      )}
 
       <Divider />
 

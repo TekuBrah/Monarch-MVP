@@ -11,6 +11,7 @@ import {
   type ReceiptFileInputHandle,
 } from './components/ReceiptFileInput'
 import { captureToReceipt, type ReceiptSource } from './receiptCapture'
+import { useReceiptRetake } from './useReceiptRetake'
 import {
   TRANSACTION_FILTER_ALL,
   clearFacet,
@@ -126,6 +127,22 @@ export function TransactionsLedger() {
   // STABLE — see `ReceiptViewerHost`'s `close` for why an `onClose` that
   // reaches a DS `Modal` must keep its identity across renders.
   const closeViewer = useCallback(() => setViewingId(null), [])
+
+  /*
+    GATE 60 — A RETAKE STARTED FROM THE DETAIL SHEET LANDS IN THE VIEWER, on
+    the NEW receipt, swapping the sheet out in one update exactly as "View"
+    does. The new receipt is almost always unlinked (auto-match never takes a
+    transaction that already has a receipt), so the sheet — which shows the
+    ORIGINAL, still linked and untouched — could not show the result at all.
+    The viewer shows how the second photograph read, and its "Link to
+    transaction" is how the user moves the link, with the Replace confirmation
+    asking first. See `useReceiptRetake`.
+  */
+  const showRetake = useCallback((receiptId: string) => {
+    setDetailId(null)
+    setViewingId(receiptId)
+  }, [])
+  const sheetRetake = useReceiptRetake(showRetake)
 
   /*
     ── EVERY OVERLAY `onClose` ON THIS SCREEN IS STABLE (Gate 52) ───────────
@@ -468,7 +485,9 @@ export function TransactionsLedger() {
             setViewingId(receiptId)
           }}
           onAddReceipt={() => setIsPickerOpen(true)}
-          isCapturing={isCapturing}
+          // A RETAKE READS IN THE SAME PLACE A FIRST CAPTURE DOES (Gate 60).
+          isCapturing={isCapturing || (detailReceipt !== undefined && sheetRetake.retakingId === detailReceipt.id)}
+          onRetake={sheetRetake.start}
           onClose={closeDetail}
         />
       )}
@@ -478,7 +497,8 @@ export function TransactionsLedger() {
         same host for its cards; this one serves "View". Always mounted, because
         Delete's toast has to outlive the viewer — see `ReceiptViewerHost`.
       */}
-      <ReceiptViewerHost receiptId={viewingId} onClose={closeViewer} />
+      <ReceiptViewerHost receiptId={viewingId} onClose={closeViewer} onShow={setViewingId} />
+      {sheetRetake.input}
 
       {/*
         ── THE CAPTURE SOURCE PICKER (Gate 50) ─────────────────────────────────

@@ -13,7 +13,7 @@ import { SectionHeader } from '../../../components/SectionHeader'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
 import { CAPTURE_DIAGNOSTICS } from '../../../data/captureDiagnostics'
-import { receiptTotalRead } from '../../../data/derive'
+import { receiptReadFailed, receiptTotalRead } from '../../../data/derive'
 import {
   formatMyr,
   formatMyrOrUnread,
@@ -31,6 +31,9 @@ import {
   type EditorDraft,
 } from './ReceiptEditor'
 import { CaptureDiagnosticsBlock } from './CaptureDiagnosticsBlock'
+import { CapturingBlock } from './CapturingBlock'
+import { ReceiptAdvisory } from './ReceiptAdvisory'
+import { useReceiptRetake } from '../useReceiptRetake'
 import { TransactionPicker } from './TransactionPicker'
 
 /**
@@ -252,15 +255,28 @@ function ReceiptViewerBody({
   receipt,
   transaction,
   onEdit,
+  onRetake,
 }: {
   receipt: Receipt
   transaction?: Transaction
   onEdit: () => void
+  onRetake: () => void
 }) {
   const isLinked = receipt.transactionId !== null && transaction !== undefined
 
   return (
     <>
+      {/*
+        GATE 60 — THE ADVISORY LEADS, ABOVE THE IMAGE. It is the one thing on
+        this receipt the user most needs to know, and the Receipt details block
+        sits below the fold on a tall card at 375 (Gate 51-B), so placing it
+        there would hide it exactly when it matters. Absent on every receipt
+        that read, so the drawn layout below is untouched for all of them.
+      */}
+      {receiptReadFailed(receipt) && (
+        <ReceiptAdvisory receipt={receipt} onRetake={onRetake} framed />
+      )}
+
       {/*
         THE WELL IS FIGMA'S 756/1008 BOX — exactly 3:4 — AT THE CONTENT
         COLUMN'S WIDTH (311 at 375, as drawn). `object-fit: contain`, NOT the
@@ -449,11 +465,21 @@ type ViewerView = 'viewer' | 'picker' | 'editor'
 export function ReceiptViewerHost({
   receiptId,
   onClose,
+  onShow,
 }: {
   /** The receipt to show, or `null` for none. */
   receiptId: string | null
   onClose: () => void
+  /**
+   * Show a different receipt in this viewer — Gate 60's retake lands here, so
+   * the user sees how the new photograph read. The screen owns which receipt is
+   * open, so the host asks rather than deciding.
+   */
+  onShow: (receiptId: string) => void
 }) {
+  // GATE 60 — the retake. Its file input is rendered below, on this
+  // always-mounted host, so it survives the OS picker.
+  const retake = useReceiptRetake(onShow)
   const {
     receipts,
     transactions,
@@ -528,7 +554,12 @@ export function ReceiptViewerHost({
   if (!receipt) {
     // THE TOAST OUTLIVES THE RECEIPT, which is the whole reason this host exists
     // as a separate always-mounted component rather than living in the viewer.
-    return toast ? <DeletedToast toast={toast} onDismiss={() => setToast(null)} /> : null
+    return (
+      <>
+        {retake.input}
+        {toast && <DeletedToast toast={toast} onDismiss={() => setToast(null)} />}
+      </>
+    )
   }
 
   /*
@@ -612,12 +643,22 @@ export function ReceiptViewerHost({
         onClick={save}
       />
     )
+  } else if (retake.retakingId === receipt.id) {
+    /*
+      GATE 60 — THE RETAKE IS BEING READ. The capture surfaces' own processing
+      block, in place of the body, and no footer: nothing on this receipt should
+      be actionable while its replacement is being read, and when it answers the
+      viewer moves to the NEW receipt (`onShow`).
+    */
+    body = <CapturingBlock count={1} />
+    footer = undefined
   } else {
     body = (
       <ReceiptViewerBody
         receipt={receipt}
         transaction={transaction}
         onEdit={openEditor}
+        onRetake={() => retake.start(receipt)}
       />
     )
     footer = (
@@ -757,6 +798,7 @@ export function ReceiptViewerHost({
       )}
 
       {toast && <DeletedToast toast={toast} onDismiss={() => setToast(null)} />}
+      {retake.input}
     </>
   )
 }

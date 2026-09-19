@@ -1,6 +1,7 @@
 import type { IconName, TrendDirection } from '@monarch/design-system'
 import { TODAY, addMonths, addYears, daysInMonth, yearsBetween } from './today'
 import { TRANSACTION_CATEGORIES } from './transactions'
+import { firstPassFailed } from './ocr/secondPass'
 import type {
   Amount,
   CryptoHolding,
@@ -1142,6 +1143,37 @@ export function receiptSubtotal(receipt: Receipt): Amount {
  */
 export function receiptTotalRead(receipt: Receipt): Amount | null {
   return receipt.total > 0 ? receipt.total : null
+}
+
+/**
+ * ─────────────── DID THIS RECEIPT'S PHOTOGRAPH FAIL TO READ? (Gate 60) ─────────
+ *
+ * TRUE WHEN THE READING KEPT HAS NO LINE ITEMS, OR NO TOTAL — Gate 58's
+ * `firstPassFailed`, applied once more to the final result. It is CALLED, not
+ * restated, so the advisory and the second-pass trigger cannot drift apart.
+ *
+ * DERIVED FROM THE RECORD, NOT STORED (no field was added). At capture time the
+ * two agree exactly: `lineItems` is copied through unchanged, and an unread
+ * total is stored as 0, which `receiptTotalRead` reads back as `null` (see
+ * above for why 0 has one origin). Measured over the cached readings of all 30
+ * corpus images, record and parse agree on every one.
+ *
+ * IT CANNOT FIRE ON A TRANSCRIBED RECEIPT. All ten seeded receipts carry line
+ * items and a positive total; the editor refuses a zero total and does not edit
+ * line items, so no user action can make a seeded receipt satisfy this.
+ *
+ * WHAT IT CANNOT SEE, STATED: a reading that got SOME items and a total. A
+ * receipt that came back with fewer lines than the paper printed, or one whose
+ * "total" is a fragment of a phone number, looks successful here — nothing in the app knows
+ * what the paper printed.
+ *
+ * IT DOES NOT CLEAR WHEN THE USER CORRECTS THE TOTAL BY HAND. The editor edits
+ * merchant, date and total, never the line items, so an edited receipt with no
+ * items still reports a failed reading. That is true of the photograph, which
+ * is what the advisory talks about.
+ */
+export function receiptReadFailed(receipt: Receipt): boolean {
+  return firstPassFailed({ lineItems: receipt.lineItems, total: receiptTotalRead(receipt) })
 }
 
 /**

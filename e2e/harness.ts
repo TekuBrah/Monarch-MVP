@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type Page } from '@playwright/test'
 import { HOLDINGS } from '../src/data/holdings'
+import { capturedImageName } from './capture'
 
 /**
  * Shared harness for the Gate 7 specs, extended at Gate 9 to cover tab state.
@@ -555,6 +556,18 @@ export interface OverlayState {
    * not forbidden because there is no reason to forbid it.
    */
   prepare?: PrepareStep[]
+  /**
+   * WHAT THE EXTRACTION SEAM ANSWERS WITH IN THIS STATE, AT ONCE — Gate 60.
+   *
+   * Every walk state runs `installExtractionStub`, whose promise never settles,
+   * so no state could photograph what a capture looks like AFTER it has been
+   * read. This is the change that stub's own note asks for when a gate needs
+   * that: resolve to a FIXED value, never let the app's own stub or the real
+   * engine run. It is written onto `window.__monarchExtractReceipt` after
+   * navigation and before the opening click; `extract.ts` reads it at call
+   * time. The contract "walk states never invoke a real engine" still holds.
+   */
+  extraction?: Record<string, unknown>
   confirm?: {
     /** CSS selector for the control that CONFIRMS. Clicked, never simulated. */
     control: string
@@ -597,6 +610,29 @@ export interface WalkState {
 }
 
 /**
+ * The app's notion of "now", pinned.
+ *
+ * `src/data/today.ts` computes `TODAY = new Date()` AT MODULE LOAD, and the
+ * fixed deposit's dates, the remaining-tenure count and the net-worth chart's
+ * series length are all offsets from it. Left alone, every one of those changes
+ * daily and no screenshot baseline could survive a night.
+ *
+ * 2026-08-15T09:41:00+08:00 — the 15th so the month-to-date chart has a real
+ * series rather than one point, and 09:41 to agree with the `StatusBar` time
+ * the screens draw. Expressed as a UTC instant so it does not depend on the
+ * machine's zone; the browser's zone is pinned to Asia/Kuala_Lumpur in
+ * playwright.config.ts.
+ *
+ * DECLARED ABOVE `OVERLAY_STATES` SINCE GATE 60, because three overlay states
+ * name the receipt a capture makes, and Decision 7B names it from this clock.
+ * A `const` read before its declaration is a TDZ error at module load.
+ *
+ * `setFixedTime` rather than `clock.install()` ON PURPOSE: install() also fakes
+ * timers, which would put React's scheduler on a clock nothing advances.
+ */
+export const PINNED_NOW = new Date('2026-08-15T01:41:00.000Z')
+
+/**
  * THE OVERLAY STATES, WRITTEN DOWN ONE AT A TIME — FOURTEEN AS OF GATE 51.
  *
  * This heading read "THE FOUR OVERLAY STATES", which was true at Gate 43 — the
@@ -627,6 +663,28 @@ export interface WalkState {
  * the overlay open and the element itself with it closed, at both viewports in
  * both themes.
  */
+/**
+ * WHAT EXTRACTION RETURNS FOR A PAGE IT COULD NOT READ — every field `null`, no
+ * line items. The same shape `receiptCapture.ts`'s `UNREAD` and
+ * `ocrExtractReceipt` produce, restated here rather than imported: that module
+ * reaches the OCR chunk's `?url` imports, which the e2e project cannot type.
+ */
+const UNREAD_EXTRACTION = {
+  merchant: null,
+  capturedAt: null,
+  total: null,
+  tax: null,
+  currency: 'MYR',
+  lineItems: [],
+}
+
+/**
+ * WHAT DECISION 7B NAMES THE ONE CAPTURE A GATE 60 STATE MAKES — derived from
+ * the pinned clock through the same helper the behaviour specs use, never
+ * written out, so a change to the clock or to 7B moves it with them.
+ */
+const UNREAD_CAPTURE_NAME = capturedImageName(PINNED_NOW)
+
 export const OVERLAY_STATES: WalkState[] = [
   {
     route: '/finance/holding/fd',
@@ -1400,6 +1458,117 @@ export const OVERLAY_STATES: WalkState[] = [
       ],
     },
   },
+  // ── GATE 60 · A CAPTURE THE ENGINE COULD NOT READ ─────────────────────────
+  //
+  // THREE STATES, ONE PER SURFACE THE ADVISORY APPEARS ON, and each reached the
+  // way a user reaches it: a real capture through the real buttons, answered by
+  // `UNREAD_EXTRACTION` so the post-extraction surface exists at all.
+  //
+  // 1 · THE RECEIPTS TAB AFTER THE SAVE — where a bulk add lands. The card's
+  // one-line advisory is the settle target. `confirm` because pressing Save
+  // closes the modal: the dialog is the route here, not the surface.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'add-unread',
+      control: '.mvp-receipts__add .mn-btn',
+      controlLabel: 'Add new receipt',
+      title: 'Add receipts',
+      extraction: UNREAD_EXTRACTION,
+      prepare: [
+        {
+          control: '.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")',
+          controlName: 'Photo Gallery',
+          action: 'chooseFiles',
+          value: 'e2e/fixtures/receipt-capture.jpg',
+          settlesOn: '.mvp-add-receipts__badge',
+          settlesText: 'jpg',
+        },
+      ],
+      confirm: {
+        control: '.mn-modal__footer .mn-btn--primary',
+        controlLabel: 'Save',
+        // EXACTLY ONE — the seeded ten all read, so only the new card may carry
+        // it. A second would mean the rule fired on a transcribed receipt.
+        settlesOn: '.mvp-receipt-card__advisory',
+        settlesText: "Couldn't read this photo",
+      },
+    },
+  },
+  // 2 · THE VIEWER ON THAT RECEIPT — where the full advisory and the retake
+  // live. The Save is a prepare step here rather than a `confirm`, because the
+  // state continues past it: the card it produces is then opened. One dialog at
+  // the settle (the bulk modal), one at capture (the viewer), different names.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'view-unread',
+      control: '.mvp-receipts__add .mn-btn',
+      controlLabel: 'Add new receipt',
+      title: 'Add receipts',
+      opens: ['Add receipts'],
+      dialogs: [UNREAD_CAPTURE_NAME],
+      extraction: UNREAD_EXTRACTION,
+      prepare: [
+        {
+          control: '.mvp-add-receipts__sources .mn-btn:has-text("Photo Gallery")',
+          controlName: 'Photo Gallery',
+          action: 'chooseFiles',
+          value: 'e2e/fixtures/receipt-capture.jpg',
+          settlesOn: '.mvp-add-receipts__badge',
+          settlesText: 'jpg',
+        },
+        {
+          control: '.mn-modal__footer .mn-btn--primary',
+          controlName: 'Save',
+          action: 'click',
+          settlesOn: '.mvp-receipt-card__advisory',
+          settlesText: "Couldn't read this photo",
+        },
+        {
+          control: `.mvp-receipt-card:has-text("${UNREAD_CAPTURE_NAME}")`,
+          controlName: UNREAD_CAPTURE_NAME,
+          action: 'click',
+          settlesOn: '.mvp-receipt-advisory__title',
+          settlesText: "We couldn't read this photo",
+        },
+      ],
+    },
+  },
+  // 3 · THE DETAIL SHEET AFTER A CAPTURE FROM A TRANSACTION — the other place a
+  // user lands. The same unlinked row `detail` and `add-source` open, so the
+  // three baselines differ by what the capture did and nothing else. The source
+  // picker closes the moment a source is chosen, so one dialog at capture.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'detail-unread',
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+      extraction: UNREAD_EXTRACTION,
+      prepare: [
+        {
+          control: '.mvp-txn-detail__prompt .mn-btn',
+          controlName: 'Add Receipt',
+          action: 'click',
+          settlesOn: '.mvp-source-picker__panel',
+          settlesText: 'Photo GalleryCameraReceipt libraryCancel',
+        },
+        {
+          control: '.mvp-source-picker__row:has-text("Photo Gallery")',
+          controlName: 'Photo Gallery',
+          action: 'chooseFiles',
+          value: 'e2e/fixtures/receipt-capture.jpg',
+          settlesOn: '.mvp-receipt-advisory__title',
+          settlesText: "We couldn't read this photo",
+        },
+      ],
+    },
+  },
 ]
 
 /**
@@ -1473,24 +1642,7 @@ export function stateTitle(state: WalkState): string {
   return parts.join(' ')
 }
 
-/**
- * The app's notion of "now", pinned.
- *
- * `src/data/today.ts` computes `TODAY = new Date()` AT MODULE LOAD, and the
- * fixed deposit's dates, the remaining-tenure count and the net-worth chart's
- * series length are all offsets from it. Left alone, every one of those changes
- * daily and no screenshot baseline could survive a night.
- *
- * 2026-08-15T09:41:00+08:00 — the 15th so the month-to-date chart has a real
- * series rather than one point, and 09:41 to agree with the `StatusBar` time
- * the screens draw. Expressed as a UTC instant so it does not depend on the
- * machine's zone; the browser's zone is pinned to Asia/Kuala_Lumpur in
- * playwright.config.ts.
- *
- * `setFixedTime` rather than `clock.install()` ON PURPOSE: install() also fakes
- * timers, which would put React's scheduler on a clock nothing advances.
- */
-export const PINNED_NOW = new Date('2026-08-15T01:41:00.000Z')
+/* PINNED_NOW moved above OVERLAY_STATES at Gate 60 — see its declaration there. */
 
 /**
  * Console lines that are the dev server talking, not the app failing.
@@ -2111,6 +2263,15 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
         `expects no dialog must name the surface it exists to capture, or it passes on a ` +
         `blank screen.`,
     )
+  }
+
+  // GATE 60 — answer the extraction seam with this state's fixed value. After
+  // navigation, before any click; see `OverlayState.extraction`.
+  if (overlay.extraction) {
+    await page.evaluate((value) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(window as any).__monarchExtractReceipt = async () => value
+    }, overlay.extraction)
   }
 
   await expect(
