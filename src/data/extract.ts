@@ -1,3 +1,5 @@
+import { CAPTURE_DIAGNOSTICS } from './captureDiagnostics'
+import type { ParsedReceipt } from './ocr/parseReceipt'
 import type { Amount, CurrencyCode, ReceiptLineItem } from './types'
 
 /**
@@ -175,6 +177,17 @@ export function looksLikePdf(file: File): boolean {
  * are in `ocr/secondPass.ts`; nothing about this seam's shape changed.
  */
 const ocrExtractReceipt: ReceiptExtractor = async (file) => {
+  // THE ONE BRANCH (Gate 59). With `?diag=1` absent at load this is a constant
+  // `false`, the diagnostic chunk is never fetched, and everything below runs
+  // exactly as it did before the gate. With it present, the same reading runs
+  // through `ocr/diagnose.ts`, which records each stage on its way through.
+  if (CAPTURE_DIAGNOSTICS) {
+    const { diagnoseExtraction } = await import('./ocr/diagnose')
+    const rasterise = async (pdf: File) =>
+      (await import('./ocr/rasterise')).rasterisePdfFirstPage(pdf)
+    return toExtracted(await diagnoseExtraction(file, rasterise, looksLikePdf(file)))
+  }
+
   const { readReceipt } = await import('./ocr/read')
 
   // A PDF IS DRAWN BEFORE IT IS READ. See `rasterise.ts` — the engine reads
@@ -184,7 +197,10 @@ const ocrExtractReceipt: ReceiptExtractor = async (file) => {
     : file
 
   const { parsed } = await readReceipt(image)
+  return toExtracted(parsed)
+}
 
+function toExtracted(parsed: ParsedReceipt): ExtractedReceipt {
   // RAW, NOT FILLED. `parseReceipt` reports an unread merchant as the empty
   // string and an unread date or total as `null`; all three reach the caller as
   // `null`. The display fallbacks live in `capturedToReceipt`.

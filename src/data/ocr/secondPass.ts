@@ -59,3 +59,39 @@ export function chooseReading(first: ParsedReceipt, second: ParsedReceipt): 'fir
   if (second.total !== null && first.total === null) return 'second'
   return 'first'
 }
+
+/**
+ * THE SAME TWO DECISIONS, IN WORDS, FOR THE CAPTURE DIAGNOSTIC (Gate 59).
+ *
+ * DELIBERATELY NOT HOW THE PIPELINE DECIDES. `firstPassFailed` and
+ * `chooseReading` above are what `read.ts` runs, untouched, so the diagnostic
+ * adds no work to a capture read with the flag off. These restate the rules as
+ * sentences, and `e2e/capture-diagnostics.spec.ts` asserts over every branch
+ * that each one agrees with the function it describes — so the two cannot drift
+ * apart without a test going red.
+ */
+export function describeFirstPassFailure(parsed: ParsedReceipt): string | null {
+  const noItems = parsed.lineItems.length === 0
+  const noTotal = parsed.total === null
+  if (noItems && noTotal) return 'first pass read no line items and no total'
+  if (noItems) return 'first pass read no line items'
+  if (noTotal) return 'first pass read no total'
+  return null
+}
+
+export function explainChoice(
+  first: ParsedReceipt,
+  second: ParsedReceipt,
+): { pick: 'first' | 'second'; why: string } {
+  const a = first.lineItems.length
+  const b = second.lineItems.length
+  if (a !== b) {
+    return b > a
+      ? { pick: 'second', why: `second pass read more line items (${b} against ${a})` }
+      : { pick: 'first', why: `first pass read more line items (${a} against ${b})` }
+  }
+  if (second.total !== null && first.total === null) {
+    return { pick: 'second', why: `equal line items (${a}); only the second pass read a total` }
+  }
+  return { pick: 'first', why: `equal line items (${a}) and no total gained; the first pass is the tie-breaker` }
+}

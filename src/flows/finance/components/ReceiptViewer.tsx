@@ -12,6 +12,7 @@ import { useAccounts } from '../../../accounts/AccountsProvider'
 import { SectionHeader } from '../../../components/SectionHeader'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
+import { CAPTURE_DIAGNOSTICS } from '../../../data/captureDiagnostics'
 import { receiptTotalRead } from '../../../data/derive'
 import {
   formatMyr,
@@ -29,6 +30,7 @@ import {
   isValid,
   type EditorDraft,
 } from './ReceiptEditor'
+import { CaptureDiagnosticsBlock } from './CaptureDiagnosticsBlock'
 import { TransactionPicker } from './TransactionPicker'
 
 /**
@@ -327,6 +329,13 @@ function ReceiptViewerBody({
       {isLinked && totalsDisagree(receipt, transaction) && (
         <TotalMismatch receipt={receipt} transaction={transaction} />
       )}
+
+      {/*
+        GATE 59. A constant: `false` unless `?diag=1` was on the URL at load, so
+        without the flag this renders nothing and no walk state can reach it.
+        LAST, so everything above it is exactly where it was before the gate.
+      */}
+      {CAPTURE_DIAGNOSTICS && <CaptureDiagnosticsBlock receiptId={receipt.id} />}
     </>
   )
 }

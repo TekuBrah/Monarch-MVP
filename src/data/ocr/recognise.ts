@@ -282,6 +282,32 @@ export async function recognise(
   // engine and a 2.82 MB language model are spun up.
   const normalised = await normaliseForOcr(image, preparation)
 
+  return runEngine(createWorker, normalised)
+}
+
+/**
+ * Recognise an image that is ALREADY NORMALISED (Gate 59).
+ *
+ * FOR THE CAPTURE DIAGNOSTIC ONLY, which has to hold the normalised image in its
+ * hand to measure it — so it calls `normaliseForOcr` itself and then this. The
+ * model check runs AFTER the image work on that path; `recognise` above keeps
+ * the original order, model check first. Nothing else in `src/` calls this.
+ */
+export async function recogniseNormalised(normalised: Blob): Promise<OcrResult> {
+  const { createWorker } = await import('tesseract.js')
+  await assertLanguageModelIsServed()
+  return runEngine(createWorker, normalised)
+}
+
+/**
+ * The engine itself, shared by both entry points so there is ONE definition of
+ * how a worker is configured and read. Extracted unchanged from `recognise` at
+ * Gate 59.
+ */
+async function runEngine(
+  createWorker: (typeof import('tesseract.js'))['createWorker'],
+  normalised: Blob,
+): Promise<OcrResult> {
   const worker = await createWorker('eng', OEM_LSTM_ONLY, {
     workerPath: workerUrl,
     corePath: coreUrl,

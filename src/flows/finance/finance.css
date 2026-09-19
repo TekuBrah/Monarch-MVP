@@ -1965,3 +1965,37 @@ button.mvp-receipt-card:focus-visible {
   color: var(--mapped-text-subtle-default);
   text-align: center;
 }
+
+/*
+  CAPTURE DIAGNOSTICS (Gate 59) — `CaptureDiagnosticsBlock`, rendered only under
+  `?diag=1`. It reuses the details block's own section and row classes; these
+  rules only stack its groups and let the raw engine text wrap inside the
+  modal's column. `font-family: inherit` because a `<pre>` otherwise takes the
+  UA monospace, which is not a token.
+*/
+.mvp-capture-diag__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+.mvp-capture-diag__group,
+.mvp-capture-diag__text-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+.mvp-capture-diag__pass,
+.mvp-capture-diag__none {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-capture-diag__text {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--mapped-text-default-default);
+}

@@ -1,3 +1,4 @@
+import { bindDiagnostic, CAPTURE_DIAGNOSTICS } from '../../data/captureDiagnostics'
 import { extractReceipt, looksLikePdf, type ExtractedReceipt } from '../../data/extract'
 import type { Receipt } from '../../data/types'
 
@@ -350,8 +351,13 @@ export function capturedToReceipt(
   addedAt: string,
 ): Receipt {
   const { file, sourceUrl, extracted } = capture
+  const id = `receipt-capture-${(captureSeq += 1)}`
+  // Gate 59: the capture diagnostic was recorded against the FILE, because the
+  // id did not exist yet. Constant `false` without `?diag=1`; see
+  // `data/captureDiagnostics.ts`.
+  if (CAPTURE_DIAGNOSTICS) bindDiagnostic(file, id)
   return {
-    id: `receipt-capture-${(captureSeq += 1)}`,
+    id,
     // WHERE THE BYTES CAME FROM, UNTOUCHED BY GATE 53. `filename` and
     // `displayName` are two different facts (see `Receipt` in `types.ts`) and
     // only the second one moved: this stays the device's own name, because it is

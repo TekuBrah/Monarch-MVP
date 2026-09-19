@@ -42,11 +42,35 @@ export interface ReceiptReading {
   chosen: number
 }
 
+/** How one pass turns an image into engine output. `recognise` in production. */
+export type Recogniser = (image: Blob, preparation: OcrPreparation) => Promise<OcrResult>
+
 export async function readReceipt(image: Blob): Promise<ReceiptReading> {
   const [{ recognise }, { parseReceipt }] = await Promise.all([
     import('./recognise'),
     import('./parseReceipt'),
   ])
+  return readWith(image, recognise, parseReceipt)
+}
+
+/**
+ * The same reading, with the recogniser handed in (Gate 59).
+ *
+ * FOR THE CAPTURE DIAGNOSTIC ONLY, which passes a recogniser that measures each
+ * pass on its way through. THE TRIGGER AND THE CHOICE ARE NOT RESTATED THERE:
+ * both entry points run `readWith`, so what the diagnostic reports is the
+ * pipeline's own decision, not a lookalike of it.
+ */
+export async function readReceiptWith(image: Blob, recogniser: Recogniser): Promise<ReceiptReading> {
+  const { parseReceipt } = await import('./parseReceipt')
+  return readWith(image, recogniser, parseReceipt)
+}
+
+async function readWith(
+  image: Blob,
+  recognise: Recogniser,
+  parseReceipt: (ocr: OcrResult) => ParsedReceipt,
+): Promise<ReceiptReading> {
   const pass = async (preparation: OcrPreparation): Promise<ReceiptPass> => {
     const ocr = await recognise(image, preparation)
     return { preparation, ocr, parsed: parseReceipt(ocr) }

@@ -9652,6 +9652,156 @@ Reusing a worker across the two passes; a confidence gate; re-tuning `OCR_LONG_E
 parameters; a sort control, toast or flat list on the Receipts tab; ordering the source
 picker's library list; a provenance field for tax; `npm audit fix`; the DS repo and the pin.
 
+## The capture diagnostic — `?diag=1` (Gate 59)
+
+No DS re-pin — **v2.3.0 throughout**. Nothing is fixed here: the gate makes the
+capture path report, on the device and with no devtools, what each stage handed
+the next one, so the next phone-versus-desktop divergence is diagnosable from ONE
+capture. **|WALK| stays 40, `OVERLAY_STATES` 19, baselines 160 -> 160 (0 changed,
+0 added, 0 deleted — predicted in writing before the first run), tests 467 -> 477,
+spec files 20 -> 21.** `lint:tokens` scans **67** files (64 + `captureDiagnostics.ts`,
+`ocr/diagnose.ts`, `CaptureDiagnosticsBlock.tsx`) with the same **3** exemptions.
+
+### What it records, and where
+
+Load any route with **`?diag=1`**, capture a receipt, open it in the viewer: a
+collapsed **"Capture diagnostics"** section sits last in the viewer body.
+Per capture:
+
+| group | fields |
+|---|---|
+| source | name, MIME type, bytes, **SHA-256 of the bytes** |
+| received | PDF-rasterised or not; **stored** size (JPEG SOF / PNG IHDR, before EXIF); **decoded** size (this browser, EXIF applied); EXIF orientation or none |
+| each pass | preparation; normalised size, bytes, type, passed-through; normalise ms; **engine ms** (worker start + recognise + terminate); raw-text characters; line count; engine confidence; error |
+| second pass | ran; trigger; kept (`plain`/`photo`); why |
+| result | items, total, subtotal (derived, `null` over no lines), tax; whole-capture ms; error |
+
+**THE SHA-256 IS BEYOND THE LISTED FIELDS AND IS THE ONE THAT ANSWERS THE TRANSIT
+QUESTION.** Byte length plus decoded size cannot prove two devices received the
+same file — a re-encode can keep the dimensions, and a coincidence can keep the
+length. Equal digests prove it; unequal digests prove a re-encode. The screen
+shows the first 16 hex characters, the JSON all 64.
+
+**"Copy as JSON" copies every field EXCEPT the raw engine text.** The text is
+shown on screen, per pass, because reading it is how a divergence is explained;
+the clipboard is one paste from a note or a chat, and the text carries whatever
+the paper printed. `diagnosticJson` strips it, and the record keeps it for the
+screen.
+
+**"Raw text characters" is the engine's lines joined by `\n`** — what the parser
+reads. `recognise` has never kept Tesseract's own `data.text`, and D5 forbids
+widening `OcrResult` to add it, so that is the honest definition.
+
+### THE FLAG IS LATCHED AT LOAD, AND WHY
+
+`CAPTURE_DIAGNOSTICS` is a module constant read from `location.search` when
+`captureDiagnostics.ts` is evaluated — at app start, because the entry chunk
+imports it statically. In-app navigation drops the query string, so a flag read
+at capture time would already be gone. **Nothing persists it** (D3): reload
+without the query and it is off. `?diag=1` exactly; `?diag=0`, `?diag=true` and
+`?diag=` are off.
+
+### "A single branch" is THREE constant branches, one per site
+
+The brief asked that with the flag absent nothing run "beyond a single branch".
+Taken literally that is unreachable, and the reason is structural: the diagnostic
+is recorded at extraction, when **no receipt id exists yet**, and read in the
+viewer, a render path extraction never touches. So each of three sites checks the
+constant once and does nothing else:
+
+| site | with the flag absent |
+|---|---|
+| `extract.ts` `ocrExtractReceipt` | takes the pre-gate path; `ocr/diagnose.ts` is never fetched |
+| `receiptCapture.ts` `capturedToReceipt` | binds nothing |
+| `ReceiptViewer.tsx` | renders nothing |
+
+**MEASURED, NOT ARGUED.** A real-engine capture with the flag absent requests
+`recognise.ts` and **no** `diagnose` module (spec, mutation-proved at both the
+extract branch and the viewer gate). The corpus harness run on the changed tree
+returned **byte-identical engine output, parse and pass choice for all 30
+images** against the Phase 0 run on `mvp-gate58`. All 160 baselines are
+byte-identical.
+
+### IT OBSERVES AND DOES NOT DECIDE
+
+Two extractions, not copies, made this possible without a second pipeline:
+
+- **`readReceiptWith(image, recogniser)`** in `read.ts`. `readReceipt` and the
+  diagnostic both run the SAME private `readWith`, so the trigger and the choice
+  the diagnostic reports are the pipeline's own decisions.
+- **`recogniseNormalised(blob)`** in `recognise.ts`, sharing a private
+  `runEngine` with `recognise`. `recognise` keeps its original order — import,
+  model check, normalise, engine. Only the diagnostic path checks the model after
+  normalising, because it has to hold the normalised Blob to measure it.
+
+The "why" and "trigger" sentences come from `describeFirstPassFailure` and
+`explainChoice` in `secondPass.ts`, written BESIDE `firstPassFailed` and
+`chooseReading` rather than replacing them, so the pipeline builds no strings. A
+spec asserts agreement over all 36 combinations of item counts and totals, and a
+mutation proves it would catch drift.
+
+The two things the diagnostic does that the plain path does not are both
+read-only: it hashes the source, and it decodes the received image once to learn
+this browser's decoded size (closed at once). `pngDimensions` (`normalise.ts`)
+reads the normalised PNG's size off its header, so the 1600px output is not
+decoded a second time on a phone.
+
+Proven: a sideways-stored capture and an unreadable blank page each extract
+**identically with and without the flag**, and a mutation handing the engine the
+un-normalised image fails exactly that assertion.
+
+### Composed, not a primitive
+
+The DS ships no disclosure or accordion. The collapse is the app's own
+`SectionHeader` heading-with-a-trailing-link ("Show"/"Hide"), and the rows reuse
+the Receipt details block's `<dl>` classes. **The toggle carries no
+`aria-expanded`** — `SectionHeader`'s `Link` exposes none. Acceptable for a
+developer instrument behind a query flag; if this ever becomes a user-facing
+disclosure it is a DS gap, not an MVP component.
+
+### Tests and proofs
+
+`e2e/capture-diagnostics.spec.ts`, 10 tests, no baseline: 5 in Node (the flag's
+parsing, the choice agreement, the trigger agreement, `pngDimensions`, the copy
+stripping the raw text) and 5 in the browser with the real engine (flag absent:
+no chunk and no disclosure; flag on: collapsed, every field, Copy; sideways EXIF;
+a blank page that runs both passes; a seeded receipt says it was not read in this
+session). **No figure from any receipt is written down**: every expectation is
+derived from the fixture's bytes in Node or from a flag-off extraction of the
+same file in the same test.
+
+**14 mutation proofs on the final tree, each running exactly ONE test.** The
+driver spawns Playwright with an argument array (no shell) and reports NO PROOF
+when a run counts anything other than one test. All 14 held.
+
+### Bundle, through `build:package`
+
+| chunk | before | after |
+|---|---|---|
+| entry | 5,799,883 | **5,805,029** (+5,146: the flag, the store, the disclosure) |
+| `diagnose-*.js` | — | **2,472** (lazy) |
+| `read-*.js` | 1,053 | 2,053 (`readReceiptWith`, the two explain functions) |
+| `recognise-*.js` | 3,715 | 4,368 (`recogniseNormalised`, `pngDimensions`) |
+| `parseReceipt-*.js` | 13,481 | 13,481 |
+
+`modulepreload` is still 0; the entry names none of the engine, the model or the
+new measuring functions.
+
+### Observed, not fixed
+
+- **`score.mjs` reports `second-pass 0` without `--reparse`.** The column is
+  computed only on the re-parse path, so a plain score of a run in which eight
+  receipts triggered prints zero. Use `--reparse` for that column.
+- The diagnostic records only captures read by the REAL engine; under the
+  harness's extraction stub nothing is recorded, by construction.
+
+### Deliberately not in scope
+
+Any fix to the phone/desktop divergence; persisting records across a reload;
+the raw text in the copied JSON; `aria-expanded` on the toggle; the merchant or
+date in the diagnostic (not asked for, and both are paper content); the DS repo
+and the pin; `npm audit fix`.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

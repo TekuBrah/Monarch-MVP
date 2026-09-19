@@ -214,6 +214,23 @@ export function jpegDimensions(bytes: Uint8Array): { width: number; height: numb
 
 
 /**
+ * Pixel dimensions from a PNG's IHDR chunk, or `null` for anything that is not
+ * a PNG (Gate 59).
+ *
+ * READ BY THE CAPTURE DIAGNOSTIC ONLY, and never by the pipeline. The normaliser
+ * emits PNG, so this reads the size of what the engine was handed straight off
+ * the header, without a second decode of a 1600px image on a phone.
+ */
+export function pngDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+  if (bytes.length < 24 || signature.some((b, i) => bytes[i] !== b)) return null
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  // IHDR is always the first chunk: length(4) type(4) then width(4) height(4).
+  if (String.fromCharCode(...bytes.subarray(12, 16)) !== 'IHDR') return null
+  return { width: view.getUint32(16), height: view.getUint32(20) }
+}
+
+/**
  * WHICH PREPARATION A READING USES (Gate 58).
  *
  *   'plain'  the Gate 56 pipeline: orient, size, white ground, PNG. The FIRST

@@ -1,0 +1,177 @@
+import {
+  recordDiagnostic,
+  type CaptureDiagnostic,
+  type Dimensions,
+  type PassDiagnostic,
+} from '../captureDiagnostics'
+import { exifOrientation, jpegDimensions, normaliseForOcr, pngDimensions } from './normalise'
+import type { ParsedReceipt } from './parseReceipt'
+import { readReceiptWith, type Recogniser } from './read'
+import { recogniseNormalised } from './recognise'
+import { describeFirstPassFailure, explainChoice } from './secondPass'
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * READ ONE CAPTURE AND RECORD WHAT EVERY STAGE HANDED THE NEXT (Gate 59).
+ *
+ * REACHED ONLY WHEN `?diag=1` WAS ON THE URL AT LOAD, and only by dynamic
+ * import from `extract.ts`, so it is its own lazy chunk and a session without
+ * the flag never fetches it.
+ *
+ * IT OBSERVES AND DOES NOT DECIDE. The reading itself is `readReceiptWith`, the
+ * pipeline's own trigger-and-choose, handed a recogniser that is the pipeline's
+ * own two halves — `normaliseForOcr` then `recogniseNormalised` — with timing
+ * and measurement between them. Nothing it measures is fed back: the image the
+ * engine receives is the Blob the normaliser returned, untouched.
+ *
+ * TWO THINGS IT DOES THAT THE PLAIN PATH DOES NOT, BOTH READ-ONLY: it hashes the
+ * source bytes (SHA-256, so the same file on two devices can be proven the same
+ * file), and it decodes the received image once to learn the dimensions THIS
+ * browser decodes it to. That decode is closed immediately; it is extra memory
+ * for a moment on a flagged session, and nothing on an unflagged one.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+}
+
+async function sha256Hex(blob: Blob): Promise<string | null> {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    // `crypto.subtle` exists only in a secure context. The deploy is https and
+    // localhost counts as secure, so this is for a LAN-address dev server.
+    return null
+  }
+}
+
+function headerDimensions(bytes: Uint8Array): Dimensions | null {
+  return jpegDimensions(bytes) ?? pngDimensions(bytes)
+}
+
+async function decodedDimensions(blob: Blob): Promise<Dimensions | null> {
+  try {
+    const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' })
+    const dims = { width: bitmap.width, height: bitmap.height }
+    bitmap.close()
+    return dims
+  } catch {
+    return null
+  }
+}
+
+function summarise(parsed: ParsedReceipt): NonNullable<CaptureDiagnostic['result']> {
+  const cents = parsed.lineItems.reduce((sum, item) => sum + Math.round(item.price * 100), 0)
+  return {
+    items: parsed.lineItems.length,
+    total: parsed.total,
+    // DERIVED THE WAY `receiptSubtotalRead` DERIVES IT: a sum over no lines is
+    // the absence of a subtotal, not zero.
+    subtotal: parsed.lineItems.length > 0 ? cents / 100 : null,
+    tax: parsed.tax,
+  }
+}
+
+export async function diagnoseExtraction(
+  file: File,
+  rasterise: (file: File) => Promise<Blob>,
+  isPdf: boolean,
+): Promise<ParsedReceipt> {
+  const started = performance.now()
+  const diagnostic: CaptureDiagnostic = {
+    source: { name: file.name, type: file.type, bytes: file.size, sha256: null },
+    pdf: isPdf,
+    received: null,
+    passes: [],
+    secondPass: { ran: false, trigger: null, kept: null, why: null },
+    result: null,
+    error: null,
+    totalMs: null,
+  }
+  // RECORDED BEFORE ANYTHING CAN THROW, and mutated in place from here on, so a
+  // capture that fails part-way still shows every stage it did reach.
+  recordDiagnostic(file, diagnostic)
+
+  try {
+    diagnostic.source.sha256 = await sha256Hex(file)
+
+    const image: Blob = isPdf ? await rasterise(file) : file
+    const bytes = new Uint8Array(await image.arrayBuffer())
+    diagnostic.received = {
+      bytes: image.size,
+      type: image.type,
+      stored: headerDimensions(bytes),
+      decoded: await decodedDimensions(image),
+      exifOrientation: exifOrientation(bytes),
+    }
+
+    const observed: Recogniser = async (input, preparation) => {
+      const pass: PassDiagnostic = {
+        preparation,
+        normalised: null,
+        normaliseMs: null,
+        engineMs: null,
+        rawTextLength: null,
+        engineConfidence: null,
+        lineCount: null,
+        rawText: null,
+        error: null,
+      }
+      diagnostic.passes.push(pass)
+      try {
+        const t0 = performance.now()
+        const normalised = await normaliseForOcr(input, preparation)
+        const t1 = performance.now()
+        pass.normaliseMs = Math.round(t1 - t0)
+        const header = headerDimensions(new Uint8Array(await normalised.arrayBuffer()))
+        const dims = header ?? (await decodedDimensions(normalised))
+        pass.normalised = {
+          width: dims?.width ?? null,
+          height: dims?.height ?? null,
+          bytes: normalised.size,
+          type: normalised.type,
+          passedThrough: normalised === input,
+        }
+
+        const t2 = performance.now()
+        const ocr = await recogniseNormalised(normalised)
+        pass.engineMs = Math.round(performance.now() - t2)
+        const text = ocr.lines.map((line) => line.text).join('\n')
+        pass.rawText = text
+        pass.rawTextLength = text.length
+        pass.engineConfidence = ocr.confidence
+        pass.lineCount = ocr.lines.length
+        return ocr
+      } catch (error) {
+        pass.error = errorText(error)
+        throw error
+      }
+    }
+
+    const reading = await readReceiptWith(image, observed)
+
+    // "RAN" MEANS ATTEMPTED. A second pass that threw is kept out of
+    // `reading.passes` by `read.ts`, but it did run, and its error is on its row.
+    const firstParsed = reading.passes[0].parsed
+    diagnostic.secondPass.trigger = describeFirstPassFailure(firstParsed)
+    diagnostic.secondPass.ran = diagnostic.passes.length > 1
+    diagnostic.secondPass.kept = reading.passes[reading.chosen].preparation
+    if (reading.passes.length > 1) {
+      diagnostic.secondPass.why = explainChoice(firstParsed, reading.passes[1].parsed).why
+    } else if (diagnostic.secondPass.ran) {
+      diagnostic.secondPass.why = 'second pass failed; the first reading was kept'
+    } else {
+      diagnostic.secondPass.why = 'first pass read line items and a total; no second pass'
+    }
+
+    diagnostic.result = summarise(reading.parsed)
+    return reading.parsed
+  } catch (error) {
+    diagnostic.error = errorText(error)
+    throw error
+  } finally {
+    diagnostic.totalMs = Math.round(performance.now() - started)
+  }
+}
