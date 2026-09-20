@@ -471,9 +471,13 @@ export function ReceiptViewerHost({
   receiptId: string | null
   onClose: () => void
   /**
-   * Show a different receipt in this viewer — Gate 60's retake lands here, so
-   * the user sees how the new photograph read. The screen owns which receipt is
+   * Show a different receipt in this viewer — the retake lands here, so the
+   * user sees how the new photograph read. The screen owns which receipt is
    * open, so the host asks rather than deciding.
+   *
+   * SINCE GATE 61 THE RECEIPT IT NAMES HAS REPLACED THE ONE THIS VIEWER WAS
+   * SHOWING, which is why the host must be told to move rather than being left
+   * on an id that no longer resolves.
    */
   onShow: (receiptId: string) => void
 }) {
@@ -645,10 +649,14 @@ export function ReceiptViewerHost({
     )
   } else if (retake.retakingId === receipt.id) {
     /*
-      GATE 60 — THE RETAKE IS BEING READ. The capture surfaces' own processing
-      block, in place of the body, and no footer: nothing on this receipt should
-      be actionable while its replacement is being read, and when it answers the
+      THE RETAKE IS BEING READ. The capture surfaces' own processing block, in
+      place of the body, and no footer: nothing on this receipt should be
+      actionable while its replacement is being read, and when it answers the
       viewer moves to the NEW receipt (`onShow`).
+
+      THE NO-FOOTER HALF EARNED ITS KEEP AT GATE 61, where a retake REPLACES:
+      this receipt is about to leave the library, so Unlink, Delete and Link
+      would all be acting on a record that is seconds from not existing.
     */
     body = <CapturingBlock count={1} />
     footer = undefined

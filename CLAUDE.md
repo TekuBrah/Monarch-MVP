@@ -9980,6 +9980,292 @@ the original on retake; a camera glyph or an inline-message primitive (DS-side);
 the pre-existing `PromptBlock` subtle-on-subtlest contrast; persistence; the DS
 repo and the pin; `npm audit fix`.
 
+## A retake replaces the receipt it retakes (Gate 61)
+
+No DS re-pin — **v2.3.0 throughout**. No OCR work: the engine, the normaliser,
+the parser, the second pass and the failure rule are untouched, and the corpus
+figures are unchanged. What changed is what happens AFTER a reading is judged
+unreadable. **|WALK| stays 43, `OVERLAY_STATES` stays 22, baselines 172 -> 172
+(0 added, 0 changed, 0 deleted — predicted in writing before the first run),
+tests 509 -> 512, spec files stay 22.** `lint:tokens` scans **69** files —
+UNCHANGED, because no file entered `src/` — with the same **3** exemptions.
+
+**`src/data/derive.ts` AND `src/data/ocr/secondPass.ts` WERE NOT TOUCHED**, which
+is why the corpus harness did not have to run: `git diff` on both paths is empty.
+This gate changes what happens after a reading is judged unreadable; it changes
+nothing about how that judgement is made. If a future gate here must touch
+either file, the full corpus run becomes mandatory again.
+
+### ⚠ GATE 60'S RETAKE IS SUPERSEDED — do not implement it from that section
+
+**READ THIS BEFORE THE GATE 60 ENTRY ABOVE.** That section's bullet *"The
+original is not edited, unlinked, replaced or deleted"* and its *"a retake of a
+LINKED receipt arrives UNLINKED"* describe a shape that no longer exists. They
+are left standing as that gate's record; they are not the behaviour.
+
+**WHAT WAS WRONG WITH IT, AND IT IS TWO THINGS.** A user whose photograph read
+badly was told so and offered a retake. They took a better one and were left
+holding TWO receipts: the original, still attached to the transaction and still
+showing the failed reading, and the replacement, attached to nothing. **They had
+done exactly what the app asked and the transaction still showed the wrong
+figures** — to fix it they had to notice that themselves, open the new receipt,
+tap "Link to transaction" and clear a confirmation. And the control is labelled
+**Retake**, which across the whole category of receipt and document scanners
+means REPLACE, not add another. **A control whose behaviour contradicts its own
+label is a defect, not a preference.**
+
+**TEKU'S DECISION 1, 20 SEPT: a retake replaces the receipt it retakes.** Settled.
+
+### The shape, in order
+
+1. The replacement is created from the new image, exactly as a capture is.
+2. If the original was linked, the replacement takes that link **and auto-match
+   does not run**.
+3. If it was not, auto-match runs as it would for any Receipts-tab capture.
+4. The original is removed and its object URL revoked.
+5. The viewer opens on the replacement, in whatever state 2 or 3 produced.
+6. No confirmation.
+7. No transaction amount moves, ever (P6).
+
+**ORDER OF OPERATIONS IS LOAD-BEARING AND IS NOT A STYLE POINT.** Nothing is
+removed until `capturedToReceipts` has returned a record, so a cancelled picker,
+an undecodable file or a failed read leaves the original exactly as it was —
+linked, in the library, viewer still open on it. **REMOVE-FIRST-AND-RESTORE-ON-
+FAILURE IS THE SHAPE TO AVOID**: it makes the user's data depend on an error
+path running correctly.
+
+### `replaceReceipt` — one pass, and why it is not add-then-delete
+
+The seventh mutator in `AccountsProvider`, sixth with a caller. `addTransaction`
+is **still** the zero-caller Gate 48 seam; do not sweep it.
+
+**IT IS ONE `setReceipts`, NEVER `addReceipt` FOLLOWED BY `deleteReceipt`** —
+the argument `linkReceipt` already makes, and it bites harder here. Two writes
+render an intermediate frame in which BOTH receipts exist, and when the
+replacement inherits a link that frame has **two receipts claiming one
+transaction**, so `transactionHasReceipt` would answer differently to anything
+that rendered inside it. One pass makes "a transaction has at most one receipt"
+true at every observable moment rather than eventually.
+
+**THE DELETE PATH'S OBJECT-URL TEARDOWN IS REUSABLE AS A PATTERN, NOT AS A
+CALL,** and the distinction is the whole reason a new mutator exists rather than
+a composition of two old ones. `deleteReceipt`'s guard — revoke inside the
+updater, `blob:` prefix only, StrictMode-safe because revoking twice is a no-op
+— is copied verbatim. Calling `deleteReceipt` itself would have been the second
+write. **The guard is by ID, so the REPLACEMENT's own fresh blob url — created
+moments earlier and about to be rendered — cannot be the one revoked.**
+
+`setTransactions` is not touched, and that absence is the contract.
+
+### AUTO-MATCH IS SKIPPED FOR AN INHERITED LINK, AND THAT IS ACTIVE
+
+**IT IS NOT A NO-OP AND MUST NOT BE WRITTEN AS ONE.** The tempting reading is
+that skipping is free: the original is linked to T, so T already has a receipt,
+so `candidatesFor` excludes it and auto-match cannot return T anyway. **That is
+true and it is not the point.** Auto-match can still return some OTHER row U
+whose total and date happen to match the new photograph. Letting it run would
+link the replacement to U and lose T's receipt entirely — the opposite of what a
+retake means. So the inherited link wins outright and auto-match is never
+consulted.
+
+**IT IS NOT HYPOTHETICAL IN THIS FIXTURE — MEASURED.** Take the detail sheet's
+own row, `txn-aeon-0915` (Aeon Big, −250.75), give it a capture, and retake
+that capture into a photograph the engine reads as KFC −RM 25.50. `txn-kfc-0912`
+is a genuinely receipt-less row, so with the original still in the library
+`autoMatchBatch` returns **`['txn-kfc-0912']`**. Had the retake let auto-match
+decide, the replacement would have linked to KFC and **Aeon Big would have been
+left with no receipt at all** — having just been retaken. The `READ` fixture the
+LINKED test uses returns `[null]` against the same library, which is why that
+test needs M1 to prove inheritance rather than the absence of a wrong link.
+
+**WHEN THE ORIGINAL IS UNLINKED, AUTO-MATCH RUNS, and the original still being
+in the library at that moment is harmless** — it has no `transactionId`, so it
+blocks no row, because `transactionHasReceipt` counts only linked receipts. No
+exclusion is needed and none was added.
+
+**THE LINK IS READ BEFORE THE `await`, and the window that opens is closed by
+the UI rather than by this code.** Both surfaces render `CapturingBlock` while
+extraction runs — the viewer with no footer, the sheet in place of its receipt
+block — so neither offers an Unlink while a retake is in flight, verified by
+reading both branches. The closure's `receipts` array cannot update across the
+await in any case, so before and after would read the same thing.
+
+### A cancelled retake needs no handling at all
+
+`ReceiptFileInput` never calls `onFiles` with an empty list — its own contract,
+for the browsers that fire `change` with zero files. So a cancel **does not
+reach the hook**: nothing is created and nothing is removed because nothing runs.
+
+**THE CANCEL PATH IS GUARDED TWICE AND EITHER GUARD ALONE KEEPS IT PASSING,
+WHICH IS WORTH STATING RATHER THAN DRESSING UP.** Mutating `ReceiptFileInput`'s
+`files.length > 0` check leaves the hook's `if (!from || !file) return`, and
+mutating the hook's check leaves the input's. Neither single-file mutation is a
+proof. **The realistic wrong implementation is different and IS proved:** marking
+the receipt as being retaken when the PICKER opens rather than when a FILE
+arrives. That strands the surface on `CapturingBlock` forever when the user backs
+out, and it is exactly what a developer reaches for. M3 below.
+
+### Chained retakes work because nothing special-cases them
+
+The replacement is an ordinary receipt: if it also reads badly it shows the
+advisory itself and can be retaken again. No limit, no counter, no marker. The
+capture SOURCE chains too — `retakeSource` reads the side store, which
+`capturedToReceipt` binds for every capture including a replacement — so a
+gallery original's replacement also retakes from the gallery.
+
+### Ordering, and the artefact that closes itself
+
+**THE REPLACEMENT APPEARS AT THE TOP, AND THAT IS DECISION 11 WORKING RATHER
+THAN A REGRESSION.** The Receipts tab groups and sorts on `addedAt`, newest
+first; a replacement is added now. No carve-out was added to preserve the
+original's position and none should be.
+
+**THE "SAME DISPLAY NAME" ARTEFACT — AND THE CORRECTION IS THAT IT WAS NEVER
+REGISTERED ANYWHERE.** Under the harness's pinned clock a replacement gets the
+same `IMG_<stamp>.jpg` as its original, because `disambiguateDisplayNames`
+de-duplicates within one SELECTION and a retake is a selection of one. That is
+real — verified — but grep finds no record of it in the Gate 60 section, the gap
+register or any source comment. Gate 61 removes the collision by construction:
+the two never coexist. **Do not go looking for the registration; write the
+behaviour down here instead.**
+
+**IT HAS A CONSEQUENCE FOR TESTS AND IT COST THIS GATE AN ASSERTION.** Gate 60's
+detail-sheet test identified the original by `toHaveText(capturedImageName(
+PINNED_NOW))` — a string the replacement matches just as well, so that assertion
+could never have told the two apart. The rewritten tests distinguish them by the
+ADVISORY (only the original carries one) and by the merchant, never by the name.
+
+### No confirmation, and what was deliberately left alone
+
+P3 confirms what cannot be undone. Here the user has explicitly asked to retake
+THIS receipt, so there is no competing intent to protect, and the precondition
+for the advisory existing at all is that the original reading produced **no line
+items or no total** — there is nothing in it to lose. Nobody confirms discarding
+a blurry photo.
+
+- **The picker's Replace confirmation is UNTOUCHED.** It guards a different
+  thing: a link moving between two receipts the user may not have meant to swap.
+  Its two tests pass unchanged.
+- **The delete confirmation is UNTOUCHED.** Deleting a receipt the user chose to
+  delete is not a retake.
+
+### Tests — 8 -> 11, and two were rewritten rather than added beside
+
+**`retake.spec.ts` HELD EIGHT TESTS, NOT THE SIX A REVIEW THREAD CARRIED.** Six
+are browser tests and two are Node; `--list` says 8 and the Gate 60 section above
+already said 8. The two Node tests are untouched — one of them imports
+`firstPassFailed`, the file this gate was forbidden to modify.
+
+**REWRITTEN IN PLACE, 2.** Both asserted Gate 60's shape in their titles:
+`original untouched` and `leaves the original linked`. **Adding new tests beside
+them would have left the suite asserting both behaviours at once, which is how a
+contradiction survives a green run.**
+
+| | test | now asserts |
+|---|---|---|
+| rewritten | a gallery retake **REPLACES** the receipt it retakes, and releases its image | 11 cards not 12, **zero** advisories, the original's blob revoked, the replacement at the top, exactly one card carrying the generated name |
+| rewritten | a **LINKED** original: the replacement inherits the link and no amount moves | the viewer opens linked to `RM 250.75`, the row still has a receipt with no advisory, every ledger row's printed text byte-identical to before |
+| added | an **UNLINKED** original: the replacement is subject to auto-match | a replacement whose extraction matches one receipt-less row comes back LINKED to it |
+| added | a **CANCELLED** retake creates nothing and removes nothing | no `CapturingBlock`, the original still linked, 11 cards, 1 advisory |
+| added | a **CHAINED** retake | three photographs taken, one receipt kept |
+
+**THE UNLINKED TEST EXISTS BECAUSE THE GALLERY TEST CANNOT PROVE AUTO-MATCH
+RAN.** `READ`'s total matches no ledger row, so "auto-match ran and found
+nothing" and "auto-match was skipped" produce the same unlinked result. The
+added test hands the replacement an extraction matching exactly one receipt-less
+row, so LINKED is the only outcome a running matcher can produce. Symmetrically,
+`READ` matching nothing is what makes the LINKED test's inheritance assertion
+unfalsifiable-by-accident: auto-match could not have produced that link.
+
+**THE OBJECT-URL REVOKE AND THE TOP-OF-LIST ORDERING WERE FOLDED INTO THE
+GALLERY TEST** rather than given their own navigation cycles — the shape
+`receipt-viewer.spec.ts`'s delete test already uses, where delete, revoke and
+"the ledger did not move" are one coherent action asserted together.
+
+`512 = 509 + 3`. Confirmed by `--list`; `visual`, `routes` and `section-headers`
+are all unchanged, because no walk state moved.
+
+### Five mutation proofs, each running exactly ONE test
+
+Mutate, exit 1, restore, sha256 match, exit 0. The driver spawns Playwright with
+an **argument array** (node + the CLI script, no shell) — the Gate 55/57 failure
+— and reports **NO PROOF** when a run executes anything other than one test.
+None did.
+
+| | what was broken | test that went red | failed on |
+|---|---|---|---|
+| **M1** | the inherited link discarded, auto-match decides instead | LINKED | `Unlink receipt` absent |
+| **M2** | `replaceReceipt` appends without removing, i.e. Gate 60's ADD | gallery | `the replacement took the original's place` — 12 cards |
+| **M3** | the receipt marked as retaken when the PICKER opens, not when a FILE arrives | CANCELLED | `CapturingBlock` present after backing out |
+| **M4** | `replaceReceipt` also makes the bank follow the receipt (P6) | LINKED | the nested row no longer prints `RM 250.75` |
+| **M5** | the unlinked branch skips auto-match too | UNLINKED | `Unlink receipt` absent |
+
+**M4 FAILS ON THE NESTED ROW RATHER THAN ON THE `toEqual(ledgerBefore)` LINE,
+and that is reported rather than glossed.** The mutation is the plausible wrong
+thing — make the amount follow the receipt's total — so the viewer shows the
+moved figure before the ledger comparison is reached. It is still a P6
+assertion: the row prints what it always printed.
+
+### Baselines — predicted, and zero
+
+**PREDICTED IN WRITING BEFORE THE FIRST RUN: 0 added, 0 changed, 0 deleted.**
+Derived rather than hoped: **none of the three Gate 60 walk states clicks a
+retake control** — `add-unread`, `view-unread` and `detail-unread` each stop at
+the advisory, read off `OVERLAY_STATES` — so no walk state reaches `onFiles`. No
+copy, class or markup changed. The provider gains a context key, which cannot
+paint.
+
+**NO NEW WALK STATE, ARGUED RATHER THAN ASSUMED.** A replacement is an ORDINARY
+receipt on surfaces the walk already photographs; its only distinguishing
+property is WHICH RECORD IT REPLACED, and a screenshot cannot express that. The
+claims are behavioural and belong in the spec.
+
+Digest **`f6cd3e39…6aa46881`** before and after, by the standing command.
+
+### Bundle, through `build:package`
+
+| chunk | before (Gate 60) | after |
+|---|---|---|
+| entry | 5,808,338 | **5,808,632** (+294) |
+| CSS | 178,610 | **178,610** — unchanged, no rule was touched |
+| `read-*.js` / `recognise-*.js` | 1,092 / 4,368 | unchanged |
+| `parseReceipt-*.js` / `diagnose-*.js` | 13,481 / 2,491 | unchanged |
+
+`modulepreload` still **0**; the entry names none of the engine, the model or the
+parser. The OCR chunks being byte-identical is the second, independent statement
+that this gate touched no OCR code.
+
+### The personal-data audit
+
+Tokenised every added diff line and every untracked file, **keeping decimals
+whole** — Gate 57's lesson, where splitting on every non-alphanumeric turned
+`12.49` into two sub-threshold tokens and reported a clean bill of health — and
+intersected with both corpus `TRUTH.md` files, subtracting every token already
+committed at `mvp-gate60` and the allowed corpus file stems. **660 added tokens,
+682 corpus tokens, 0 hits.**
+
+**IT WAS NEGATIVE-CONTROLLED, because an audit that cannot fire is worth
+nothing.** Injecting one corpus decimal and one corpus word that are absent from
+the tree made it report exactly those two; restoring the file returned it to 0.
+
+**ONE LIMITATION, STATED.** No cached `OCR_CORPUS_OUT` existed in this session
+and the corpus harness was not required to run, so the corpus side is the
+ground-truth TRUTH.md transcriptions rather than the engine's readings of them.
+A leak of a GARBLED token would not be caught — and no OCR-derived string was
+authored this gate, which is why that is acceptable here and would not be in a
+gate that touched the parser.
+
+### Deliberately not in scope
+
+Any OCR, normaliser, parser, second-pass or failure-rule change; the picker's
+Replace confirmation and the delete confirmation, both untouched; a confirmation
+on the retake; preserving the original's position in the list; persistence
+(D2); any new stored field or widened output shape (D5) — the capture-source
+side store stays a side store; the registered contrast findings
+(`--mapped-text-warning-default` at 2.34:1 light, subtle-on-subtlest at 4.33:1
+light), both still DS-side; the DS repo and the pin; `npm audit fix`; branch
+deletion.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

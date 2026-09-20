@@ -115,9 +115,11 @@ export interface TransactionDetailSheetProps {
    */
   isCapturing: boolean
   /**
-   * Retake the linked receipt's photograph — Gate 60. Offered only when that
-   * receipt's reading failed (`receiptReadFailed`); see `useReceiptRetake`
-   * for what a retake does and, as importantly, what it leaves alone.
+   * Retake the linked receipt's photograph — Gate 60, reshaped at Gate 61.
+   * Offered only when that receipt's reading failed (`receiptReadFailed`).
+   * IT REPLACES: the new photograph's receipt takes this transaction's link and
+   * the original leaves the library. This line said "what it leaves alone",
+   * which was Gate 60's shape. See `useReceiptRetake`.
    */
   onRetake: (receipt: Receipt) => void
   onClose: () => void
@@ -188,9 +190,11 @@ export function TransactionDetailSheet({
       {/*
         THREE-WAY, AND THE ORDER MATTERS. Capturing is checked FIRST because it
         is a state either of the other two can be in the middle of: the user can
-        capture from the prompt block, and a later gate will let them replace a
-        receipt from the linked block. Checking `receipt` first would leave the
-        prompt on screen while extraction ran.
+        capture from the prompt block, and since Gate 61 they can replace one
+        from the linked block — the retake, which is the later gate this note
+        anticipated. Checking `receipt` first would leave the prompt on screen
+        while a capture from the prompt block ran, and would leave the OLD
+        receipt on screen while its replacement was being read.
       */}
       {isCapturing ? (
         <CapturingBlock count={1} />

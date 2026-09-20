@@ -129,14 +129,17 @@ export function TransactionsLedger() {
   const closeViewer = useCallback(() => setViewingId(null), [])
 
   /*
-    GATE 60 — A RETAKE STARTED FROM THE DETAIL SHEET LANDS IN THE VIEWER, on
-    the NEW receipt, swapping the sheet out in one update exactly as "View"
-    does. The new receipt is almost always unlinked (auto-match never takes a
-    transaction that already has a receipt), so the sheet — which shows the
-    ORIGINAL, still linked and untouched — could not show the result at all.
-    The viewer shows how the second photograph read, and its "Link to
-    transaction" is how the user moves the link, with the Replace confirmation
-    asking first. See `useReceiptRetake`.
+    A RETAKE STARTED FROM THE DETAIL SHEET LANDS IN THE VIEWER, on the NEW
+    receipt, swapping the sheet out in one update exactly as "View" does.
+
+    GATE 61 CHANGED WHAT THE USER FINDS THERE, NOT WHERE THEY LAND. This note
+    read "the new receipt is almost always unlinked ... the ORIGINAL, still
+    linked and untouched", which described Gate 60's retake: it ADDED a second
+    receipt and left the first one holding the link. A retake now REPLACES, so
+    the receipt the viewer opens on has taken the row's link and the original is
+    gone from the library — and the reason to land in the viewer rather than
+    stay in the sheet is now simply that the viewer is where a receipt's own
+    reading is shown. See `useReceiptRetake`.
   */
   const showRetake = useCallback((receiptId: string) => {
     setDetailId(null)

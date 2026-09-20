@@ -71,13 +71,14 @@ import type {
  * sheet's "Unlink receipt" writes exactly that field, and it cost one
  * `useCallback` and one line in the value object. Nothing else moved.
  *
- * SO THERE ARE NOW SIX MUTATORS, AND ONE OF THEM STILL HAS NO CALLER. This
+ * SO THERE ARE NOW SEVEN MUTATORS, AND ONE OF THEM STILL HAS NO CALLER. This
  * line said "two" from Gate 49, was stale from Gate 50 when `addReceipt`
  * arrived, and was corrected at Gate 51 for `deleteReceipt`; Gate 51-B adds
- * `linkReceipt` and `updateReceipt`. Five have callers; `addTransaction` still
- * has none and is still the seam described above. Do not sweep it as dead code.
+ * `linkReceipt` and `updateReceipt`, and Gate 61 `replaceReceipt`. Six have
+ * callers; `addTransaction` still has none and is still the seam described
+ * above. Do not sweep it as dead code.
  *
- * FIVE OF THE SIX WRITE `receipts` AND NOTHING ELSE. Only `addTransaction`
+ * SIX OF THE SEVEN WRITE `receipts` AND NOTHING ELSE. Only `addTransaction`
  * touches the ledger, and it is the one nothing calls — so no user action in
  * this app can currently change a transaction. That is the P6 ruling made
  * structural rather than promised: receipts never rewrite the bank.
@@ -272,6 +273,59 @@ interface AccountsContextValue {
    * NOT PERSISTED. Reload restores the seed.
    */
   updateReceipt: (receiptId: string, changes: ReceiptEdit) => void
+  /**
+   * Swap one receipt for another in a single pass — the retake's write. Gate 61.
+   *
+   * A RETAKE REPLACES THE RECEIPT IT RETAKES (Decision 1, 20 Sept). Gate 60
+   * shipped it as an ADD: the user re-shot a receipt the app had told them it
+   * could not read, and was left holding two — the original still attached to
+   * the transaction and still showing the failed reading, the replacement
+   * attached to nothing. They had done exactly what the app asked and the
+   * transaction still showed the wrong figures. "Retake" also means replace
+   * everywhere else in this category, so the control contradicted its own
+   * label. Both are fixed here, and the fix is this mutator.
+   *
+   * ONE `setReceipts`, NEVER AN `addReceipt` FOLLOWED BY A `deleteReceipt` —
+   * the argument `linkReceipt` above already makes. Two writes would render an
+   * intermediate frame in which BOTH receipts exist, and when the replacement
+   * inherits a link that frame has two receipts claiming one transaction, so
+   * `transactionHasReceipt` would answer differently to anything that rendered
+   * inside it. One pass makes "a transaction has at most one receipt" true at
+   * every observable moment rather than eventually.
+   *
+   * THE CALLER DECIDES THE LINK, AND IT IS THE CALLER THAT MAKES IT INHERITABLE.
+   * This appends the record it is handed, exactly as `addReceipt` does, so a
+   * replacement that carries the original's `transactionId` takes the link over
+   * and one that carries `null` does not. See `useReceiptRetake` for why the
+   * two cases are decided differently, and why auto-match must be SKIPPED
+   * rather than merely allowed to return nothing.
+   *
+   * THE ORIGINAL'S BLOB URL IS REVOKED, on `deleteReceipt`'s reasoning and by
+   * the same guard: nothing can show that image again once its record is gone.
+   * A seeded receipt carries no `sourceUrl`, so for one of those this only
+   * removes — and a seeded receipt can never be retaken anyway, because the
+   * advisory that offers a retake cannot fire on a transcribed reading.
+   *
+   * IT NEVER CALLS `setTransactions`, AND THAT ABSENCE IS THE CONTRACT — the
+   * same one `deleteReceipt` and `linkReceipt` document. A link moving from
+   * one receipt to another does not authorise this app to move a bank figure,
+   * so a replacement whose total differs from the transaction's amount is SHOWN
+   * and not reconciled (P6).
+   *
+   * NO CONFIRMATION ASKS FIRST, AND THAT IS NOT AN OVERSIGHT. P3 confirms what
+   * cannot be undone; here the user has explicitly asked to retake THIS
+   * receipt, so there is no competing intent to protect, and the precondition
+   * for the advisory existing at all is that the original reading produced no
+   * line items or no total — there is nothing in it to lose. The picker's
+   * Replace confirmation guards a different thing entirely: a link moving
+   * between two receipts the user may not have meant to swap. It stays.
+   *
+   * AUTO-MATCH DOES NOT RE-RUN OVER THE LIBRARY, here or anywhere. It is locked
+   * to add time (Gate 50-C).
+   *
+   * NOT PERSISTED. Reload restores the seed — the replaced receipt included.
+   */
+  replaceReceipt: (originalId: string, replacement: Receipt) => void
 }
 
 /** The three fields `updateReceipt` may change. Nothing else is editable. */
@@ -367,6 +421,31 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  /*
+    REMOVE THE ORIGINAL AND APPEND THE REPLACEMENT — ONE `map`-FREE PASS, ONE
+    `setReceipts`. See the contract above for why this is not `addReceipt`
+    followed by `deleteReceipt`.
+
+    THE APPEND IS AT THE END, WHICH IS `addReceipt`'s CONTRACT AND NOT AN
+    ORDERING DECISION. The Receipts tab sorts on `addedAt` newest-first and
+    breaks ties on library order (`receiptsNewestFirst`), so where a record sits
+    in this array is never what a screen reads.
+
+    REVOKING INSIDE THE UPDATER FOLLOWS `deleteReceipt`: StrictMode may run an
+    updater twice, and revoking an already-revoked url is a no-op. The guard is
+    by ID, so the REPLACEMENT's own fresh blob url — created moments earlier and
+    about to be rendered — cannot be the one revoked.
+
+    `setTransactions` IS NOT TOUCHED.
+  */
+  const replaceReceipt = useCallback((originalId: string, replacement: Receipt) => {
+    setReceipts((current) => {
+      const gone = current.find((r) => r.id === originalId)
+      if (gone?.sourceUrl?.startsWith('blob:')) URL.revokeObjectURL(gone.sourceUrl)
+      return [...current.filter((r) => r.id !== originalId), replacement]
+    })
+  }, [])
+
   const value = useMemo<AccountsContextValue>(() => {
     const primaryAccount = FIAT_ACCOUNTS[0]
     if (!primaryAccount) throw new Error('No fiat account seeded')
@@ -389,6 +468,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       deleteReceipt,
       linkReceipt,
       updateReceipt,
+      replaceReceipt,
     }
   }, [
     transactions,
@@ -399,6 +479,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     deleteReceipt,
     linkReceipt,
     updateReceipt,
+    replaceReceipt,
   ])
 
   return (
