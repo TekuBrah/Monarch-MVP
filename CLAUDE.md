@@ -10266,6 +10266,210 @@ side store stays a side store; the registered contrast findings
 light), both still DS-side; the DS repo and the pin; `npm audit fix`; branch
 deletion.
 
+## The DS v2.4.1 re-pin, and `InlineMessage` adopted (Gate 63)
+
+The pin moved `v2.3.0` (`586c8598ace9`) -> `v2.4.1` (`820736e8a869`). No OCR,
+parser, auto-match or persistence change. **|WALK| stays 43, `OVERLAY_STATES`
+22, baselines 172 -> 172 (8 changed, 0 added, 0 deleted, predicted in writing
+before the first run), tests 512 -> 513, spec files 22.** `lint:tokens` scans
+**69** files with the same **3** exemptions. `ReceiptAdvisory.tsx` went and
+`advisoryCopy.ts` arrived, so the count is unchanged.
+
+### The re-pin was measured alone, and locally it was nearly tautological
+
+**THE DS CHECKOUT WAS ALREADY AT v2.4.1 WHEN THIS GATE STARTED, while the MVP
+still pinned v2.3.0.** So `lint:linkage` was RED on a clean tree
+(`ds-worktree-vs-pin`), and the Vite alias was already compiling v2.4.1 source.
+That is the Gate 31 situation again. Do not read the re-pin's "0 moved" as a
+v2.3.0 -> v2.4.1 render comparison made on the same day. What it compares is
+the v2.4.1 render against baselines minted at Gate 61 under v2.3.0, which is
+still the honest control.
+
+The install was done by name. The lock resolved to `820736e`, the installed
+`package.json` read `2.4.1`, and `lint:linkage` passed with all four sources
+agreeing. `npm audit` shows the same single pre-existing `js-yaml` finding.
+
+**THE RE-PIN ALONE: 512 passed / 0 failed, 0 baselines moved,** and the
+digest was `f6cd3e39…6aa46881` before and after. That was predicted, and the
+reason can be checked from source. `globals.css`, `Modal.css` and `Sheet.css`
+are all unchanged between the two tags. The whole component delta is:
+
+- `photo_camera`, added to the `Icon` registry;
+- the new `InlineMessage`;
+- the G31 change in `Modal.tsx` and `Sheet.tsx`.
+
+**THE G31 CHANGE COULD NOT MOVE A PIXEL HERE.** Every MVP `onClose` that
+reaches an overlay has been stable since Gates 51-B and 52.
+
+`build:package` on the re-pin alone moved the entry chunk 5,808,632 -> 5,809,169
+(+537) and the CSS 178,610 -> 179,739 (+1,129). That growth is the DS dist
+carrying `InlineMessage` and one more icon before anything in the MVP used them.
+
+### Adoption: two sites become the DS component, the card stays a caption
+
+| site | before | after | why |
+|---|---|---|---|
+| receipt viewer | hand-rolled, framed, `border-default` | `InlineMessage tone="warning" isFramed` | it sits on the modal card's own surface, and the frame is what makes title, body and retake read as one unit there |
+| detail-sheet receipt block | hand-rolled, unframed | `InlineMessage tone="warning" isFramed={false}` | the card around it already paints `--mapped-surface-subtlest-default`, the framed fill, so a frame would be a card on an identical ground (the Gate 52 finding) |
+| Receipts-tab card | a plain caption `<span>` | **unchanged** | it never rendered through `ReceiptAdvisory`: it imported only the `advisoryCaption` STRING. The ruling keeps a plain caption a caption, so no row-height measurement arose |
+
+**THE RETAKE CARRIES `photo_camera` THROUGH `Button`'s `leadingIcon`,
+except on a PDF.** A PDF's control reads "Choose another file", and a camera
+glyph there would name the wrong thing. No walk state stages a PDF, so this
+branch is unphotographed. It is a judgement, recorded here so a reader does not
+treat it as an oversight.
+
+**TEXT COLOUR IS THE DS's OWN, AND NOTHING WAS RECOLOURED (Ruling A).** Title
+and body take `--mapped-text-default-default` in every tone. The tone is
+carried by the warning border (framed) and the decorative `warning` glyph (both
+framed and unframed).
+
+**`ReceiptAdvisory.tsx` IS DELETED, AND ITS FOUR CSS RULES WITH IT.** What the
+DS cannot know stayed app-owned in `src/flows/finance/advisoryCopy.ts`:
+
+- the copy — the title, the body naming the missing half, and the caption;
+- `retakeSource` and `retakeLabel`;
+- `isPdfCapture`.
+
+The card, the viewer, the sheet and `useReceiptRetake` all read the copy from
+there. Every test that located `.mvp-receipt-advisory*` was re-targeted at
+`.mn-inline-message*`. The same applies to the two harness `settlesOn`
+selectors for `view-unread` and `detail-unread`.
+
+**BEHAVIOUR THAT DID NOT CHANGE, PROVEN.** `derive.ts` and `secondPass.ts` have
+a zero-line diff, so `receiptReadFailed` still delegates to `firstPassFailed`.
+The corpus harness re-ran through the final tree and the advisory fires on
+**7 of 30**, the same seven Gate 60 named. Retake replacement, inherited link,
+the suppressed auto-match, the cancelled picker and the `toEqual(ledgerBefore)`
+P6 assertion are all in `retake.spec.ts` and all pass unchanged.
+
+### The one new test, and six proofs against it
+
+`retake.spec.ts` 11 -> 12. The new test covers five things:
+
+- the viewer renders the DS message framed, in the warning tone, named by its
+  title and showing its glyph;
+- the sheet renders it unframed, in the warning tone, showing its glyph;
+- both retake controls carry `photo_camera`, **identified by the rendered
+  path's `d`**, compared with `@material-design-icons/svg/round/photo_camera.svg`
+  rather than trusting the prop;
+- the unreadable capture WAS saved (11 cards, modal closed);
+- every viewer action stays enabled and focus never moves into the message.
+
+It also checks that the card's caption is still a `type-body-caption` span with
+no `.mn-inline-message` in any card.
+
+Six mutations, each run against that one test by title, through an argument
+array (no shell). Each exited 1 on an assertion, restored SHA-identical, and
+re-ran to exit 0:
+
+1. the viewer's tone set to `neutral`;
+2. the sheet's tone set to `neutral`;
+3. the viewer's camera glyph removed;
+4. the sheet's camera glyph removed;
+5. Save filtering out unread receipts;
+6. an `InlineMessage` rendered inside the card.
+
+**THE FIRST M6 WAS INVALID AND WAS REDONE.** It placed two sibling elements
+under `&&`, which does not compile. The test then died at navigation (the
+harness's `data-theme` check) rather than on an assertion, and a driver that
+only reads the exit code reported it PROVED. **Read WHERE a mutation failed,
+not only that it did.**
+
+### G31 closed, G33 still open
+
+**G31 IS CLOSED, BOTH HALVES**, in the register. With `closeDetail` and the
+Receipts tab's `closeViewer` put back to inline arrows, three states pass the
+`scrollY === 0` assertion in both themes (6 passed):
+
+- `add-library-filled`, which scrolled 790px at Gate 52;
+- `view-unlinked`, which scrolled 770px at Gate 51;
+- `view-delete`, which scrolled 808px at Gate 51.
+
+The red control is Gate 52's own mutation proof under v2.3.0. It was not re-run,
+because producing a v2.3.0 render again means touching the DS checkout. **The
+MVP `useCallback`s stay.**
+
+**G33 IS STILL OPEN.** The v2.4.1 `Modal.css` diff is empty, so the
+`.mvp-receipt-viewer-modal` workaround stays in its two files, as its removal
+condition requires.
+
+### Baselines: exactly the predicted eight
+
+The pre-mint run failed exactly 8 tests (**505 passed**) and wrote nothing, so
+the digest was still `f6cd3e39…`:
+
+- `finance-receipts-view-unread-{375,430}-{light,dark}`
+- `finance-transactions-detail-unread-{375,430}-{light,dark}`
+
+`finance-receipts-add-unread-*` did not move, because the caption is unchanged.
+They were minted with `--update-snapshots=all` over those eight states only, and
+all eight were opened. The viewer shows the framed orange warning border, the
+glyph and the camera-glyph button above the receipt image. The sheet shows the
+glyph column and the camera button with no frame. Both themes and both widths
+are correct.
+
+| | |
+|---|---|
+| start | 172 |
+| changed | **8** |
+| added / deleted | 0 / 0 |
+| end digest | **`6e2ef307…b161d16e03`** |
+
+Arm 1 of the baseline guard stays green, because every change modifies an
+already-tracked path.
+
+### Bundle
+
+| chunk | Gate 61 | re-pin only | final |
+|---|---|---|---|
+| entry | 5,808,632 | 5,809,169 | **5,809,794** (+625 for the adoption, +1,162 in all) |
+| CSS | 178,610 | 179,739 | **179,313** (the four advisory rules gone) |
+
+`modulepreload` is still **0**, and the lazy chunk set is the same ten.
+
+**THE CORPUS-HARNESS EXEMPTION WAS NOT CLAIMED, AND THE REASON IS A
+GENERALISABLE ONE.** Six lazy chunks are byte-identical:
+
+- `parseReceipt`, `pdf`, `pdf.worker`, `tesseract-core`, `worker.min`, and the
+  tesseract API chunk.
+
+`diagnose`, `rasterise`, `read` and `recognise` are **not** byte-identical.
+Each imports the entry chunk (or the CSS) by its content-hashed name, and
+that name moves on ANY app change. Normalised for hashed names, all four are
+identical. **An OCR chunk that imports the entry can never be byte-identical
+across an app change, so that exemption is only claimable on a gate that
+changes nothing in the entry.** So the harness ran instead. It reproduced Gate
+58's aggregates exactly:
+
+| set | items | totals |
+|---|---|---|
+| development | 79/97 | 18/20 |
+| blind gallery | 26/39 | 3/5 |
+| blind camera | 11/39 | 1/5 |
+
+### Personal-data audit
+
+The method was Gate 61's. Added diff lines plus untracked files were tokenised,
+keeping decimals whole. They were intersected with both `TRUTH.md` files, then
+the `mvp-gate61` tree's tokens and the corpus stems were subtracted.
+**0 hits.**
+
+**NEGATIVE-CONTROLLED.** One corpus decimal and one corpus word, both absent
+from the tree, were injected into `advisoryCopy.ts`. The audit reported exactly
+those two. The file was restored SHA-identical and the audit returned 0. No
+OCR-derived string was authored this gate, so ground truth suffices (the Gate 61
+precedent).
+
+### Deliberately not in scope
+
+- any DS edit;
+- removing G33's workaround or the G31 `useCallback`s;
+- the polish items — the sort control, source-picker ordering, UI-1 to UI-3;
+- OCR, the parser, auto-match and persistence;
+- a PDF retake glyph;
+- `npm audit fix`.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

@@ -1,11 +1,11 @@
-import { Button, Chips, Divider, Icon, Sheet } from '@monarch/design-system'
+import { Button, Chips, Divider, Icon, InlineMessage, Sheet } from '@monarch/design-system'
 import type { IconName } from '@monarch/design-system'
 import { CRYPTO_WALLETS } from '../../../data/accounts'
 import { HOLDINGS } from '../../../data/holdings'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
 import { CapturingBlock } from './CapturingBlock'
-import { ReceiptAdvisory } from './ReceiptAdvisory'
+import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advisoryCopy'
 import {
   receiptReadFailed,
   receiptSubtotalRead,
@@ -421,11 +421,34 @@ function ReceiptBlock({
         below are exactly what did not come through, so it is said before them.
         UNFRAMED: this card already paints the surface a framed box would, and a
         box on its own ground is invisible (the Gate 52 finding).
+
+        GATE 63: THE DS `InlineMessage`, `tone="warning"`, `isFramed={false}`.
+        The card around it already paints `--mapped-surface-subtlest-default`,
+        the same fill the framed variant would, so a frame here would be a card
+        drawn on an identical ground. Unframed, the warning glyph carries the
+        tone on its own. The text colour is the DS's own (Ruling A).
       */}
       {receiptReadFailed(receipt) && (
         <>
           <Divider />
-          <ReceiptAdvisory receipt={receipt} onRetake={onRetake} framed={false} />
+          <InlineMessage
+            tone="warning"
+            isFramed={false}
+            title={advisoryTitle(receipt)}
+            actions={
+              <Button
+                variant="secondary"
+                size="m"
+                label={retakeLabel(receipt)}
+                leadingIcon={
+                  isPdfCapture(receipt) ? undefined : <Icon name="photo_camera" size="m" />
+                }
+                onClick={onRetake}
+              />
+            }
+          >
+            {advisoryBody(receipt)}
+          </InlineMessage>
         </>
       )}
 

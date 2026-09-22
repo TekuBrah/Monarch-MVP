@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 import {
@@ -176,11 +177,11 @@ test.describe('the advisory and the retake — browser', () => {
 
     // THE VIEWER CARRIES THE FULL ADVISORY — and every ordinary action still.
     await newestCard(page).click()
-    const advisory = viewer(page).locator('.mvp-receipt-advisory')
-    await expect(advisory.locator('.mvp-receipt-advisory__title')).toHaveText(
+    const advisory = viewer(page).locator('.mn-inline-message')
+    await expect(advisory.locator('.mn-inline-message__title')).toHaveText(
       "We couldn't read this photo",
     )
-    await expect(advisory.locator('.mvp-receipt-advisory__body')).toContainText(
+    await expect(advisory.locator('.mn-inline-message__body')).toContainText(
       'no items or total came through',
     )
     await expect(viewer(page).getByRole('button', { name: 'Link to transaction' })).toHaveCount(1)
@@ -202,7 +203,7 @@ test.describe('the advisory and the retake — browser', () => {
 
     // THE VIEWER MOVES TO THE NEW RECEIPT, WHICH READ — so no advisory.
     await expect(viewer(page).locator('.mvp-receipt-details')).toContainText('Kedai Contoh')
-    await expect(viewer(page).locator('.mvp-receipt-advisory')).toHaveCount(0)
+    await expect(viewer(page).locator('.mn-inline-message')).toHaveCount(0)
 
     await viewer(page).getByRole('button', { name: 'Close' }).click()
 
@@ -236,7 +237,7 @@ test.describe('the advisory and the retake — browser', () => {
     await newestCard(page).click()
 
     const retake = viewer(page)
-      .locator('.mvp-receipt-advisory')
+      .locator('.mn-inline-message')
       .getByRole('button', { name: 'Retake photo' })
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), retake.click()])
     expect(await chooser.element().getAttribute('capture')).toBe('environment')
@@ -266,7 +267,7 @@ test.describe('the advisory and the retake — browser', () => {
     await expect(viewer(page).getByRole('button', { name: 'Link to transaction' })).toHaveCount(1)
 
     const retake = viewer(page)
-      .locator('.mvp-receipt-advisory')
+      .locator('.mn-inline-message')
       .getByRole('button', { name: 'Choose another photo' })
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), retake.click()])
     await installResolvingExtraction(page, extracted)
@@ -310,7 +311,7 @@ test.describe('the advisory and the retake — browser', () => {
     await first.setFiles(FIXTURE)
 
     // THE SHEET SHOWS THE ORIGINAL, LINKED, WITH THE ADVISORY.
-    await expect(sheet.locator('.mvp-receipt-advisory__title')).toHaveText(
+    await expect(sheet.locator('.mn-inline-message__title')).toHaveText(
       "We couldn't read this photo",
     )
 
@@ -331,13 +332,13 @@ test.describe('the advisory and the retake — browser', () => {
     await expect(viewer(page).locator('.mvp-receipt-details')).toContainText('Kedai Contoh')
     await expect(viewer(page).getByRole('button', { name: 'Unlink receipt' })).toHaveCount(1)
     await expect(viewer(page).locator('.mn-list-item')).toContainText('RM 250.75')
-    await expect(viewer(page).locator('.mvp-receipt-advisory')).toHaveCount(0)
+    await expect(viewer(page).locator('.mn-inline-message')).toHaveCount(0)
     await viewer(page).getByRole('button', { name: 'Close' }).click()
 
     // THE ROW STILL HAS A RECEIPT, AND IT IS THE REPLACEMENT — no advisory now.
     await row.click()
     await expect(sheet.locator('.mvp-txn-detail__receipt-head')).toHaveCount(1)
-    await expect(sheet.locator('.mvp-receipt-advisory')).toHaveCount(0)
+    await expect(sheet.locator('.mn-inline-message')).toHaveCount(0)
     await page.keyboard.press('Escape')
     await expect(sheet).toHaveCount(0)
 
@@ -365,7 +366,7 @@ test.describe('the advisory and the retake — browser', () => {
     const gallery = page.locator('.mvp-source-picker__row:has-text("Photo Gallery")')
     const [first] = await Promise.all([page.waitForEvent('filechooser'), gallery.click()])
     await first.setFiles(FIXTURE)
-    await expect(sheet.locator('.mvp-receipt-advisory__title')).toHaveText(
+    await expect(sheet.locator('.mn-inline-message__title')).toHaveText(
       "We couldn't read this photo",
     )
 
@@ -386,7 +387,7 @@ test.describe('the advisory and the retake — browser', () => {
       strands the surface on `CapturingBlock` forever when the user backs out.
     */
     await expect(sheet.locator('.mvp-capturing')).toHaveCount(0)
-    await expect(sheet.locator('.mvp-receipt-advisory__title')).toHaveText(
+    await expect(sheet.locator('.mn-inline-message__title')).toHaveText(
       "We couldn't read this photo",
     )
     await expect(sheet.locator('.mvp-txn-detail__receipt-head')).toHaveCount(1)
@@ -414,13 +415,13 @@ test.describe('the advisory and the retake — browser', () => {
       ORDINARY receipt, so it shows the advisory itself — there is no special
       case for "this one is already a replacement" and no limit on the chain.
     */
-    const advisory = () => viewer(page).locator('.mvp-receipt-advisory')
+    const advisory = () => viewer(page).locator('.mn-inline-message')
     const retakeButton = () => advisory().getByRole('button', { name: 'Choose another photo' })
 
     const [one] = await Promise.all([page.waitForEvent('filechooser'), retakeButton().click()])
     await installResolvingExtraction(page, UNREAD)
     await one.setFiles(FIXTURE)
-    await expect(advisory().locator('.mvp-receipt-advisory__title')).toHaveText(
+    await expect(advisory().locator('.mn-inline-message__title')).toHaveText(
       "We couldn't read this photo",
     )
     // ONE CAPTURE IN THE LIBRARY, NOT TWO — the chain does not accumulate.
@@ -431,7 +432,7 @@ test.describe('the advisory and the retake — browser', () => {
     await installResolvingExtraction(page, READ)
     await two.setFiles(FIXTURE)
     await expect(viewer(page).locator('.mvp-receipt-details')).toContainText('Kedai Contoh')
-    await expect(viewer(page).locator('.mvp-receipt-advisory')).toHaveCount(0)
+    await expect(viewer(page).locator('.mn-inline-message')).toHaveCount(0)
     await viewer(page).getByRole('button', { name: 'Close' }).click()
 
     // THREE PHOTOGRAPHS TAKEN, ONE RECEIPT KEPT.
@@ -450,7 +451,7 @@ test.describe('the advisory and the retake — browser', () => {
     await expect(page.locator('.mvp-receipt-card__advisory')).toHaveCount(0)
     await newestCard(page).click()
     await expect(viewer(page).locator('.mvp-receipt-details')).toContainText('Kedai Contoh')
-    await expect(viewer(page).locator('.mvp-receipt-advisory')).toHaveCount(0)
+    await expect(viewer(page).locator('.mn-inline-message')).toHaveCount(0)
   })
 
   test('half a reading: the advisory names the half that did not come through', async ({
@@ -475,12 +476,83 @@ test.describe('the advisory and the retake — browser', () => {
     const bodies: string[] = []
     for (let i = 0; i < 2; i += 1) {
       await flagged.nth(i).click()
-      bodies.push(await viewer(page).locator('.mvp-receipt-advisory__body').innerText())
+      bodies.push(await viewer(page).locator('.mn-inline-message__body').innerText())
       await viewer(page).getByRole('button', { name: 'Close' }).click()
     }
     expect(bodies.some((b) => b.includes("the total didn't come through"))).toBe(true)
     expect(bodies.some((b) => b.includes('no items came through'))).toBe(true)
     expect(bodies.some((b) => b.includes('no items or total'))).toBe(false)
+  })
+
+  test('the advisory is the DS InlineMessage: warning in the viewer and the sheet, a caption on the card, and it blocks nothing', async ({
+    page,
+  }) => {
+    /*
+      GATE 63. The hand-rolled advisory was replaced by the DS component. What
+      this pins, and what a screenshot cannot: WHICH component renders, in WHICH
+      tone and frame at each site, WHICH glyph the retake carries (identified by
+      its own geometry, never by the prop that asked for it), that the card
+      stayed a caption, and that nothing around the message is blocked.
+    */
+    const cameraPath = /<path d="([^"]+)"/.exec(
+      readFileSync('node_modules/@material-design-icons/svg/round/photo_camera.svg', 'utf8'),
+    )?.[1]
+    expect(cameraPath, 'the photo_camera glyph file carries a path').toBeTruthy()
+
+    await openReceipts(page)
+    await installResolvingExtraction(page, UNREAD)
+    await saveOneCapture(page, 'Photo Gallery')
+
+    // NON-BLOCKING SAVE: the unreadable capture WAS saved, and the modal closed.
+    await expect(page.locator('.mvp-receipt-card')).toHaveCount(11)
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0)
+
+    // THE CARD STAYS A CAPTION — never a message block inside a card row.
+    const caption = newestCard(page).locator('.mvp-receipt-card__advisory')
+    await expect(caption).toHaveText("Couldn't read this photo")
+    await expect(caption).toHaveClass(/type-body-caption/)
+    await expect(page.locator('.mvp-receipt-card .mn-inline-message')).toHaveCount(0)
+
+    // THE VIEWER: framed, warning, named by its title, glyph shown.
+    await newestCard(page).click()
+    const inViewer = viewer(page).locator('.mn-inline-message')
+    await expect(inViewer).toHaveCount(1)
+    await expect(inViewer).toHaveClass(/mn-inline-message--warning/)
+    await expect(inViewer).toHaveClass(/mn-inline-message--framed/)
+    await expect(viewer(page).getByRole('group', { name: "We couldn't read this photo" })).toHaveCount(1)
+    await expect(inViewer.locator('.mn-inline-message__icon svg')).toHaveCount(1)
+    const viewerRetake = inViewer.getByRole('button', { name: 'Choose another photo' })
+    await expect(viewerRetake.locator('path')).toHaveAttribute('d', cameraPath!)
+
+    // BLOCKS NOTHING: every ordinary action stays operable, and focus is not
+    // pulled into the message.
+    for (const name of ['Link to transaction', 'Delete receipt', 'Close']) {
+      await expect(viewer(page).getByRole('button', { name })).toBeEnabled()
+    }
+    // The details block's Edit is a `SectionHeader` link, not a button.
+    await expect(viewer(page).getByRole('link', { name: 'Edit' })).toBeVisible()
+    expect(
+      await inViewer.evaluate((el) => el.contains(document.activeElement)),
+      'the message never takes focus',
+    ).toBe(false)
+    await viewer(page).getByRole('button', { name: 'Close' }).click()
+
+    // THE SHEET: unframed, warning, glyph shown.
+    await activateTab(page, TRANSACTIONS_TAB)
+    await page.locator('.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item').click()
+    const sheet = page.locator('[role="dialog"]:has-text("Transaction details")')
+    await sheet.locator('.mvp-txn-detail__prompt .mn-btn').click()
+    const gallery = page.locator('.mvp-source-picker__row:has-text("Photo Gallery")')
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), gallery.click()])
+    await chooser.setFiles(FIXTURE)
+    const inSheet = sheet.locator('.mn-inline-message')
+    await expect(inSheet).toHaveCount(1)
+    await expect(inSheet).toHaveClass(/mn-inline-message--warning/)
+    await expect(inSheet).not.toHaveClass(/mn-inline-message--framed/)
+    await expect(inSheet.locator('.mn-inline-message__icon svg')).toHaveCount(1)
+    await expect(
+      inSheet.getByRole('button', { name: 'Choose another photo' }).locator('path'),
+    ).toHaveAttribute('d', cameraPath!)
   })
 
   test('the seeded library shows no advisory', async ({ page }) => {
@@ -490,6 +562,6 @@ test.describe('the advisory and the retake — browser', () => {
     // One viewer, opened through its card, as the proof the viewer agrees.
     await page.locator('.mvp-receipt-card').first().click()
     await expect(viewer(page).locator('.mvp-receipt-details')).toHaveCount(1)
-    await expect(viewer(page).locator('.mvp-receipt-advisory')).toHaveCount(0)
+    await expect(viewer(page).locator('.mn-inline-message')).toHaveCount(0)
   })
 })

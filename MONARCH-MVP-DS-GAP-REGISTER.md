@@ -1586,6 +1586,26 @@ one would leave two live instances of a mechanism this register documents.
 at all? Restoring focus is a CLOSE behaviour; keying it to a callback's identity
 makes correct consumer code depend on memoisation the API does not document.
 
+#### CLOSED at MVP Gate 63 — DS v2.4.0 fixed both `Sheet` and `Modal`, adopted here at v2.4.1
+
+| # | Status | What closed it | Verified in this repo |
+|---|---|---|---|
+| **G31** `Sheet` half | **CLOSED** | the open effect keyed on `[isOpen]` only; Escape reads the latest `onClose` through a ref updated in a layout effect | Read from the pinned source, `git diff v2.3.0 v2.4.1 -- src/components/Sheet/Sheet.tsx`: deps `[isOpen, onClose]` became `[isOpen]`, and `onClose()` became `onCloseRef.current()`. Measured live: with `TransactionsLedger`'s `closeDetail` put back to an inline arrow, the Gate 52 measurement that opened this half (`add-library-filled`, which scrolled 790px) now PASSES the `scrollY === 0` assertion in both themes |
+| **G31** `Modal` half | **CLOSED** | the same change in `Modal.tsx` | Same diff on `Modal.tsx`. Measured live: with `ReceiptsTab`'s `closeViewer` put back to an inline arrow, `view-unlinked` and `view-delete` (the Gate 51 770px / 808px states) PASS the same assertion in both themes |
+
+**THE PROBE, AND ITS ONE LIMIT.** Both mitigations were reverted to inline
+arrows at once, `routes.spec.ts` was run on the three states in both themes
+(**6 passed**), and both files were restored SHA-256-identical
+(`11806174…62ade`, `2308596d…23367`). The control is Gate 52's own mutation
+proof, which reddened the suite with exactly that change under v2.3.0. It was not
+re-run here: `node_modules` and the DS checkout both hold v2.4.1, and producing a
+v2.3.0 render again would mean touching the DS checkout, which this gate was
+forbidden to do.
+
+**THE MVP `useCallback`s STAY.** They cost nothing, and they are still correct
+for any identity-sensitive consumer. Removing them is not part of closing a DS
+gap.
+
 ### G32 is OPENED — `Modal` has no leading-edge header slot
 
 | | |
@@ -1755,3 +1775,42 @@ the Delete button IS `variant="tertiary"` **and** renders primary blue
 **THE HIGHEST NUMBER IS G33.** 24 is still a permanent hole.
 
 **Nothing was fixed DS-side. Nothing was staged, committed, pushed or tagged.**
+
+## 2l. Status at MVP Gate 63 (2026-09-22) — DS re-pinned v2.3.0 -> v2.4.1
+
+**G31 IS CLOSED**, both halves. See its CLOSED subsection under 2k.
+
+**G33 IS STILL OPEN, CONFIRMED FROM THE v2.4.1 SOURCE, AND THE WORKAROUND
+STAYS.** `git diff v2.3.0 v2.4.1 -- src/components/Modal/Modal.css` in the DS is
+empty. `.mn-modal__card` still has no `max-height` and `.mn-modal__content`
+still has no `overflow` and no `min-height`. So the removal condition has not
+fired, and `.mvp-receipt-viewer-modal` is still in exactly its two files
+(`finance.css`, `ReceiptViewer.tsx`).
+
+**v2.4.1 CLOSED NONE OF THE OTHER OPEN ENTRIES.** The release's whole source
+delta under `src/components/` is `Icon` (one registry entry, `photo_camera`), a
+new `InlineMessage`, and the G31 change in `Modal.tsx` and `Sheet.tsx`, with
+their tests. `globals.css` is unchanged, so no token moved. G6, G13, G14, G17's
+prop half, G19, G20, G21, G22, G23, G28, G29, G30 and G32 are all untouched by
+it, and they stay open exactly as registered.
+
+**TWO ADDITIONS THAT ARE NOT GAPS.** `InlineMessage` now covers the receipt
+advisory the MVP had hand-rolled since Gate 60 for want of one. It was never
+registered as a gap, because Gate 60 composed it rather than stopping. And
+`photo_camera` gives the retake control the glyph Gate 60 recorded as absent.
+Both are adopted; neither closes a numbered entry.
+
+### The count
+
+**32 entries, 11 closed, 21 open.** This is the Gate 51-B tally with G31 moved
+to closed. It was not re-enumerated from scratch.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 | 6 | **0** |
+| `prop-gap` | 21 | 3 | **18** — G31 closed |
+| `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **32** | **11** | **21** |
+
+Nothing was removed from this register.

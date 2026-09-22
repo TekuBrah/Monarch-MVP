@@ -4,6 +4,7 @@ import {
   Chips,
   Icon,
   IconButton,
+  InlineMessage,
   ListItem,
   Modal,
   ToastMobile,
@@ -32,7 +33,7 @@ import {
 } from './ReceiptEditor'
 import { CaptureDiagnosticsBlock } from './CaptureDiagnosticsBlock'
 import { CapturingBlock } from './CapturingBlock'
-import { ReceiptAdvisory } from './ReceiptAdvisory'
+import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advisoryCopy'
 import { useReceiptRetake } from '../useReceiptRetake'
 import { TransactionPicker } from './TransactionPicker'
 
@@ -272,9 +273,32 @@ function ReceiptViewerBody({
         sits below the fold on a tall card at 375 (Gate 51-B), so placing it
         there would hide it exactly when it matters. Absent on every receipt
         that read, so the drawn layout below is untouched for all of them.
+
+        GATE 63: THE DS `InlineMessage`, `tone="warning"`, FRAMED. It sits
+        straight on the modal card's own surface, and the frame's subtlest fill
+        and warning border are what make title, body and retake read as one
+        unit there rather than three loose lines above the image. The text
+        colour is the DS's own and is not overridden (Ruling A).
       */}
       {receiptReadFailed(receipt) && (
-        <ReceiptAdvisory receipt={receipt} onRetake={onRetake} framed />
+        <InlineMessage
+          tone="warning"
+          isFramed
+          title={advisoryTitle(receipt)}
+          actions={
+            <Button
+              variant="secondary"
+              size="m"
+              label={retakeLabel(receipt)}
+              leadingIcon={
+                isPdfCapture(receipt) ? undefined : <Icon name="photo_camera" size="m" />
+              }
+              onClick={onRetake}
+            />
+          }
+        >
+          {advisoryBody(receipt)}
+        </InlineMessage>
       )}
 
       {/*

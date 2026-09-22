@@ -5,7 +5,7 @@ import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptReadFailed } from '../../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
-import { advisoryCaption } from './ReceiptAdvisory'
+import { advisoryCaption } from '../advisoryCopy'
 
 /**
  * Figma `Item/receipts` — one captured receipt, in both of its variants.

@@ -1436,48 +1436,14 @@ button.mvp-receipt-card:focus-visible {
 }
 
 /*
-  ── THE RECEIPT ADVISORY (Gate 60) ─────────────────────────────────────────
+  ── THE RECEIPT ADVISORY: NO RULES HERE SINCE GATE 63 ─────────────────────
 
-  The prompt block's composition — title, body, button, 8px gaps — because it
-  is the same kind of thing: a short statement and one action. FRAMED in the
-  viewer, where it sits on the modal's own surface and needs the prompt card's
-  surface, border and radius to read as one unit. UNFRAMED inside the detail
-  sheet's receipt card, which already paints that surface.
-
-  THE BUTTON HUGS ITS LABEL. `align-items: flex-start` stops the column
-  stretching it to the full width, which would make an advisory action look
-  like the surface's primary one.
+  Gate 60 composed the advisory by hand, and its four `.mvp-receipt-advisory*`
+  rules lived here. It is now the DS `InlineMessage`, which owns all of that
+  geometry and colour, so the rules were deleted along with the component. An
+  MVP rule on top of the DS component would be the equal-specificity override
+  Gate 13 removed on measurement.
 */
-.mvp-receipt-advisory {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-200);
-}
-
-.mvp-receipt-advisory--framed {
-  padding: var(--spacing-300);
-  background: var(--mapped-surface-subtlest-default);
-  border: var(--brand-scale-25) solid var(--mapped-border-default-default);
-  border-radius: var(--brand-scale-200);
-}
-
-.mvp-receipt-advisory__title {
-  margin: 0;
-  color: var(--mapped-text-default-default);
-}
-
-/*
-  DEFAULT, NOT SUBTLE, AND THAT IS A MEASUREMENT. --mapped-text-subtle-default
-  on --mapped-surface-subtlest-default is 4.33:1 in light — under AA for 14px
-  body copy — and both places this renders sit on that surface. The same
-  pairing is pre-existing in the prompt block's body line; reported, not
-  touched here.
-*/
-.mvp-receipt-advisory__body {
-  margin: 0;
-  color: var(--mapped-text-default-default);
-}
 
 /* ── Transaction info ──────────────────────────────────────────────────── */
 

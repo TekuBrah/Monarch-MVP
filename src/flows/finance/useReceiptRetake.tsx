@@ -3,7 +3,7 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { autoMatchBatch } from '../../data/autoMatch'
 import type { Receipt } from '../../data/types'
 import { ReceiptFileInput, type ReceiptFileInputHandle } from './components/ReceiptFileInput'
-import { retakeSource } from './components/ReceiptAdvisory'
+import { retakeSource } from './advisoryCopy'
 import { capturedToReceipts, extractCapture } from './receiptCapture'
 
 /**
