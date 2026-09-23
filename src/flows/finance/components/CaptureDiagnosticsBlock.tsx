@@ -71,6 +71,10 @@ function Rows({ diagnostic }: { diagnostic: CaptureDiagnostic }) {
             <Row label="Normalised size" value={size(normalisedSize(pass))} />
             <Row label="Normalised bytes" value={count(pass.normalised?.bytes, ' B')} />
             <Row label="Passed through" value={pass.normalised ? yesNo(pass.normalised.passedThrough) : '—'} />
+            <Row
+              label="Pixel hash"
+              value={pass.normalised?.pixelHash ? `${pass.normalised.pixelHash.slice(0, 16)}…` : '—'}
+            />
             <Row label="Normalise ms" value={count(pass.normaliseMs)} />
             <Row label="Engine ms" value={count(pass.engineMs)} />
             <Row label="Raw text chars" value={count(pass.rawTextLength)} />

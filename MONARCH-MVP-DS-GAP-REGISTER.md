@@ -1814,3 +1814,116 @@ to closed. It was not re-enumerated from scratch.
 | | **32** | **11** | **21** |
 
 Nothing was removed from this register.
+
+## 2m. Status at MVP Gate 64 (2026-09-23) — two contrast findings measured under v2.4.1, and G34
+
+**SECTION 2j WAS NEVER WRITTEN. It stays missing** — the sequence runs
+2a…2i, 2k, 2l, 2m, and no entry was ever filed under 2j. Recorded here rather
+than silently closed over, per the standing rule that a gap in this document's
+own numbering is left exactly as it happened.
+
+### Two Gate 61 contrast figures, RE-MEASURED — not new, not previously filed
+
+Gate 61's `CLAUDE.md` (the receipt-viewer contrast note under "the picker, the
+editor and the completed viewer") describes both of these as "the registered
+contrast findings" in its closing "deliberately not in scope" line. **Neither
+was ever opened as an entry in this document** — grepped for
+`warning-default`, `2.34`, `4.22` and `4.33` before this gate, zero matches
+outside this new section. `CLAUDE.md`'s own word "registered" was wrong; the
+finding was recorded in `CLAUDE.md`'s prose and never carried into this file.
+Not filed as gap entries here either, because — per Ruling A below — neither is
+a component or prop shortfall a future DS release could close; both are token
+CONTRAST facts about the shipped ramp, which is exactly what this register's
+`token-gap` tag is for when the fix would be a new token, and neither of these
+asks for one.
+
+**RULING A — measured, not changed.** Both figures were re-derived from
+`node_modules/@monarch/design-system/dist/index.css` under the pin this gate
+found in force, **v2.4.1**, by resolving each `--mapped-*` token through its
+`--alias-*` binding to its `--brand-*` hex, in both the `:root` and
+`[data-theme=dark]` blocks, and computing WCAG 2.x contrast
+`(L1 + 0.05) / (L2 + 0.05)` on linearised sRGB — the same formula and method
+Gate 25's promo-band finding and Gate 26's on-colour finding both use elsewhere
+in `CLAUDE.md`.
+
+| finding | pairing | v2.4.1 chain | v2.4.1 measured | Gate 60/61 recorded |
+|---|---|---|---|---|
+| `--mapped-text-warning-default` on the advisory card, light | text `#ff8a47` vs surface `#ffffff` | `--mapped-text-warning-default` -> `--alias-warning-500` -> `--brand-orange-500`; `--mapped-surface-elevation-default` -> `--alias-foundations-white` | **2.3390 (2.34:1)** | 2.34:1 |
+| `--mapped-text-warning-default` on the advisory card, dark | text `#cc6e39` vs surface `#262626` | `--mapped-text-warning-default` -> `--alias-warning-600` -> `--brand-orange-600`; `--mapped-surface-elevation-default` -> `--alias-surface-900` | **4.2208 (4.22:1)** | 4.22:1 |
+| `--mapped-text-subtle-default` on `--mapped-surface-subtlest-default`, light | text `#6b7786` vs surface `#f9f9f9` | `--mapped-text-subtle-default` -> `--alias-neutral-600` -> `--brand-slate-600`; `--mapped-surface-subtlest-default` -> `--alias-surface-50` | **4.3285 (4.33:1)** | 4.33:1 |
+
+**ALL THREE MATCH GATE 60/61'S FIGURES TO THE HUNDREDTH, WHICH IS THE FINDING.**
+The DS moved from v2.3.0 (Gate 60/61's pin) to v2.4.1 (this gate's) across two
+releases, and its own `git diff v2.3.0 v2.4.1 -- src/styles/globals.css` (see
+Gate 63's re-pin note above) is empty — no token declaration moved — so an
+unchanged result was the correct prediction, not a coincidence. **Both AA
+misses still hold exactly as recorded**: the warning text still fails 4.5:1 in
+light (2.34:1, off by more than half) and clears it only marginally in dark
+(4.22:1, still short); the subtle-on-subtlest light pairing still falls short
+of 4.5:1 for 14px body copy (4.33:1). Neither is filed as a numbered entry — DS
+work on either is a token-RAMP decision (which orange, which grey, for which
+surface) rather than a shape or prop gap this register otherwise tracks, and
+both are already carried in `CLAUDE.md` with the surfaces that avoid them (the
+advisory caption uses `--mapped-text-default-default` instead of the warning
+token; `PromptBlock`'s pre-existing body line is the one surviving consumer of
+the second pairing). Reported to the DS conversation alongside the promo-band
+and net-worth-card AA items already logged there; not acted on from the MVP.
+
+### G34 is OPENED — `Menu` has no unframed presentation
+
+| | |
+|---|---|
+| **G34** | an unframed `Menu` presentation, the way `InlineMessage` ships `isFramed` |
+| tag | **`prop-gap`** |
+| flow | 9 |
+
+**WHERE:** Transactions tab -> filter sheet -> "Select merchant"
+(`TransactionFilterSheet.tsx`, its `'merchant'` view), which renders the DS
+`Menu`/`MenuItem` pair inside the sheet's own card.
+
+**THE PROBLEM, MEASURED BY READING THE COMPONENT'S OWN CSS.** `Menu` paints its
+own surface, border, radius and shadow — a self-contained popover component —
+and here it is composed INSIDE `TransactionFilterSheet`'s `Sheet` card, which
+already paints its own surface, border-radius and elevation. The result is a
+box drawn inside a box: two nested cards where the design wants the merchant
+rows sitting directly on the sheet's own surface, exactly the way a `Sheet`'s
+other facets (the `ToggleChip` rows) sit on it with no card of their own.
+
+**THE PRECEDENT FOR THE FIX ALREADY SHIPPED, ON A DIFFERENT COMPONENT.**
+`InlineMessage`, new at DS v2.4.0/2.4.1 and adopted by this app at Gate 63, was
+built with exactly this shape in mind: `isFramed` is a boolean prop that
+switches the component between its own bordered card (used in the receipt
+viewer, which needs a visual boundary against the Modal's white card) and no
+frame at all (used in the transaction detail sheet, where the card around it
+already paints the framed fill and a second frame would be a card on an
+identical ground — the Gate 52 finding, cited in `CLAUDE.md`'s Gate 63
+section). `Menu` has no equivalent switch.
+
+**TEKU'S DECISION, 23 Sept: the items sit directly on the sheet surface, no
+inner container.** The fix belongs in the DS — an unframed `Menu` option is the
+shape that already exists for `InlineMessage` — not an MVP override. An
+MVP-local override here would mean fighting `Menu`'s own declared background,
+border and shadow with an equal-or-higher-specificity rule that stops applying
+the day the DS changes `Menu`'s internals, which is exactly the class of
+workaround rule 1/rule 4 and the Gate 13 precedent exist to prevent.
+
+**SOLUTION AGREED, FIX DEFERRED.** No MVP-local override was written. It joins
+the DS backlog round after Flow 9, alongside **G21, G22 and G23** — all three
+already open on this same picker (`Select`'s hard width, and the merchant
+picker's own two gaps) — so one DS session can take the whole surface at once
+rather than four separate small changes.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**33 entries, 11 closed, 22 open.** The Gate 63 tally (2l) plus **G34**,
+opened.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 | 6 | **0** |
+| `prop-gap` | 22 | 3 | **19** — +G34 |
+| `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **33** | **11** | **22** |
+
+Nothing was removed from this register.

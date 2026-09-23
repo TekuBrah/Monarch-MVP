@@ -120,6 +120,38 @@ export function captureSourceFor(receiptId: string): ReceiptSource | undefined {
 }
 
 /**
+ * ─────────── WAS THIS RECEIPT'S PRINTED DATE ACTUALLY READ? — GATE 64 ────────
+ *
+ * A SECOND SIDE STORE, SAME SHAPE AS `sourceByReceipt` ABOVE — session-only,
+ * keyed by receipt id, set once at capture time. It exists for the same
+ * reason: `Receipt.capturedAt` cannot answer this itself. An unread capture's
+ * `capturedAt` falls back to the moment of capture (`capturedToReceipt`,
+ * below), which is a real, well-formed local timestamp — nothing about its
+ * SHAPE marks it as a fallback rather than a transcription off the paper.
+ * `receiptTotalRead` in `derive.ts` gets a sentinel for free because a real
+ * total is always positive and the fallback is exactly `0`; a real date has no
+ * value that could never occur, so no such sentinel exists for `capturedAt`.
+ *
+ * NOT A FIELD ON `Receipt`. Widening the stored shape for a fact only the
+ * Receipts tab's sort control reads is exactly what Gate 58's ruling 2 (only
+ * `addedAt` was permitted) and Gate 50-C's `ExtractedReceipt` boundary argue
+ * against — this is the same in-memory, non-persisted shape `sourceByReceipt`
+ * already uses for an identical problem.
+ *
+ * A RECEIPT WITH NO ENTRY — every seeded one, and any capture whose date DID
+ * read — answers `true`. Only a capture whose extraction returned `null` for
+ * `capturedAt` is ever recorded `false`, so the Receipts tab's "No receipt
+ * date" group can only ever hold a receipt that genuinely could not be dated
+ * from its photograph.
+ */
+const dateReadByReceipt = new Map<string, boolean>()
+
+/** Whether a receipt's `capturedAt` was read off the paper, never guessed. */
+export function receiptDateWasRead(receiptId: string): boolean {
+  return dateReadByReceipt.get(receiptId) ?? true
+}
+
+/**
  * A camera-roll-style name for a photograph the user just took.
  *
  * ───────────── WHY A CAMERA CAPTURE NEEDS A NAME GENERATED AT ALL ────────────
@@ -394,6 +426,9 @@ export function capturedToReceipt(
   // Gate 60: bind the surface this file came from, for the retake.
   const source = sourceByFile.get(file)
   if (source) sourceByReceipt.set(id, source)
+  // Gate 64: record whether the date was actually read, before the fallback
+  // below overwrites the evidence that it was not.
+  dateReadByReceipt.set(id, extracted.capturedAt !== null)
   return {
     id,
     // WHERE THE BYTES CAME FROM, UNTOUCHED BY GATE 53. `filename` and

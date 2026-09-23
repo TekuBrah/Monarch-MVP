@@ -1070,6 +1070,76 @@ export function groupTransactionsByMonth(
 }
 
 /**
+ * One month's worth of receipts under "Receipt date" ordering, with the
+ * heading that month prints — the Receipts tab's sort control, second mode
+ * (Gate 64).
+ *
+ * A SIBLING OF `groupReceiptsByMonth`, NOT A REPLACEMENT. That function's
+ * behaviour is untouched — every line of it is exactly as Gate 58 left it —
+ * so this is additive rather than a change to what the default sort does.
+ *
+ * DERIVED FROM `capturedAt`, THE PRINTED DATE, where `groupReceiptsByMonth`
+ * derives from `addedAt`. This is the grouping Gate 58 retired as the
+ * DEFAULT — filing by the printed date put a fresh bulk add years below the
+ * library, under its paper's own month — and it is not gone, it is the
+ * second choice a user can pick explicitly.
+ *
+ * `Receipt.capturedAt` IS NEVER `null`, WHICH IS WHY `dateWasRead` IS A
+ * PARAMETER RATHER THAN A CHECK ON THE FIELD. An unread capture's `capturedAt`
+ * falls back to the MOMENT OF CAPTURE (`capturedToReceipt`, Gate 51 item T) —
+ * a real local timestamp, syntactically indistinguishable from a transcribed
+ * one. So "was this date actually read off the paper" is not a fact
+ * `capturedAt`'s VALUE can answer; `receiptCapture.ts` tracks it at capture
+ * time (`receiptDateWasRead`) and this stays pure over the seeded collection,
+ * taking the answer in rather than reaching for a browser-side store the way
+ * `derive.ts`'s own boundary note (see its imports) forbids.
+ *
+ * EVERY RECEIPT `dateWasRead` REPORTS FALSE FOR IS COLLECTED INTO ONE
+ * TRAILING GROUP, "No receipt date" — never split into a month of its own
+ * (which would be inventing a date the paper never printed), and never
+ * dropped (which would hide that the capture exists). Ordered inside itself
+ * by `receiptsNewestFirst` — `addedAt`, the one date this app actually knows
+ * for a receipt whose printed date it does not, rather than a second ordering
+ * rule invented for one group.
+ *
+ * TIES IN A DATED MONTH KEEP LIBRARY ORDER, BY INDEX — the same rule
+ * `receiptsNewestFirst` uses for `addedAt`, applied here to `capturedAt`.
+ */
+export function groupReceiptsByCapturedDate(
+  receipts: Receipt[],
+  dateWasRead: (receipt: Receipt) => boolean,
+): ReceiptMonthGroup[] {
+  const indexed = receipts.map((receipt, index) => ({ receipt, index }))
+  const dated = indexed.filter(({ receipt }) => dateWasRead(receipt))
+  const undated = indexed.filter(({ receipt }) => !dateWasRead(receipt))
+
+  const newestFirst = [...dated].sort(
+    (a, b) => b.receipt.capturedAt.localeCompare(a.receipt.capturedAt) || a.index - b.index,
+  )
+
+  const groups = new Map<string, Receipt[]>()
+  for (const { receipt } of newestFirst) {
+    const key = receipt.capturedAt.slice(0, 7)
+    const bucket = groups.get(key)
+    if (bucket) bucket.push(receipt)
+    else groups.set(key, [receipt])
+  }
+  const monthGroups: ReceiptMonthGroup[] = [...groups.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, items]) => ({ key, label: monthLabel(key), receipts: items }))
+
+  if (undated.length === 0) return monthGroups
+  return [
+    ...monthGroups,
+    {
+      key: 'no-receipt-date',
+      label: 'No receipt date',
+      receipts: receiptsNewestFirst(undated.map(({ receipt }) => receipt)),
+    },
+  ]
+}
+
+/**
  * Receipts matching a free-text needle — the Receipts tab's search box.
  *
  * MATCHES `displayName` AND `merchant`, and deliberately NOT `filename`. The

@@ -244,6 +244,14 @@ test.describe('the flag, in the browser, with the real engine', () => {
       requested.filter((p) => p.includes('diagnose')),
       'the diagnostic module was requested with the flag absent',
     ).toEqual([])
+    /*
+      GATE 64: THE PIXEL HASH IS PART OF WHAT THIS PROVES NEVER RUNS. It is
+      computed nowhere but inside `diagnose.ts`'s `pixelHashOf` — never in
+      `normalise.ts`, which every capture runs — so a chunk that was never even
+      REQUESTED could not have computed one. Confirmed the same way as every
+      other diagnostic field: nothing under `.mvp-capture-diag` renders below,
+      so no "Pixel hash" row exists to have a value.
+    */
 
     await page.locator(`.mvp-receipt-card:has-text("${capturedImageName(PINNED_NOW)}")`).click()
     await expect(page.locator('[role="dialog"]')).toHaveCount(1)
@@ -295,6 +303,9 @@ test.describe('the flag, in the browser, with the real engine', () => {
     await expect(row('Second pass ran')).toHaveText('no')
     await expect(row('Kept')).toHaveText('plain')
     await expect(row('Items')).toHaveText(String(off.extracted.lineItems.length))
+    // Gate 64: a real hex digest is on screen, truncated the same way the
+    // source SHA-256 row is.
+    await expect(row('Pixel hash')).toHaveText(/^[0-9a-f]{16}…$/)
 
     // THE RAW TEXT IS ON SCREEN — asserted by length, never by content.
     const shownText = await block.locator('.mvp-capture-diag__text').first().textContent()
@@ -317,6 +328,10 @@ test.describe('the flag, in the browser, with the real engine', () => {
     expect(Math.max(pass.normalised.width, pass.normalised.height)).toBe(OCR_LONG_EDGE)
     expect(pass.normalised.type).toBe('image/png')
     expect(pass.normalised.passedThrough).toBe(false)
+    // A FULL 64-CHARACTER SHA-256 HEX DIGEST, IN THE COPY — the screen only
+    // ever shows the first 16 characters (asserted above); the copied JSON is
+    // not truncated, the same way `source.sha256` is not.
+    expect(pass.normalised.pixelHash).toMatch(/^[0-9a-f]{64}$/)
     expect(pass.engineMs).toBeGreaterThan(0)
     expect(pass.rawTextLength).toBe(shownText!.length)
     expect(json.secondPass.ran).toBe(false)
@@ -399,5 +414,64 @@ test.describe('the flag, in the browser, with the real engine', () => {
       'Not read in this session, so there is nothing to show.',
     )
     await expect(block.locator('.mn-link')).toHaveCount(0)
+  })
+})
+
+test.describe('the pixel hash mechanism — a synthetic fixture, no corpus image (Gate 64)', () => {
+  /**
+   * NO RECEIPT PHOTOGRAPH ANYWHERE HERE. Two decodable 8x8 PNGs, built in the
+   * page from flat colour fills, prove the two claims the field exists for:
+   * the SAME pixels hash the SAME way twice, and ONE differing pixel hashes
+   * differently. `pixelHashOf` is exported from `diagnose.ts` for exactly this
+   * — see its own comment — so this targets the mechanism directly rather than
+   * through a whole capture.
+   */
+  test('identical pixels hash identically; one differing pixel hashes differently; passed-through bytes hash by their own bytes', async ({
+    page,
+  }) => {
+    await page.goto('/', { waitUntil: 'networkidle' })
+    // THE MODULE PATH IS A STRING PASSED IN, not a literal `import()` target —
+    // the same construction `readInPage` above uses, so the type-check gate
+    // never tries to resolve a dev-server URL.
+    const hashes = await page.evaluate(async (diagPath) => {
+      const diag: {
+        pixelHashOf: (b: Blob, passedThrough: boolean) => Promise<string | null>
+      } = await import(diagPath)
+
+      async function solidPng(rgb: [number, number, number], flipOnePixel: boolean): Promise<Blob> {
+        const canvas = new OffscreenCanvas(8, 8)
+        const context = canvas.getContext('2d')!
+        context.fillStyle = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`
+        context.fillRect(0, 0, 8, 8)
+        if (flipOnePixel) {
+          context.fillStyle = 'rgb(1, 2, 3)'
+          context.fillRect(0, 0, 1, 1)
+        }
+        return canvas.convertToBlob({ type: 'image/png' })
+      }
+
+      const a = await solidPng([10, 20, 30], false)
+      const b = await solidPng([10, 20, 30], false)
+      const c = await solidPng([10, 20, 30], true)
+
+      // THE PASSED-THROUGH PATH TAKES A DIFFERENT ROUTE ENTIRELY — the same
+      // encoded bytes twice, hashed as bytes rather than decoded as pixels.
+      const bytes = new Uint8Array([1, 2, 3, 4, 5])
+      const x = new Blob([bytes])
+      const y = new Blob([bytes.slice()])
+
+      return {
+        a: await diag.pixelHashOf(a, false),
+        b: await diag.pixelHashOf(b, false),
+        c: await diag.pixelHashOf(c, false),
+        x: await diag.pixelHashOf(x, true),
+        y: await diag.pixelHashOf(y, true),
+      }
+    }, '/src/data/ocr/diagnose.ts')
+
+    expect(hashes.a).toMatch(/^[0-9a-f]{64}$/)
+    expect(hashes.a, 'two decodes of identical pixels must hash identically').toBe(hashes.b)
+    expect(hashes.a, 'a single differing pixel must hash differently').not.toBe(hashes.c)
+    expect(hashes.x, 'passed-through path: identical bytes hash identically').toBe(hashes.y)
   })
 })

@@ -10470,6 +10470,390 @@ precedent).
 - a PDF retake glyph;
 - `npm audit fix`.
 
+## Polish — the sort control, source-picker order, and the pixel hash (Gate 64)
+
+No DS re-pin — **v2.4.1 throughout**. Six items, none touching OCR reading, the
+parser, the second pass or auto-match. **|WALK| stays 43, `OVERLAY_STATES`
+22, baselines 172 -> 172 (48 changed, 0 added, 0 deleted), tests 513 -> 523,
+spec files stay 22.** `lint:tokens` scans **69** files with the same **3**
+exemptions — no file entered `src/`.
+
+**THE BASELINE PREDICTION WAS WRONG, AND THE REASON IS WORTH KEEPING.**
+Predicted in writing before the first run: 16 changed — the resting tab
+(4 files) plus the three "add" states, which Gate 51 already established
+"photograph the whole tab behind their modal at full page height". The
+pre-mint run reported **48 failed**, not 16 — every one of the twelve
+Receipts-tab states (the resting tab, all eight `add*`/`view*` overlays, and
+the two `*-unread` states Gate 60 added), at both viewports and both themes,
+with **nothing failing outside that set**. THE MECHANISM ISN'T "this overlay
+happens to show the tab behind it" — it's simpler and more general: `fullPage:
+true` captures the DOCUMENT's total scrollable height, and the new sort-control
+row makes the Receipts tab's document TALLER regardless of what a `Modal`
+draws on top of it, so EVERY state anchored to that tab and viewport grows by
+the same amount whether or not the row is visually exposed. One diff
+(`finance-receipts-view-unread-430-dark`) confirms it directly: `Expected an
+image 430px by 2196px, received 430px by 2274px` — the document itself is 78px
+taller, not merely repainted. Gate 51's own prediction happened to get the
+right ANSWER for its own gate (the per-month link becoming one full-width
+button also didn't change document height for `view*` states, because nothing
+about that change added height when the tab's OWN rows were what moved) but
+the REASON it gave generalises the wrong way; the right rule is document
+height, not "is this particular overlay a full-height one".
+
+### 2.1 — the Receipts-tab sort control
+
+**NO FIGMA NODE DRAWS ONE, AND THAT WAS CHECKED, NOT ASSUMED.** The local MCP
+(`127.0.0.1:3845/mcp`) refused the connection this gate — `curl` against it
+returned no response after 2s, exit 7 (`ConnectionRefused`) — so there was no
+Figma access at all. Per the standing Gate 48 rule, a gate that cannot reach
+Figma can still build from a spec someone else read out of it, but must not
+claim to have verified it against the file. Built under Ruling B: `ToggleChip`,
+reused from `TransactionFilterSheet`'s single-select facet shape (a `fieldset`
++ `legend` + a row of `ToggleChip`s), not invented. `FilterChip` — the control
+this screen already imported — was rejected: its root is deliberately not
+interactive (the DS's own doc comment: "the only action the source models is
+dismissal"), so it cannot serve a mode switch a user clicks.
+
+Two options, `Date added` (default) and `Receipt date`. Session-only state, a
+plain `useState`, never persisted (D2/D3) — a reload always reopens on "Date
+added".
+
+**`groupReceiptsByCapturedDate` IS A SIBLING OF `groupReceiptsByMonth`, NOT A
+CHANGE TO IT** — every line of that function is untouched (`git diff` on
+`derive.ts` is a pure addition, 70 insertions, 0 deletions). Under "Receipt
+date" a receipt groups by `capturedAt`, newest month first, newest receipt
+first inside it, ties by library index — the same shape `groupReceiptsByMonth`
+already has, mirrored onto the other date.
+
+**THE UNDATED CASE — WHY IT NEEDED A NEW SIDE STORE, NOT A NULL CHECK.**
+`Receipt.capturedAt` is never `null`: an unread capture falls back to the
+moment of capture (`capturedToReceipt`, Gate 51 item T), which is a real,
+well-formed local timestamp — nothing about its SHAPE marks it as a fallback
+rather than a transcription off the paper. `receiptTotalRead` gets a sentinel
+for free because a real total is always positive and the fallback is exactly
+`0`; a real date has no value that could never occur, so no such sentinel
+exists for `capturedAt`.
+
+So `receiptCapture.ts` gained a SECOND side store, `dateReadByReceipt`, the
+same shape Gate 60's `sourceByReceipt` already uses for an identical problem —
+session-only, keyed by receipt id, set once at capture time from
+`extracted.capturedAt !== null`, read back through `receiptDateWasRead(id)`
+(default `true` — every seeded receipt and any capture whose date DID read).
+**NOT A FIELD ON `Receipt`** — widening the stored shape for a fact only this
+sort mode reads is exactly what Gate 58's ruling 2 (only `addedAt` was
+permitted) argues against.
+
+A receipt `receiptDateWasRead` reports `false` for is collected into ONE
+trailing group, "No receipt date" — never split into a month of its own (which
+would be guessing a date the paper never printed), never dropped. Ordered
+inside itself by `receiptsNewestFirst` — `addedAt`, the one date this app
+actually knows for a receipt whose printed date it does not.
+
+**SEARCH NARROWS BEFORE GROUPING, IN BOTH MODES**, by construction: the
+`groups` `useMemo` filters ONCE (`filterReceipts(receipts, search)`) and hands
+the SAME narrowed list to whichever grouping function the mode selects — there
+is no second, unfiltered path for "Receipt date" to fall into.
+
+### 2.2 — the source-picker library order
+
+`ReceiptSourcePicker`'s "Receipt library" view rendered `unlinkedReceipts` in
+plain filter (library/insertion) order — CLAUDE.md recorded this as a known
+gap since Gate 58 ("The Receipt library list inside the source picker is NOT
+ordered by this"). `TransactionsLedger.tsx`'s `unlinkedReceipts` now wraps the
+filter in `receiptsNewestFirst` — the SAME comparator the Receipts tab itself
+uses, not a lookalike. No sort control here; one order, newest-added-first.
+
+### 2.3 — the capture diagnostic hashes the pixels, not the PNG
+
+**THE REPORTED DIVERGENCE DID NOT REPRODUCE ON GATE 61, AND THAT CONDITIONAL
+STEP WAS DROPPED**, per Teku's own note carried into this gate: the "same hash,
+different totals" precondition for a special divergence-diagnosis branch was
+never met, so no such branch was built. What shipped is a general-purpose
+pixel hash on every pass, `?diag=1` only.
+
+**THE ENGINE-BUILD REASONING IN THE BRIEF WAS CONFIRMED, NOT REFUTED.**
+`recognise.ts` ships exactly one `tesseract-core` build
+(`tesseract-core-simd-lstm`), so the engine's own arithmetic is not the
+variable between two readings of the same file — WebAssembly execution is
+deterministic. Different TEXT from the same source bytes therefore points at
+the PIXELS the engine was handed, not at the engine: `normaliseForOcr` draws
+through a `<canvas>` (`context.drawImage`, default resampling), and the
+comment already in that file states the backing (GPU vs CPU-rasterised
+canvas) decides the resampler. Confirmed from code, not asserted from the
+brief alone.
+
+**WHERE THE HASH LIVES, AND WHY `normalise.ts` WAS NOT TOUCHED.** The
+computation is entirely inside `diagnose.ts` — new `pixelHashOf`
+(exported for the test only, the same reason `secondPass.ts` exports its own
+internals) plus a shared `digestHex` helper, wired into the existing
+`observed` recogniser closure that already measures every pass. **Not one
+line of `normalise.ts` changed** — `git diff` on it against `mvp-gate63` is
+empty — because every pixel-affecting decision the plain path makes was
+already being observed from OUTSIDE it (the `normalised` Blob the closure
+already receives); nothing needed to be added to the function that produces
+that Blob. This is a stronger form of "must not change a single pixel, byte
+or timing outside `?diag=1`" than editing `normalise.ts` and gating the new
+code with an `if` would have been.
+
+**ON THE PASSED-THROUGH PATH, THE SOURCE BYTES ARE HASHED, NOT A DECODE.**
+When `normaliseForOcr` returns the identical Blob unchanged, the pixels a
+decode would recover are, by definition, whatever that Blob's bytes already
+encode — so `pixelHashOf(blob, true)` hashes the ENCODED bytes directly
+(`sha256Hex`), and only the non-pass-through branch decodes via
+`createImageBitmap` + `OffscreenCanvas.getImageData` before hashing. PNG, not
+JPEG, is what makes that decode trustworthy: `normaliseForOcr`'s redrawn
+output is always PNG, which is lossless, so decoding it back recovers the
+EXACT pixel buffer the canvas encoded — unlike a JPEG re-decode, which is
+exactly the decoder-dependent hazard this whole mechanism exists to detect
+rather than reintroduce.
+
+Shown on screen (truncated to 16 hex characters, matching the existing
+"Source SHA-256" row) and carried in full (64 characters) in "Copy as JSON" —
+`diagnosticJson` strips only `rawText`, so the new field needed no change
+there.
+
+**REGISTERED LIMITATION, stated rather than implied:** this proves whether two
+devices' (or two runs') pixels DIFFER; it does not make them AGREE.
+Deterministic resampling across canvas backings is not decided here and is
+out of scope.
+
+### 2.4 — the duplicate PDF check removed
+
+`ReceiptViewer.tsx`'s `isPdfReceipt` and `advisoryCopy.ts`'s `isPdfCapture`
+were the same one-line expression — `fileTypeLabel(receipt.filename) ===
+'pdf'` — over the same input, so they are equivalent for every possible
+`Receipt` by inspection (identical function of identical arguments), not by
+sampling. `isPdfReceipt` had exactly one call site; both it and the
+now-unused `fileTypeLabel` import were deleted from `ReceiptViewer.tsx`, and
+the call site now reads `isPdfCapture`.
+
+### 2.5 — records owed
+
+**The two Gate 61 contrast figures Gate 61's `CLAUDE.md` called "registered"
+were never actually filed in the gap register** — grepped before this gate,
+zero matches for `warning-default`, `2.34`, `4.22`, `4.33` outside the new
+section. Re-measured from `node_modules/@monarch/design-system/dist/index.css`
+under the v2.4.1 pin in force this gate, by resolving each `--mapped-*` token
+through its `--alias-*` binding to a `--brand-*` hex and computing WCAG
+contrast: **`--mapped-text-warning-default` on the advisory card — 2.3390
+(2.34:1) light, 4.2208 (4.22:1) dark — and `--mapped-text-subtle-default` on
+`--mapped-surface-subtlest-default` — 4.3285 (4.33:1) light.** All three match
+Gate 60/61's figures to the hundredth; the DS's `globals.css` is unchanged
+between v2.3.0 and v2.4.1 (Gate 63's own re-pin note), so an unchanged result
+was the correct prediction. Recorded as gap-register **Ruling A** (measured,
+not changed) — see 2m.
+
+**G34 opened** — `Menu` has no unframed presentation (the filter sheet's
+merchant picker draws it inside the sheet's own card, a box in a box).
+Teku's decision, 23 Sept: the items sit directly on the sheet surface. Fix
+belongs in the DS — an unframed `Menu` option, the `InlineMessage`
+`isFramed` precedent — deferred to the DS backlog round after Flow 9,
+alongside G21-G23 on the same picker. No MVP-local override was written.
+
+**The register's section 2j was never written and stays missing** — noted in
+2m rather than silently closed over.
+
+**UI-2 — CLOSED.** Home, Monarch Academy card cut off behind the bottom
+navigation. The nav bar gradient fixed it; Teku confirmed on the live app at
+`8f91e5e`, 23 Sept.
+
+**UI-3 — status strip transparency, DEFERRED with a chosen solution.** Gate
+44-B established true transparency is impossible for an installed web app on
+Android; the per-route matched colour (`#1a2351` on artwork routes) is
+shipped at that ceiling, and the iOS scrim is live. Teku's decision, 23 Sept:
+no compromise — package the app as a native Android app to unlock true
+transparency, deferred until the remaining flows are built. The packaging
+mechanism is not yet scoped and must be decided against the locked React-DOM
+decision (D1) when it is.
+
+**The harness-skip exemption, reworded.** The OCR lazy chunks (`read.ts`,
+`recognise.ts`, `diagnose.ts`, `rasterise.ts`) import the entry chunk by
+content-hashed name, so they can never be byte-identical on a gate that
+changes the entry — the condition Gate 63 recorded was already too strong.
+From this gate on, the condition is "identical after normalising
+content-hashed chunk names", plus the zero-line diffs of `derive.ts` and
+`secondPass.ts` — WHICH THIS GATE ALSO FAILED FOR `derive.ts` (a pure
+addition, but a diff nonetheless), which is exactly why the corpus harness
+was run rather than skipped.
+
+### 2.6 — the mutation-proof driver
+
+Built outside the repo, in the session scratchpad — two files,
+`mutation-driver.mjs` (the reusable `proof()` function) and
+`run-gate64-proofs.mjs` (the six calls). For each proof it requires, in
+order: exactly ONE test ran; that test FAILED; the failure is an ASSERTION
+failure — checked against a fixed denylist (timeout, module-resolution,
+syntax/compile error, navigation failure, unhandled rejection, strict-mode
+locator violation) BEFORE anything is accepted, and a required assertion
+signature AFTER; then, after a byte-exact restore (SHA-256 verified), the
+same single test re-runs and PASSES.
+
+**INVOKED WITHOUT A SHELL, LITERALLY** — `spawnSync(process.execPath,
+[cli.js, 'test', spec, '-g', title], { shell: false })`, `node.exe` against
+Playwright's own JS CLI entry directly, never `npx` (a `.cmd` shim that
+forces a shell on Windows).
+
+**A SECOND PITFALL WAS FOUND ON THE FIRST REAL RUN, DISTINCT FROM GATE
+55/57's SHELL-QUOTING ONE: `-g` IS A REGEX, NOT A LITERAL STRING.** Two of the
+six proof titles contain regex metacharacters the tests' own prose put there
+— `(insertion)` and `?diag=1` — and passed unescaped, `(insertion)` becomes a
+capturing group (matching bare "insertion", no parens) and `?` becomes a
+quantifier on whatever precedes it. Both silently matched ZERO tests rather
+than erroring — `Running null` from the parser, which the driver's own
+`counts.running !== 1` check correctly refused to certify as a proof, exactly
+as designed. Fixed by escaping every title with the standard
+`[.*+?^${}()|[\]\\]` regex-escape before it reaches `-g`; all six proofs held
+after.
+
+**THE NEGATIVE CONTROL, run before the six:** a deliberate syntax error
+injected into `receiptsNewestFirst`, run against an unrelated pre-existing
+test. The driver reported `NO PROOF` (`Running null`, i.e. Playwright itself
+reported "No tests found" against uncompilable source) rather than
+mis-certifying it — this is the EXACT failure mode named in the brief
+("Gate 63's driver reported M6 'proved' when the app had not compiled"),
+reproduced on purpose and correctly caught.
+
+All six required proofs held, plus the two pitfalls above are themselves a
+form of proof that the driver's guard rails work — both would have produced a
+false PROVED under a driver that only checked the exit code.
+
+### Baselines — the prediction was wrong, reconciled above; the mint matched it exactly
+
+**PREDICTED (corrected, before minting): 48 changed, 0 added, 0 deleted** — all
+twelve Receipts-tab states at both viewports and both themes. The pre-mint run
+matched this exactly: **48 failed / 475 passed**, with nothing failing outside
+`finance-receipts-*`, and `routes.spec.ts` / `section-headers.spec.ts` green
+throughout (a height change moves no console error and no token binding).
+
+**THE FAILED RUN WROTE NOTHING**, confirmed by SHA-256 manifest taken outside
+the repo both before the change and immediately after the failing run: 172
+files, byte-identical, digest `6e2ef307…b161d16e03` both times.
+
+Minted with `npm run test:e2e:update` (`--update-snapshots=all`), scoped to
+`-g "tab:receipts\]"` — 96 tests re-generated (48 visual + 48 from `routes`/
+`section-headers` matching the same grep, all of which were already green and
+stayed green). Reconciled against the pre-change manifest:
+
+| | |
+|---|---|
+| start | **172** |
+| changed | **48** |
+| added / deleted | **0 / 0** |
+| byte-identical | **124** |
+| end | **172**, digest **`eab5f2d7…c174eade0`** |
+
+**FIVE OF THE 48 WERE OPENED AND DESCRIBED, SPANNING BOTH THEMES AND BOTH
+CATEGORIES.** `finance-receipts-375-light` and `-375-dark`: the resting tab,
+"Sort by" / `Date added` (pressed, blue) / `Receipt date` between the chip row
+and "Add new receipt", receipts still correctly grouped by month underneath.
+`finance-receipts-add-375-light`: the source-picker modal open, list behind it
+dimmed but present, page height matching the resting state. `finance-receipts-
+add-grid-375-light`: the staged-tile grid, Save/cancel, unchanged from before.
+`finance-receipts-view-unread-430-dark`: the unreadable-photo advisory in the
+viewer, receipt image, "Link to transaction" / "Delete receipt", with the
+list behind it now 78px taller — exactly the sort row's own height, confirming
+the mechanism rather than a stray regression. No other visual difference in
+any of the five.
+
+**ARM 1 OF THE BASELINE GUARD IS RED AT THE POINT OF MINTING** (48 untracked
+files) **and clears once Teku stages them** — expected, not a regression;
+arms 2 and 3 stay green because nothing was renamed or deleted and every file
+on disk is a name the walk asks for.
+
+### Corpus harness
+
+**RUN. `derive.ts` and `receiptCapture.ts` are not in the OCR reading path
+(`readReceipt` never imports either), and `normalise.ts` is byte-identical to
+`mvp-gate63`, so the harness was predicted to reproduce every aggregate
+exactly.** It did:
+
+| set | items | totals |
+|---|---|---|
+| development | 79/97 | 18/20 |
+| blind gallery | 26/39 | 3/5 |
+| blind camera | 11/39 | 1/5 |
+
+**THE ADVISORY-FIRES BREAKDOWN NEEDED A CORRECTION MID-GATE, AND IT IS WORTH
+RECORDING WHY.** A first read of `score.mjs`'s own summary table misread its
+`total` COLUMN — Y/N for whether the read total matches TRUTH.md to the cent
+— as Y/N for whether a total was READ AT ALL, and that misreading produced an
+8th false positive (`watsons-phone`, whose total the engine reads WRONG —
+69.98 against a true 70 — but does read). Re-derived from the raw cached
+`parsed.total`/`parsed.lineItems` JSON per image, applying `firstPassFailed`
+exactly (`lineItems.length === 0 || total === null`): **7 of 30**, the same
+seven Gate 60 named — seeded 0, device 1 (`kfc`), blind gallery 2 (`7eleven`,
+`mydin`), blind camera 4 (`7eleven-camera`, `mydin-camera`, `sushiking-camera`,
+`walmart-camera`). The score table's summary column answers a scoring
+question ("was this correct"), not the advisory's question ("was anything
+read at all") — read the raw fields for the second one, not the table.
+
+### Personal-data audit
+
+Gate 61's method, re-run: every ADDED line of the diff against `mvp-gate63`
+plus every untracked file, tokenised (decimals kept whole, `\d+[.,]\d+` as one
+token), intersected with both corpus `TRUTH.md` files, subtracting tokens
+already in the `mvp-gate63` tree (all 336 tracked files, not just the two
+`.md`s) and every corpus file stem. **0 hits.**
+
+**NEGATIVE-CONTROLLED**, on tokens confirmed absent from the whole tree first
+(`RTOLLI`, `8.80` — from the blind corpus's `mydin`, neither found anywhere in
+`git grep` at `mvp-gate63` or the working tree). Injected as a comment,
+audited — **exactly those two reported** — restored, re-audited — **0 again**.
+
+**ONE PRE-EXISTING, ALREADY-DOCUMENTED EXCEPTION WAS RE-DISCOVERED WHILE
+PICKING CONTROL TOKENS, NOT INTRODUCED HERE.** `e2e/parse-receipt.spec.ts`
+carries verbatim device-corpus content (`CHEFFARO PORTUGESE STYLE GRILL FISH
+PASTE` and its prices, from `rosyam`) — this is Gate 55's own "Reported, not
+fixed" item, restated there as "Teku's call whether to scrub them; history
+keeps them either way." It sits inside the `mvp-gate63` baseline the audit
+excludes by design, so it correctly produced no hit; it is not new and this
+gate did not touch that file.
+
+### Bundle, through `build:package`
+
+| chunk | Gate 63 | Gate 64 | delta | why |
+|---|---|---|---|---|
+| entry | 5,809,794 | 5,810,976 | **+1,182** | the sort control (ReceiptsTab.tsx), the two receiptCapture.ts side-store additions, TransactionsLedger.tsx's `receiptsNewestFirst` wiring, `derive.ts`'s new sibling function, minus the ReceiptViewer.tsx dedup |
+| CSS | 179,313 | 179,672 | **+359** | the six new `.mvp-receipts__sort*` rules |
+| `diagnose-*.js` | 2,491 | 2,866 | **+375** | `pixelHashOf`, `digestHex`, the wiring into the observed recogniser |
+| `read-*.js` | 1,092 | 1,092 | **0** | untouched |
+| `recognise-*.js` | 4,368 | 4,368 | **0** | untouched |
+| `parseReceipt-*.js` | 13,481 | 13,481 | **0** | untouched |
+
+`modulepreload` stays **0**; the entry names none of the engine, the model,
+the parser or the diagnostic chunk.
+
+### What this gate changed
+
+`src/data/derive.ts` (`groupReceiptsByCapturedDate`, +70/-0);
+`src/flows/finance/receiptCapture.ts` (the `dateReadByReceipt` side store,
++35/-0); `src/flows/finance/ReceiptsTab.tsx` (the sort control);
+`src/flows/finance/TransactionsLedger.tsx` (`unlinkedReceipts` reordered);
+`src/flows/finance/finance.css` (+55 rules, the sort control's five);
+`src/data/ocr/diagnose.ts` (`pixelHashOf`, `digestHex`, the wiring);
+`src/data/captureDiagnostics.ts` (`PassDiagnostic.normalised.pixelHash`);
+`src/flows/finance/components/CaptureDiagnosticsBlock.tsx` (the "Pixel hash"
+row); `src/flows/finance/components/ReceiptViewer.tsx` (`isPdfReceipt`
+deleted, `isPdfCapture` used, the unused `fileTypeLabel` import removed);
+`e2e/receipt-order.spec.ts` (+9 tests: 5 "Receipt date" mode rules, 3 sort-
+control wiring, 1 source-picker order); `e2e/capture-diagnostics.spec.ts`
+(+1 test, the pixel-hash fixture); `MONARCH-MVP-DS-GAP-REGISTER.md` (section
+2m, +113/-0); this section of `CLAUDE.md`. **48 re-minted baselines.**
+
+**`src/data/ocr/normalise.ts` and `src/data/ocr/secondPass.ts` ARE UNTOUCHED**
+— zero-line diffs against `mvp-gate63`, confirmed by `git diff`, which is why
+the corpus harness reproduced every aggregate exactly rather than merely
+being predicted to. No file was deleted from `src/`. `lint:tokens` scans
+**69** files, unchanged, and reports the same **3** pre-existing exemptions —
+no new raw value entered the tree.
+
+### Deliberately not in scope
+
+Any DS edit; UI-1's fix (G34, DS round); native Android packaging; deterministic
+canvas resampling across backings; persistence; the parser, second pass and
+auto-match; removing G33's workaround or the G31 `useCallback`s; `npm audit
+fix`.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

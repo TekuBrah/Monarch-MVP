@@ -1,12 +1,16 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Field, FilterChip, Icon } from '@monarch/design-system'
+import { Button, Field, FilterChip, Icon, ToggleChip } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { ReceiptViewerHost } from './components/ReceiptViewer'
-import { capturedToReceipts, type CapturedFile } from './receiptCapture'
-import { filterReceipts, groupReceiptsByMonth } from '../../data/derive'
+import { capturedToReceipts, receiptDateWasRead, type CapturedFile } from './receiptCapture'
+import {
+  filterReceipts,
+  groupReceiptsByCapturedDate,
+  groupReceiptsByMonth,
+} from '../../data/derive'
 import { autoMatchBatch } from '../../data/autoMatch'
 
 /**
@@ -94,9 +98,38 @@ import { autoMatchBatch } from '../../data/autoMatch'
  */
 const RECEIPT_CHIPS = ['All', 'This Month']
 
+/**
+ * ─────────────────────────── THE SORT CONTROL (Gate 64) ──────────────────────
+ *
+ * NO FIGMA NODE DRAWS ONE. The local MCP server (`127.0.0.1:3845/mcp`) refused
+ * the connection this gate — `curl` against it returned no response, exit 7 —
+ * so this was NOT verified against the file; it is built from Ruling B
+ * (review thread) alone, per the standing rule that a gate with no Figma
+ * access can still build from a spec someone else read out of it, but must not
+ * claim to have checked it.
+ *
+ * `ToggleChip`, A CONTROL ALREADY IN THIS FLOW'S VOCABULARY — not this
+ * screen's own import list (which carried only `FilterChip` until this gate),
+ * but `TransactionFilterSheet`'s: the exact shape of a single-select facet
+ * pair drawn as two `ToggleChip`s in a `fieldset`/`legend` group, reused
+ * rather than invented. `FilterChip` was rejected for this — its root is
+ * deliberately NOT interactive (see its own DS doc comment: "the only action
+ * the source models is dismissal"), so it cannot serve a control the user
+ * clicks to choose a mode.
+ *
+ * SESSION-ONLY, PER D2/D3. The mode lives in a plain `useState` here and is
+ * never written to storage; a reload always reopens on "Date added".
+ */
+const SORT_MODES = [
+  { id: 'added', label: 'Date added' },
+  { id: 'date', label: 'Receipt date' },
+] as const
+type SortMode = (typeof SORT_MODES)[number]['id']
+
 export function ReceiptsTab() {
   const { receipts, transactions, addReceipt } = useAccounts()
   const [search, setSearch] = useState('')
+  const [sortMode, setSortMode] = useState<SortMode>('added')
 
   /*
     ── THE BULK ADD MODAL (Gate 50) ──────────────────────────────────────────
@@ -159,13 +192,20 @@ export function ReceiptsTab() {
   }
 
   // GROUPED FROM `addedAt` SINCE GATE 58 (`capturedAt` until then), NEVER FROM
-  // A STORED MONTH — see `groupReceiptsByMonth` and `Receipt.addedAt`. Search narrows BEFORE grouping so a month whose
-  // every receipt is filtered out disappears with them rather than leaving an
-  // empty heading behind.
-  const groups = useMemo(
-    () => groupReceiptsByMonth(filterReceipts(receipts, search)),
-    [receipts, search],
-  )
+  // A STORED MONTH — see `groupReceiptsByMonth` and `Receipt.addedAt`. Search
+  // narrows BEFORE grouping so a month whose every receipt is filtered out
+  // disappears with them rather than leaving an empty heading behind.
+  //
+  // THE SORT MODE PICKS THE GROUPING FUNCTION, NOT A POST-HOC RE-SORT OF ITS
+  // OUTPUT (Gate 64). Both branches filter first — `filterReceipts` runs once,
+  // shared — so search narrows before grouping in EITHER mode; only which
+  // grouping function receives the narrowed list differs.
+  const groups = useMemo(() => {
+    const narrowed = filterReceipts(receipts, search)
+    return sortMode === 'added'
+      ? groupReceiptsByMonth(narrowed)
+      : groupReceiptsByCapturedDate(narrowed, (r) => receiptDateWasRead(r.id))
+  }, [receipts, search, sortMode])
 
   // THE JOIN, DONE ONCE. `ReceiptCard` takes a transaction rather than looking
   // one up, so the lookup lives here; a Map keeps it O(1) per card instead of a
@@ -225,6 +265,29 @@ export function ReceiptsTab() {
           </li>
         ))}
       </ul>
+
+      {/*
+        ── THE SORT CONTROL (Gate 64) ────────────────────────────────────────
+        A `fieldset`/`legend` group, the same shape `TransactionFilterSheet`
+        uses for a single-select facet — `ToggleChip`s are `aria-pressed`
+        buttons, so a `legend` is what gives the pair an accessible group name
+        rather than leaving two unlabelled buttons.
+      */}
+      <fieldset className="mvp-receipts__sort mvp-column">
+        <legend className="mvp-receipts__sort-legend type-body-caption-semibold">
+          Sort by
+        </legend>
+        <div className="mvp-receipts__sort-chips">
+          {SORT_MODES.map((mode) => (
+            <ToggleChip
+              key={mode.id}
+              label={mode.label}
+              isSelected={sortMode === mode.id}
+              onClick={() => setSortMode(mode.id)}
+            />
+          ))}
+        </div>
+      </fieldset>
 
       {/*
         ── THE ONE ADD CONTROL (Gate 51) ─────────────────────────────────────

@@ -18,6 +18,7 @@ import {
   filterChips,
   filterTransactions,
   receiptForTransaction,
+  receiptsNewestFirst,
   transactionHasReceipt,
 } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
@@ -250,9 +251,14 @@ export function TransactionsLedger() {
     an unlink performed in the detail sheet puts that receipt into this list
     immediately, with nothing to keep in step. Gate 48 deleted a stored
     `hasReceipt` boolean for exactly this reason.
+
+    ORDERED NEWEST-ADDED-FIRST (Gate 64) — `receiptsNewestFirst`, the same
+    comparator the Receipts tab uses to render its own library, not a
+    lookalike. It was unordered — plain filter, i.e. library insertion order —
+    until this gate; CLAUDE.md recorded that as a known gap since Gate 58.
   */
   const unlinkedReceipts = useMemo(
-    () => receipts.filter((r) => r.transactionId === null),
+    () => receiptsNewestFirst(receipts.filter((r) => r.transactionId === null)),
     [receipts],
   )
 

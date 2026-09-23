@@ -54,8 +54,37 @@ export interface Dimensions {
 
 export interface PassDiagnostic {
   preparation: 'plain' | 'photo'
-  /** What the normaliser handed the engine. `passedThrough` means the identical Blob. */
-  normalised: { width: number | null; height: number | null; bytes: number; type: string; passedThrough: boolean } | null
+  /**
+   * What the normaliser handed the engine. `passedThrough` means the identical
+   * Blob.
+   *
+   * `pixelHash` IS A SHA-256 OF THE NORMALISED RGBA PIXEL BUFFER — the pixels
+   * as the engine will decode them (Gate 64) — computed and shown ONLY under
+   * `?diag=1`. It answers whether two devices' capture pipelines produced the
+   * SAME pixels for the same source file, which byte length and dimensions
+   * alone cannot: two canvases can differ in file size and still agree on
+   * every pixel, or agree on both and still disagree on a pixel. Equal hashes
+   * on both devices prove the pixels agree; unequal hashes prove they do not
+   * and point at the resampler, not the engine.
+   *
+   * ON THE PASSED-THROUGH PATH THIS IS THE SOURCE HASH, NOT A DECODE. When
+   * `normaliseForOcr` returns the identical Blob unchanged, hashing its own
+   * encoded bytes is exact — the pixels a decode would recover are, by
+   * definition, whatever that Blob's bytes already encode — so nothing is
+   * decoded a second time for a case where normalisation did no work.
+   *
+   * REGISTERED LIMITATION: this proves whether two devices' pixels DIFFER; it
+   * does not make them AGREE. Making the resampler deterministic across
+   * backings is not decided here.
+   */
+  normalised: {
+    width: number | null
+    height: number | null
+    bytes: number
+    type: string
+    passedThrough: boolean
+    pixelHash: string | null
+  } | null
   normaliseMs: number | null
   /** Worker start, recognition and terminate — the engine's own wall clock. */
   engineMs: number | null

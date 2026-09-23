@@ -862,6 +862,61 @@
 }
 
 /*
+  THE SORT CONTROL (Gate 64) — a `fieldset`, the same shape
+  `.mvp-txn-filter__group` uses for a single-select facet in the filter sheet.
+
+  RESET WITHOUT A `padding` SHORTHAND, for the SAME REASON `.mvp-receipts__chips`
+  above states it: this element also carries `.mvp-column`, whose
+  `padding-left`/`padding-right` place it on the content column, and a
+  `padding` shorthand here would land at equal specificity, later in source
+  order, and collapse those longhands — the Gate 14 hazard. Only the
+  fieldset's own vertical padding, margin and border are reset; `min-width: 0`
+  is the same fix `.mvp-txn-filter__group` needed, for the same reason — a
+  fieldset's automatic minimum size ignores `overflow` and would otherwise
+  widen the screen instead of letting the chip row scroll.
+*/
+.mvp-receipts__sort {
+  min-width: 0;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border: 0;
+}
+
+/*
+  12px from the legend to the chip row — `.mvp-txn-filter__group`'s own
+  measurement, reused rather than re-derived: a `<legend>` renders out of flow
+  against the fieldset's border box, so a flex `gap` on the fieldset would
+  apply to the chips and skip the label. A sibling margin does not have that
+  problem.
+*/
+.mvp-receipts__sort > * + * {
+  margin-top: var(--spacing-300);
+}
+
+.mvp-receipts__sort-legend {
+  display: block;
+  margin: 0;
+  padding: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  IDENTICAL MECHANICS TO `.mvp-txn-filter__chips` — `--brand-scale-250` because
+  there is no `--spacing-250` (the ramp aliases 25/50/100/200/300/400…,
+  skipping 250), and the row scrolls rather than compressing its two chips.
+*/
+.mvp-receipts__sort-chips {
+  display: flex;
+  gap: var(--brand-scale-250);
+  overflow-x: auto;
+}
+
+.mvp-receipts__sort-chips > * {
+  flex: 0 0 auto;
+}
+
+/*
   ONE MONTH. The heading row and its cards.
 
   16px between the heading and the first card, which is what the mockup draws.

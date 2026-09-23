@@ -36,9 +36,15 @@ function errorText(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
 }
 
-async function sha256Hex(blob: Blob): Promise<string | null> {
+/**
+ * SHA-256 of a byte buffer, as lowercase hex — the one digest routine every
+ * hash on this page shares, so the source hash, the passed-through pixel
+ * hash and the decoded pixel hash cannot drift into three implementations of
+ * the same six lines.
+ */
+async function digestHex(bytes: ArrayBufferLike): Promise<string | null> {
   try {
-    const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+    const digest = await crypto.subtle.digest('SHA-256', bytes as ArrayBuffer)
     return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
   } catch {
     // `crypto.subtle` exists only in a secure context. The deploy is https and
@@ -47,8 +53,49 @@ async function sha256Hex(blob: Blob): Promise<string | null> {
   }
 }
 
+async function sha256Hex(blob: Blob): Promise<string | null> {
+  return digestHex(await blob.arrayBuffer())
+}
+
 function headerDimensions(bytes: Uint8Array): Dimensions | null {
   return jpegDimensions(bytes) ?? pngDimensions(bytes)
+}
+
+/**
+ * A SHA-256 of the normalised image's DECODED RGBA PIXELS, or the passed-
+ * through blob's own bytes when normalisation did nothing — see the field's
+ * doc comment in `captureDiagnostics.ts` for why the two paths differ.
+ *
+ * PNG, NOT JPEG, IS WHAT MAKES THE DECODE TRUSTWORTHY. `normaliseForOcr`
+ * always encodes its redrawn output as PNG, which is lossless — so decoding
+ * it back with `createImageBitmap` recovers the EXACT pixel buffer the canvas
+ * encoded, unlike a JPEG re-decode, which is exactly the decoder-dependent
+ * hazard this whole module exists to detect rather than to reintroduce.
+ *
+ * `null` ON FAILURE, NEVER THROWN — the same discipline every other
+ * diagnostic field in this file follows: a hashing failure is one blank row,
+ * not a broken capture.
+ */
+// EXPORTED FOR THE TEST ONLY — same reason `secondPass.ts` exports its own
+// internals (`chooseReading`, `firstPassFailed`, …): `diagnoseExtraction` is
+// the one production entry point, and this lets a fixture-level test target
+// the hashing mechanism directly rather than through a whole capture.
+export async function pixelHashOf(blob: Blob, passedThrough: boolean): Promise<string | null> {
+  if (passedThrough) return sha256Hex(blob)
+  let bitmap: ImageBitmap | null = null
+  try {
+    bitmap = await createImageBitmap(blob)
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.drawImage(bitmap, 0, 0)
+    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height)
+    return await digestHex(pixels.data.buffer)
+  } catch {
+    return null
+  } finally {
+    bitmap?.close()
+  }
 }
 
 async function decodedDimensions(blob: Blob): Promise<Dimensions | null> {
@@ -127,12 +174,14 @@ export async function diagnoseExtraction(
         pass.normaliseMs = Math.round(t1 - t0)
         const header = headerDimensions(new Uint8Array(await normalised.arrayBuffer()))
         const dims = header ?? (await decodedDimensions(normalised))
+        const passedThrough = normalised === input
         pass.normalised = {
           width: dims?.width ?? null,
           height: dims?.height ?? null,
           bytes: normalised.size,
           type: normalised.type,
-          passedThrough: normalised === input,
+          passedThrough,
+          pixelHash: await pixelHashOf(normalised, passedThrough),
         }
 
         const t2 = performance.now()

@@ -22,7 +22,6 @@ import {
   formatTimestamp,
 } from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
-import { fileTypeLabel } from '../receiptCapture'
 import {
   ReceiptEditor,
   draftFrom,
@@ -132,15 +131,6 @@ import { TransactionPicker } from './TransactionPicker'
  *    resolves to `--mapped-text-primary-default`. The VARIANT is right and the
  *    COLOUR is short.
  */
-
-/**
- * WHETHER A RECEIPT'S BYTES ARE A PDF, FROM ITS FILE NAME — the one fact a
- * `Receipt` carries about its format. A capture keeps the chosen file's own
- * name as `filename` (Gate 50); no seeded receipt is a PDF.
- */
-function isPdfReceipt(receipt: Receipt): boolean {
-  return fileTypeLabel(receipt.filename) === 'pdf'
-}
 
 /** The toast's copy, as ruled (Gate 51 ruling 5). */
 const DELETED_TOAST = 'Receipt deleted.'
@@ -311,7 +301,7 @@ function ReceiptViewerBody({
         to show is not a viewer.
       */}
       <div className="mvp-receipt-viewer__well">
-        {isPdfReceipt(receipt) ? (
+        {isPdfCapture(receipt) ? (
           /*
             A PDF CAPTURE — NOT DRAWN, BUILT BY RULING. The same `icon_pdf`
             treatment `AddReceiptsModal` gives a staged PDF tile, because an
