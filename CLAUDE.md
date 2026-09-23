@@ -10854,6 +10854,39 @@ canvas resampling across backings; persistence; the parser, second pass and
 auto-match; removing G33's workaround or the G31 `useCallback`s; `npm audit
 fix`.
 
+## Flow 9 completion record (Gate 65)
+
+**FLOW 9 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-9-COMPLETION.md` AT THE REPO ROOT.** Read
+that file first, before any Flow 9 work and before Flows 10–12 touch receipts. It covers the
+surfaces, the architecture with its reasons, the measured accuracy, the diagnostic, the
+personal-data rule, every deferred item in where / problem / decision form, and the gate list
+48–64. The per-gate sections above remain the evidence behind it. **Do not restate its content
+here.** If the two disagree, re-derive from disk, correct whichever is wrong, and say so.
+
+Gate 65 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every
+baseline is byte-identical. It needs no DS re-pin: v2.4.1 applies throughout.
+
+**THE CORPUS HARNESS WAS RE-RUN AND REPRODUCED EVERY AGGREGATE.**
+
+| set | items | totals |
+|---|---|---|
+| development | 79/97 | 18/20 |
+| blind gallery | 26/39 | 3/5 |
+| blind camera | 11/39 | 1/5 |
+
+The advisory fires on 7 of 30 images, and the second pass triggers on 8. **The blind-camera row is
+the weakest number in the flow**, and the record puts it first rather than burying it.
+
+**THREE THINGS GATE 65 FOUND THAT A SUCCESSOR WOULD OTHERWISE GET WRONG:**
+
+- **Only the SUBTOTAL is derived; tax and total are stored as read or typed.** The Gate 65 brief
+  said all three were derived. It was wrong, and so is any document that repeats it.
+- **There is no Gate 62 in this repo.** There is no tag, no section and no commit between
+  `mvp-gate61` and `mvp-gate63`. The gap in numbering is real, not a missing record.
+- **The 22–23 Sept phone-versus-desktop comparison is only partly on disk.** Gate 64 records that
+  the "same hash, different totals" condition was never met. The report of "different normalised
+  output and raw text" exists only in the review thread, and the record labels it that way.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is
