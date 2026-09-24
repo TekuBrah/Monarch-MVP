@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Loader } from '@monarch/design-system'
 
 /**
@@ -45,7 +46,52 @@ import { Loader } from '@monarch/design-system'
  * animated element in the app.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-export function CapturingBlock({ count }: { count: number }) {
+/**
+ * ─────────── THE ELAPSED-TIME CAPTION (Gate 67, Flow 9 Decision 1) ───────────
+ *
+ * Gate 58's 6 s ceiling was retired as a LIMIT. A read now runs to completion,
+ * up to the 30 s safety cutoff in `receiptCapture.ts`, and this caption tells
+ * the user it is still going. Each line replaces the one before.
+ *
+ * TIME-BASED ON PURPOSE. It never names a reading stage: only 8 of 30 corpus
+ * images trigger the second pass, so "reading it again" would be false on most
+ * slow reads. It never says "thinking" either, because the product claim is
+ * on-device reading with no AI.
+ *
+ * INSIDE THE SAME `role="status"` `aria-live="polite"` REGION, so a screen
+ * reader announces each change. Nothing renders before 6 s, which is what keeps
+ * `[overlay:add-saving]` (photographed at 0 s) byte-identical.
+ */
+const READING_CAPTIONS: { afterMs: number; text: string }[] = [
+  { afterMs: 6000, text: "This one's taking a little longer…" },
+  { afterMs: 12000, text: 'Photos can take a bit longer to read. Still working…' },
+  { afterMs: 20000, text: 'Still working — thanks for your patience.' },
+]
+
+/**
+ * Timers start at MOUNT and are cleared at UNMOUNT. `CapturingBlock` gives it a
+ * `key` of the current read, so a bulk save restarts the count for every file
+ * rather than timing the whole batch.
+ */
+function ReadingCaption() {
+  const [caption, setCaption] = useState<string | null>(null)
+  useEffect(() => {
+    const timers = READING_CAPTIONS.map(({ afterMs, text }) =>
+      setTimeout(() => setCaption(text), afterMs),
+    )
+    return () => timers.forEach(clearTimeout)
+  }, [])
+  if (caption === null) return null
+  return <p className="mvp-capturing__caption type-body-caption">{caption}</p>
+}
+
+/**
+ * `readKey` names the read in progress. The bulk modal reads its files one at a
+ * time (Gate 52) and passes each file's index, so the caption's elapsed time is
+ * counted from the start of the CURRENT read. The single-file surfaces mount a
+ * fresh block per read and can leave it at its default.
+ */
+export function CapturingBlock({ count, readKey = 0 }: { count: number; readKey?: number }) {
   return (
     <div className="mvp-capturing" role="status" aria-live="polite">
       {/*
@@ -59,6 +105,7 @@ export function CapturingBlock({ count }: { count: number }) {
       <p className="mvp-capturing__label type-body-m">
         {count === 1 ? 'Reading your receipt…' : 'Reading your receipts…'}
       </p>
+      <ReadingCaption key={readKey} />
     </div>
   )
 }

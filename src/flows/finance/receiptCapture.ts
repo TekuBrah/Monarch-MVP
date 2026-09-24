@@ -338,6 +338,32 @@ const UNREAD: ExtractedReceipt = {
 }
 
 /**
+ * ──────────────── THE 30 s SAFETY CUTOFF (Gate 67, Flow 9 Decision 1) ─────────
+ *
+ * Gate 58's 6 s ceiling was retired as a limit: a read runs to completion. This
+ * catches ONE thing, a stuck engine, and it is not a speed target. The slowest
+ * corpus read measured 7.6 s, so 30 s sits far above any real read.
+ *
+ * AT 30 s THE CAPTURE RESOLVES AS A READ THAT PRODUCED NOTHING: `UNREAD`, the
+ * same value a failed read already returns. The failed-read advisory and the
+ * retake (Gate 60) then take over, so there is no new error surface, no toast
+ * and nothing thrown.
+ *
+ * A READ THAT FINISHES AFTER THE CUTOFF IS IGNORED. `Promise.race` has already
+ * settled, so the late value reaches no caller, and the receipt the user was
+ * shown is never rewritten. A late REJECTION is handled too: `race` subscribed
+ * to it, so it cannot surface as an unhandled rejection.
+ *
+ * THE WORKER IS NOT TERMINATED ON CUTOFF. `recognise.ts` creates one worker per
+ * read and terminates it in its own `finally`, so a slow read still cleans up
+ * after itself when it ends. Terminating a truly stuck worker would mean passing
+ * an abort signal through `extractReceipt` -> `readReceipt` -> `recognise`,
+ * which is OCR-path code this gate does not touch.
+ */
+const READ_CUTOFF_MS = 30_000
+const CUT_OFF = Symbol('read cut off')
+
+/**
  * Extract one chosen file. Builds nothing and decides nothing.
  *
  * ───────────────── IT CANNOT REJECT, AND THAT IS LOAD-BEARING (Gate 52) ──────
@@ -366,11 +392,24 @@ const UNREAD: ExtractedReceipt = {
  * strand (`setIsCapturing(false)` never running) and one catch closes both.
  */
 export async function extractCapture(file: File, sourceUrl: string): Promise<CapturedFile> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const cutoff = new Promise<typeof CUT_OFF>((resolve) => {
+    timer = setTimeout(() => resolve(CUT_OFF), READ_CUTOFF_MS)
+  })
   try {
-    return { file, sourceUrl, extracted: await extractReceipt(file) }
+    const result = await Promise.race([extractReceipt(file), cutoff])
+    if (result === CUT_OFF) {
+      // `info`, not `warn` or `error`: a cutoff is an outcome this app handles,
+      // not a fault, and `routes.spec.ts` fails a walk state on either of those.
+      console.info(`receipt read for ${file.name} passed ${READ_CUTOFF_MS} ms; kept as unread`)
+      return { file, sourceUrl, extracted: UNREAD }
+    }
+    return { file, sourceUrl, extracted: result }
   } catch (error) {
     console.error(`receipt extraction failed for ${file.name}`, error)
     return { file, sourceUrl, extracted: UNREAD }
+  } finally {
+    clearTimeout(timer)
   }
 }
 

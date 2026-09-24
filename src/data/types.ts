@@ -77,6 +77,39 @@ export interface TransactionCategory {
   icon: IconName
 }
 
+// ---------------------------------------------------------------- budgets
+
+/**
+ * A spending budget — Flow 10, Decision 2A (Gate 67).
+ *
+ * A NAME, A LIMIT, A DATE RANGE AND ONE OR MORE CATEGORIES, AND NOTHING ELSE.
+ * Spent, available and "left to spend" are derived from this and the ledger in
+ * `derive.ts`; storing any of them would be a second copy of a fact the
+ * transactions already state (§6).
+ *
+ * NP1: EVERY FIELD IS PLAIN SERIALISABLE DATA — strings, a number, a boolean and
+ * a string array. No `Date`, no function, no class instance, so the persistence
+ * that arrives after all flows is a storage adapter rather than a rewrite.
+ */
+export interface Budget {
+  id: string
+  /** The card's title — "Monthly Budget", "Entertainment". */
+  name: string
+  /** Non-empty by type. An outflow counts when its category is listed here. */
+  categories: [TransactionCategoryId, ...TransactionCategoryId[]]
+  /** The ledger's `Amount`: positive, in MYR. */
+  limit: Amount
+  /**
+   * `'YYYY-MM-DD'`, inclusive at both ends. Dates the user TYPED, so they are
+   * exempt from B5 (see `today.ts`), and they are compared as STRINGS against
+   * the first 10 characters of `occurredAt`: a zone-less timestamp turned into a
+   * `Date` would bring the device's timezone into the answer.
+   */
+  from: string
+  to: string
+  autoRenew: boolean
+}
+
 /**
  * How a row is paid — inventory §D3's three kinds, verbatim.
  *

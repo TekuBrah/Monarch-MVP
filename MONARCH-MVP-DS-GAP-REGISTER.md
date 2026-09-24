@@ -106,6 +106,13 @@ from Flows 8–12, which is why their `Flows` cell is `—`.
 | **Flow 12** | G6 | One field caption |
 | **Not blocking** | G3, G9, G10, G11, G12 | G3 already ships (slate badges render today); G9/G10 are latent and untriggered; G11/G12 are `Blanket` items from MVP gates, outside Flows 8–12 entirely |
 
+> **CORRECTION, MVP Gate 67 (2026-09-24).** The **Flow 10** row above is stale and
+> is kept as history. **G4 and G6 do not block Flow 10.** Both were closed in DS
+> source at **v1.3.0** (commit `364f8ca`, "Gate 2") and the closure was never
+> recorded here: `SummaryItem.iconColor` (G4) and `DatePicker.label` (G6) exist at
+> `v1.3.0` and not at `v1.2.0`. G3 (`CardBalance.iconColor`) closed in the same
+> commit. See **2n**.
+
 **The critical path is G1.** It blocks the two earliest flows, it is the
 largest single item, and G8 is a strict prerequisite of solving it by extending
 `Modal` rather than adding a new primitive.
@@ -1794,6 +1801,12 @@ their tests. `globals.css` is unchanged, so no token moved. G6, G13, G14, G17's
 prop half, G19, G20, G21, G22, G23, G28, G29, G30 and G32 are all untouched by
 it, and they stay open exactly as registered.
 
+> **CORRECTION, MVP Gate 67 (2026-09-24).** **G6 was not open when this list was
+> written.** `DatePicker.label` has existed since DS **v1.3.0** (commit
+> `364f8ca`). The same commit closed G3 and G4, which this list does not name but
+> the counts below still treat as open. The paragraph is kept as history. See
+> **2n** for the evidence and the corrected count.
+
 **TWO ADDITIONS THAT ARE NOT GAPS.** `InlineMessage` now covers the receipt
 advisory the MVP had hand-rolled since Gate 60 for want of one. It was never
 registered as a gap, because Gate 60 composed it rather than stopping. And
@@ -1925,5 +1938,102 @@ opened.
 | `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
 | `token-gap` | 2 | 1 | **1** — G30 |
 | | **33** | **11** | **22** |
+
+Nothing was removed from this register.
+
+## 2n. Status at MVP Gate 67 (2026-09-24)
+
+The MVP moved from DS **v2.4.1** to **v2.5.0** (`72f3f2d71cd26c31d9d806ca24f9c89e33267729`)
+at this gate. Everything below comes from the DS repository's own history, read
+from the checkout at that tag, not from a changelog.
+
+### Three closures that happened at v1.3.0 and were never recorded — G3, G4, G6
+
+One DS commit, `364f8ca` ("Gate 2"), closed all three. It is the first commit
+tagged `v1.3.0`; `git tag --contains 364f8ca` returns `v1.3.0` first.
+
+| | component | closed by | evidence, `git show <tag>:src/components/<file>` |
+|---|---|---|---|
+| **G3** | `CardBalance` | `iconColor?: IconObjectColor`, default `'slate'` | `Card/CardBalance.tsx`: absent at `v1.2.0`, present at `v1.3.0` (`:10`, `:27`, `:41`) |
+| **G4** | `SummaryItem` | `iconColor?: IconObjectColor`, default `'slate'` | `Item/SummaryItem.tsx`: absent at `v1.2.0`, present at `v1.3.0` (`:11`, `:26`, `:36`) |
+| **G6** | `DatePicker` | `label?: string`, which it documents as mirroring `Field`'s `label` | `DatePicker/DatePicker.tsx`: absent at `v1.2.0`, present at `v1.3.0` (`:11`) |
+
+**THE REGISTER OVERSTATED THE OPEN COUNT FOR THIRTEEN GATES.** §3's sequencing
+row said G4 and G6 blocked Flow 10. §2l's paragraph listed G6 as open. Every
+tally from 2a to 2m counted all three as open `prop-gap`s. Correction notes now
+sit beside both passages, which are otherwise unchanged.
+
+### G29 — CLOSED on the DS side at v2.5.0; MVP adoption deferred to Gate 69
+
+`Button` gained `tone?: 'default' | 'error'`. It applies only to
+`variant="tertiary"`, as `mn-btn--error`. **The MVP has not adopted it.** "Delete
+receipt" still ships as a primary-blue `tertiary`. Whether red delete buttons
+ship while the dark-theme error colours fail contrast is an open decision for
+Teku. It is needed at Gate 69, where "Delete receipt" and "Delete budget" change
+together.
+
+Gate 66 measured the error tone's contrast:
+
+| | Light | Dark |
+|---|---|---|
+| Label, rest | 5.35 | 4.16 |
+| Icon | 3.64 | 2.83 |
+| Label on hover wash | 4.68 | 3.08 |
+| Label on pressed wash | 4.05 | 2.22 |
+
+Measured at DS Gate 66 and carried here; the MVP did not re-measure these.
+
+### G35–G38 — opened by the Flow 10 scope, closed at v2.5.0
+
+All four are `prop-gap`s, and all four closed in the same commit, `72f3f2d`.
+
+| | component | demand | closed by |
+|---|---|---|---|
+| **G35** | `CardMonthlyBudget` | a title other than the hard-coded "Monthly Budget" | `title?: string`, defaulting to `'Monthly Budget'` |
+| **G36** | `CardMonthlyBudget` | fill the content column | `sizing?: 'fixed' \| 'fill'`, via `.mn-card-monthly-budget--fill { width: auto; max-width: none; flex: 1 1 0 }` |
+| **G37** | `ChartLegendItem` | an expanded disclosure state | `expanded`, `onExpandedChange` and `controlsId` |
+| **G38** | `CardMonthlyBudget` | two cards must not share an accessible name for "Details" | `aria-label="Details for {title}"` |
+
+**G37 RULING: THE EXPANDED CHEVRON KEEPS THE COLLAPSED GREY TOKEN.** Figma's
+expanded glyph carries raw black with no bound variable. So the chevron stays on
+the trailing group's `--mapped-icon-subtle-default`. Only the title, subtitle and
+amount move to `--mapped-text-interactive-default`, which is a bound Figma
+variable (DS `ChartLegendItem.css`).
+
+**ADOPTION.** The MVP adopted G35, G36 and G38 at this gate on the Budget tab.
+G37 has no consumer until Gate 68's drilldown.
+
+### Not a gap
+
+`CardMonthlyBudget` does not pass `iconColor` to its two `SummaryItem`s, so both
+badges render slate. **Figma's badges on `1266:14334` are grey too**
+(`slate/400`), so nothing is missing. G4's prop exists for a caller that wants
+another tint, and this card does not.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**37 entries, 19 closed, 18 open.** The Gate 64 tally (2m) changes in three ways:
+
+- four entries opened: G35, G36, G37 and G38 (33 + 4 = **37**);
+- eight moved to closed: G3, G4 and G6 (the v1.3.0 correction), G29, and
+  G35–G38 (11 + 3 + 1 + 4 = **19**);
+- so 37 − 19 = **18** remain open.
+
+Every change is to the `prop-gap` row: 22 + 4 = 26 total, 3 + 8 = 11 closed,
+26 − 11 = **15** open.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 | 6 | **0** |
+| `prop-gap` | 26 | 11 | **15** — G5, G7, G8, G11, G12, G13, G14, G17, G19, G21, G22, G23, G32, G33, G34 |
+| `shape-mismatch` | 3 | 1 (G18) | **2** — G20, G28 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **37** | **19** | **18** |
+
+Check: 26 + 6 + 3 + 2 = 37 total; 11 + 6 + 1 + 1 = 19 closed; 15 + 0 + 2 + 1 =
+18 open. The fifteen open `prop-gap`s are named above so the next gate can check
+them one by one. They are the 2m list of nineteen, less G3, G4, G6 and G29.
+
+**THE HIGHEST NUMBER IS G38.** 24 is still a permanent hole.
 
 Nothing was removed from this register.

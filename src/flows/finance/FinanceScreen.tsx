@@ -3,6 +3,7 @@ import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
 import { mediaUrl } from '../../config/media'
+import { BudgetTab } from './BudgetTab'
 import { FinanceOverview } from './FinanceOverview'
 import { ReceiptsTab } from './ReceiptsTab'
 import { TransactionsLedger } from './TransactionsLedger'
@@ -90,13 +91,12 @@ export function FinanceScreen() {
 
       {selected === 'overview' && <FinanceOverview />}
       {selected === 'transactions' && <TransactionsLedger />}
-      {selected === 'budget' && (
-        <ComingSoon
-          title="Budget"
-          description="Set limits by category and track them as you spend."
-          icon="icon_budget"
-        />
-      )}
+      {/*
+        Flow 10 (Gate 67) replaced this tab's `ComingSoon` stub. It has the
+        same shape as Receipts at Gate 48: the walk state `/finance [tab:budget]`
+        already existed, so this CHANGES its four baselines and adds none.
+      */}
+      {selected === 'budget' && <BudgetTab />}
       {selected === 'plans' && (
         <ComingSoon
           title="Plans"
@@ -108,8 +108,8 @@ export function FinanceScreen() {
         Flow 9 (Gate 48) replaced this tab's `ComingSoon` stub. THE WALK STATE
         WAS ALREADY THERE — `/finance [tab:receipts]` has been one of the 26 since
         the tab list did, with four committed baselines — so this gate CHANGES
-        four baselines and adds none. `ComingSoon` is still imported and still
-        used by Budget and Plans above.
+        four baselines and adds none. `ComingSoon` is still imported, and since
+        Gate 67 it is used by Plans alone.
       */}
       {selected === 'receipts' && <ReceiptsTab />}
     </div>

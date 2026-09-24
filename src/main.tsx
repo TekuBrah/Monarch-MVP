@@ -18,6 +18,7 @@ import './index.css'
 
 import { ThemeProvider } from './theme/ThemeProvider'
 import { AccountsProvider } from './accounts/AccountsProvider'
+import { BudgetsProvider } from './budgets/BudgetsProvider'
 import App from './App'
 
 const rootEl = document.getElementById('root')
@@ -29,9 +30,13 @@ createRoot(rootEl).render(
       {/* App-level, above the router: the balance is read by four flows and
           written by three (inventory §4b W1), so it cannot be route-scoped. */}
       <AccountsProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        {/* Flow 10 (Gate 67): budgets are derived from the ledger above, and
+            must outlive a Finance tab switch and the drilldown route. */}
+        <BudgetsProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </BudgetsProvider>
       </AccountsProvider>
     </ThemeProvider>
   </StrictMode>,

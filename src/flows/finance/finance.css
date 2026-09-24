@@ -2045,6 +2045,19 @@ button.mvp-receipt-card:focus-visible {
 }
 
 /*
+  THE ELAPSED-TIME CAPTION (Gate 67, Flow 9 Decision 1). It renders only once
+  its first threshold passes, so at 0 s the block is node-for-node what it was.
+  That is why `[overlay:add-saving]`, which photographs 0 s, cannot move. Same
+  colour and alignment as the line above it. The size comes from the DS
+  `type-body-caption` class on the element.
+*/
+.mvp-capturing__caption {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+  text-align: center;
+}
+
+/*
   CAPTURE DIAGNOSTICS (Gate 59) — `CaptureDiagnosticsBlock`, rendered only under
   `?diag=1`. It reuses the details block's own section and row classes; these
   rules only stack its groups and let the raw engine text wrap inside the
@@ -2076,4 +2089,23 @@ button.mvp-receipt-card:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--mapped-text-default-default);
+}
+
+/* ─────────────────────────────────────────────── Budget tab (Gate 67, Flow 10)
+
+  Figma's `Frame 452` on `Finance_Budget` (`1266:14334`) is a column with a
+  16px side inset and 12px between cards. The inset is `.mvp-column`, applied
+  in markup, because this box positions against the screen edge. The gap is
+  `--spacing-300`, which is 12px.
+
+  THE CARDS FILL BY STRETCH. They are flex items of this COLUMN, so the default
+  `align-items: stretch` gives each one the column's width once
+  `sizing="fill"` drops the DS's fixed 343px. The DS modifier's `flex: 1 1 0`
+  has no free space to share here, because the column's height is its content,
+  so it moves nothing vertically.
+*/
+.mvp-budget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
 }

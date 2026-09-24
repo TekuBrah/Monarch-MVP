@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",
-    "@monarch/design-system": "github:TekuBrah/Monarch-Design-System#v2.4.1",
+    "@monarch/design-system": "github:TekuBrah/Monarch-Design-System#v2.5.0",
     "@tesseract.js-data/eng": "1.0.0",
     "pdfjs-dist": "6.3.289",
     "react": "^19.1.0",

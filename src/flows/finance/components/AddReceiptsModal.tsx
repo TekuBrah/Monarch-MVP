@@ -165,6 +165,7 @@ export function AddReceiptsModal({
 }: AddReceiptsModalProps) {
   const [staged, setStaged] = useState<StagedCapture[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [readIndex, setReadIndex] = useState(0)
   const inputRef = useRef<ReceiptFileInputHandle>(null)
 
   /*
@@ -261,7 +262,11 @@ export function AddReceiptsModal({
   const save = async () => {
     setIsSaving(true)
     const captures: CapturedFile[] = []
-    for (const capture of staged) {
+    // THE INDEX OF THE READ IN PROGRESS (Gate 67). One `CapturingBlock` serves
+    // the whole batch, so its elapsed-time caption is keyed on this to count
+    // from the start of the CURRENT read rather than from the first.
+    for (const [index, capture] of staged.entries()) {
+      setReadIndex(index)
       captures.push(await extractCapture(capture.file, capture.url))
     }
     setStaged([])
@@ -300,7 +305,7 @@ export function AddReceiptsModal({
       <ReceiptFileInput ref={inputRef} onFiles={stage} />
 
       {isSaving ? (
-        <CapturingBlock count={staged.length} />
+        <CapturingBlock count={staged.length} readKey={readIndex} />
       ) : staged.length === 0 ? (
         /*
           THE EMPTY PHASE. The two sources as full-width buttons in the CONTENT

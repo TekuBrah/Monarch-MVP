@@ -12,6 +12,20 @@
  * That is the property B5 asks for: reproducible screenshots without a second
  * date system.
  *
+ * ────────── ONE EXEMPTION: DATES THE USER TYPED (Gate 67, Flow 10) ──────────
+ *
+ * A budget's `from` and `to` are NOT offsets from `TODAY`. They are dates a
+ * person entered, the same kind of fact as a receipt's printed date, and they
+ * mean the same day whatever day the app is opened on. So the seeded budgets
+ * carry literal `'YYYY-MM-DD'` strings (`data/budgets.ts`), and B5 does not
+ * apply to them. Everything the app COMPUTES about "now" still derives from
+ * `TODAY`.
+ *
+ * UNDER THE PLAYWRIGHT HARNESS `TODAY` IS 2026-08-15, 09:41 LOCAL. `gotoRoute`
+ * calls `page.clock.setFixedTime(PINNED_NOW)` BEFORE navigation, `PINNED_NOW` is
+ * `2026-08-15T01:41:00.000Z`, and the config pins `Asia/Kuala_Lumpur` (UTC+8).
+ * The expression below is unchanged; the harness pins the clock underneath it.
+ *
  *   export const TODAY = new Date('2026-08-08T00:00:00')   // pinned
  */
 export const TODAY = new Date()
@@ -64,11 +78,32 @@ const DATE = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
 })
 
+/**
+ * en-GB abbreviates September as "Sep"; the design writes "Sept" (format.ts
+ * makes the same correction for timestamps). Written once here and used by both
+ * date formatters below.
+ */
+function sept(formatted: string): string {
+  return formatted.replace(/\bSep\b/, 'Sept')
+}
+
 /** `"15 Dec 2026"` — the form the design writes on the fixed-deposit screen. */
 export function formatDate(date: Date): string {
-  // en-GB abbreviates September as "Sep"; the design writes "Sept" (format.ts
-  // makes the same correction for timestamps — one rule, applied twice).
-  return DATE.format(date).replace(/\bSep\b/, 'Sept')
+  return sept(DATE.format(date))
+}
+
+const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' })
+
+/**
+ * `'2025-08-30'` -> `"30 Aug"`, `'2025-09-20'` -> `"20 Sept"` — the two ends of
+ * a budget's period (Figma `1266:14334`). It takes the typed `'YYYY-MM-DD'`
+ * string and builds a LOCAL date from its three numbers, so no timezone can
+ * move the day. The day has two digits, matching the app's other dates
+ * ("04 Sept"). Figma draws only two-digit days, so it does not settle this.
+ */
+export function formatDayMonth(isoDay: string): string {
+  const [year, month, day] = isoDay.split('-').map(Number)
+  return sept(DAY_MONTH.format(new Date(year, month - 1, day)))
 }
 
 /** `"01"`, `"15"` — zero-padded day, for the chart's x axis. */

@@ -9557,6 +9557,12 @@ five: recognition 2.0-3.4 s on the first pass and 1.4-2.8 s on the second; a wor
 built and reported to Teku as a conflict: accept ~7.6 s on a bad photograph, or drop the
 second pass.
 
+> **RULED 2026-09-24 (Flow 9 Decision 1, shipped at Gate 67): the 6 s figure is
+> a MEASUREMENT, no longer a LIMIT.** A read runs to completion. An elapsed-time
+> caption tells the user it is still going, and a 30 s cutoff catches only a
+> stuck engine. The paragraph above is kept as Gate 58's record. See "Flow 10
+> part 1" below.
+
 **NO RECEIPT IS WORSE ON ITS TOTAL, BY CONSTRUCTION** — every triggered receipt had no total
 on the first pass. Auto-match is unchanged: leave-one-out 9 / 0 / 1 (ikea02), picker 10/10,
 AEON 429.19, the two deliberate device links, 0 blind links.
@@ -10886,6 +10892,160 @@ the weakest number in the flow**, and the record puts it first rather than buryi
 - **The 22–23 Sept phone-versus-desktop comparison is only partly on disk.** Gate 64 records that
   the "same hash, different totals" condition was never met. The report of "different normalised
   output and raw text" exists only in the review thread, and the record labels it that way.
+
+## Flow 10 part 1 — the budget model and the Budget tab (Gate 67)
+
+The pin moved `v2.4.1` (`820736e8a869`) -> **`v2.5.0`**
+(`72f3f2d71cd26c31d9d806ca24f9c89e33267729`). There is no `mvp-gate66`; DS Gate
+66 was DS-only. **|WALK| stays 43, `OVERLAY_STATES` 22, baselines 172 -> 172 (4
+changed, 0 added, 0 deleted), tests 523 -> 536, spec files 22 -> 24.**
+`lint:tokens` scans **72** files (69 + `budgets.ts`, `BudgetsProvider.tsx`,
+`BudgetTab.tsx`) with the same **3** exemptions.
+
+### The re-pin moved nothing, and it was run alone to prove it
+
+Before any `src/` change, the re-pinned tree ran **523 passed / 0 failed in
+16.5 min**, with all 172 baselines byte-identical (manifest digest `eab5f2d7…`
+before and after). **This is the first on-disk measurement of the 16.5-minute
+figure**; earlier references to it were carried forward, not measured. The DS delta
+is `Button` `tone`, `CardMonthlyBudget` `title` / `sizing` / the Details name,
+and `ChartLegendItem` `expanded`. `globals.css` is unchanged, and no screen
+rendered either card before this gate. The install was by name, and
+`lint:linkage` passes with all four sources on `v2.5.0`.
+
+### The model — Teku's rulings
+
+- **Decision 2A, real derived data.** A `Budget` (`types.ts`) is a name, a
+  limit, `'YYYY-MM-DD'` `from`/`to`, a non-empty category list and `autoRenew`.
+  **Spent** is every OUTFLOW in those categories dated inside the range,
+  inclusive at both ends. **Credits are excluded.** Nothing about spent is seeded.
+- **Derivations** are in `derive.ts`: `budgetSpent`, `budgetAvailable`,
+  `budgetPercentLeft`, `budgetSpentByCategory` (Gate 68's donut; written and
+  tested now) and `budgetPeriodLabel`. Money is summed in whole sen, so a
+  float can never miss a two-decimal figure.
+- **Dates compare as strings** — the first 10 characters of `occurredAt`
+  against `from`/`to`. `occurredAt` has no zone, so a `Date` would bring the
+  device's timezone into the answer.
+- **Percent left is `Math.floor`, clamped 0–100**, because "left to spend" must
+  never overstate what is left. The ring and its label take the same integer.
+- **Overspent**: available prints negative through `formatSignedMyr`, used only
+  below zero (a "+RM" on a positive balance would read as income). The ring
+  shows 0. There is no warning colour, because `--mapped-text-warning-default`
+  fails contrast. Figma draws no overspent state.
+- **Money goes through `format.ts`, so two decimals.** Figma prints "RM 700"
+  only because its figures were whole. This is a **recorded divergence, not a
+  defect**.
+- **Seed (Decision 4)**: `budget-monthly` (all seven categories, 7,500.00) and
+  `budget-entertainment` (`dining`, 1,000.00), both 2025-08-30 -> 2025-09-20,
+  both `autoRenew: false`. Figma supplied the limits and the period; the
+  categories are the review thread's choice.
+
+**THE VERIFIED FIGURES** are asserted in `e2e/budgets.spec.ts`. Monthly: spent
+**3,359.67** over 16 rows, available **4,140.33**, **55%**. Entertainment:
+spent **123.76**, available **876.24**, **87%**. The same window holds two
+credits, +350.00 and +1,500.00, and neither counts.
+
+### B5 exemption — dates the user typed
+
+**A budget's `from` and `to` are EXEMPT from B5.** They are data a person
+typed, like a receipt's printed date, not offsets from `TODAY`. The `today.ts`
+header records this. **Under the harness `TODAY` is `2026-08-15 09:41` local**
+(measured in the page). The expression `new Date()` is unchanged (at `today.ts:17`
+before this gate, `:31` after its header grew), and
+`gotoRoute`'s `setFixedTime(PINNED_NOW)` pins the clock underneath it.
+
+### NP1 — the no-persistence ruling now has its own name
+
+**"No persistence" is NP1.** Where `FLOW-9-COMPLETION.md:183` and this file's
+Gate 59 and Gate 64 sections write "D2/D3" to mean no persistence, read NP1.
+**D2 and D3 still mean the repo split** (separate DS repo; MVP imports DS,
+never the reverse). The old text is left as written.
+
+**NP1 NOW COVERS BUDGETS**, ruled 2026-09-24: persistence comes after all
+flows, as a storage layer under the providers. `BudgetsProvider`
+(`src/budgets/`) holds only the records, as `useState` seeded from `BUDGETS`,
+mounted inside `AccountsProvider` above the router. It has **no writers**;
+Gate 69 adds them with their first caller. Every field is plain serialisable
+data, and the spec round-trips `BUDGETS` through JSON.
+
+### The Budget tab
+
+`BudgetTab.tsx` replaces the `ComingSoon` stub. It renders one DS
+`CardMonthlyBudget` per budget in seed order, then `state="addNew"`, all
+`sizing="fill"`, in `.mvp-budget.mvp-column`. The layout is Figma's `Frame 452`:
+a 16px side inset, and `--spacing-300` (12px) between cards. Details and Add
+New are **explicit no-ops**, each commented with the gate that wires it (68
+and 69).
+
+Measured through the harness at DPR 2, both themes: cards are **343 wide at x=16
+at 375**, which is Figma's 343 exactly, and **398 at 430**. The column content
+box is 343 / 398.
+
+**⚠ AT 375 THE MONTHLY CARD'S AMOUNTS WRAP, and this needs Teku's
+decision.** The DS card's summary column is 125px at 375. "RM 4,140.33" needs
+about 133px, so each summary item wraps to two lines (64 tall rather than 40)
+and the card grows 4px (212 against 208). The ring's centre amount also runs
+close to the arc. At 430 everything fits. The cause is two-decimal figures in a
+DS layout sized for Figma's "RM 700". It is not an MVP layout bug, and no
+override was written.
+
+**Figma, read through the remote connector** (the local MCP refused the
+connection). Both cards' period reads `30 Aug - 20 Sept`, joined by space,
+U+002D, space. `budgetPeriodLabel` produces exactly that, with a two-digit day
+and the shared `sept()` correction in `today.ts`. Figma's printed ring and
+summary figures (18%, RM 700, RM 6,800) come from no ledger, and the
+instance's own code output shows "0%" / "RM 0.00" where its screenshot shows
+the overrides. These are Figma inconsistencies, not a spec.
+
+### The read-time caption and the 30 s cutoff (Flow 9 Decision 1)
+
+**GATE 58's 6 s CEILING IS RETIRED AS A LIMIT AND KEPT AS A MEASUREMENT**
+(ruled 2026-09-24). The Gate 58 section above is unchanged.
+
+- **Caption**: `CapturingBlock` renders a `type-body-caption` line (the DS
+  class, confirmed in `typography.css`) inside its existing `role="status"`
+  `aria-live="polite"` region. It is empty to 6 s, then "This one's taking a
+  little longer…", at 12 s "Photos can take a bit longer to read. Still
+  working…", and at 20 s "Still working — thanks for your patience." **Nothing
+  renders before 6 s**, which is why `[overlay:add-saving]` cannot move.
+  Measured: that capture is taken about 2.4 s after navigation, with 0 caption
+  nodes.
+- **Bulk**: one block serves the batch, and `AddReceiptsModal` reads
+  sequentially (Gate 52). It passes the current file's index as `readKey`, the
+  caption is keyed on it, and so elapsed time restarts with each read.
+- **Cutoff**: `extractCapture` races `extractReceipt` against a 30 s timer. At
+  30 s it returns `UNREAD` and logs at `info`, because `routes.spec.ts` fails
+  on `warn` and `error`. The Gate 60 advisory and retake take over. A late
+  answer reaches no caller. **The worker is not terminated on cutoff.** That
+  needs an abort signal through the OCR path, which this gate does not touch.
+  `recognise.ts` still terminates each worker when its read ends.
+- **Fake timers need `pauseAt`.** `clock.install()` keeps ticking in real time
+  until it is paused, which was measured when the first attempt showed the
+  caption early. `e2e/reading-time.spec.ts` installs the clock, navigates,
+  then pauses before driving time with `runFor`.
+
+The corpus harness was re-run because `derive.ts` changed. The aggregates are
+identical to Gates 58–65, and the slowest read this run was 8.2 s (a
+measurement, not a limit).
+
+### Tests, baselines, build
+
+Tests: 536 = 523 + `budgets` 9 (8 Node, 1 browser) + `reading-time` 4. That was
+predicted in writing before the first run. The pre-mint run went **532 passed /
+4 failed**, exactly the four `finance-budget-{375,430}-{light,dark}`, and wrote
+nothing. The re-mint was scoped to `tab:budget]`, and a manifest outside the
+repo confirms exactly 4 changed out of 172. No `routes` or `section-headers`
+assertion needed changing: neither asserts on the Budget tab's `ComingSoon`,
+and the `.mvp-coming-soon` exception is still used by Plans.
+
+`build:package`: entry **5,818,034** (+7,058 against Gate 65's 5,810,976), CSS
+**180,352** (+680 against 179,672). That total covers the v2.5.0 DS dist and
+this gate's app code together, and was not split. The OCR lazy chunks are
+unchanged in size, and `modulepreload` is 0.
+
+**NOT ADOPTED: `Button tone="error"`.** "Delete receipt" is unchanged. Red
+delete buttons against the dark-mode error contrast is Teku's decision for
+Gate 69. See register 2n.
 
 ## Known conditions of this setup
 

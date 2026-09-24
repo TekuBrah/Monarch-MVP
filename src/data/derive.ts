@@ -1,5 +1,5 @@
 import type { IconName, TrendDirection } from '@monarch/design-system'
-import { TODAY, addMonths, addYears, daysInMonth, yearsBetween } from './today'
+import { TODAY, addMonths, addYears, daysInMonth, formatDayMonth, yearsBetween } from './today'
 import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import type {
@@ -9,6 +9,7 @@ import type {
   GoldHolding,
   Holding,
   BankHolding,
+  Budget,
   CryptoWallet,
   Receipt,
   Transaction,
@@ -1337,4 +1338,97 @@ export function transactionAccount(
   const wallet = wallets.find((w) => w.id === accountId)
   if (wallet) return { label: wallet.name, icon: 'icon_wallet' }
   return undefined
+}
+
+// ───────────────────────────────────────────────────────────── budgets (Gate 67)
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FLOW 10 — A BUDGET'S FIGURES, ALL DERIVED (Decision 2A).
+ *
+ * SPENT is every OUTFLOW in the budget's categories whose date falls inside its
+ * range, inclusive at both ends. CREDITS ARE EXCLUDED: a refund or an incoming
+ * transfer is not spending. A transfer to a person counts under whatever
+ * category the ledger gives it. Nothing about spent is seeded.
+ *
+ * THE DATE TEST COMPARES STRINGS. `occurredAt` is written without a zone
+ * ("2025-09-15T22:03:00"), so its first 10 characters ARE the local calendar
+ * day. Turning it into a `Date` would bring the device's timezone into the
+ * answer. `'YYYY-MM-DD'` strings order the same way lexically as by date.
+ *
+ * MONEY IS SUMMED IN WHOLE SEN. Five float additions do not reliably land on a
+ * two-decimal figure, and `toBe(3359.67)` should not depend on the order of the
+ * rows.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function toSen(amount: Amount): number {
+  return Math.round(amount * 100)
+}
+
+/** Whether a row counts toward a budget: an outflow, in category, in range. */
+function countsToward(budget: Budget, t: Transaction): boolean {
+  if (t.amount >= 0) return false
+  if (!budget.categories.includes(t.category)) return false
+  const day = t.occurredAt.slice(0, 10)
+  return day >= budget.from && day <= budget.to
+}
+
+/** Spent, as a positive magnitude. */
+export function budgetSpent(budget: Budget, transactions: Transaction[]): Amount {
+  const sen = transactions
+    .filter((t) => countsToward(budget, t))
+    .reduce((total, t) => total - toSen(t.amount), 0)
+  return sen / 100
+}
+
+/** `limit − spent`. NEGATIVE when the budget is overspent, never clamped. */
+export function budgetAvailable(budget: Budget, transactions: Transaction[]): Amount {
+  return (toSen(budget.limit) - toSen(budgetSpent(budget, transactions))) / 100
+}
+
+/**
+ * "Left to Spend" as a whole percentage: `available / limit`, FLOORED, clamped
+ * to 0–100.
+ *
+ * FLOOR, BECAUSE "LEFT TO SPEND" MUST NEVER OVERSTATE WHAT IS LEFT. 99.6% left
+ * must not read as 100% once money has been spent. The ring and its label both
+ * take this one integer, so they cannot disagree. Overspent reads 0.
+ */
+export function budgetPercentLeft(budget: Budget, transactions: Transaction[]): number {
+  const limit = toSen(budget.limit)
+  if (limit <= 0) return 0
+  const exact = (toSen(budgetAvailable(budget, transactions)) * 100) / limit
+  return Math.min(100, Math.max(0, Math.floor(exact)))
+}
+
+export interface BudgetCategorySpend {
+  category: TransactionCategoryId
+  spent: Amount
+  count: number
+}
+
+/**
+ * Spent per category, in the budget's own category order, with a row count.
+ * A listed category with nothing spent is still returned, at 0. Gate 68's donut
+ * reads this; it is written and tested now so that gate adds no derivation.
+ */
+export function budgetSpentByCategory(
+  budget: Budget,
+  transactions: Transaction[],
+): BudgetCategorySpend[] {
+  const rows = transactions.filter((t) => countsToward(budget, t))
+  return budget.categories.map((category) => {
+    const mine = rows.filter((t) => t.category === category)
+    const sen = mine.reduce((total, t) => total - toSen(t.amount), 0)
+    return { category, spent: sen / 100, count: mine.length }
+  })
+}
+
+/**
+ * `"30 Aug - 20 Sept"` — the card's period, exactly as Figma's card text on
+ * `1266:14334` writes it: space, hyphen-minus, space. No year is shown, because
+ * Figma shows none.
+ */
+export function budgetPeriodLabel(budget: Budget): string {
+  return `${formatDayMonth(budget.from)} - ${formatDayMonth(budget.to)}`
 }

@@ -216,6 +216,17 @@ photographs that trigger both passes take up to 7.5 s. Gate 58 found that recogn
 the choice to Teku as a conflict: accept about 7.6 s on a bad photograph, or drop the second pass. No later gate records a ruling,
 and the second pass still ships.
 
+> **RULED 2026-09-24 (Teku, Flow 9 Decision 1; shipped at MVP Gate 67).** The 6 s figure is
+> **retired as a limit** and kept only as a **measurement**. A read runs to completion. While it
+> runs, a caption under "Reading your receipt…" changes with elapsed time: empty until 6 s, then
+> "This one's taking a little longer…", then at 12 s "Photos can take a bit longer to read. Still
+> working…", then at 20 s "Still working — thanks for your patience." The captions are
+> deliberately time-based. They never name a reading stage, because only 8 of 30 corpus images
+> trigger the second pass. A **30 s cutoff** catches a stuck engine only; it is not a speed target.
+> At 30 s the capture resolves as a read that produced nothing, and the existing advisory and
+> retake take over. A read that finishes after the cutoff is ignored. The Gate 58 text above is
+> kept as the record of what was measured then.
+
 **What those numbers mean, plainly.**
 
 - **On receipts the parser was developed against, it reads most line items** (about four in five)
