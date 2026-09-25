@@ -2037,3 +2037,127 @@ them one by one. They are the 2m list of nineteen, less G3, G4, G6 and G29.
 **THE HIGHEST NUMBER IS G38.** 24 is still a permanent hole.
 
 Nothing was removed from this register.
+
+## 2o. Status at MVP Gate 69 (2026-09-25)
+
+The MVP moved from DS **v2.5.0** to **v2.5.1** (`21259e45124ba5009df30e4c5a1b0643463c602e`)
+at this gate and built the Flow 10 budget drilldown (Figma `1266:14337`). Four
+entries are added. Nothing is removed and no earlier section is edited.
+
+### G39 — opened and closed: amount text overflowed its slot at Gate 67
+
+`shape-mismatch` — the nearest tag. There was no missing prop; the DS geometry
+did not fit two-decimal figures.
+
+At Gate 67, under v2.5.0, `ProgressRing`'s centre amount crossed the stroke at
+every width. `CardMonthlyBudget`'s two summary amounts wrapped to two lines at
+375, which made the card 212 tall rather than 208. The cause was the MVP's
+two-decimal figures ("RM 4,140.33") in a layout sized for Figma's "RM 700".
+
+**Closed by DS v2.5.1, with no API change.** The ring amount rests at Figma's
+size (medium h6, large h5) and steps down one style by string length. The card
+goes compact below 359px of card width.
+
+Measured at the MVP re-pin: the re-pin-only suite moved exactly the four
+`finance-budget-{375,430}-{light,dark}` baselines and nothing else
+(**532 passed / 4 failed**). All four diffs show the ring amounts inside the
+stroke and both summary amounts on one line at 375. No MVP call site changed.
+
+### G40 — open: `CardSmartInsights.titleColor` takes a colour inline
+
+`prop-gap`. DS `Card/CardSmartInsights.tsx:27` applies `titleColor` as
+`style={{ color }}`, fed by MVP `src/flows/homepage/HomepageFiat.tsx:111`, which
+composes `var(--${insight.titleToken})` at runtime.
+
+An inline style is invisible to a CSSOM rule census, and the token name in
+`src/data/insights.ts` has no leading `--`, so it is invisible to a usage grep
+too. That is Gate 26's blind spot.
+
+**The DS fix is an enumerated tone prop**, so the binding lives in DS CSS where
+the audit can see it. **It is a breaking change**, so the MVP updates
+`HomepageFiat.tsx` at that re-pin. Deferred to the DS round.
+
+### G41 — open: `icon_spend` is absent from the `Icon` registry
+
+`component-gap`, the same shape as G16 and G25–G27.
+
+`1266:14337`'s info card draws four row glyphs: `icon_budget`, `icon_duration`,
+`icon_wallet` and `icon_Spend`. The first three are in the v2.5.1 registry. The
+local MCP serves `icon_budget`'s asset with a path matching the DS
+`Assets/icons-custom/icon_budget.svg` path for path.
+
+`icon_Spend` has no registry key. Its Figma path (`M16.948 9.95L14.998 8V14.587…`)
+matches neither of the two nearby names, `icon_track_spending` and
+`icon_spending_alert`. So it is a missing drawing, not a misnamed one.
+
+**Disposition, the G16 one.** The Spent row draws its `IconObject` badge with
+the glyph slot EMPTY. It does not borrow a near-miss glyph. The DS fix is one
+asset plus one registry line.
+
+### G42 — open: a ONE-segment `DonutChart` paints a solid disc, not a ring
+
+`shape-mismatch`, the nearest tag. It is a rendering defect in the component's
+own single-segment path, not a missing prop.
+
+A 360° wedge cannot be drawn as an arc, so `DonutChart.tsx:176-184` draws one
+segment as a `<circle fill="none" stroke="currentColor" strokeWidth={…}>`. But
+`DonutChart.css` declares `.mn-donut__segment { fill: currentColor }`. A CSS
+rule outranks an SVG presentation attribute, so the circle is FILLED as well as
+stroked, and the hole disappears.
+
+Measured in the MVP on `/finance/budget/budget-entertainment`, which has one
+category and so one segment:
+
+| | |
+|---|---|
+| `fill` attribute | `none` |
+| computed `fill` | `rgb(54, 139, 255)` |
+| computed `stroke` | the same |
+| `r` / `stroke-width` | `41.2` / `17.6` |
+
+**A consequence worth fixing with it: the centre label now sits on the blue
+fill,** in `--mapped-text-default-default`, which the DS never designed for.
+
+**NOT WORKED AROUND (rule 3).** The four `finance-budget-budget-entertainment-*`
+baselines record the solid disc. **They are a TRIPWIRE, not an endorsement.**
+When the DS fixes this — for example a `.mn-donut__segment--ring { fill: none }`
+modifier, or `style={{ fill: 'none' }}` on the circle — exactly those four move
+and nothing else should. Multi-segment donuts are unaffected, because a `<path>`
+is meant to be filled; Monthly renders correctly.
+
+### Not gaps — recorded so nobody re-opens them
+
+- **`DonutChart` with zero segments renders.** It filters `value > 0`, so an
+  empty list gives an empty `<svg>` plus the centre, with no divide-by-zero. That
+  was read from source; the seed cannot reach it.
+- **The donut's size is the consumer's**, by the DS's own design. The MVP sets it
+  at 200px with a `token-exempt` marker, because no ramp step backs 200.
+- **The segment and the badge share one token.** `.mn-donut__segment--<hue>` and
+  `.mn-icon-object--<hue>` both resolve to `--brand-<hue>-400`. Figma's flattened
+  donut paints its wedges `<Hue>/500` and its badges `<Hue>/400`, and the DS
+  chose the badge step for both.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**41 entries, 20 closed, 21 open.** The Gate 67 tally (2n) changes as follows:
+
+- four entries opened: G39, G40, G41 and G42 (37 + 4 = **41**);
+- one moved to closed: G39 (19 + 1 = **20**);
+- so 41 − 20 = **21** remain open.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 6 + 1 = 7 | 6 | **1** — G41 |
+| `prop-gap` | 26 + 1 = 27 | 11 | **16** — the 2n fifteen, plus G40 |
+| `shape-mismatch` | 3 + 2 = 5 | 1 + 1 = 2 (G18, G39) | **3** — G20, G28, G42 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **41** | **20** | **21** |
+
+Check: 7 + 27 + 5 + 2 = 41 total; 6 + 11 + 2 + 1 = 20 closed; 1 + 16 + 3 + 1 =
+21 open.
+
+**The highest number is G42.** 24 is still a permanent hole. That G1–G38 exist
+with 24 absent was re-derived from this file with
+`grep -oE "\bG[0-9]{1,2}\b" | sort -u -V` before adding.
+
+Nothing was removed from this register.

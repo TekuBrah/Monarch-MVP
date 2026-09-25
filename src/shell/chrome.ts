@@ -104,6 +104,9 @@ const CHROME_BY_ROUTE: Record<string, ChromeConfig> = {
  */
 const CHROME_BY_PREFIX: [string, ChromeConfig][] = [
   ['/finance/holding/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
+  // Flow 10's budget drilldowns (Gate 69), `/finance/budget/<id>` — a
+  // drill-down like the holdings, so the same suppressed chrome.
+  ['/finance/budget/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
 ]
 
 export const DEFAULT_CHROME: ChromeConfig = { nav: 'suppressed', fab: false, statusBar: 'page' }

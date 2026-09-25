@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
@@ -7,6 +8,7 @@ import { BudgetTab } from './BudgetTab'
 import { FinanceOverview } from './FinanceOverview'
 import { ReceiptsTab } from './ReceiptsTab'
 import { TransactionsLedger } from './TransactionsLedger'
+import { requestedFinanceTab } from './financeTabs'
 import './finance.css'
 
 /**
@@ -43,8 +45,20 @@ const TABS: TabItem[] = [
   { id: 'receipts', label: 'Receipts' },
 ]
 
+const TAB_IDS = TABS.map((t) => t.id)
+
 export function FinanceScreen() {
-  const [selected, setSelected] = useState<string>('overview')
+  /*
+    GATE 69 — a drill-down may ask to land on a specific tab (the budget
+    drilldown's Back asks for Budget). Read ONCE, from router location state,
+    validated against `TABS`; see `financeTabs.ts`. The literal fallback stays
+    in this expression because the harness identifies the default tab by
+    parsing it (`parseTabbedScreen` in `e2e/harness.ts`).
+  */
+  const location = useLocation()
+  const [selected, setSelected] = useState<string>(
+    () => requestedFinanceTab(location.state, TAB_IDS) ?? 'overview',
+  )
 
   return (
     <div className="mvp-finance">

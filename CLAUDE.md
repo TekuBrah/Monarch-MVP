@@ -11047,6 +11047,266 @@ unchanged in size, and `modulepreload` is 0.
 delete buttons against the dark-mode error contrast is Teku's decision for
 Gate 69. See register 2n.
 
+## Flow 10 part 2 — the DS v2.5.1 re-pin and the budget drilldown (Gate 69)
+
+The pin moved `v2.5.0` (`72f3f2d7…`) -> **`v2.5.1`** (`21259e45124ba5009df30e4c5a1b0643463c602e`).
+**|WALK| 43 -> 45, `OVERLAY_STATES` stays 22, baselines 172 -> 180 (4 changed, 8
+added, 0 deleted), tests 536 -> 564, spec files 24 -> 25.** `lint:tokens` scans
+74 files with **4** exemptions. The fourth is new; see "The donut box" below.
+
+### The re-pin, run alone, moved exactly the four predicted baselines
+
+The DS checkout was already at v2.5.1, so `lint:linkage` stayed green through
+the install. The install was by name, `node_modules` reports `2.5.1`, and the
+lock resolves `21259e4`.
+
+**Before any `src/` change the suite went 532 passed / 4 failed in 16.9 min.**
+The four were exactly `finance-budget-{375,430}-{light,dark}`, and nothing was
+written: the manifest was byte-identical afterwards. All four diffs were opened:
+
+- both ring amounts rest inside the stroke, at h6 on the medium ring;
+- at 375 both cards are compact, and the summary amounts sit on one line (they
+  wrapped at Gate 67);
+- nothing else on the screen moved.
+
+**No MVP call site changed.** This closes register G39.
+
+**Size split, measured rather than inferred.** The Gate 67 tree was built through
+`build:package` against v2.5.1 in a scratch copy:
+
+| | Gate 67 | re-pin only | Gate 69 final |
+|---|---|---|---|
+| entry | 5,818,034 | 5,818,255 (+221) | **5,824,996** (+6,741 app) |
+| CSS | 180,352 | 180,938 (+586) | **182,530** (+1,592 app) |
+
+The OCR lazy chunks are byte-for-byte the same size, and `modulepreload` is 0.
+
+### Route, chrome, data, unknown id
+
+- **Route.** `/finance/budget/:budgetId` in `src/App.tsx`, beside the holding
+  route.
+- **Chrome.** A `CHROME_BY_PREFIX` entry after `/finance/holding/`
+  (`src/shell/chrome.ts`): `{ nav: 'suppressed', fab: false, statusBar: 'page' }`.
+- **Data** comes from `useBudgets()`, with no route-scoped provider (B8).
+- **An unknown id** redirects to `/finance` with `replace`, carrying the Budget
+  tab in location state. After Gate 70 ships Delete, a deleted budget takes this
+  path. **Proven by mutation:** removing `replace` pushes history entries and the
+  spec's `history.length === 2` fails. A fresh page's history is `about:blank`
+  plus the goto.
+
+### Back returns to the Budget tab, and nothing else about tabs changed
+
+The Finance tabs are still in-screen `useState`, and the URL is still
+`/finance` (Flow 7 B7).
+
+- **The mechanism.** Back calls `navigate('/finance', { state: { financeTab:
+  'budget' } })`. `FinanceScreen`'s `useState` initialiser reads it once, through
+  `requestedFinanceTab` in `src/flows/finance/financeTabs.ts`. That function is
+  validated against the tab ids and returns null otherwise, so the initialiser
+  falls back to `'overview'`. Tab switching still writes nothing to the URL or
+  history.
+
+**IT COLLIDED WITH THE HARNESS, AND THE HARNESS WAS WIDENED, NOT BYPASSED.**
+`parseTabbedScreen` found the default tab by matching a literal
+`useState<string>('overview')`. A lazy initialiser would have thrown "the
+default tab cannot be identified". The regex now also accepts
+`useState<string>(() => … ?? '<id>')`, and the literal fallback stays in the
+source for exactly that reason. The walk navigates with no location state, so
+the fallback is what it lands on. **The derived tab list and the default are
+unchanged:** `/finance [tab:*]` still enumerates 5 tabs with `overview` default.
+
+### The harness expands `:budgetId`
+
+`e2e/harness.ts` expands `/finance/budget/:budgetId` over `BUDGETS`, the same
+shape as `:holdingId`. So there are 2 routes, which is +2 walk states:
+
+- visual +8 (2 routes × 2 widths × 2 themes), so **180 baselines**;
+- routes +4 (91);
+- section-headers +4 (92). "Expenses Summary" is a `SectionHeader`, so the sweep
+  now covers it;
+- `budget-detail.spec.ts` +12.
+
+That gives 536 + 8 + 4 + 4 + 12 = **564**, which `--list` confirms.
+
+**No `routes` or `section-headers` assertion changed.** Both new states render
+clean and carry a subtle-bound heading.
+
+### The screen, section by section — `src/flows/finance/BudgetDetailScreen.tsx`
+
+**Header.** `HeaderDefault`:
+
+- title = the budget's name;
+- `actionLabel="Edit"`, an explicit no-op for Gate 70;
+- **`hasSubtitle={false}` IS LOAD-BEARING.** The DS defaults it to `true` with
+  the literal "Subtitle", which is the omitted-prop trap again.
+
+**Gauge.** `ProgressRing size="l"`:
+
+- `value` = `budgetPercentLeft`;
+- `amount` = available, negative only when below zero (the Gate 67 rule);
+- `total` = the limit;
+- caption "Left to Spend", from Figma.
+
+**Info card.** Figma's `card/fixed deposit info` is detached, so it is composed:
+a `<dl>` of four rows, each with an `IconObject` slate `l` badge and a label and
+value in `type-body-m-medium`.
+
+- Surface subtlest, radius `--brand-scale-200`, padding and gap 16.
+- **No pencils, and one value colour** (Decision 6), asserted in the spec.
+- Duration uses `budgetPeriodLabel`.
+- **The Spent badge's glyph slot is EMPTY** (register G41). Figma's `icon_Spend`
+  is not in the registry, and its path matches neither `icon_track_spending` nor
+  `icon_spending_alert`.
+
+**Donut.** `DonutChart`:
+
+- one segment per category with spend > 0;
+- the centre is the SUM OF THE SEGMENTS in `formatMyr`, which equals
+  `budgetSpent`;
+- **no centre caption, because Figma `1266:14337` draws none.** The prompt
+  expected one.
+- Zero segments render safely: an empty `<svg>` plus the centre, read from DS
+  source. The seed cannot reach it.
+
+**THE DONUT BOX IS THE FOURTH `token-exempt`, AND IT IS A JUDGEMENT CALL.** The
+DS makes the chart size-agnostic ("the parent owns the box"). Figma's box is 200,
+and no ramp step backs 200: the ramp goes 128 (`--brand-scale-1600`) to 256
+(`-1700`). The alternative is `--brand-scale-1700`, which is 56px larger than the
+frame.
+
+**Legend.** One `ChartLegendItem` per category in the budget, zero-spend
+included, from the new `budgetLegend` (`derive.ts`).
+
+- **Order:** spend descending, ties in `TRANSACTION_CATEGORIES` order.
+- **Subtitle:** the share of spend, through `formatPercent`, which trims trailing
+  zeros. So it prints "33.29%", but "100%" rather than Figma's "24.00%" style.
+  That is the one-formatter rule.
+- **The chevron stays the collapsed grey when expanded** (DS ruling 2A).
+- A zero-spend row passes `expanded={undefined}` and `hasChevron={false}`, so it
+  is not a disclosure at all.
+
+**DECISION E — ONLY THE LARGEST-SPEND CATEGORY STARTS OPEN.** Verified against
+the ledger:
+
+| budget | default-open category | spend | rows |
+|---|---|---|---|
+| Monthly | **Groceries** | **1,118.46** | **5** |
+| Entertainment | Dining & Leisure | 123.76 | 2 |
+
+Groceries' 5 rows are 4 linked and 1 not (`txn-aeon-0915`).
+
+The full Monthly order is:
+
+| category | spend |
+|---|---|
+| Groceries | 1,118.46 |
+| Shopping | 968.42 |
+| Others | 878.84 |
+| Bills | 143.90 |
+| Dining | 123.76 |
+| Transport | 100.00 |
+| Healthcare | 26.29 |
+
+**INDEPENDENT DISCLOSURES, NOT AN ACCORDION.** State is a `Set` of open
+categories, following the WAI disclosure pattern. Each row carries
+`aria-expanded` and `aria-controls` pointing at its nested `<ul id="budget-legend-<category>">`,
+which is `hidden` when closed.
+
+**Nested rows.** These are the Transactions tab's own row, `ListItem` plus
+`TransactionMark`:
+
+- newest first;
+- exactly the rows `budgetSpent` sums (the same private `countsToward`);
+- **receipt glyph DERIVED** (Gate 53-B), so 4 of Groceries' 5 carry one, where
+  Figma draws all five.
+
+**Dividers.** The 1px `--mapped-border-subtlest-default` rules around an OPEN
+entry are MVP CSS, because they belong to Figma's wrapper frame `856:6141`, not
+to `ChartLegendItem`. Several entries can be open, so several can carry them.
+
+### The hue source
+
+`TransactionCategory` gained `hue: ChartHue`. It is read from each Figma legend
+badge's binding, which is identical in the local MCP and the remote connector:
+
+| category | `ChartHue` | segment and badge token |
+|---|---|---|
+| Bills & Utilities | `red` | `--brand-red-400` |
+| Groceries | `purple` | `--brand-purple-400` |
+| Dining & Leisure | `blue` | `--brand-blue-400` |
+| Healthcare | `cyan` | `--brand-cyan-400` |
+| Transport | `lime` | `--brand-lime-400` |
+| Shopping | `yellow` | `--brand-yellow-400` |
+| Others / Misc | `orange` | `--brand-orange-400` |
+
+`.mn-donut__segment--<hue>` and `.mn-icon-object--<hue>` both resolve to
+`--brand-<hue>-400`, read from DS CSS. So a category's wedge and badge are one
+token by construction.
+
+**Figma disagrees with itself here, and the DS resolved it.** The flattened donut
+paints its wedges `<Hue>/500` (the remote lists `Red/500` … `Orange/500`), while
+the badges bind `/400`.
+
+### Figma no longer draws what the prompt said it draws
+
+**THE PENCILS AND THE BLUE VALUES ARE GONE FROM `1266:14337` IN BOTH SOURCES.**
+The local MCP (active file `casestudy_02`, Section `1266:14333` selected) and the
+remote connector (key `v9MI8jxTaXiJA234Hkanlf`) both render:
+
+- no pencil glyphs;
+- all four info values bound to `text/default/default`.
+
+Decision 6 is therefore satisfied by the file as it stands, not only by
+overriding it.
+
+Other divergences, recorded:
+
+- The frame's figures (RM 700, RM 6,800, 18%, the slices) come from no ledger.
+- The frame's legend shares print two decimals.
+- **"Expenses Summary" binds `text/default/default` in Figma.** `SectionHeader`
+  binds subtle, per Gate 6's one-component ruling.
+
+### Register G42 — a ONE-segment `DonutChart` renders a SOLID DISC
+
+**READ THIS BEFORE TRUSTING THE ENTERTAINMENT BASELINES.** `DonutChart` draws a
+single segment as `<circle fill="none" stroke=…>`. But `.mn-donut__segment {
+fill: currentColor }` is a CSS rule, and it beats the SVG attribute. Measured:
+attribute `none`, computed fill `rgb(54, 139, 255)`.
+
+Entertainment has one category, so its donut is a blue disc with its centre label
+on the fill. It was found by opening the minted baselines, not by an assertion.
+
+**It is not overridden here (rule 3).** The four
+`finance-budget-budget-entertainment-*` baselines record the defect and are the
+tripwire: a DS fix moves exactly those four. Monthly, with seven segments, is
+unaffected.
+
+### Still not built, by gate
+
+- **Budget tab "Add New"** stays a no-op until Gate 70 (its comment used to say
+  Gate 69).
+- **The drilldown's "Edit"** stays a no-op until Gate 70.
+- **`Button tone="error"` is not adopted.** Gate 67's note said that decision was
+  Gate 69's, but Delete arrives at Gate 70, so it moves there.
+
+### Verification
+
+| check | result |
+|---|---|
+| pre-mint prediction | 552 passed / 12 failed; **actual matched exactly**, and nothing was written |
+| mint | scoped to `tab:budget]` and `/finance/budget/`; reconciled against the outside manifest as 172 -> 180, 4 changed, 8 added, 0 deleted, 168 byte-identical |
+| `[style]` sweep and CSSOM census | 45 states × 2 themes. The only inline `var(--` styles are the three known `titleToken` ones on `/`. The drilldowns bind 216–243 tokens |
+| corpus harness | run, because `derive.ts` changed. Aggregates identical to Gates 58–67: development 79/97 and 18/20, blind gallery 26/39 and 3/5, blind camera 11/39 and 1/5, second pass 8 |
+| mutation proofs | 6. Each ran one test and failed on an assertion; the file restored SHA-identical and the rerun passed. The targets were the replace redirect, default-open, accordion instead of independent, a hard-coded glyph, Back to Overview, and the donut centre from the wrong sum |
+| personal-data audit | 0 hits over 782 added tokens against both `TRUTH.md` files. The negative control injected `0.20` and `ALIEN`, both proven absent from the tree, and reported exactly those |
+
+**AN AUDIT INSTRUMENT DEFECT, FOUND AND FIXED.** `grep -o` over a `git archive`
+stream stops emitting tokens at the first binary byte, so the "already in the
+tree" base set was truncated. That made the audit over-report, not under-report.
+It surfaced because the first control word, `ABALONE`, turned out to be present,
+in `e2e/parse-receipt.spec.ts`, which is Gate 55's known device content. Use
+`grep -a`.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

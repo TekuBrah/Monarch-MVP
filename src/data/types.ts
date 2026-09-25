@@ -1,4 +1,4 @@
-import type { IconName, IconObjectColor, LogoName } from '@monarch/design-system'
+import type { ChartHue, IconName, IconObjectColor, LogoName } from '@monarch/design-system'
 
 /**
  * The MVP domain model.
@@ -75,6 +75,17 @@ export interface TransactionCategory {
   label: string
   /** DS `Icon` name — the category's identity, not a colour. */
   icon: IconName
+  /**
+   * The category's SERIES colour — one hue shared by its budget-donut segment
+   * and its legend badge (F7). A DS colour NAME, never a value.
+   *
+   * GATE 69. Read from Figma `1266:14337`'s legend: each `list/chart legend`
+   * badge binds `<Hue>/400`. DS `DonutChart` and `IconObject` both resolve a hue
+   * name to `--brand-<hue>-400`, so the segment and the badge are one token by
+   * construction. (Figma's FLATTENED donut paints its wedges `<Hue>/500`; the DS
+   * chose the badge step for both, and the legend is the sourced half.)
+   */
+  hue: ChartHue
 }
 
 // ---------------------------------------------------------------- budgets

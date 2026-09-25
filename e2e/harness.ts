@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type Page } from '@playwright/test'
+import { BUDGETS } from '../src/data/budgets'
 import { HOLDINGS } from '../src/data/holdings'
 import { capturedImageName } from './capture'
 
@@ -225,6 +226,11 @@ export const ROUTES: string[] = ROUTE_TABLE.flatMap(({ path }) => {
   if (path === '/finance/holding/:holdingId') {
     return HOLDINGS.map((h) => `/finance/holding/${h.id}`)
   }
+  // Gate 69 — Flow 10's drilldown, one route per SEEDED budget. Expanded over
+  // `BUDGETS` rather than listed, for the same reason as the holdings above.
+  if (path === '/finance/budget/:budgetId') {
+    return BUDGETS.map((b) => `/finance/budget/${b.id}`)
+  }
   throw new Error(
     `harness: parameterised route "${path}" has no expansion. Every :param must be ` +
       `expanded over the data that backs it, or the walk silently skips the screen.`,
@@ -295,8 +301,18 @@ function parseTabbedScreen(route: string, absPath: string): TabbedScreen | null 
     )
   }
 
+  /*
+    The default tab is the literal `useState<string>` resolves to on a plain
+    mount. GATE 69 widened this to also read a lazy initialiser whose FALLBACK is
+    a literal — `useState<string>(() => requestedFinanceTab(...) ?? 'overview')`
+    — because `FinanceScreen` now honours a tab handed over in router location
+    state (the budget drilldown's Back). The walk navigates without location
+    state, so the fallback IS what it lands on; the literal is still required.
+  */
   const defaultTabId = Array.from(
-    source.matchAll(/useState<string>\(\s*'([^']+)'\s*\)/g),
+    source.matchAll(
+      /useState<string>\(\s*(?:\(\)\s*=>[^;]*?\?\?\s*)?'([^']+)'\s*,?\s*\)/g,
+    ),
     ([, id]) => id,
   ).find((id) => tabs.some((t) => t.id === id))
   if (!defaultTabId) {

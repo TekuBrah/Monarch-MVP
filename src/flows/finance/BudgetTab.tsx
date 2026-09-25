@@ -1,4 +1,5 @@
 import { CardMonthlyBudget } from '@monarch/design-system'
+import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { useBudgets } from '../../budgets/BudgetsProvider'
 import {
@@ -47,16 +48,18 @@ function availableLabel(available: Amount): string {
 }
 
 /*
-  EXPLICIT NO-OPS, EACH NAMED FOR THE GATE THAT WIRES IT. No route, no toast.
+  "DETAILS" IS WIRED (Gate 69): it navigates to the budget's drilldown,
+  `/finance/budget/:budgetId`, whose Back returns here — to the Budget tab.
+
+  "ADD NEW BUDGET" IS STILL AN EXPLICIT NO-OP. Gate 70 wires it to the Create
+  modal. (This comment named Gate 69 for it before the plan moved.)
 */
-// Gate 68 wires "Details" to the budget drilldown.
-const openDetails = () => {}
-// Gate 69 wires "Add New Budget" to the Create modal.
 const openCreate = () => {}
 
 export function BudgetTab() {
   const { budgets } = useBudgets()
   const { transactions } = useAccounts()
+  const navigate = useNavigate()
 
   return (
     <div className="mvp-budget mvp-column">
@@ -72,7 +75,7 @@ export function BudgetTab() {
             totalAmount={formatMyr(budget.limit)}
             availableAmount={availableLabel(available)}
             spentAmount={formatMyr(budgetSpent(budget, transactions))}
-            onDetailsClick={openDetails}
+            onDetailsClick={() => navigate(`/finance/budget/${budget.id}`)}
             sizing="fill"
           />
         )

@@ -1409,8 +1409,9 @@ export interface BudgetCategorySpend {
 
 /**
  * Spent per category, in the budget's own category order, with a row count.
- * A listed category with nothing spent is still returned, at 0. Gate 68's donut
- * reads this; it is written and tested now so that gate adds no derivation.
+ * A listed category with nothing spent is still returned, at 0. Written at
+ * Gate 67 for the drilldown's donut; the drilldown shipped at Gate 69 and reads
+ * `budgetLegend` below, which is this plus its rows, order and share.
  */
 export function budgetSpentByCategory(
   budget: Budget,
@@ -1422,6 +1423,52 @@ export function budgetSpentByCategory(
     const sen = mine.reduce((total, t) => total - toSen(t.amount), 0)
     return { category, spent: sen / 100, count: mine.length }
   })
+}
+
+export interface BudgetLegendEntry {
+  category: TransactionCategoryId
+  spent: Amount
+  /** Percent of the budget's total spent, 0–100; 0 when nothing is spent. */
+  share: number
+  /** The rows `spent` sums, newest first. Empty for a zero-spend category. */
+  rows: Transaction[]
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE DRILLDOWN'S LEGEND — Gate 69, Figma `1266:14337`.
+ *
+ * EVERY CATEGORY IN THE BUDGET, one entry each, zero-spend included.
+ *
+ * ORDER: spend descending, ties in `TRANSACTION_CATEGORIES` order. So the first
+ * entry is the largest-spend category — Decision E's default-open row.
+ *
+ * THE ROWS ARE THE SAME SET `budgetSpent` SUMS, filtered by `countsToward`, so
+ * the legend amounts, the donut's segments and the budget's spent are one
+ * derivation split three ways and cannot disagree. Newest first, by comparing
+ * the zone-less `occurredAt` strings — the same reason the date test does.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export function budgetLegend(budget: Budget, transactions: Transaction[]): BudgetLegendEntry[] {
+  const counted = transactions.filter((t) => countsToward(budget, t))
+  const totalSen = counted.reduce((total, t) => total - toSen(t.amount), 0)
+  const tableOrder = (id: TransactionCategoryId) =>
+    TRANSACTION_CATEGORIES.findIndex((c) => c.id === id)
+
+  return budget.categories
+    .map((category) => {
+      const rows = counted
+        .filter((t) => t.category === category)
+        .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : a.occurredAt > b.occurredAt ? -1 : 0))
+      const sen = rows.reduce((total, t) => total - toSen(t.amount), 0)
+      return {
+        category,
+        spent: sen / 100,
+        share: totalSen > 0 ? (sen * 100) / totalSen : 0,
+        rows,
+      }
+    })
+    .sort((a, b) => b.spent - a.spent || tableOrder(a.category) - tableOrder(b.category))
 }
 
 /**

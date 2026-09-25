@@ -2109,3 +2109,123 @@ button.mvp-receipt-card:focus-visible {
   flex-direction: column;
   gap: var(--spacing-300);
 }
+
+/* ======================================================================
+   FLOW 10 — THE BUDGET DRILLDOWN (Gate 69, Figma `1266:14337`)
+
+   Every value below is read off that frame via MCP geometry. The screen sits
+   on `surface/page`, not the subtlest surface the holding drill-downs use:
+   Figma paints this frame and every section white (`surface/page`).
+   ====================================================================== */
+
+.mvp-budget-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* `846:5868` — 16px above the first section, 32px between sections. */
+.mvp-budget-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-800);
+  padding-top: var(--spacing-400);
+  padding-bottom: var(--spacing-600);
+}
+
+.mvp-budget-detail__gauge {
+  display: flex;
+  justify-content: center;
+}
+
+/*
+  `846:7060` — Figma's `card/fixed deposit info`, DETACHED, so composed here:
+  subtlest surface, 8px radius, 16px padding, 16px between rows. NO PENCILS
+  (Decision 6) and the values share one colour.
+*/
+.mvp-budget-detail__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  margin: 0;
+  padding: var(--spacing-400);
+  border-radius: var(--brand-scale-200);
+  background: var(--mapped-surface-subtlest-default);
+}
+
+.mvp-budget-detail__info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+}
+
+.mvp-budget-detail__info-label {
+  display: flex;
+  align-items: center;
+  gap: var(--brand-scale-250);
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-budget-detail__info-value {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+  text-align: right;
+}
+
+/* `846:7313` — the heading, then the chart centred, 16px apart. */
+.mvp-budget-detail__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/*
+  DS `DonutChart` is size-agnostic BY DESIGN: "the parent owns the box", because
+  every size Figma draws is off the ramp. Figma's `Pie Chart` (`846:7374`) is
+  200 tall, and the ramp steps from 128 (`--brand-scale-1600`) to 256 (`-1700`).
+*/
+.mvp-budget-detail__donut {
+  align-self: center;
+  width: 200px; /* token-exempt: Figma's 200px donut box; the DS leaves the box to the consumer and no ramp step backs 200 */
+}
+
+/* `850:6396` — legend rows 16px apart. */
+.mvp-budget-detail__legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  `856:6141` — the WRAPPER frame around an OPEN row and its nested list, which is
+  what owns the 1px `border/subtlest/default` rules above and below. It is MVP
+  CSS because the frame is not part of `ChartLegendItem`. Disclosures are
+  independent, so any number of entries may carry this at once.
+*/
+.mvp-budget-detail__legend-entry--open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  padding: var(--spacing-400) 0;
+  border-top: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+  border-bottom: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+}
+
+/* `856:6156` — the nested rows: 16px inset, 24px apart. */
+.mvp-budget-detail__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  margin: 0;
+  padding: var(--spacing-400);
+  list-style: none;
+}
+
+.mvp-budget-detail__rows[hidden] {
+  display: none;
+}

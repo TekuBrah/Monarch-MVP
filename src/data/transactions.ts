@@ -131,13 +131,13 @@ import type { Transaction, TransactionCategory } from './types'
  */
 
 export const TRANSACTION_CATEGORIES: TransactionCategory[] = [
-  { id: 'bills', label: 'Bills & Utilities', icon: 'icon_bills' },
-  { id: 'groceries', label: 'Groceries', icon: 'icon_grocery' },
-  { id: 'dining', label: 'Dining & Leisure', icon: 'icon_food' },
-  { id: 'healthcare', label: 'Healthcare', icon: 'icon_healthcare' },
-  { id: 'transport', label: 'Transport', icon: 'icon_car' },
-  { id: 'shopping', label: 'Shopping', icon: 'icon_shopping' },
-  { id: 'others', label: 'Others / Misc', icon: 'more_horiz' },
+  { id: 'bills', label: 'Bills & Utilities', icon: 'icon_bills', hue: 'red' },
+  { id: 'groceries', label: 'Groceries', icon: 'icon_grocery', hue: 'purple' },
+  { id: 'dining', label: 'Dining & Leisure', icon: 'icon_food', hue: 'blue' },
+  { id: 'healthcare', label: 'Healthcare', icon: 'icon_healthcare', hue: 'cyan' },
+  { id: 'transport', label: 'Transport', icon: 'icon_car', hue: 'lime' },
+  { id: 'shopping', label: 'Shopping', icon: 'icon_shopping', hue: 'yellow' },
+  { id: 'others', label: 'Others / Misc', icon: 'more_horiz', hue: 'orange' },
 ]
 
 /**

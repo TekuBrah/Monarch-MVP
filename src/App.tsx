@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
 import { ComingSoon } from './components/ComingSoon'
+import { BudgetDetailScreen } from './flows/finance/BudgetDetailScreen'
 import { FinanceScreen } from './flows/finance/FinanceScreen'
 import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
@@ -45,6 +46,9 @@ export default function App() {
         */}
         <Route path="finance" element={<FinanceScreen />} />
         <Route path="finance/holding/:holdingId" element={<HoldingDetailScreen />} />
+        {/* Flow 10 (Gate 69) — one route per budget, for the same B7/B8 reasons
+            as the holdings: its own chrome, and data from `useBudgets()`. */}
+        <Route path="finance/budget/:budgetId" element={<BudgetDetailScreen />} />
         <Route
           path="more"
           element={
