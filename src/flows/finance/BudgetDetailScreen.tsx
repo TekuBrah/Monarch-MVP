@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   ChartLegendItem,
   DonutChart,
@@ -26,7 +26,8 @@ import {
 } from '../../data/derive'
 import { formatMyr, formatPercent, formatSignedMyr, formatTimestamp } from '../../data/format'
 import type { Amount, TransactionCategoryId } from '../../data/types'
-import { FINANCE_TAB_STATE_KEY } from './financeTabs'
+import { BudgetDeleteConfirm, BudgetFormModal } from './components/BudgetFormModal'
+import { BUDGET_DELETED_STATE_KEY, FINANCE_TAB_STATE_KEY } from './financeTabs'
 import './finance.css'
 
 /**
@@ -38,8 +39,16 @@ import './finance.css'
  * drill-downs, and for the same reasons: its own chrome (nav suppressed, no FAB
  * — `chrome.ts`), and the budget comes from the app-level `useBudgets()`, not a
  * route-scoped provider (B8). An unknown id — which is what a deleted budget
- * becomes once Gate 70 ships Delete — redirects to the Budget tab with
- * `replace`, so Back cannot return to the dead URL.
+ * becomes — redirects to the Budget tab with `replace`, so Back cannot return
+ * to the dead URL. Delete itself (Gate 71) navigates there with `replace`
+ * too, so the redirect is only the backstop.
+ *
+ * "EDIT" IS WIRED (Gate 71, Decision 6): the header's action link is the ONLY
+ * edit entry point — no pencils — and opens "Edit Budget", the Create form
+ * pre-filled. Save Changes writes the record and STAYS here: every figure below
+ * re-derives from the stored budget on the next render, with nothing to
+ * refresh. Its "Delete budget" (Decision 7A) raises a confirmation that STACKS
+ * over it, so Cancel returns to the edit unchanged.
  *
  * BACK RETURNS TO THE BUDGET TAB, NOT OVERVIEW. The Finance tabs stay in-screen
  * `useState` (Flow 7 B7); Back hands the tab id over in ROUTER LOCATION STATE
@@ -57,10 +66,9 @@ import './finance.css'
  *  - "Expenses Summary" renders through `SectionHeader`, so it binds
  *    `text/subtle/default` where Figma draws `text/default/default`. Gate 6's
  *    ruling is that every section heading goes through the one component.
- *  - The Spent row's `icon_spend` glyph is not in the DS registry (gap-register
- *    G41). Its badge is drawn and its glyph slot is left EMPTY — the G16
- *    disposition — rather than filled with `icon_track_spending`, whose artwork
- *    was compared path-for-path and is a different drawing.
+ *  - (Closed at Gate 71.) The Spent row draws `icon_spend`, which DS v2.6.0
+ *    added from the DS Figma file's `icon_Spend` (gap-register G41). Until then
+ *    its glyph slot was left EMPTY rather than filled with a near-miss.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -68,19 +76,16 @@ function availableLabel(available: Amount): string {
   return available < 0 ? formatSignedMyr(available) : formatMyr(available)
 }
 
-/** Gate 70 wires "Edit" to the Edit modal. An explicit no-op until then. */
-const openEdit = () => {}
-
 interface InfoRow {
   label: string
-  icon: IconName | null
+  icon: IconName
   value: string
 }
 
 export function BudgetDetailScreen() {
   const navigate = useNavigate()
   const { budgetId } = useParams()
-  const { budgets } = useBudgets()
+  const { budgets, updateBudget, deleteBudget } = useBudgets()
   const { transactions, receipts } = useAccounts()
 
   const budget = budgets.find((b) => b.id === budgetId)
@@ -101,7 +106,37 @@ export function BudgetDetailScreen() {
   const backToBudgetTab = () =>
     navigate('/finance', { state: { [FINANCE_TAB_STATE_KEY]: 'budget' } })
 
+  const [isEditing, setIsEditing] = useState(false)
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
+  // Stable `onClose`s — the G31 convention for anything reaching a DS overlay.
+  const closeEdit = useCallback(() => {
+    setIsConfirmingDelete(false)
+    setIsEditing(false)
+  }, [])
+  const cancelDelete = useCallback(() => setIsConfirmingDelete(false), [])
+  const isDeleting = useRef(false)
+
+  /*
+    DELETE NAVIGATES WITH THE "Budget deleted" FLAG, AND THE UNKNOWN-ID BACKSTOP
+    MUST NOT BEAT IT. React Router runs `navigate` as a transition, while the
+    provider write is an ordinary update — so the write commits FIRST and this
+    screen renders once with no budget (measured: without the guard the
+    backstop's `<Navigate>`, which carries no flag, won and the toast never
+    showed). `isDeleting` makes that one render return nothing and leave the
+    navigation to the delete. `replace` so Back never lands on the dead route;
+    the flag is read and cleared by the Budget tab (`financeTabs.ts`).
+  */
+  const confirmDelete = (id: string) => {
+    isDeleting.current = true
+    navigate('/finance', {
+      replace: true,
+      state: { [FINANCE_TAB_STATE_KEY]: 'budget', [BUDGET_DELETED_STATE_KEY]: true },
+    })
+    deleteBudget(id)
+  }
+
   if (!budget) {
+    if (isDeleting.current) return null
     return <Navigate to="/finance" replace state={{ [FINANCE_TAB_STATE_KEY]: 'budget' }} />
   }
 
@@ -111,10 +146,11 @@ export function BudgetDetailScreen() {
   /* THE DONUT'S CENTRE IS THE SUM OF ITS SEGMENTS, not a second call to
      `budgetSpent` — so what the ring draws and what it prints are one sum.
 
-     G42: a budget with ONE category draws one segment, and the DS renders a
-     single segment as a SOLID DISC (its `fill: currentColor` rule overrides the
-     circle's `fill="none"`). Entertainment shows it. Registered, not overridden
-     here (rule 3); its four baselines are the tripwire for the DS fix. */
+     G42, CLOSED BY DS v2.6.0 (Gate 71): a budget with ONE category draws one
+     segment, which the DS renders as a stroked ring, and its `--ring` modifier
+     now sets `fill: none`, so the hole stays empty whatever the number of
+     categories. Entertainment shows it; the Gate 71 writer spec asserts it by
+     computed fill and by hit-test. Nothing was overridden here. */
   const withSpend = legend.filter((entry) => entry.spent > 0)
   const segments: DonutSegment[] = withSpend.map((entry) => ({
     id: entry.category,
@@ -128,8 +164,7 @@ export function BudgetDetailScreen() {
     { label: 'Budget', icon: 'icon_budget', value: formatMyr(budget.limit) },
     { label: 'Duration', icon: 'icon_duration', value: budgetPeriodLabel(budget) },
     { label: 'Available', icon: 'icon_wallet', value: availableLabel(available) },
-    // G41 — `icon_spend` is absent from the DS registry. See the header note.
-    { label: 'Spent', icon: null, value: formatMyr(spent) },
+    { label: 'Spent', icon: 'icon_spend', value: formatMyr(spent) },
   ]
 
   const toggle = (category: TransactionCategoryId, next: boolean) =>
@@ -149,7 +184,7 @@ export function BudgetDetailScreen() {
         title={budget.name}
         hasSubtitle={false}
         actionLabel="Edit"
-        onAction={openEdit}
+        onAction={() => setIsEditing(true)}
         onBack={backToBudgetTab}
       />
 
@@ -174,7 +209,7 @@ export function BudgetDetailScreen() {
               <div key={row.label} className="mvp-budget-detail__info-row">
                 <dt className="mvp-budget-detail__info-label type-body-m-medium">
                   <IconObject color="slate" shape="circle" size="l">
-                    {row.icon ? <Icon name={row.icon} size="m" /> : null}
+                    <Icon name={row.icon} size="m" />
                   </IconObject>
                   {row.label}
                 </dt>
@@ -246,6 +281,26 @@ export function BudgetDetailScreen() {
           </ul>
         </section>
       </div>
+
+      {isEditing && (
+        <BudgetFormModal
+          mode="edit"
+          budget={budget}
+          onClose={closeEdit}
+          onSave={(input) => {
+            updateBudget(budget.id, input)
+            setIsEditing(false)
+          }}
+          onDelete={() => setIsConfirmingDelete(true)}
+        />
+      )}
+      {isEditing && isConfirmingDelete && (
+        <BudgetDeleteConfirm
+          name={budget.name}
+          onCancel={cancelDelete}
+          onConfirm={() => confirmDelete(budget.id)}
+        />
+      )}
     </div>
   )
 }

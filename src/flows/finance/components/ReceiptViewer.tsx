@@ -21,6 +21,7 @@ import {
   formatSignedMyr,
   formatTimestamp,
 } from '../../../data/format'
+import type { ButtonTone } from '@monarch/design-system'
 import type { Receipt, Transaction } from '../../../data/types'
 import {
   ReceiptEditor,
@@ -122,14 +123,14 @@ import { TransactionPicker } from './TransactionPicker'
  *  - THE IMAGE WELL HAS NO FILL OF ITS OWN (register G30, `token-gap`). Figma
  *    binds the raw primitive `Gray/900`; no `--mapped-surface-*` token resolves
  *    to it in light, and a raw brand primitive is not written here.
- *  - "Delete receipt" IS `variant="tertiary"`, WHICH RENDERS PRIMARY BLUE
- *    RATHER THAN THE ERROR RED FIGMA DRAWS (register G29, `prop-gap`). The two
- *    halves of that sentence are one finding, not two: Figma draws the button
- *    borderless — which IS `tertiary` — in `text/error/default` +
- *    `icon/error/default`, and `ButtonVariant` is `primary | secondary |
- *    tertiary` with no error appearance, so a tertiary button's `--btn-text`
- *    resolves to `--mapped-text-primary-default`. The VARIANT is right and the
- *    COLOUR is short.
+ *  - "Delete receipt" WAS `variant="tertiary"` RENDERING PRIMARY BLUE where
+ *    Figma draws error red (register G29, `prop-gap`): `ButtonVariant` had no
+ *    error appearance. DS v2.5.0 shipped `Button`'s `tone="error"`, honoured on
+ *    `tertiary` only — Figma's own pairing, a Tertiary instance with its label
+ *    and icon overridden to `text/error/default` + `icon/error/default` — and
+ *    Gate 71 adopts it here and on the confirmation's Delete (Teku's ruling
+ *    1A). So the button is now red. The dark-mode contrast shortfall of the
+ *    error text is accepted and deferred to the DS round, not worked around.
  */
 
 /** The toast's copy, as ruled (Gate 51 ruling 5). */
@@ -400,6 +401,7 @@ function ConfirmModal({
   body,
   confirmLabel,
   confirmIcon,
+  confirmTone = 'default',
   onCancel,
   onConfirm,
 }: {
@@ -407,6 +409,8 @@ function ConfirmModal({
   body: string
   confirmLabel: string
   confirmIcon?: ReactNode
+  /** `'error'` for Delete (Gate 71, ruling 1A); the swap's Replace stays default. */
+  confirmTone?: ButtonTone
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -420,6 +424,7 @@ function ConfirmModal({
           <Button variant="secondary" size="l" label="Cancel" onClick={onCancel} />
           <Button
             variant="tertiary"
+            tone={confirmTone}
             size="l"
             label={confirmLabel}
             leadingIcon={confirmIcon}
@@ -715,6 +720,7 @@ export function ReceiptViewerHost({
         )}
         <Button
           variant="tertiary"
+          tone="error"
           size="l"
           label="Delete receipt"
           leadingIcon={<Icon name="delete" size="l" />}
@@ -797,6 +803,7 @@ export function ReceiptViewerHost({
           body="This removes the receipt and its image from your library. It can't be undone."
           confirmLabel="Delete"
           confirmIcon={<Icon name="delete" size="l" />}
+          confirmTone="error"
           onCancel={cancelDelete}
           onConfirm={confirmDelete}
         />

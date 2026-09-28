@@ -2161,3 +2161,141 @@ with 24 absent was re-derived from this file with
 `grep -oE "\bG[0-9]{1,2}\b" | sort -u -V` before adding.
 
 Nothing was removed from this register.
+
+## 2p. Status at MVP Gate 71 (2026-09-25) — DS re-pinned v2.5.1 -> v2.6.0; Create, Edit and Delete a budget
+
+Additions only. The entries above are left as written; this section records what
+changed about them.
+
+### G41 — CLOSED at DS v2.6.0, adopted at MVP Gate 71
+
+`icon_spend` is in the v2.6.0 registry (`icons.ts`, from the DS Figma file's
+`icon_Spend`, `235:679`). `BudgetDetailScreen.tsx`'s Spent row now passes
+`icon: 'icon_spend'`, and the empty-slot disposition is gone. Measured in the
+browser: the Spent badge draws **2 paths**, where it drew none. It moved the
+eight `finance-budget-budget-*` baselines together with G42.
+
+### G42 — CLOSED at DS v2.6.0; the tripwire fired as predicted
+
+v2.6.0 adds `.mn-donut__segment--ring { fill: none }`, declared after the base
+rule, and puts the modifier on the single-segment circle. The four
+`finance-budget-budget-entertainment-*` baselines moved as the entry predicted.
+**The four Monthly baselines moved too**, and that was predicted separately:
+v2.6.0 also moved every wedge from `<Hue>/400` to `<Hue>/500` (Figma's wedge
+step, ruled at DS Gate 70; badges stay `/400`). Nothing else moved: the re-pin
+alone ran **556 passed / 8 failed**, exactly those eight.
+
+Measured on `/finance/budget/budget-entertainment`, both themes, 375 at DPR 2:
+
+| | |
+|---|---|
+| circle class | `mn-donut__segment mn-donut__segment--ring mn-donut__segment--blue` |
+| `fill` attribute / computed | `none` / **`none`** |
+| computed `stroke` | `rgb(4, 110, 255)` = `--brand-blue-500` (blue-400 is `rgb(54, 139, 255)`) |
+| `elementFromPoint`, centre + 45px (inside the hole) | `svg.mn-donut__svg`, **not the circle** |
+
+The Gate 69 note under "Not gaps" that the segment and the badge share one token
+is **no longer true**: they are one ramp step apart by the DS's ruling.
+
+### G29 — ADOPTED by the MVP at Gate 71 (Teku's ruling 1A)
+
+`tone="error"` now renders on "Delete receipt", on the receipt delete
+confirmation's Delete, on the Edit Budget modal's "Delete budget" and on the
+budget delete confirmation's Delete. **It takes effect on `variant="tertiary"`
+only** (`Button.tsx:40`), so every red delete is borderless red text with a red
+bin, and the confirmations pair it with an outlined `secondary` Cancel. There is
+no filled or outlined red. The swap confirmation's Replace keeps the default tone.
+
+The dark-theme contrast shortfall measured at DS Gate 66 (label 4.16, icon 2.83)
+is **accepted and deferred to the DS round**, as ruled. It was not worked around.
+The adoption moved 16 baselines: `finance-receipts-view`, `-view-unlinked`,
+`-view-delete` and `-view-unread`, at both widths in both themes.
+
+### G33 — NOT SPREAD. The budget modals fit without it.
+
+Measured at 375×812, 430×932 and 430×812, both themes, with the category menu
+closed and open:
+
+| modal | card height | top at 375×812 | fits? |
+|---|---|---|---|
+| Create A Budget | **544** | 134 | yes |
+| Edit Budget | **604** | 104 | yes |
+
+So the `.mvp-receipt-viewer-modal` workaround stays in its two files and was not
+copied to a third. G28 applies unchanged: the header is 74 against Figma's 64,
+and the Create footer is 140 against Figma's 152.
+
+### G22 and G23 — re-measured on the category picker, both still open
+
+- **G22.** The category `Menu` is genuinely multi-select: two options carry
+  `aria-selected="true"` at once. `aria-multiselectable` is **null**. Unchanged.
+- **G23.** On Edit, `budget-monthly`'s seven categories join to a 92-character
+  value. The input measures `scrollWidth` **700** against `clientWidth` **255**
+  at 375, and **700** against **287** at 430. `text-overflow` is `clip`, so the
+  value is cut mid-glyph. **This is the first place G23 reaches BOTH
+  viewports**; Gate 46 could only reach it at 375 with two long names. It shows
+  in the four `finance-budget-budget-monthly-edit-*` baselines.
+- **G21 does not apply.** The category Select genuinely drops down
+  (`aria-expanded="true"` while open), so its expansion semantics are true.
+- **G34 does not apply.** A dropdown popover is correctly framed. G34 concerns a
+  `Menu` placed inline on a sheet's own surface.
+
+### G43 — OPENED: a `Select` dropdown inside a `Modal` is clipped by the card
+
+| | |
+|---|---|
+| **G43** | a `Select` whose menu can escape an `overflow: clip` ancestor (a portal or a positioning option), or a `Modal` card that does not clip overflowing popovers |
+| tag | **`prop-gap`** |
+| flow | 10 |
+
+`.mn-select__menu` is `position: absolute` inside `.mn-select`
+(`Select.css:163-168`); the DS renders it in place, with no portal.
+`.mn-modal__card` declares `overflow: clip` (`Modal.css`). So a menu that runs
+past the card's bottom edge is cut off.
+
+On the empty Create A Budget form, with the category menu open, measured at
+both widths: the menu's bottom is at **684** and the card's bottom at **678**.
+That is **6px** clipped, which takes the menu's bottom padding and edge. The
+Edit form is shorter above the picker, so its menu ends 56px inside the card.
+
+**Not worked around (rule 3).** The available fixes all target DS internals: an
+`overflow: visible` on the card, or padding added to the form to push the card
+taller. The `finance-budget-create-category-*` baselines record the clip and
+are the tripwire for the DS fix.
+
+### Not gaps — recorded so nobody re-opens them
+
+- **The native date inputs' calendar glyph draws dark on dark in the dark
+  theme.** Chromium draws `::-webkit-calendar-picker-indicator` from the
+  document's `color-scheme`, which nothing in either repo sets. This affects the
+  receipt editor since Gate 51-B and the budget form now. It is a question for
+  the app's root styles, not a DS component gap. It is reported for Teku with
+  no answer attached.
+- **A `1fr` grid track cannot shrink below a native date input's intrinsic
+  width.** The two date fields use `repeat(2, minmax(0, 1fr))`. With `1fr`,
+  Date (To) ran ~40px past the card at 375. That was an MVP layout bug, fixed
+  in the MVP. It was not a DS gap.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**42 entries, 22 closed, 20 open.** Against 2o:
+
+- one opened: G43 (41 + 1 = **42**);
+- two moved to closed: G41 and G42 (20 + 2 = **22**);
+- so 42 − 22 = **20** remain open.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 7 | 6 + 1 = 7 | **0** |
+| `prop-gap` | 27 + 1 = 28 | 11 | **17** — the 2o sixteen, plus G43 |
+| `shape-mismatch` | 5 | 2 + 1 = 3 (G18, G39, G42) | **2** — G20, G28 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **42** | **22** | **20** |
+
+Check: 7 + 28 + 5 + 2 = 42 total; 7 + 11 + 3 + 1 = 22 closed; 0 + 17 + 2 + 1 =
+20 open. **G29 was already counted closed at 2n**; its MVP adoption does not
+change the tally.
+
+**The highest number is G43.** 24 is still a permanent hole.
+
+Nothing was removed from this register.

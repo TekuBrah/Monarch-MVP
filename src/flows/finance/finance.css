@@ -2229,3 +2229,50 @@ button.mvp-receipt-card:focus-visible {
 .mvp-budget-detail__rows[hidden] {
   display: none;
 }
+
+/* ======================================================================
+   Flow 10 — the Create / Edit budget modal (Gate 71). Figma
+   `Finance_Budget_add budget` (`1266:14335`): a DS `Modal` whose content is
+   a column of fields 16px apart (Field y=0, Select y=74, Amount y=144, dates
+   y=218, toggle y=290 — every step 16 after a 58/54-tall control).
+   ====================================================================== */
+.mvp-budget-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/* The Select's dropdown takes the control's width through the DS's own seam:
+   `.mn-menu` is `width: var(--menu-width, 426px)`, wider than the 311px field. */
+.mvp-budget-form__menu {
+  --menu-width: 100%;
+}
+
+/* `Frame 471` — the two dates side by side, 150.5 each, 10px apart.
+   `minmax(0, 1fr)`, not `1fr`: a `1fr` track's minimum is its content's, and a
+   native date input's intrinsic width pushed the second field ~40px past the
+   card's edge at 375 (measured). The zero floor makes the two tracks equal. */
+.mvp-budget-form__dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--brand-scale-250);
+}
+
+/* `Frame 404` — the label left, the toggle right, 311 wide. */
+.mvp-budget-form__renew {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+}
+
+/* Figma binds `text/subtle/default` on `body/caption-semibold`. */
+.mvp-budget-form__renew-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* The delete confirmation's one line — `.mvp-receipt-delete__body`'s twin. */
+.mvp-budget-delete__body {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}

@@ -1,5 +1,6 @@
-import { CardMonthlyBudget } from '@monarch/design-system'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { CardMonthlyBudget, ToastMobile } from '@monarch/design-system'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { useBudgets } from '../../budgets/BudgetsProvider'
 import {
@@ -10,6 +11,8 @@ import {
 } from '../../data/derive'
 import { formatMyr, formatSignedMyr } from '../../data/format'
 import type { Amount } from '../../data/types'
+import { BudgetFormModal } from './components/BudgetFormModal'
+import { FINANCE_TAB_STATE_KEY, budgetDeletedNotice } from './financeTabs'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -51,36 +54,82 @@ function availableLabel(available: Amount): string {
   "DETAILS" IS WIRED (Gate 69): it navigates to the budget's drilldown,
   `/finance/budget/:budgetId`, whose Back returns here — to the Budget tab.
 
-  "ADD NEW BUDGET" IS STILL AN EXPLICIT NO-OP. Gate 70 wires it to the Create
-  modal. (This comment named Gate 69 for it before the plan moved.)
+  "ADD NEW BUDGET" IS WIRED (Gate 71): it opens the Create modal
+  (`BudgetFormModal`, Figma `1266:14335`). Save appends the budget and closes;
+  the new card, just above Add New, IS the feedback — Figma draws no toast.
+
+  "BUDGET DELETED" IS SHOWN HERE, NOT ON THE DRILLDOWN. Delete lives in the
+  drilldown's Edit modal, and the drilldown unmounts as it navigates here, so
+  the delete carries a flag in router location state (`budgetDeletedNotice`).
+  It is read ONCE, into state, and the location entry is then REPLACED without
+  it — so a reload or a history step onto this entry cannot raise it again.
+  The toast is the receipts toast's own fixed element and modifier, which is
+  what `/finance`'s nav, scrim and FAB were measured against at Gate 51.
 */
-const openCreate = () => {}
+const DELETED_TOAST = 'Budget deleted'
 
 export function BudgetTab() {
-  const { budgets } = useBudgets()
+  const { budgets, createBudget } = useBudgets()
   const { transactions } = useAccounts()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [isCreating, setIsCreating] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(() => budgetDeletedNotice(location.state))
+
+  useEffect(() => {
+    if (budgetDeletedNotice(location.state)) {
+      navigate(location.pathname, { replace: true, state: { [FINANCE_TAB_STATE_KEY]: 'budget' } })
+    }
+  }, [location.state, location.pathname, navigate])
+
+  // Stable, the G31 convention: an `onClose` that reaches a DS overlay never
+  // changes identity while it is open.
+  const closeCreate = useCallback(() => setIsCreating(false), [])
 
   return (
-    <div className="mvp-budget mvp-column">
-      {budgets.map((budget) => {
-        const available = budgetAvailable(budget, transactions)
-        return (
-          <CardMonthlyBudget
-            key={budget.id}
-            title={budget.name}
-            period={budgetPeriodLabel(budget)}
-            percentage={budgetPercentLeft(budget, transactions)}
-            amountLeft={availableLabel(available)}
-            totalAmount={formatMyr(budget.limit)}
-            availableAmount={availableLabel(available)}
-            spentAmount={formatMyr(budgetSpent(budget, transactions))}
-            onDetailsClick={() => navigate(`/finance/budget/${budget.id}`)}
-            sizing="fill"
+    <>
+      <div className="mvp-budget mvp-column">
+        {budgets.map((budget) => {
+          const available = budgetAvailable(budget, transactions)
+          return (
+            <CardMonthlyBudget
+              key={budget.id}
+              title={budget.name}
+              period={budgetPeriodLabel(budget)}
+              percentage={budgetPercentLeft(budget, transactions)}
+              amountLeft={availableLabel(available)}
+              totalAmount={formatMyr(budget.limit)}
+              availableAmount={availableLabel(available)}
+              spentAmount={formatMyr(budgetSpent(budget, transactions))}
+              onDetailsClick={() => navigate(`/finance/budget/${budget.id}`)}
+              sizing="fill"
+            />
+          )
+        })}
+        <CardMonthlyBudget state="addNew" onAddNew={() => setIsCreating(true)} sizing="fill" />
+      </div>
+
+      {isCreating && (
+        <BudgetFormModal
+          mode="create"
+          onClose={closeCreate}
+          onSave={(input) => {
+            createBudget(input)
+            setIsCreating(false)
+          }}
+        />
+      )}
+
+      {showDeleted && (
+        <div className="mvp-finance-detail__toast mvp-finance-detail__toast--above-chrome">
+          <ToastMobile
+            appearance="success"
+            title={DELETED_TOAST}
+            role="status"
+            onDismiss={() => setShowDeleted(false)}
           />
-        )
-      })}
-      <CardMonthlyBudget state="addNew" onAddNew={openCreate} sizing="fill" />
-    </div>
+        </div>
+      )}
+    </>
   )
 }

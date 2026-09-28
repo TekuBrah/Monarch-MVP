@@ -11307,6 +11307,240 @@ It surfaced because the first control word, `ABALONE`, turned out to be present,
 in `e2e/parse-receipt.spec.ts`, which is Gate 55's known device content. Use
 `grep -a`.
 
+## Flow 10 part 3 — the DS v2.6.0 re-pin, and Create, Edit and Delete a budget (Gate 71)
+
+The pin moved `v2.5.1` (`21259e45…`) -> **`v2.6.0`** (`64873993c7f825e45cf6d3b9779545e5c4d453a8`,
+annotated tag object `3deba802…`). There is no `mvp-gate70`; DS Gate 70 was
+DS-only. **|WALK| 45 -> 50, `OVERLAY_STATES` 22 -> 27, baselines 180 -> 200
+(24 changed, 20 added, 0 deleted), tests 564 -> 616, spec files 25 -> 26.**
+`lint:tokens` scans **76** files (74 + `budgetDraft.ts` + `BudgetFormModal.tsx`)
+with the same **4** exemptions. No file was deleted.
+
+### The re-pin moved exactly the eight predicted baselines
+
+v2.6.0's `src/` delta is `DonutChart.css`, `DonutChart.tsx` and one registry
+line (`icon_spend`); `globals.css` is unchanged. `DonutChart` renders only in
+`BudgetDetailScreen.tsx`. So the prediction was the eight
+`finance-budget-budget-{monthly,entertainment}-{375,430}-{light,dark}`, and the
+re-pin alone ran **556 passed / 8 failed** (18.5 min), exactly those eight, with
+nothing written.
+
+- **Monthly** moved because every wedge went `<Hue>/400` -> `<Hue>/500`.
+- **Entertainment** moved because its disc became a ring with a hole (G42), and
+  its wedge colour moved too.
+
+Then `icon: 'icon_spend'` replaced the empty Spent slot (G41), moving the same
+eight a third way. They were minted alone, scoped by `-g`: exactly 8 changed,
+172 byte-identical. The ring was proven in the browser in both themes:
+computed `fill: none`, stroke `rgb(4, 110, 255)` (`--brand-blue-500`), and
+`elementFromPoint` inside the hole returns the SVG, not the circle. See the gap
+register, 2p.
+
+**THE BUDGET TAB'S FOUR BASELINES DID NOT MOVE** — no `DonutChart` there.
+
+**THE INSTALL WAS BY NAME AND `lint:linkage` STAYED GREEN.** The DS checkout was
+already at v2.6.0, so the Vite alias compiled v2.6.0 before the pin moved.
+`npx playwright test` bypasses `pretest:e2e`, which is why the re-pin run could
+start while the guard would have been red, and why the install came first.
+
+### What was built
+
+| surface | where | Figma |
+|---|---|---|
+| Create A Budget | `BudgetTab.tsx` -> `BudgetFormModal` `mode="create"` | `1266:14335` (and the reference `Select`, `1266:14336`) |
+| Edit Budget | `BudgetDetailScreen.tsx`'s header "Edit" -> `mode="edit"` | not drawn (Decision 6) |
+| Delete budget? | stacked over Edit, `BudgetDeleteConfirm` | not drawn (Decision 7A) |
+| "Budget deleted" toast | on the Budget tab after the delete | not drawn |
+
+**THE CREATE MODAL IS `1266:14335`, NOT `1266:14336`.** The Gate 71 brief named
+`14336`; that node is the category `Select`, placed on the canvas expanded as a
+reference (inventory Flow 10 C1). Read from the remote connector; the local MCP
+had the DS file active.
+
+`BudgetFormModal.tsx` is composition (rule 4): DS `Modal`, `Field`, `Select`,
+`Menu`/`MenuItem`, `Toggle`, `Button`, `Icon`. Its rules are pure, in
+`budgetDraft.ts`, mirroring `ReceiptEditor.tsx`'s `draftFrom` / `isValid` /
+`draftToEdit` / `isChanged` function for function.
+
+| field | control | rule |
+|---|---|---|
+| Name | `Field` | required, trimmed, no uniqueness rule |
+| Category | `Select` + `menuSlot` of checkbox-glyph `MenuItem`s | at least one; stored in `TRANSACTION_CATEGORIES` order, however they were ticked |
+| Amount (RM) | `Field type="number"` | > 0, at most 2 decimals, at most **RM 999,999.99** (compared in sen) |
+| Date (From) / (To) | `Field type="date"`, side by side | both required; To >= From, compared as strings |
+| Auto-Renew Each Month | `Toggle` | stored, shown, no behaviour |
+
+**VALIDATION DISPLAY IS `ReceiptEditor`'S PATTERN**: `isInvalid` is computed
+live from the draft on every render (`ReceiptEditor.tsx:164`, `:173`, `:182`,
+`:199`), there is no touched state and no message text (`Field` has none), and
+the primary button is disabled while invalid (`ReceiptEditor.tsx:208-227`, and
+the host's `canSave`). One function, `budgetDraftErrors`, feeds both.
+
+**⚠ THE CONSEQUENCE: AN EMPTY CREATE FORM OPENS WITH FIVE RED FIELDS.** The
+receipt editor never opens empty, so the pattern never showed this. It is in the
+four `finance-budget-create-*` baselines, and it is Teku's call.
+
+**THE CATEGORY PICKER DROPS DOWN; IT DOES NOT PUSH A VIEW.** This is the Gate 46
+composition — `iconSlot` checkbox glyphs, `role="option"` owning selection — but
+not the Gate 46 mechanism: seven options fit, and Figma draws the menu expanded
+in place. `--menu-width: 100%` is the DS's own seam. `Select` has no
+outside-press close, so the form adds a capture-phase `pointerdown` listener
+that closes the menu on a press outside the control. Escape belongs to `Modal`
+and closes the whole modal.
+
+**THE TWO DATE FIELDS ARE `repeat(2, minmax(0, 1fr))`, NOT `1fr 1fr`.** A `1fr`
+track's minimum is its content's minimum, so a native date input pushed Date
+(To) ~40px past the card at 375. It was found by opening the capture. At 375 the
+fields are now 150.5 + 10 + 150.5, Figma's `Frame 471` exactly.
+
+### The writers
+
+`BudgetsProvider` gained `createBudget`, `updateBudget` and `deleteBudget`, each
+one functional `setBudgets`. It still holds records only. A created budget is
+**appended**, and its id is `` `budget-${crypto.randomUUID()}` ``. The app has
+no general id generator: `receipt-capture-N` is private to `receiptCapture.ts`.
+`randomUUID` needs a secure context. localhost and the https deploy both
+qualify; a phone on the LAN over plain `http://` would not.
+
+- **After Create**: the modal closes, and the new card, just above Add New, is
+  the feedback. Figma draws no toast.
+- **After Save Changes**: stays on the drilldown, and every figure re-derives.
+- **After Delete**: `navigate('/finance', { replace: true, state })`, then
+  `deleteBudget`.
+
+**THE DELETE HAD A RACE, AND IT WAS MEASURED BEFORE IT WAS FIXED.** React Router
+runs `navigate` as a transition. The provider write is an ordinary update, so it
+committed first and the drilldown rendered once with no budget. Its unknown-id
+`<Navigate>` backstop, which carries no toast flag, won, and "Budget deleted"
+never showed. The first writer-spec run caught it. An `isDeleting` ref now makes
+that one render return `null`. The backstop still serves every other unknown id,
+and the spec reaches a deleted id in-app through `popstate` to prove it.
+
+**THE TOAST IS RAISED BY THE SCREEN IT LANDS ON.** The delete navigation carries
+`{ financeTab: 'budget', budgetDeleted: true }`. That is one key more than the
+brief's `{ financeTab: 'budget' }`, because the drilldown unmounts and cannot
+show the toast itself. `BudgetTab` reads the flag once into state, then replaces
+the location state without it, so a reload or a Back/Forward onto that entry
+cannot raise it again. The toast reuses the receipts toast's fixed element and
+its `--above-chrome` modifier; no new fixed element was added.
+
+### Red deletes (ruling 1A)
+
+`tone="error"` is honoured on **`variant="tertiary"` only** (`Button.tsx:40`),
+so every red delete is borderless red text with a red bin. The confirmations
+pair it with an outlined `secondary` Cancel. It is on:
+
+- "Delete budget";
+- both confirmations' "Delete";
+- "Delete receipt" (`ReceiptViewer.tsx` footer);
+- the receipt delete confirmation's "Delete", through a new `confirmTone` prop on
+  the private `ConfirmModal`.
+
+The swap confirmation's "Replace" stays default. The dark contrast shortfall is
+accepted and deferred.
+
+### The harness: `confirm.landsOn`, and five states
+
+A confirm that navigates now declares where it lands. `openOverlay` asserts the
+URL's path, and `assertTabEnumerationMatchesDom` checks the tab bar against the
+landing route and tab. Without it, `[overlay:deleted]` would fail the parse
+check on a correct render: it starts on a tab-less drilldown and lands on
+`/finance` with its tab bar.
+
+| state | reached by | captures |
+|---|---|---|
+| `/finance [tab:budget] [overlay:create]` | Add New Budget | the empty form |
+| `... [overlay:create-category]` | + open the picker, tick Dining & Leisure and Shopping | Figma's reference, reproduced |
+| `/finance/budget/budget-monthly [overlay:edit]` | Edit | the pre-filled form |
+| `... [overlay:edit-delete]` | + Delete budget | two dialogs, `['Edit Budget', 'Delete budget?']` |
+| `... [overlay:deleted]` | + Delete, `confirm.landsOn` `/finance` Budget | the tab with Entertainment alone and the toast |
+
+**THE ARITHMETIC, derived from `--list`:** 5 states × 8 (visual 4, routes 2,
+section-headers 2) = 40, plus `budget-writers.spec.ts` 12, so 564 + 52 = **616**.
+The anchored `awk ... grep -c "^    overlay: {"` returns **27**, and visual
+200 = 50 × 4.
+
+**THE PRE-MINT RUN MATCHED THE WRITTEN PREDICTION EXACTLY: 580 passed / 36
+failed**, all visual:
+
+- 20 were "snapshot doesn't exist" (the five new states);
+- 16 were pixel diffs in `finance-receipts-view`, `-view-unlinked`,
+  `-view-delete` and `-view-unread`, which moved with red "Delete receipt".
+
+`view-picker`, `view-editor` and `view-replace` did not move: none of them paints
+a Delete. Nothing was written. The mint was scoped by `-g` over those nine
+states: 20 added and 16 modified, **the sets do not overlap**, 164
+byte-identical.
+
+**ARM 1 OF THE BASELINE GUARD IS RED UNTIL TEKU COMMITS**: 20 untracked
+baselines, so the clean runs close at **615 passed / 1 failed**. That is
+predicted, not a defect.
+
+### The writer spec — `e2e/budget-writers.spec.ts`, 12 tests, no baseline
+
+**A new file.** `budgets.spec.ts` is the model's pure derivations and
+`budget-detail.spec.ts` is the read-only drilldown against a fixed seed. Every
+test here changes the library, so they belong apart.
+
+- **Node, 2 tests**: every validation rule, including 999,999.99 accepted and
+  1,000,000.00 rejected; and the draft round-trip.
+- **Browser, 10 tests**:
+  - create, with figures from `derive.ts` over an invented budget, and no toast;
+  - Details on a created budget;
+  - the one-category ring, by computed fill and hit-test;
+  - edit re-derives the ring, the info rows, the donut and the legend;
+  - ✕, Cancel and Escape each discard;
+  - delete asks, Cancel returns, then the toast shows, Back never lands on the
+    dead route, and the `popstate` backstop redirects;
+  - deleting every budget leaves only the Add New card, and a reload restores
+    the seed;
+  - validation in the browser;
+  - A9, the FAB covered: z-index 100 against 3, confirmed by hit-test;
+  - the red-delete classes.
+
+**IT CAUGHT ITS OWN FIXTURE.** The first one-category budget chose a range with
+no healthcare spend, and the guard `expect(...).toHaveLength(1)` failed before
+the browser opened. Invented budgets are checked against the ledger before they
+are used.
+
+### Bundle, through `build:package`
+
+| | Gate 69 | re-pin only | Gate 71 |
+|---|---|---|---|
+| entry | 5,824,996 | 5,828,017 (+3,021) | **5,833,960** (+5,943 app) |
+| CSS | 182,530 | 182,565 (+35) | **183,046** (+481 app) |
+
+Both scratch builds were made outside the repo from `git archive HEAD`. The
+Gate 69 build reproduced that gate's figures to the byte. The OCR lazy chunks
+are the same sizes: read 1,092, recognise 4,368, parseReceipt 13,481, diagnose
+2,866. `modulepreload` is 0. `derive.ts`, `secondPass.ts` and every OCR file
+have zero-line diffs, so the corpus harness was not required.
+
+### Figma disagreements, for Gate 72's record
+
+| Figma | shipped | why |
+|---|---|---|
+| no Edit modal | "Edit Budget", the Create form pre-filled | Decision 6 |
+| pencils on the info rows (historical) | none | Decision 6; `1266:14337` no longer draws them |
+| no delete, confirmation or toast | all three | Decision 7A |
+| Amount label "Amount", value "RM 3200.00" | label "Amount (RM)", value "3200.00" | a number input cannot hold "RM"; the `ReceiptEditor` "Total (RM)" precedent |
+| dates printed `15/09/2025` | the platform's own format (`mm/dd/yyyy` in the harness) | native `type="date"`; the Gate 51-B note applies |
+| Name "Golf Lessons" etc. pre-filled | empty | Figma's values are sample data |
+| card 594 tall, header 64, footer 152 | 544 / 604, header 74, footer 140 / 206 | G28 — the DS hugs where Figma fixes |
+| no toast after Create | none | the brief's ruling agrees with the frame |
+| an FAB layer removed, not covered (A9) | covered: modal z-index 100 > FAB 3 | satisfies A9's visual outcome |
+
+### Deliberately not in scope
+
+- G43's fix and G23's fix, both DS-side;
+- the dark date-glyph `color-scheme` question;
+- the red-field-on-open question;
+- Auto-Renew behaviour;
+- persistence (NP1);
+- `npm audit fix` (still the one `js-yaml` finding);
+- the DS repo;
+- branch deletion.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

@@ -16,6 +16,21 @@
  */
 export const FINANCE_TAB_STATE_KEY = 'financeTab'
 
+/**
+ * THE "BUDGET DELETED" NOTICE — Gate 71. Delete happens on the drilldown, which
+ * then unmounts, so the toast has to be raised by the screen it lands on. The
+ * delete navigation carries this flag beside the tab id; the Budget tab reads it
+ * once, shows the toast, and REPLACES the location state without it, so a reload
+ * or a Back/Forward onto that history entry cannot raise the toast a second time.
+ */
+export const BUDGET_DELETED_STATE_KEY = 'budgetDeleted'
+
+export function budgetDeletedNotice(state: unknown): boolean {
+  return typeof state === 'object' && state !== null
+    ? (state as Record<string, unknown>)[BUDGET_DELETED_STATE_KEY] === true
+    : false
+}
+
 export function requestedFinanceTab(state: unknown, tabIds: readonly string[]): string | null {
   if (typeof state !== 'object' || state === null) return null
   const requested = (state as Record<string, unknown>)[FINANCE_TAB_STATE_KEY]

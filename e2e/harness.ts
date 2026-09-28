@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, type Page } from '@playwright/test'
 import { BUDGETS } from '../src/data/budgets'
 import { HOLDINGS } from '../src/data/holdings'
+import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import { capturedImageName } from './capture'
 
 /**
@@ -604,6 +605,19 @@ export interface OverlayState {
      * would pass against any toast at all — including the wrong one.
      */
     settlesText: string
+    /**
+     * WHERE THE CONFIRM LEAVES THE APP, WHEN IT NAVIGATES — Gate 71.
+     *
+     * Deleting a budget happens on the drilldown and lands on `/finance`'s
+     * Budget tab, so the state's `route` (where it STARTS) is not the screen it
+     * CAPTURES. Absent means the confirm stays on `route`, which is every state
+     * before Gate 71. Present, `openOverlay` asserts the URL's path arrived here,
+     * and `assertTabEnumerationMatchesDom` checks the tab bar against THIS
+     * route and tab rather than against the starting route — a tab bar
+     * appearing on a screen the parse thinks has none would otherwise fail a
+     * correct state.
+     */
+    landsOn?: { route: string; tab: TabState | null }
   }
 }
 
@@ -700,6 +714,10 @@ const UNREAD_EXTRACTION = {
  * written out, so a change to the clock or to 7B moves it with them.
  */
 const UNREAD_CAPTURE_NAME = capturedImageName(PINNED_NOW)
+
+/** The delete confirmation's body for `budget-monthly` — Decision 7A's copy. */
+const BUDGET_DELETE_BODY =
+  "This removes 'Monthly Budget' and its settings. Your transactions aren't affected. This can't be undone."
 
 export const OVERLAY_STATES: WalkState[] = [
   {
@@ -1585,6 +1603,117 @@ export const OVERLAY_STATES: WalkState[] = [
       ],
     },
   },
+  // ── GATE 71 · FLOW 10 — CREATE, EDIT AND DELETE A BUDGET ──────────────────
+  //
+  // FIVE STATES, each a surface no other state photographs. The Create modal is
+  // Figma's `Finance_Budget_add budget` (`1266:14335`); its category menu is
+  // the reference `Select` drawn expanded beside it (`1266:14336`), ticked with
+  // the same two categories Figma ticks. Edit, its delete confirmation and the
+  // Budget tab after a delete are undrawn and built by Decisions 6 and 7A.
+  //
+  // THE EDIT STATES OPEN `budget-monthly`, the seven-category budget, so the
+  // confirmation's body names it and the post-delete tab shows Entertainment
+  // alone above Add New.
+  {
+    route: '/finance',
+    tab: { id: 'budget', label: 'Budget' },
+    overlay: {
+      id: 'create',
+      control: '.mn-card-monthly-budget__add-new',
+      controlLabel: 'Add New Budget',
+      title: 'Create A Budget',
+    },
+  },
+  {
+    route: '/finance',
+    tab: { id: 'budget', label: 'Budget' },
+    overlay: {
+      id: 'create-category',
+      control: '.mn-card-monthly-budget__add-new',
+      controlLabel: 'Add New Budget',
+      title: 'Create A Budget',
+      prepare: [
+        {
+          control: '.mvp-budget-form .mn-select__input',
+          controlName: 'Category',
+          action: 'click',
+          settlesOn: '.mvp-budget-form__menu [role="listbox"]',
+          settlesText: TRANSACTION_CATEGORIES.map((c) => c.label).join(''),
+        },
+        {
+          control: '.mvp-budget-form__menu [role="option"]:has-text("Dining & Leisure")',
+          controlName: 'Dining & Leisure',
+          action: 'click',
+          settlesOn: '.mvp-budget-form__menu [role="option"][aria-selected="true"]',
+          settlesText: 'Dining & Leisure',
+        },
+        {
+          control: '.mvp-budget-form__menu [role="option"]:has-text("Shopping")',
+          controlName: 'Shopping',
+          action: 'click',
+          settlesOn: '.mvp-budget-form__menu [role="option"][aria-selected="true"]:has-text("Shopping")',
+          settlesText: 'Shopping',
+        },
+      ],
+    },
+  },
+  {
+    route: '/finance/budget/budget-monthly',
+    tab: null,
+    overlay: {
+      id: 'edit',
+      control: '.mn-header-default__action .mn-link',
+      controlLabel: 'Edit',
+      title: 'Edit Budget',
+    },
+  },
+  {
+    route: '/finance/budget/budget-monthly',
+    tab: null,
+    overlay: {
+      id: 'edit-delete',
+      control: '.mn-header-default__action .mn-link',
+      controlLabel: 'Edit',
+      title: 'Edit Budget',
+      opens: ['Edit Budget'],
+      dialogs: ['Edit Budget', 'Delete budget?'],
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn--error',
+          controlName: 'Delete budget',
+          action: 'click',
+          settlesOn: '.mvp-budget-delete__body',
+          settlesText: BUDGET_DELETE_BODY,
+        },
+      ],
+    },
+  },
+  {
+    route: '/finance/budget/budget-monthly',
+    tab: null,
+    overlay: {
+      id: 'deleted',
+      control: '.mn-header-default__action .mn-link',
+      controlLabel: 'Edit',
+      title: 'Edit Budget',
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn--error',
+          controlName: 'Delete budget',
+          action: 'click',
+          settlesOn: '.mvp-budget-delete__body',
+          settlesText: BUDGET_DELETE_BODY,
+        },
+      ],
+      confirm: {
+        control: '.mn-modal__footer .mn-btn--error:has(span:text-is("Delete"))',
+        controlLabel: 'Delete',
+        settlesOn: '.mvp-finance-detail__toast .mn-toast-mobile',
+        settlesText: 'Budget deleted',
+        landsOn: { route: '/finance', tab: { id: 'budget', label: 'Budget' } },
+      },
+    },
+  },
 ]
 
 /**
@@ -1605,8 +1734,10 @@ export const WALK: WalkState[] = [
     ]
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
-  // an enumerated entry rather than an axis. 14 routes (one `tab: null` state
-  // each, from ROUTES) + 7 non-default tab states + 19 OVERLAY_STATES = 40.
+  // an enumerated entry rather than an axis. 16 routes (one `tab: null` state
+  // each, from ROUTES — 14 plus the two budget drilldowns since Gate 69) + 7
+  // non-default tab states + 27 OVERLAY_STATES = 50 (Gate 71; it read 19 = 40
+  // through Gate 69, already stale by then).
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the
@@ -1785,7 +1916,8 @@ export async function assertTabEnumerationMatchesDom(
   page: Page,
   state: WalkState,
 ): Promise<void> {
-  const { route } = state
+  // A confirm that navigates is checked against where it LANDS (Gate 71).
+  const { route, tab } = state.overlay?.confirm?.landsOn ?? state
   const rendered = await page.evaluate(() =>
     Array.from(document.querySelectorAll('[role="tab"]')).map((el) => ({
       id: (el.id || '').replace(/^tab-/, ''),
@@ -1810,10 +1942,10 @@ export async function assertTabEnumerationMatchesDom(
   ).toEqual(expected.map((t) => t.label))
 
   if (screen) {
-    const shouldBeSelected = state.tab?.id ?? screen.defaultTabId
+    const shouldBeSelected = tab?.id ?? screen.defaultTabId
     expect(
       rendered.filter((t) => t.selected).map((t) => t.id),
-      state.tab
+      tab
         ? `${route}: exactly one tab must be selected, and it must be the activated "${shouldBeSelected}"`
         : `${route}: exactly one tab must be selected on load, and it must be the parsed default`,
     ).toEqual([shouldBeSelected])
@@ -2552,6 +2684,14 @@ export async function openOverlay(page: Page, overlay: OverlayState): Promise<vo
     settled,
     `the surface that settled is not the one "${overlay.id}" declares`,
   ).toHaveText(overlay.confirm.settlesText)
+
+  if (overlay.confirm.landsOn) {
+    await expect
+      .poll(() => new URL(page.url()).pathname, {
+        message: `confirming "${overlay.confirm.controlLabel}" did not land on ${overlay.confirm.landsOn.route}`,
+      })
+      .toBe(overlay.confirm.landsOn.route)
+  }
 
   await settleImages(page)
   await page.waitForFunction(() => document.fonts.status === 'loaded')
