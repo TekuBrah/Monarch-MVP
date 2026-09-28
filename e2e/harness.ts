@@ -1657,6 +1657,35 @@ export const OVERLAY_STATES: WalkState[] = [
       ],
     },
   },
+  // GATE 71-B · THE INVALID APPEARANCE, NOW THAT OPENING IS CLEAN. Decision 2C
+  // moved the red to after touch or a Save attempt, so `create` no longer shows
+  // it — and without this state no baseline would. One press of Save Budget on
+  // the EMPTY form: nothing is saved, every invalid field turns red, and focus
+  // moves to the first (Name). The settle proves both halves at once: exactly
+  // one invalid field holds focus, and it is Name.
+  //
+  // A FOCUSED INVALID FIELD PAINTS THE FOCUS BORDER, NOT THE RED ONE — the DS's
+  // `:focus-within` rule outranks `.mn-field--invalid` on specificity — so Name
+  // reads blue here while Category, Amount and both dates read red.
+  {
+    route: '/finance',
+    tab: { id: 'budget', label: 'Budget' },
+    overlay: {
+      id: 'create-attempt',
+      control: '.mn-card-monthly-budget__add-new',
+      controlLabel: 'Add New Budget',
+      title: 'Create A Budget',
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn--primary',
+          controlName: 'Save Budget',
+          action: 'click',
+          settlesOn: '.mvp-budget-form .mn-field--invalid:focus-within .mn-field__label',
+          settlesText: 'Name *',
+        },
+      ],
+    },
+  },
   {
     route: '/finance/budget/budget-monthly',
     tab: null,
@@ -1709,7 +1738,7 @@ export const OVERLAY_STATES: WalkState[] = [
         control: '.mn-modal__footer .mn-btn--error:has(span:text-is("Delete"))',
         controlLabel: 'Delete',
         settlesOn: '.mvp-finance-detail__toast .mn-toast-mobile',
-        settlesText: 'Budget deleted',
+        settlesText: 'Budget deleted.',
         landsOn: { route: '/finance', tab: { id: 'budget', label: 'Budget' } },
       },
     },
@@ -1736,8 +1765,9 @@ export const WALK: WalkState[] = [
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 16 routes (one `tab: null` state
   // each, from ROUTES — 14 plus the two budget drilldowns since Gate 69) + 7
-  // non-default tab states + 27 OVERLAY_STATES = 50 (Gate 71; it read 19 = 40
-  // through Gate 69, already stale by then).
+  // non-default tab states + 28 OVERLAY_STATES = 51 (Gate 71-B added
+  // `create-attempt`; it was 27 = 50 at Gate 71, and read 19 = 40 through
+  // Gate 69, already stale by then).
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the

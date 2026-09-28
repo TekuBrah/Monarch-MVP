@@ -28,13 +28,15 @@ import {
   draftFrom,
   draftToEdit,
   isChanged,
-  isValid,
+  receiptDraftErrors,
   type EditorDraft,
+  type EditorDraftErrors,
 } from './ReceiptEditor'
 import { CaptureDiagnosticsBlock } from './CaptureDiagnosticsBlock'
 import { CapturingBlock } from './CapturingBlock'
 import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advisoryCopy'
 import { useReceiptRetake } from '../useReceiptRetake'
+import { useTouchedValidation } from '../useTouchedValidation'
 import { TransactionPicker } from './TransactionPicker'
 
 /**
@@ -135,6 +137,14 @@ import { TransactionPicker } from './TransactionPicker'
 
 /** The toast's copy, as ruled (Gate 51 ruling 5). */
 const DELETED_TOAST = 'Receipt deleted.'
+
+/** No draft, so nothing can be invalid — the editor is not open. */
+const NO_EDITOR_ERRORS: EditorDraftErrors = {
+  merchant: false,
+  date: false,
+  time: false,
+  total: false,
+}
 
 /** Integer cents, so two figures are compared the way `totalMatches` does. */
 function toCents(value: number): number {
@@ -528,6 +538,16 @@ export function ReceiptViewerHost({
     here the view is state rather than a mount, so the seeding is explicit.
   */
   const [draft, setDraft] = useState<EditorDraft | null>(null)
+  /*
+    WHEN THE EDITOR SHOWS ITS ERRORS — Gate 71-B, the shared hook. It lives
+    HERE and not in `ReceiptEditor` because Save is this host's footer button,
+    and a Save attempt is half of what decides the red. Reset wherever the
+    draft is seeded or dropped, so every open of the editor starts pristine.
+  */
+  const validation = useTouchedValidation<keyof EditorDraft>(
+    draft ? receiptDraftErrors(draft) : NO_EDITOR_ERRORS,
+  )
+  const resetValidation = validation.reset
 
   const receipt = receiptId ? receipts.find((r) => r.id === receiptId) : undefined
   const transaction = receipt?.transactionId
@@ -544,8 +564,9 @@ export function ReceiptViewerHost({
     setReplacing(null)
     setView('viewer')
     setDraft(null)
+    resetValidation()
     onClose()
-  }, [onClose])
+  }, [onClose, resetValidation])
 
   // THE CONFIRMATIONS' `onClose`s, stable for the same reason.
   const cancelDelete = useCallback(() => setIsConfirming(false), [])
@@ -559,7 +580,8 @@ export function ReceiptViewerHost({
   const back = useCallback(() => {
     setView('viewer')
     setDraft(null)
-  }, [])
+    resetValidation()
+  }, [resetValidation])
 
   /*
     DELETE, THEN CLOSE BOTH, THEN SAY SO — in that order. `deleteReceipt` writes
@@ -615,14 +637,24 @@ export function ReceiptViewerHost({
 
   const openEditor = () => {
     setDraft(draftFrom(receipt))
+    resetValidation()
     setView('editor')
   }
 
+  /*
+    SAVE IS NEVER DISABLED (Gate 71-B, decision 2C). An invalid draft is an
+    ATTEMPT: nothing is written, every invalid field turns red and the first is
+    focused. A valid but UNCHANGED draft returns to the viewer without writing,
+    exactly as Back does. Only a valid, changed draft writes.
+  */
   const save = () => {
-    if (!draft || !isValid(draft) || !isChanged(receipt, draft)) return
+    if (!draft || !validation.attempt()) return
+    if (!isChanged(receipt, draft)) {
+      back()
+      return
+    }
     updateReceipt(receipt.id, draftToEdit(draft))
-    setView('viewer')
-    setDraft(null)
+    back()
   }
 
   const isLinked = receipt.transactionId !== null && transaction !== undefined
@@ -635,8 +667,6 @@ export function ReceiptViewerHost({
     opened it prints: tapping "IMG_4806.jpg" opens a dialog called
     "IMG_4806.jpg".
   */
-  const canSave = draft !== null && isValid(draft) && isChanged(receipt, draft)
-
   let title = receipt.displayName
   let body: ReactNode
   let footer: ReactNode
@@ -656,13 +686,19 @@ export function ReceiptViewerHost({
     footer = undefined
   } else if (view === 'editor' && draft) {
     title = 'Edit receipt'
-    body = <ReceiptEditor receipt={receipt} draft={draft} onChange={setDraft} />
+    body = (
+      <ReceiptEditor
+        receipt={receipt}
+        draft={draft}
+        onChange={setDraft}
+        validation={validation}
+      />
+    )
     footer = (
       <Button
         variant="primary"
         size="l"
         label="Save changes"
-        isDisabled={!canSave}
         onClick={save}
       />
     )

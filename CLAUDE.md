@@ -11541,6 +11541,206 @@ have zero-line diffs, so the corpus harness was not required.
 - the DS repo;
 - branch deletion.
 
+## Validation after touch, dark `color-scheme`, toast wording (Gate 71-B)
+
+No DS change and no re-pin — **v2.6.0 throughout**. Three follow-ups from Gate
+71's triage, landed before Gate 72 writes Flow 10's completion record so that
+the record describes final behaviour. **|WALK| 50 -> 51, `OVERLAY_STATES` 27 ->
+28, baselines 200 -> 204 (24 changed, 4 added, 0 deleted), tests 616 -> 635,
+spec files 26 -> 27.** `lint:tokens` scans **77** files (76 +
+`useTouchedValidation.ts`) with the same **4** exemptions.
+
+### The validation rule (decision 2C) — and why Save is never disabled
+
+**BOTH FORMS OPENED RED.** Gate 71's empty Create form showed five red fields
+on open, and the receipt editor had done the same since Gate 51-B for any field
+OCR left empty, because each `isInvalid` was computed live from the draft on
+every render, with no notion of "touched".
+
+**THE RULE NOW, in both forms, through one mechanism:**
+
+- A field shows invalid only once it has been **left** (blurred) holding an
+  invalid value, or after a **Save attempt**. A pristine form shows no red, and
+  neither does a pre-filled valid one.
+- Once red, a field is re-evaluated **live** and clears the moment its value is
+  valid. There is no second blur.
+- **Save is never disabled.** Pressing it with any invalid field writes nothing,
+  reveals every invalid field, and moves focus to the first one in DOM order.
+  With red only after touch, a disabled Save would leave a user who had filled
+  four of five fields facing a dead button with no reason shown. A disabled
+  button also gives assistive technology no reason.
+- **Cancel, ✕ and Escape discard the touched and attempted state with the
+  draft.**
+- **A valid but UNCHANGED form's Save writes nothing and leaves.** Save Changes
+  closes the Edit Budget modal, and the receipt editor's Save changes returns to
+  the viewer, exactly as Back does. This case is Gate 71-B's own choice: the
+  ruling enabled Save without saying what an unchanged Save does. It is flagged
+  for Teku.
+
+**`useTouchedValidation` (`src/flows/finance/`) IS THE ONE MECHANISM.** It owns
+three things:
+
+- the touched set;
+- an attempt **counter** — a counter, not a flag, so a second failed attempt
+  refocuses;
+- `isShown(key)`.
+
+**IT DOES NOT OWN THE RULES.** Each form passes in its per-field error record
+from one function: `budgetDraftErrors`, and for the receipt editor
+`receiptDraftErrors`, which is new here. `attempt()` decides from that same
+record, so what shows red and what blocks the write cannot disagree.
+
+**THE RECEIPT EDITOR DID NOT HAVE THAT PROPERTY UNTIL THIS GATE.** Its four
+fields restated their checks inline beside a separate `isValid`.
+`receiptDraftErrors` is now the single definition, and `isValid` derives from
+it.
+
+**HOW "LEFT" IS DETECTED.** DS `Field` and `Select` take no `onBlur`. So the
+form's container listens for React's bubbling `onBlur` (focusout) and names the
+field from the element that lost focus: its nearest `[data-field]` ancestor if
+it has one, otherwise the input's own `name`.
+
+- **`name` IS NEW ON EVERY `Field` IN BOTH FORMS FOR THIS REASON.**
+- The category wrapper carries `data-field="categories"` as a **scope**. Focus
+  moving between the `Select`'s input, its chevron and its menu options is not
+  leaving the field.
+
+**WHERE THE HOOK LIVES, AND WHY.**
+
+- **The budget form** calls it itself. Its state resets with the draft by
+  construction, because the host mounts the modal per open.
+- **The receipt editor's Save lives in `ReceiptViewerHost`'s footer, not in
+  `ReceiptEditor.tsx`.** The hook therefore lives in the host, which resets it
+  wherever it seeds or drops the draft (`openEditor`, `back`, `close`), and
+  hands it to the editor as a prop, exactly as the draft is lifted.
+
+The hook sits beside `useReceiptRetake` because both consumers are
+finance-flow forms. `src/components/` is for promoted components.
+
+**THE RECEIPT-EDITOR TRADE-OFF, ACCEPTED.** A field the OCR left empty — above
+all an unread total, which the editor opens empty (Gate 58) — no longer shows
+red when the editor opens. It shows red on touch or on a Save attempt. The spec
+asserts this on a real unread capture, not only on a seeded receipt, because a
+seeded receipt has no empty field and could not tell the two behaviours apart.
+
+**A FOCUSED INVALID FIELD PAINTS THE FOCUS BORDER, NOT THE RED ONE.** The DS's
+`.mn-field:focus-within` rule outranks `.mn-field--invalid` on specificity. So
+after a Save attempt the focused first field reads blue and the rest read red.
+This is DS behaviour, recorded here and not overridden. The new walk state
+photographs it.
+
+**THE INVALID APPEARANCE IS STILL UNDER VISUAL REGRESSION.** Opening is now
+clean, so the red would otherwise have left the net. The new walk state
+`/finance [tab:budget] [overlay:create-attempt]` opens Create and presses Save
+Budget once through a `prepare` step. Its settle,
+`.mvp-budget-form .mn-field--invalid:focus-within .mn-field__label` reading
+`Name *`, proves in one assertion both that the attempt marked the fields and
+that it focused the first. The existing overlay mechanics covered it; no
+harness field was added.
+
+### `color-scheme` — on `<html>`, keyed to the theme attribute
+
+**NOTHING DECLARED IT**, so it computed `normal` (that is, light) in both themes.
+In dark theme the native date and time picker glyphs were drawn for a light
+page, black on the near-black field.
+
+It is now in `src/index.css`:
+
+```css
+html { color-scheme: light; }
+html[data-theme='dark'] { color-scheme: dark; }
+```
+
+**SAME ELEMENT AND SAME ATTRIBUTE AS THE THEME.** `ThemeProvider` sets
+`data-theme` on `document.documentElement` to `'dark'` or `''`, and the DS keys
+its dark tokens off `[data-theme="dark"]`. The property inherits, so it is
+declared once and never per input.
+
+**MEASURED, EDIT BUDGET'S Date (From), DARK.** The right 20 CSS px of the input
+were captured at DPR 2 and decoded. Before, the brightest pixel had luminance
+**0**: the indicator was invisible, black on black. After, it is **255**.
+Computed `color-scheme` moved `normal` -> `dark` on `<html>` and on the input,
+and `normal` -> `light` in light theme.
+
+**IT MOVED NOTHING ELSE, AND THAT WAS PROBED BEFORE THE SUITE RAN.** Every walk
+state was captured at both widths in both themes, with and without an injected
+rule, and the two captures compared byte for byte. **Exactly 6 captures
+changed**: the dark `create`, `edit` and `view-editor` states at 375 and 430,
+the only screens showing a visible date or time input.
+
+- **No light capture changed.**
+- `create-category` and `edit-delete` did not change for the scheme: their date
+  fields sit under the open menu and under the confirmation card respectively.
+- `html` and `body` paint their own background token, so the canvas default is
+  never seen.
+- Scrollbars are hidden globally.
+- The radio in the reminder modal and the `Toggle`'s checkbox are DS-drawn, so
+  their native parts do not paint.
+
+### Toast wording (decision 3D)
+
+`'Budget deleted'` -> **`'Budget deleted.'`** (`BudgetTab.tsx`), matching
+`'Receipt deleted.'`. The receipt toast is unchanged, and so is the
+read-once-and-replace mechanism. The harness's `deleted` settle text moved with
+it.
+
+### Baselines — predicted in writing, and the prediction held exactly
+
+Predicted before the pre-mint run, from the probe above plus an occlusion probe
+of each form's Save button:
+
+| group | why it moved |
+|---|---|
+| `finance-budget-create-*` (4) | red-on-open gone; Save Budget enabled; dark: date glyphs |
+| `finance-budget-create-category-*` (4) | Name no longer red (the other fields and Save sit under the open menu) |
+| `finance-budget-budget-monthly-edit-*` (4) | Save Changes enabled (it was disabled while unchanged); dark: date glyphs |
+| `finance-budget-budget-monthly-edit-delete-*` (4) | Save Changes enabled; its bottom edge shows under the confirmation's blanket |
+| `finance-receipts-view-editor-*` (4) | Save changes enabled; dark: date and time glyphs |
+| `finance-budget-budget-monthly-deleted-*` (4) | the full stop |
+| `finance-budget-create-attempt-*` (4) | added |
+
+**THE LIGHT `edit` AND `view-editor` BASELINES MOVED, WHICH A `color-scheme`-ONLY
+READING WOULD MISS.** Both moved because Save is no longer disabled.
+
+The pre-mint run went **28 failed / 607 passed**: exactly those 28, all visual,
+and it wrote nothing. The manifest was byte-identical and 0 "writing actual"
+lines appeared. The mint was scoped to the 7 states and reconciled outside the
+repo as **204 total, 24 changed, 4 added, 0 deleted, 176 byte-identical**.
+
+**ARM 1 OF THE BASELINE GUARD FAILS UNTIL TEKU COMMITS**, because the 4
+`create-attempt` files are untracked. That is predicted, not a defect.
+
+### Changed assertions, all ruled rather than drifted
+
+| file | test | was | is |
+|---|---|---|---|
+| `budget-writers.spec.ts` | Edit re-derives every figure | Save Changes `toBeDisabled` while unchanged | `toBeEnabled` |
+| `budget-writers.spec.ts` | Delete asks first … | toast `toContainText('Budget deleted')` | `toHaveText('Budget deleted.')`, exact |
+| `budget-writers.spec.ts` | the form validates in the browser (renamed) | Save `toBeDisabled` per bad value | field red after leaving; Save keeps the modal open and adds no card |
+| `link-editor.spec.ts` | Save is disabled until … (renamed "Save writes only when …") | four `toBeDisabled` / `toBeEnabled` | invalid Save stays in the editor; unchanged Save returns to the viewer with the stored merchant |
+| `harness.ts` | `deleted` settle | `'Budget deleted'` | `'Budget deleted.'` |
+
+**FOURTEEN MUTATION PROOFS, ALL HELD**: one for each of the 11 new tests, one
+for the toast, and one for each of the two rewritten tests. Each selected by an
+exact, regex-escaped, `$`-anchored title and spawned with no shell. The
+mutated run read `Running 1 test`, `1 failed`. The file was restored
+SHA-identical, and the re-run passed.
+
+**AN ANCHORED `-g` FILTERS RATHER THAN SKIPS.** Playwright reports the other
+tests in the file as absent, not as `skipped`, so a proof reads `1 failed`
+with 0 skipped. "Exactly one test ran" is the `Running 1 test` line.
+
+### Deliberately not in scope
+
+- G43, G22 and G23, all still DS-side.
+- Error message text under fields. Outline only, as before.
+- The DS focus-over-invalid precedence.
+- Auto-Renew behaviour.
+- Persistence (NP1).
+- The DS repo and the pin.
+- `npm audit fix`.
+- Branch deletion.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

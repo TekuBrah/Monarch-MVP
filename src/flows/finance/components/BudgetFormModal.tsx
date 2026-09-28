@@ -9,11 +9,11 @@ import {
   draftToBudgetInput,
   EMPTY_BUDGET_DRAFT,
   isBudgetDraftChanged,
-  isBudgetDraftValid,
   orderCategories,
   type BudgetDraft,
   type BudgetInput,
 } from '../budgetDraft'
+import { useTouchedValidation } from '../useTouchedValidation'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -55,13 +55,21 @@ import {
  *
  * ──────────────────────────── WHEN ERRORS SHOW ────────────────────────────────
  *
- * `ReceiptEditor`'s pattern, as ruled: every field's `isInvalid` is computed
- * LIVE from the current draft on every render — there is no "touched" state and
- * no message text (`Field` has no helper-text prop) — and the primary button is
- * DISABLED while the draft is invalid (Edit: or unchanged). One definition,
- * `budgetDraftErrors`, feeds both, so what shows red and what blocks saving can
- * never disagree. The consequence on an EMPTY Create form is that its required
- * fields open red; that is reported for Teku, not smoothed over here.
+ * AFTER TOUCH, OR AFTER A SAVE ATTEMPT — Gate 71-B, decision 2C, through the
+ * shared `useTouchedValidation` (the receipt editor uses the same hook). A
+ * pristine Create form and a pre-filled Edit form open with nothing red; a
+ * field turns red once it is left holding an invalid value, and clears live
+ * the moment its value becomes valid. There is no message text (`Field` has no
+ * helper-text prop), as before.
+ *
+ * THE PRIMARY BUTTON IS NEVER DISABLED. Pressing it with an invalid field saves
+ * nothing, reveals every invalid field and focuses the first. One definition,
+ * `budgetDraftErrors`, feeds both the red and that decision, so they cannot
+ * disagree. An UNCHANGED, valid Edit form's Save Changes closes the modal
+ * without writing — nothing is there to save.
+ *
+ * Gate 71 opened an empty Create form with five red fields (a live
+ * `isInvalid` and a disabled Save). That is what this replaced.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -116,8 +124,7 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
   }, [isPickerOpen])
 
   const errors = budgetDraftErrors(draft)
-  const canSave =
-    isBudgetDraftValid(draft) && (props.mode === 'create' || isBudgetDraftChanged(props.budget, draft))
+  const validation = useTouchedValidation(errors)
 
   const set = <K extends keyof BudgetDraft>(key: K) => (value: BudgetDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
@@ -133,7 +140,11 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
     }))
 
   const save = () => {
-    if (!canSave) return
+    if (!validation.attempt()) return
+    if (props.mode === 'edit' && !isBudgetDraftChanged(props.budget, draft)) {
+      onClose()
+      return
+    }
     onSave(draftToBudgetInput(draft))
   }
 
@@ -148,7 +159,6 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
             variant="primary"
             size="l"
             label={mode === 'create' ? 'Save Budget' : 'Save Changes'}
-            isDisabled={!canSave}
             onClick={save}
           />
           <Button variant="secondary" size="l" label="Cancel" onClick={onClose} />
@@ -173,17 +183,18 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
         </>
       }
     >
-      <div className="mvp-budget-form">
+      <div ref={validation.formRef} className="mvp-budget-form" onBlur={validation.onBlur}>
         <Field
           label="Name"
+          name="name"
           value={draft.name}
           onChange={set('name')}
           ariaLabel="Name"
           sizing="fill"
           isRequired
-          isInvalid={errors.name}
+          isInvalid={validation.isShown('name')}
         />
-        <div ref={categoryRef} className="mvp-budget-form__category">
+        <div ref={categoryRef} className="mvp-budget-form__category" data-field="categories">
           <Select
             label="Category"
             ariaLabel="Category"
@@ -191,7 +202,7 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
             searchable={false}
             value={categoriesLabel(draft.categories)}
             isSelected={draft.categories.length > 0}
-            isInvalid={errors.categories}
+            isInvalid={validation.isShown('categories')}
             isOpen={isPickerOpen}
             onOpenChange={setIsPickerOpen}
             menuSlot={
@@ -221,34 +232,37 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
         <Field
           label="Amount (RM)"
           type="number"
+          name="amount"
           value={draft.amount}
           onChange={set('amount')}
           ariaLabel="Amount in ringgit"
           sizing="fill"
           isRequired
-          isInvalid={errors.amount}
+          isInvalid={validation.isShown('amount')}
         />
         {/* Figma's `Frame 471`: the two dates side by side, 10px apart. */}
         <div className="mvp-budget-form__dates">
           <Field
             label="Date (From)"
             type="date"
+            name="from"
             value={draft.from}
             onChange={set('from')}
             ariaLabel="Date from"
             sizing="fill"
             isRequired
-            isInvalid={errors.from}
+            isInvalid={validation.isShown('from')}
           />
           <Field
             label="Date (To)"
             type="date"
+            name="to"
             value={draft.to}
             onChange={set('to')}
             ariaLabel="Date to"
             sizing="fill"
             isRequired
-            isInvalid={errors.to}
+            isInvalid={validation.isShown('to')}
           />
         </div>
         {/* Figma's `Frame 404`: the label left, the toggle right. */}

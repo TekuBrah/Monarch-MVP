@@ -234,30 +234,45 @@ for (const theme of THEMES) {
 
   /* ─────────────────────────────────────────────────── the editor, item E ── */
 
-  test(`Save is disabled until the draft is valid AND changed — ${theme}`, async ({ page }) => {
+  /*
+    GATE 71-B (2C) REWROTE THIS TEST. It asserted a DISABLED Save until the
+    draft was valid and changed; Save is now never disabled, so each case is
+    asserted by pressing it and reading what happened. An invalid draft stays in
+    the editor (an attempt, nothing written); a valid unchanged one returns to
+    the viewer with the stored values untouched.
+  */
+  test(`Save writes only when the draft is valid AND changed — ${theme}`, async ({ page }) => {
     await openViewer(page, theme)
-    await page.locator('.mvp-receipt-details .mn-link').click()
+    const openEditor = () => page.locator('.mvp-receipt-details .mn-link').click()
     const save = page.locator('.mn-modal__footer .mn-btn')
+    const merchant = page.locator('.mvp-receipt-editor input[type="text"]')
+    const total = page.locator('.mvp-receipt-editor input[type="number"]')
+    const stillEditing = async (what: string) => {
+      await save.click()
+      expect(await openDialogNames(page), what).toEqual(['Edit receipt'])
+    }
+
+    await openEditor()
     await expect(save).toHaveText('Save changes')
+    await expect(save, 'untouched draft').toBeEnabled()
 
-    await expect(save, 'untouched draft').toBeDisabled()
-
-    await page.locator('.mvp-receipt-editor input[type="text"]').fill('Aeon Big Wangsa Maju')
-    await expect(save, 'valid and changed').toBeEnabled()
-
-    // INVALID BEATS CHANGED: an empty required field re-disables it.
-    await page.locator('.mvp-receipt-editor input[type="text"]').fill('')
-    await expect(save, 'changed but invalid').toBeDisabled()
+    // INVALID BEATS CHANGED: an empty required field keeps Save from writing.
+    await merchant.fill('')
+    await stillEditing('changed but invalid')
 
     // A total of zero is invalid too — a receipt for nothing is not a receipt.
-    await page.locator('.mvp-receipt-editor input[type="text"]').fill('Aeon Big Wangsa Maju')
-    await page.locator('.mvp-receipt-editor input[type="number"]').fill('0')
-    await expect(save, 'zero total').toBeDisabled()
+    await merchant.fill('Aeon Big Wangsa Maju')
+    await total.fill('0')
+    await stillEditing('zero total')
 
-    // AND BACK TO THE SEEDED VALUES DISABLES IT AGAIN — `isChanged`, not a flag.
-    await page.locator('.mvp-receipt-editor input[type="text"]').fill('Aeon Big')
-    await page.locator('.mvp-receipt-editor input[type="number"]').fill('429.19')
-    await expect(save, 'edited back to the stored values').toBeDisabled()
+    // AND BACK TO THE SEEDED VALUES WRITES NOTHING — `isChanged`, not a flag:
+    // Save returns to the viewer, which still shows the stored merchant.
+    await merchant.fill('Aeon Big')
+    await total.fill('429.19')
+    await save.click()
+    expect(await openDialogNames(page), 'edited back to the stored values').toEqual([RECEIPT])
+    await expect(page.locator('.mvp-receipt-details')).toContainText('Aeon Big')
+    await expect(page.locator('.mvp-receipt-details')).not.toContainText('Wangsa Maju')
   })
 
   test(`the editor saves all four fields, in LOCAL wall-clock, writing no transaction — ${theme}`, async ({

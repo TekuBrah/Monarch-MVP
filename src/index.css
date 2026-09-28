@@ -61,6 +61,37 @@ html {
 }
 
 /*
+  NATIVE CONTROLS ARE DRAWN IN THE PAGE'S SCHEME — Gate 71-B.
+
+  `color-scheme` is the platform's mechanism for telling the browser which
+  scheme to draw its OWN parts in: the date and time inputs' picker glyphs,
+  number spinners, UA scrollbars and the default canvas. Nothing declared it
+  before this gate, so it computed `normal` — i.e. light — in both themes, and
+  in dark the date picker indicator was drawn black on the near-black field:
+  measured on the Edit Budget form's Date (From), the brightest pixel of the
+  indicator strip read luminance 0 before and 255 after.
+
+  IT SITS ON `html`, KEYED TO THE SAME ATTRIBUTE THE THEME IS: `ThemeProvider`
+  sets `data-theme` on `document.documentElement` to 'dark' or '' (the DS
+  showcase mechanism), and the DS keys its dark tokens off
+  `[data-theme="dark"]`. The property INHERITS, so one declaration per theme
+  reaches every control — per-input declarations would be a list to forget.
+
+  A CORRECTNESS FIX, NOT A STYLE CHOICE, and it moved nothing else: probed
+  over every walk state at both widths in both themes, the only captures that
+  changed were the three dark states showing a visible date/time input.
+  `html` and `body` paint their own background token, so the canvas default
+  is never seen; scrollbars are hidden by the rule below.
+*/
+html {
+  color-scheme: light;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/*
   NO VISIBLE SCROLLBAR, ANYWHERE, EVER — A STANDING RULE OF THIS APP.
 
   Every scroll container here is a native-app surface: a chip row, a tab bar,

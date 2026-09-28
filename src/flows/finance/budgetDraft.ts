@@ -78,8 +78,9 @@ export function categoriesLabel(ids: readonly TransactionCategoryId[]): string {
 
 /**
  * Which fields are invalid, each on its own terms. One definition, read both by
- * the fields' `isInvalid` and by `isBudgetDraftValid`, so what shows red and
- * what blocks Save can never disagree.
+ * the fields' red (through `useTouchedValidation`, which since Gate 71-B shows
+ * it only after touch or a Save attempt) and by the Save attempt itself, so
+ * what shows red and what blocks the write can never disagree.
  *
  * THE AMOUNT IS CHECKED AS TEXT FIRST, for `ReceiptEditor`'s reason: `Number`
  * accepts `1e3`, ` 12 ` and `0x10`, and a budget limit is none of those.
@@ -134,8 +135,9 @@ export function draftToBudgetInput(draft: BudgetDraft): BudgetInput {
 }
 
 /**
- * Whether an Edit draft differs from the stored budget — Save Changes is
- * disabled until it does, `ReceiptEditor.isChanged`'s rule. Compared against
+ * Whether an Edit draft differs from the stored budget — Save Changes writes
+ * only when it does (since Gate 71-B an unchanged Save closes the form without
+ * writing), `ReceiptEditor.isChanged`'s rule. Compared against
  * `draftFromBudget`, and the keys are read off the value rather than listed, so
  * a field added later cannot report itself unchanged forever.
  */

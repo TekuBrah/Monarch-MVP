@@ -66,7 +66,8 @@ function availableLabel(available: Amount): string {
   The toast is the receipts toast's own fixed element and modifier, which is
   what `/finance`'s nav, scrim and FAB were measured against at Gate 51.
 */
-const DELETED_TOAST = 'Budget deleted'
+/** Full stop to match the receipt toast, "Receipt deleted." (Gate 71-B, decision 3D). */
+const DELETED_TOAST = 'Budget deleted.'
 
 export function BudgetTab() {
   const { budgets, createBudget } = useBudgets()

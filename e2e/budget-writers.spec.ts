@@ -279,8 +279,9 @@ test('Edit re-derives every figure — ring, info rows, donut and legend — and
   await expect(modal.getByLabel('Date (From)')).toHaveValue(MONTHLY.from)
   await expect(modal.getByLabel('Date (To)')).toHaveValue(MONTHLY.to)
   const save = modal.getByRole('button', { name: 'Save Changes' })
-  // Save Changes is disabled until something changes.
-  await expect(save).toBeDisabled()
+  // Gate 71-B (2C): Save Changes is never disabled — an unchanged form's Save
+  // simply closes without writing (asserted in `form-validation.spec.ts`).
+  await expect(save).toBeEnabled()
 
   await fillForm(modal, {
     name: edited.name,
@@ -334,7 +335,8 @@ test('Delete asks first; Cancel returns to Edit; Delete lands on the Budget tab 
 
   await expect(page).toHaveURL(/\/finance$/)
   await expect(page.locator('#tab-budget')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('.mn-toast-mobile')).toContainText('Budget deleted')
+  // EXACT, full stop included — Gate 71-B (3D) matched it to "Receipt deleted.".
+  await expect(page.locator('.mn-toast-mobile')).toHaveText('Budget deleted.')
   await expect(budgetCards(page)).toHaveCount(BUDGETS.length - 1)
   await expect(page.getByRole('button', { name: `Details for ${MONTHLY.name}` })).toHaveCount(0)
   // The transactions are not affected.
@@ -378,14 +380,22 @@ test('deleting every budget leaves only the Add New card, and a reload restores 
   for (const [i, budget] of BUDGETS.entries()) await expectCard(budgetCards(page).nth(i), budget)
 })
 
-test('the form validates in the browser: Save stays disabled and the offending field is invalid', async ({
+test('the form validates in the browser: a left field shows invalid, and Save with it writes nothing', async ({
   page,
 }) => {
+  // GATE 71-B (2C): Save is never disabled. What was `toBeDisabled` here is now
+  // "pressing Save keeps the modal open and writes nothing"; the red appears
+  // once a field is LEFT, which `check` does by moving focus to the heading.
   await openBudgetTab(page)
   await page.getByRole('button', { name: 'Add New Budget' }).click()
   const modal = dialog(page, 'Create A Budget')
   const save = modal.getByRole('button', { name: 'Save Budget' })
-  await expect(save).toBeDisabled()
+  await expect(save).toBeEnabled()
+  const blocked = async (what: string) => {
+    await save.click()
+    await expect(modal, `${what}: Save wrote nothing`).toBeVisible()
+    await expect(budgetCards(page), `${what}: no card added`).toHaveCount(BUDGETS.length)
+  }
 
   await fillForm(modal, {
     name: VALID.name,
@@ -399,10 +409,10 @@ test('the form validates in the browser: Save stays disabled and the offending f
   const invalid = (field: string) => modal.getByLabel(field)
   const check = async (field: string, bad: string, good: string) => {
     await invalid(field).fill(bad)
-    await expect(save, `${field}=${bad}`).toBeDisabled()
+    await modal.getByRole('heading').click()
     await expect(invalid(field), `${field}=${bad}`).toHaveAttribute('aria-invalid', 'true')
+    await blocked(`${field}=${bad}`)
     await invalid(field).fill(good)
-    await expect(save).toBeEnabled()
     await expect(invalid(field)).not.toHaveAttribute('aria-invalid', 'true')
   }
   await check('Name', '', VALID.name)
@@ -413,8 +423,8 @@ test('the form validates in the browser: Save stays disabled and the offending f
 
   // No category.
   await fillForm(modal, { categories: [] })
-  await expect(save).toBeDisabled()
   await expect(modal.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-invalid', 'true')
+  await blocked('no category')
 })
 
 test('the open modal covers the FAB (A9) — z-index 100 against 3, and the hit-test agrees', async ({

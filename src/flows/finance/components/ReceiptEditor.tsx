@@ -2,6 +2,7 @@ import { Field } from '@monarch/design-system'
 import type { ReceiptEdit } from '../../../accounts/AccountsProvider'
 import { receiptTotalRead } from '../../../data/derive'
 import type { Receipt } from '../../../data/types'
+import type { useTouchedValidation } from '../useTouchedValidation'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -94,20 +95,34 @@ export function draftFrom(receipt: Receipt): EditorDraft {
 /** `2` decimals at most, and a real positive number. */
 const TOTAL_PATTERN = /^\d+(\.\d{1,2})?$/
 
+/** Which of the four controls is invalid, each on its own terms. */
+export type EditorDraftErrors = Record<keyof EditorDraft, boolean>
+
 /**
- * Whether the draft could be saved — every field valid, on its own terms.
+ * ONE DEFINITION, READ TWICE — Gate 71-B. The fields' red (through
+ * `useTouchedValidation`) and whether Save may write (`isValid`, and the hook's
+ * `attempt()`) both come from here, so they cannot disagree. Until Gate 71-B the
+ * fields restated these checks inline beside a separate `isValid`.
  *
  * THE TOTAL IS CHECKED AS TEXT AND NOT AS `Number(...)`, because `Number`
  * accepts `1e3`, ` 12 ` and `0x10`, and a receipt total is none of those. The
  * pattern also enforces the two-decimal rule, which a numeric check could not.
+ *
+ * `<input type="date">` and `type="time"` yield either a well-formed value or an
+ * empty string, so a length check is the whole of their validity.
  */
+export function receiptDraftErrors(draft: EditorDraft): EditorDraftErrors {
+  return {
+    merchant: draft.merchant.trim().length === 0,
+    date: draft.date.length === 0,
+    time: draft.time.length === 0,
+    total: !TOTAL_PATTERN.test(draft.total.trim()) || Number(draft.total) <= 0,
+  }
+}
+
+/** Whether the draft could be saved — every field valid. */
 export function isValid(draft: EditorDraft): boolean {
-  if (draft.merchant.trim().length === 0) return false
-  // `<input type="date">` and `type="time"` yield either a well-formed value or
-  // an empty string, so a length check is the whole of their validity.
-  if (draft.date.length === 0 || draft.time.length === 0) return false
-  if (!TOTAL_PATTERN.test(draft.total.trim())) return false
-  return Number(draft.total) > 0
+  return !Object.values(receiptDraftErrors(draft)).some(Boolean)
 }
 
 /**
@@ -139,14 +154,20 @@ export interface ReceiptEditorProps {
    */
   draft: EditorDraft
   onChange: (draft: EditorDraft) => void
+  /**
+   * THE HOST'S `useTouchedValidation`, for the same reason the draft is lifted:
+   * the Save that makes an ATTEMPT is in the host's footer, so the attempt
+   * state must live where Save does. This component only renders it.
+   */
+  validation: Pick<ReturnType<typeof useTouchedValidation<keyof EditorDraft>>, 'formRef' | 'onBlur' | 'isShown'>
 }
 
-export function ReceiptEditor({ receipt, draft, onChange }: ReceiptEditorProps) {
+export function ReceiptEditor({ receipt, draft, onChange, validation }: ReceiptEditorProps) {
   const set = <K extends keyof EditorDraft>(key: K) => (value: string) =>
     onChange({ ...draft, [key]: value })
 
   return (
-    <div className="mvp-receipt-editor">
+    <div ref={validation.formRef} className="mvp-receipt-editor" onBlur={validation.onBlur}>
       {/*
         THE FILE NAME, SO THE USER KNOWS WHICH CAPTURE THEY ARE CORRECTING. The
         editor fills the viewer, so the image is off screen while it is open —
@@ -156,30 +177,33 @@ export function ReceiptEditor({ receipt, draft, onChange }: ReceiptEditorProps) 
 
       <Field
         label="Merchant"
+        name="merchant"
         value={draft.merchant}
         onChange={set('merchant')}
         ariaLabel="Merchant"
         sizing="fill"
         isRequired
-        isInvalid={draft.merchant.trim().length === 0}
+        isInvalid={validation.isShown('merchant')}
       />
       <Field
         label="Date"
         type="date"
+        name="date"
         value={draft.date}
         onChange={set('date')}
         ariaLabel="Date"
         sizing="fill"
-        isInvalid={draft.date.length === 0}
+        isInvalid={validation.isShown('date')}
       />
       <Field
         label="Time"
         type="time"
+        name="time"
         value={draft.time}
         onChange={set('time')}
         ariaLabel="Time"
         sizing="fill"
-        isInvalid={draft.time.length === 0}
+        isInvalid={validation.isShown('time')}
       />
       {/*
         THE LABEL CARRIES THE CURRENCY, NOT THE VALUE. `type="number"` will not
@@ -191,12 +215,13 @@ export function ReceiptEditor({ receipt, draft, onChange }: ReceiptEditorProps) 
       <Field
         label="Total (RM)"
         type="number"
+        name="total"
         value={draft.total}
         onChange={set('total')}
         ariaLabel="Total in ringgit"
         sizing="fill"
         isRequired
-        isInvalid={!TOTAL_PATTERN.test(draft.total.trim()) || Number(draft.total) <= 0}
+        isInvalid={validation.isShown('total')}
       />
     </div>
   )
@@ -205,10 +230,11 @@ export function ReceiptEditor({ receipt, draft, onChange }: ReceiptEditorProps) 
 /**
  * Whether the draft differs from what is stored.
  *
- * SAVE IS DISABLED UNTIL VALID **AND** CHANGED, and this is the second half. A
- * Save that is enabled on an untouched form invites a write that changes
- * nothing — and a write that changes nothing still replaces the record, which
- * re-renders every consumer of `receipts` for no reason.
+ * SAVE WRITES ONLY WHEN VALID **AND** CHANGED, and this is the second half.
+ * Since Gate 71-B Save is never disabled (decision 2C): an invalid draft is an
+ * ATTEMPT that reveals the red, and a valid but unchanged one returns to the
+ * viewer without writing — because a write that changes nothing still replaces
+ * the record, which re-renders every consumer of `receipts` for no reason.
  *
  * COMPARED AGAINST `draftFrom`, NOT AGAINST THE RECEIPT'S FIELDS. That function
  * is the one definition of "this receipt, as the editor's four strings", so this
@@ -218,7 +244,7 @@ export function ReceiptEditor({ receipt, draft, onChange }: ReceiptEditorProps) 
  *
  * THE KEYS ARE READ OFF THE VALUE RATHER THAN LISTED. A listed field someone
  * forgets to add is not a type error: it is a field that reports itself
- * unchanged forever, so Save stays disabled after the user edits it.
+ * unchanged forever, so Save silently discards the user's edit to it.
  */
 export function isChanged(receipt: Receipt, draft: EditorDraft): boolean {
   const original = draftFrom(receipt)
