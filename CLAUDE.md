@@ -11741,6 +11741,22 @@ with 0 skipped. "Exactly one test ran" is the `Running 1 test` line.
 - `npm audit fix`.
 - Branch deletion.
 
+## Flow 10 completion record (Gate 72)
+
+**FLOW 10 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-10-COMPLETION.md` AT THE REPO ROOT.** Read
+that file first, before any Flow 10 work and before a later flow touches budgets or a transaction's
+category. It covers the surfaces, the architecture with its reasons, the deviations from Figma with
+who ruled each, the three DS releases the flow needed, the seed figures and the known limits, every
+deferred item in where / problem / decision form, and the gate list across both repos. The
+per-gate sections above (Gates 67, 69, 71, 71-B) remain the evidence behind it. **Do not restate its
+content here.** If the two disagree, re-derive from disk, correct whichever is wrong, and say so.
+
+Gate 72 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every
+baseline is byte-identical. No DS re-pin: v2.6.0 applies throughout.
+
+**G44 is registered in gap-register §2q**: a focused `Field` shows its focus border over its invalid
+border (DS `Field.css`, specificity). Fix deferred to the DS round; never overridden from the app.
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

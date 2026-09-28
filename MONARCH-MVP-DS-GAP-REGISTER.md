@@ -2299,3 +2299,83 @@ change the tally.
 **The highest number is G43.** 24 is still a permanent hole.
 
 Nothing was removed from this register.
+
+## 2q. Status at MVP Gate 72 (2026-09-28) — Flow 10 closed; G44
+
+Additions only. The DS pin is unchanged at **v2.6.0**. Gate 72 wrote Flow 10's
+completion record (`FLOW-10-COMPLETION.md`) and changed no code. One entry is
+added.
+
+### G44 — OPENED: a focused `Field` hides its invalid state
+
+| | |
+|---|---|
+| **G44** | a `Field` that is both focused and invalid shows its error state, not only its focus state |
+| tag | **`shape-mismatch`** — the nearest tag; see below |
+| flow | 10 (found there; it reaches every `Field`) |
+
+**WHERE:** DS `src/components/Field/Field.css`. The focus rule at `:119`,
+`.mn-field:not(.mn-field--disabled):focus-within`, sets `border-color:
+var(--mapped-border-primary-default)`. The invalid rule at `:136`,
+`.mn-field--invalid`, sets `border-color: var(--mapped-border-error-default)`.
+The focus selector is specificity (0,3,0) — a class, a `:not()` of a class and a
+pseudo-class — against the invalid selector's (0,1,0), so the focus border wins
+whenever both match, whatever the source order. The outer glow ring at `:124`
+(`::after`) is the focus rule's too.
+
+**WHAT:** a field that is both focused and invalid paints the blue focus border
+and no error border. In the MVP it shows after a Save attempt on the empty
+Create A Budget form: the attempt focuses the first invalid field, so Name reads
+blue while the other four read red. The four `finance-budget-create-attempt-*`
+baselines record it (Gate 71-B). It happens wherever a focused `Field` is
+invalid, the receipt editor included.
+
+**ACCESSIBILITY: unaffected.** `aria-invalid` is set on all five fields, so a
+screen reader announces the invalid state; only the visual state is hidden.
+
+**WHY `shape-mismatch` AND NOT `prop-gap`.** No prop is missing: `isInvalid`
+exists and is passed. The defect is in the component's own rules, a rendering
+state it resolves wrongly, which is the shape of G42 (also a CSS rule
+outranking what the component meant, also filed `shape-mismatch` as the nearest
+tag). It is not a `token-gap` — both tokens exist and are correct — and not a
+`component-gap`.
+
+**DECISION (Claude, delegated by Teku, 28 Sept 2026): fix deferred to the DS round.**
+Target: a focused, invalid `Field` shows the error border **and** keeps the
+outer focus ring, so both focus and error stay visible — the Material and
+Carbon practice. The ring's colour in that state is a Figma variant for Teku to
+draw at that round. **Never overridden from the app** (rule 3): the
+`create-attempt` baselines are the tripwire, and a DS fix moves exactly those
+four.
+
+### Two notes on 2p, added here because 2p is left as written
+
+- **2p's "Not gaps" note on the dark date glyph is RESOLVED.** Gate 71-B
+  declared `color-scheme` on `<html>`, keyed to `data-theme`, so native date and
+  time picker glyphs now draw for the active theme. It was never a gap and
+  still is not one.
+- **2p's heading date should read 2026-09-28, not 2026-09-25.** 2026-09-28 is
+  the commit date of `8491c47` (`mvp-gate71`), by `git log`.
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**43 entries, 22 closed, 21 open.** Against 2p:
+
+- one opened: G44 (42 + 1 = **43**);
+- none moved to closed (22 + 0 = **22**);
+- so 43 − 22 = **21** remain open.
+
+| tag | total | closed | **open** |
+|---|---|---|---|
+| `component-gap` | 7 | 7 | **0** |
+| `prop-gap` | 28 | 11 | **17** — unchanged from 2p |
+| `shape-mismatch` | 5 + 1 = 6 | 3 (G18, G39, G42) | **3** — G20, G28, G44 |
+| `token-gap` | 2 | 1 | **1** — G30 |
+| | **43** | **22** | **21** |
+
+Check: 7 + 28 + 6 + 2 = 43 total; 7 + 11 + 3 + 1 = 22 closed; 0 + 17 + 3 + 1 =
+21 open.
+
+**The highest number is G44.** 24 is still a permanent hole.
+
+Nothing was removed from this register.
