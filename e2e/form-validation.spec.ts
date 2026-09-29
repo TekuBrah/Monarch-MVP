@@ -143,8 +143,11 @@ test('a valid Save still creates the budget', async ({ page }) => {
   const modal = await openCreate(page)
   await modal.getByLabel('Name').fill('Weekend')
   await modal.getByRole('combobox', { name: 'Category' }).click()
-  await modal.getByRole('option', { name: 'Groceries' }).click()
-  await leave(modal)
+  // Gate 74-B: the picker is a VIEW, and it retitles the one dialog, so the
+  // 'Create A Budget' locator stops matching while it is open.
+  const picker = page.getByRole('dialog', { name: 'Select category' })
+  await picker.getByRole('option', { name: 'Groceries' }).click()
+  await picker.getByRole('button', { name: 'Add 1 Category' }).click()
   await modal.getByLabel('Amount (RM)').fill('250.00')
   await modal.getByLabel('Date (From)').fill('2025-09-01')
   await modal.getByLabel('Date (To)').fill('2025-09-10')

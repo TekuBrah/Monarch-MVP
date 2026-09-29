@@ -11757,6 +11757,488 @@ baseline is byte-identical. No DS re-pin: v2.6.0 applies throughout.
 **G44 is registered in gap-register §2q**: a focused `Field` shows its focus border over its invalid
 border (DS `Field.css`, specificity). Fix deferred to the DS round; never overridden from the app.
 
+## The DS v2.8.0 re-pin, and both pickers rebuilt (Gate 74-B)
+
+The pin moved `v2.6.0` (`64873993c7f825e45cf6d3b9779545e5c4d453a8`) ->
+**`v2.8.0`** (`b5b7b2975e5eef14257abd86c5ba34f20c70f949`, annotated tag object
+`d74a26deaf732edfff6d2840dc48ea98b890b81a`). **|WALK| 51 -> 52,
+`OVERLAY_STATES` 28 -> 29, baselines 204 -> 208 (96 changed, 4 added, 0
+deleted), tests 635 -> 643 in 27 spec files.** No file was deleted from `src/`.
+
+**THERE IS NO `mvp-gate73` AND NO `mvp-gate74`.** DS Gate 73 was DS-only, and
+**MVP Gate 74 STOPPED without committing** — see below. So this gate crosses
+TWO DS releases, v2.7.0 and v2.8.0, in one step.
+
+### v2.7.0 IS SKIPPED IN THE RECORD, AND THE PARKED DOCUMENTS ARE ITS EVIDENCE
+
+Teku's ruling, Decision 1 = A, 29 Sept 2026. **The MVP never shipped against
+v2.7.0 in any commit**, so writing it up as a step this repo passed through
+would record a state that never existed on `main`.
+
+Gate 74's documents survive at **`D:\Claude\_handoffs\gate74-parked\`**
+(`CLAUDE.md` 762,375 bytes, `MONARCH-MVP-DS-GAP-REGISTER.md` 159,099 bytes).
+They are the surviving account of the v2.7.0 half — its measurements, its
+prediction and its stop. **Nothing was copied from them into this repo**,
+except the Flow 11 rulings reproduced below, which are Teku's product decisions
+and are not superseded by anything v2.8.0 did.
+
+### WHY THE PATTERN EXISTS: Gate 74 stopped on a flake the dropdown caused
+
+**GATE 74 RE-PINNED TO v2.7.0, MINTED FOUR `create-category` BASELINES, AND
+THEN FAILED TWO OF THEM ON ITS OWN FIRST CLEAN RUN.** v2.7.0 gave `Select` a
+self-close path — on a window `scroll` or `resize`, or any render while open,
+it re-measures its trigger and closes when that trigger is out of view — and
+the state's render turned out to be bimodal across browser processes, with the
+menu drawn in roughly eleven processes of twelve and absent in the twelfth. The
+stop was correct: a freshly minted baseline that fails on the next run is not
+something to re-mint.
+
+**THAT IS THE DIRECT CAUSE OF THE v2.8.0 PATTERN THIS GATE ADOPTS.** A dropdown
+inside an overlay is a floating panel whose visibility depends on measurement;
+a selection VIEW is not. With the dropdown gone there is no open `Select` menu
+anywhere in `src/` — both pickers pin `isOpen={false}` — so the mechanism that
+produced the flake cannot arise here at all.
+
+### The re-pin was measured ALONE, and it moved 96 baselines
+
+Run before any `src/` change: **527 passed / 108 failed, 28.4 min.** The 108
+decompose exactly:
+
+| | count | what |
+|---|---|---|
+| visual | **96** | 24 overlay states x 2 viewports x 2 themes |
+| `link-editor` | **12** | NOT a regression — see the deleted-class note below |
+
+**THE 96 ARE THE OVERLAY HEADER, AND THE MECHANISM IS ONE COMPONENT.** v2.8.0
+gives `Modal` and `Sheet` a single shared `OverlayHeader`, which changes two
+things on every overlay this app draws:
+
+- **the close glyph is NEUTRAL, not blue.** Both overlays previously drew it as
+  a tertiary `IconButton`, which resolves to the primary blue; `OverlayHeader`
+  binds `--mapped-icon-default-default`. Blue is now reserved for controls that
+  change data — the filter sheet's `Reset`, which still comes through the
+  `trailing` slot as the consumer's own `Button` and is still blue.
+- **every `Sheet` title is CENTRED**, where `Sheet` previously left-aligned it.
+  `Modal` already centred.
+
+**THE CENTRING IS ARITHMETIC, NOT A BALANCE.** `OverlayHeader` is a grid whose
+two side tracks are a FIXED, IDENTICAL width, so an absent icon still occupies
+its slot and the title's centre is the header's centre in all four icon
+combinations and at every title length. The rejected alternative — `1fr auto
+1fr`, which is what `Modal` shipped before — falls back to min-content per
+track as soon as one side's content is wider, so the title drifts off centre
+exactly when a long title makes it most visible. Teku flagged the reserved
+empty slot as very important; it is the DS's own mechanism, and it was
+confirmed by looking at the minted images rather than by reading the prop.
+
+**THE FOUR STATES THAT DID NOT MOVE ARE THE CONFIRM-BRANCH ONES.** `toast`,
+`applied`, `deleted` and `add-unread` all declare `confirm`, so no dialog is
+open at capture and no overlay header renders. **`add-unread` was predicted to
+move and did not** — it was misclassified as a Modal state on the strength of
+the modal it opens, rather than on what is on screen when the shutter falls.
+
+#### The 12 `link-editor` failures were a DELETED DS CLASS, and the sweep that found them was botched first
+
+`OverlayHeader` replaces four `Modal` classes and four `Sheet` ones, and they
+are DELETED rather than left as dead weight — `Sheet.css` records why: at equal
+specificity `.mn-sheet__header`'s `display: flex` would have overridden the
+grid that holds the title centred.
+
+Seven spec locators reached two of them. **The first sweep for those references
+piped `grep` through a greedy `sed` that rewrote every hit to `-> mn-btn`, so
+it reported the right seven LINES under the wrong seven NAMES.** Two were then
+fixed from a failure message rather than from the sweep, the suite was started,
+and the other five surfaced 12 minutes in. **A summarising filter that can
+destroy the answer is worse than no filter** — this repo has recorded that
+lesson twice already (the Gate A outlier, the Gate 39 token audit), and this is
+its third instance.
+
+The honest derivation, which is the one to reuse:
+
+```bash
+git diff v2.6.0 v2.8.0 -- src/components/Modal/Modal.css src/components/Sheet/Sheet.css | grep -E "^-\.mn-" | sed 's/^-//;s/[ ,{].*//' | sort -u
+```
+
+| deleted class | live references | replaced by |
+|---|---|---|
+| `.mn-modal__title-group` | `link-editor.spec.ts` x2 | `.mn-overlay-header__title-group` |
+| `.mn-modal__header-side--end` | `link-editor.spec.ts` x5 | `.mn-overlay-header__side--end .mn-overlay-header__control` |
+| the other seven | none | — |
+
+**THE CLOSE CONTROL IS NO LONGER A `.mn-btn`.** `OverlayHeader` draws it as a
+plain `<button class="mn-overlay-header__control">`, deliberately: `ButtonVariant`
+is `primary | secondary | tertiary` and none of the three is neutral, so
+reusing `IconButton` could not satisfy the neutral-icon ruling without adding a
+variant Figma does not model. A locator that assumed `.mn-btn` there is
+therefore wrong in kind, not merely renamed.
+
+The three remaining `mn-modal__*` / `mn-sheet__*` hits in `harness.ts` are
+PROSE, not selectors. `ReceiptViewer.tsx`'s G32 comment named a deleted class
+and was corrected in place.
+
+### The pattern, and the fact that it applies to TWO SURFACES ONLY
+
+A dropdown inside a modal or bottom sheet becomes a dedicated selection view:
+the overlay's own content area turns into the picker, the title becomes the
+task, back sits at the left, close at the right, and there are option rows and
+nothing else. No inner container, no second shadow, no floating menu. Back
+returns to the form; close dismisses the whole overlay.
+
+**IT IS APPLIED HERE TO THE BUDGET CATEGORY PICKER AND THE MERCHANT PICKER, AND
+TO NOTHING ELSE.** Every other surface in this app still uses the patterns it
+was built with. That is deliberate and is not a half-finished migration: a
+retro-fit sweep is its own designated session, and doing it piecemeal inside a
+re-pin gate would make the re-pin's baseline attribution unreadable.
+
+### The merchant picker — UI-1 closed
+
+It was `Menu` + `MenuItem` rows, each carrying a hand-supplied checkbox glyph
+through `iconSlot`, inside a `.mn-menu` panel painting its own background,
+radius and two-layer shadow, inset 16px from the sheet's sides, with the
+selected row's tint stopping short of both edges. That is deferred item UI-1: a
+panel inside a panel.
+
+It is now a DS `OptionList` in `selectionMode="multiple"`, with
+`Sheet contentPadding="none"` releasing the content region's 16px SIDES only —
+the bottom affordance padding and the headerless top inset are untouched, so
+nothing vertical moves. `OptionList` declares no background, no radius, no
+padding and no shadow; it REPLACES `Menu` in that position rather than wrapping
+it. The local `boxGlyph` helper went with it, because `OptionList` supplies the
+checkbox itself.
+
+**THE HAND-ROLLED BACK BUTTON IS GONE.** It was a bare `<button>` with an
+`aria-label`, written that way because `ButtonProps` exposes no `ariaLabel` and
+an icon-only DS `Button` would have had no accessible name at all.
+`Sheet.onBack` is now a real control in the leading slot, flush left, and
+`.mvp-txn-filter__back` and `.mvp-txn-filter__merchants` are both deleted from
+`finance.css`.
+
+**G22 IS GONE FROM THIS APP AND STILL OPEN AGAINST `Menu`.** Measured live on
+the rebuilt picker: `<div role="listbox" class="mn-option-list"
+aria-multiselectable="true" aria-label="Select merchant">`. `Menu` itself is
+unchanged in v2.8.0 and still emits no `aria-multiselectable`.
+
+#### IT GETS NO FOOTER, AND THAT IS THE ONE PLACE THE PATTERN DID NOT TRANSFER
+
+The pattern says a multi-select picker confirms through a footer reading verb
+plus count, disabled at zero. **This picker is genuinely multi-select and it
+still commits on tap, with the back control as the only return.** The reason is
+its zero state:
+
+- `payees` is `string[] | null`, and **`null` is ABSENT while `[]` would mean
+  "match nothing"**. `toggleIn` has always collapsed an emptied list back to
+  `null`, so `[]` is unreachable through this UI by design.
+- So "nothing selected" is not a state — it is **"All merchants"**, which is a
+  real, always-present row and the facet's default. A footer disabled at zero
+  would disable the control in the state the user most often wants to commit,
+  and there is no honest count to print for it: "Apply 0 Merchants" is wrong
+  and "Apply 1 Merchant" for the clear row is wronger.
+- The sheet also already has exactly one primary action, `Apply Filter · N
+  results`. A second commit control inside the picker would let the user commit
+  from a screen that is not showing them what they are committing — an argument
+  this file has carried since Gate 43.
+
+**THE SELECTION HANDED TO `OptionList` IS THEREFORE NEVER EMPTY**, and
+`applyMerchantSelection` derives the user's intent by comparing the reported
+selection against what is in force, because `OptionList` reports the whole new
+array rather than which row was tapped. Four cases, each preserving the
+`Menu` composition's behaviour exactly: tapping "All merchants" clears; tapping
+it when it is already in force leaves it cleared (it is a clear, not a toggle);
+tapping a merchant while cleared selects just that one; tapping the last
+merchant off returns to cleared. Order stays TAP order, because `OptionList`
+appends exactly as `toggleIn` did.
+
+**THIS IS FLAGGED FOR TEKU RATHER THAN SETTLED.** If the footer is wanted here,
+the "All merchants" row has to go and the cleared state needs some other
+expression — which is a change to what the facet means, not a change of
+control.
+
+### The category picker — a view, and a footer that fits
+
+`BudgetFormModal` gains a `view` state, the shape `TransactionFilterSheet` has
+had since Gate 43. In the picker view the modal retitles to "Select category",
+`onBack` returns to the form, `onClose` still dismisses everything, and the
+footer becomes one primary button.
+
+**"Add N Categories", DISABLED AT ZERO, AND HERE THAT IS HONEST.** The verb
+follows the destination — these go back INTO a form field, so "Add" rather than
+"Apply" — and zero is a genuinely invalid budget, because `budgetDraftErrors`
+requires at least one category. The label is pluralised from the count, and a
+zero-count button still renders its label: a disabled button with no words
+explains nothing.
+
+**THE PICKER HOLDS A DRAFT, AND THE FOOTER IS WHAT MAKES THAT NECESSARY.**
+`pickerDraft` is seeded from the form when the view opens and reaches
+`draft.categories` only through the footer, so Back discards. Without it, Back
+would silently keep whatever had been tapped — which is what a commit button
+promises it will not do.
+
+**THE CAPTURE-PHASE `pointerdown` LISTENER IS GONE.** It existed only because
+`Select` has no outside-press handling of its own and the open menu would
+otherwise have sat over the Amount and date fields. There is no floating panel
+to dismiss any more.
+
+#### One behaviour genuinely changed: the category list can no longer be emptied
+
+Under the dropdown a user could untick every category and leave the form in its
+invalid empty state until Save was pressed. The footer is disabled at zero, so
+an empty selection can no longer be COMMITTED at all — the only way out of that
+state is Back, which discards.
+
+**THAT IS THE RULE WORKING, NOT A REGRESSION, AND IT COST A TEST ITS SHAPE.**
+`budget-writers.spec.ts` reached the invalid empty state through
+`fillForm(modal, { categories: [] })`, which now waits on a disabled button. It
+asserts the GUARANTEE instead: untick everything, confirm "Add 0 Categories" is
+disabled, press Back, confirm the form kept what it had. The empty-form case is
+still covered — `form-validation.spec.ts` asserts Category among the five
+fields a Save on a pristine form reveals. `fillForm` now throws a named error
+on a zero-length selection rather than hanging for the full timeout.
+
+#### THE DIALOG'S ACCESSIBLE NAME CHANGES MID-INTERACTION, AND IT BREAKS LOCATORS
+
+**READ THIS BEFORE WRITING A SPEC AGAINST EITHER PICKER.** One dialog, two
+titles: `getByRole('dialog', { name: 'Create A Budget' })` stops matching the
+moment the picker opens, because the Modal is now named "Select category". It
+is the same DOM node, renamed.
+
+Both specs re-acquire it — `page.getByRole('dialog', { name: 'Select category'
+})`, or `modal.page()...` inside a helper that only has the locator. The
+harness expresses the same fact through the Gate 50-A field: `create-category`
+declares `dialogs: ['Select category']` while its `title` stays "Create A
+Budget", which is exactly the opens-versus-at-capture split that pair exists
+for.
+
+### The merchant picker had NO coverage at all, and now has a walk state
+
+**BEFORE THIS GATE NOTHING IN THE SUITE REACHED THE MERCHANT PICKER VIEW** — no
+walk state photographed it and no spec drove it. Derived rather than assumed:
+zero `id: 'merchant'` in `harness.ts`, and zero files under `e2e/` matching
+"Select merchant" or "All merchants". So the very defect UI-1 names was
+invisible to the net in both directions, and fixing it would have shipped
+unphotographed.
+
+`/finance [tab:transactions] [overlay:merchant]` closes that. It opens the
+filter sheet, pushes to the picker and ticks two merchants, so the capture
+carries two rows selected at once — which is what proves the facet is genuinely
+multi-select and therefore that the listbox must announce
+`aria-multiselectable`.
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE EIGHTH TIME**: one added walk
+state cost **4 baseline files and 8 tests** — visual +4, routes +2,
+section-headers +2 — taking the suite to 208 and 643. Confirmed three ways: the
+anchored `awk` / `grep -c "^    overlay: {"` returns **29**; 16 + 7 + 29 = 52;
+and `section-headers.spec.ts`'s own log prints `52 walk state(s) = 16 route
+state(s) + 7 non-default tab state(s) over 2 tabbed screen(s) + 29 overlay
+state(s)`.
+
+**ITS FIRST SETTLE ASSERTION WAS WRONG AND THE HARNESS SAID SO PRECISELY.** It
+declared `settlesText: 'All merchants'` against the whole listbox, which reads
+all twenty-one labels concatenated. The failure printed the received string in
+full, which is also how the twenty-payee list and the live
+`aria-multiselectable="true"` were confirmed. The settle now names one row.
+
+### Baselines — predicted in writing, and exact
+
+Prediction B was written to a scratch file outside the repo before the first
+full run: **96 changed, 4 added, 0 deleted**, with 100 visual failures and zero
+spec failures expected.
+
+**THE PRE-MINT RUN MATCHED IT EXACTLY: 100 failed / 543 passed, 23.6 min** — 96
+pixel diffs plus 4 "snapshot doesn't exist", with **nothing failing outside
+`visual.spec.ts`**. It wrote nothing: re-hashed at the failure point, the
+manifest digest was still `9de8dfd4…`, with zero "writing actual" lines and
+zero untracked files in the snapshot directory. `updateSnapshots: 'none'`
+honoured.
+
+### The verification gate
+
+The mint reported **643 passed, 20.5 min**, writing **100 distinct files** —
+the 96 modified and the 4 new. **That run is not the verification**: it
+overwrites the files it compares against. Reconciled against the manifest
+taken outside the repo before the first change: **204 -> 208, 96 changed, 4
+added, 0 deleted, 108 byte-identical.**
+
+| | Gate 72 | here |
+|---|---|---|
+| entry chunk | 5,834,892 | **5,839,710** (+4,818) |
+| CSS | 183,110 | **185,120** (+2,010) |
+| `modulepreload` | 0 | **0** |
+| `lint:tokens` | 77 files, 4 exemptions | **77 files, 4 exemptions** |
+
+**THE OCR LAZY CHUNKS ARE BYTE-IDENTICAL** — read 1,092, recognise 4,368,
+parseReceipt 13,481, diagnose 2,866, rasterise 910 — so nothing this gate did
+reached the OCR path. `npx tsc -b --force`, `lint:tokens` and `lint:linkage`
+all pass, `lint:linkage` with all four sources on v2.8.0.
+
+**THE MODAL HEADER MEASURES 64, WHICH IS FIGMA’S NUMBER.** Measured through a
+temporary probe spec (deleted afterwards) at the pinned viewport: the header
+box is 375 x **64**, its trailing track a fixed 32px at x=327..359. G28
+recorded the OLD header at **74**, so the header half of that shape-mismatch
+is closed by construction — **but G28 also covers the FOOTER, which is
+untouched, so the entry is NOT closed** and was not marked so.
+
+**ONE THING THAT LOOKED LIKE A DEFECT IN THE MINTED IMAGE AND IS NOT.** In
+`finance-transactions-filter-*` the sheet’s "Reset" sits hard against the
+right edge and reads as clipped at display scale. Measured, it is not: the
+trailing track is a fixed 32px at x=327..359 and the 49.3px `Reset` button
+OVERFLOWS IT LEFTWARD to x=309.7, with its right edge at exactly 359 =
+375 − 16, which is the gutter. Nothing is cut. The latent risk is real but
+unreached: a wide `headerAction` overflows toward a title track that is
+`minmax(0, 1fr)`, and today the clearance is 48.6px.
+
+Three mutation proofs, each targeted by its regex-escaped title anchored with
+`$`, each running EXACTLY ONE test, failing on an ASSERTION, restored
+SHA-identical and re-run green: the zero-category footer being disabled; the
+footer being what commits the picker draft; and `contentPadding="none"` being
+what makes the merchant rows full-bleed. **`^` ANCHORING DOES NOT WORK HERE**
+— Playwright greps the FULL title, which is prefixed by the project and the
+file (`[chromium] > budget-writers.spec.ts:398:1 > ...`), so a leading `^`
+matches nothing and the driver reports "No tests found" rather than a proof.
+Anchor the END only.
+**THREE CLEAN RUNS: 642 passed / 1 failed each**, 20.6 / 20.1 / 19.6 min, with
+all 208 baselines byte-identical across all three (manifest digest
+`ce99c20e…` after every run).
+
+**THE ONE FAILURE IS ARM 1 OF THE BASELINE GUARD, AND IT IS CORRECT.** The
+four new `finance-transactions-merchant-*` files are untracked, so "every
+baseline on disk is tracked by git" fails — the same test, every run. Arm 2
+stays green because nothing was renamed or deleted (the Gate α correction),
+and arm 3 stays green because every file on disk is a name the walk asks for.
+Staging is Teku’s. Do not read it as a regression and do not relax the guard.
+
+### Deliberately not in scope
+
+- **the retro-fit sweep** — every surface other than the two pickers keeps its
+  existing patterns, by design;
+- **closing G32** by moving `ReceiptViewer`'s back control into `Modal.onBack`.
+  The slot now exists, so it is a one-prop change, and it MOVES PIXELS on every
+  `view-*` baseline — which is why it is not a drive-by;
+- **G33's workaround.** `.mn-modal__card` still declares no `max-height`, so
+  the removal condition on `.mvp-receipt-viewer-modal` is unmet and both rules
+  stay;
+- adopting `tone="ai"`, `golf_course`, the square `IconObject`, or the new
+  `CardDataDisplay` / `SelectTransfer` props;
+- any Flow 11 screen, model or seed — the Plans tab is still `ComingSoon`;
+- persistence (NP1, now timed by Flow 11 Decision 1 below);
+- `npm audit fix` — still the one pre-existing `js-yaml` finding;
+- the DS repo, and branch deletion.
+
+## The Flow 11 rulings, carried forward from Gate 74
+
+**THESE ARE TEKU'S PRODUCT DECISIONS AND v2.8.0 DID NOT TOUCH THEM.** They are
+reproduced here because Gate 74 stopped before committing and its copy is
+parked outside the repo — and because rulings that lived only in a review
+thread have gone missing before; Gate 72 found three. **Nothing below is
+built.** The Plans tab is still `ComingSoon`.
+
+### Decision 1 = B — persistence comes straight after Flow 11
+
+*Claude, delegated by Teku, 28 Sept 2026.* The order is: Flow 11; the data
+lineage map (`MONARCH-MVP-DATA-LINEAGE.md`); persistence and the settings
+modal; transaction recategorisation; then Flows 4, 5, 6, 2, 3 and 12. From
+persistence on, a flow gate's definition of done includes saving its own
+records and updating the lineage map.
+
+**THIS SUPERSEDES THE "AFTER ALL FLOWS" TIMING IN NP1** (Gate 67's section).
+NP1's wording is left as written; this is where its timing changed. The
+rationale is that each feature ships as a complete vertical slice rather than
+one risky integration at the end, and with no real users a change to the saved
+shape bumps a version and resets to the seeds.
+
+### The undesigned-work ruling
+
+*Teku, 21 Sept 2026.* **What Teku designed in Figma is followed exactly. What
+he did not design follows Claude's judgement.** `FLOW-10-COMPLETION.md` cites
+this twice (`:237` and `:410`) and its text was not on disk until Gate 74.
+
+### The MVP scope rule
+
+*Teku, 28 Sept 2026.*
+
+- Everything drawn in the 12 inventoried flows is MVP.
+- A feature with no drawn flow is not — adding a fiat account, for example.
+- An undrawn action inside a scoped flow is built when another flow reads the
+  data it writes. Otherwise it renders as drawn and shows a "Coming soon."
+  toast.
+
+### The Flow 11 plan — *review thread, 28 Sept 2026*
+
+**The money model.** Every money movement is one ledger entry from one account
+to another, and every balance, total and progress figure is derived. An account
+has an id, a kind (cash, goal, later others), an opening balance and the date
+that balance applies from; its balance is that opening balance plus the entries
+after that date, so the existing ledger rows — already included in the opening
+balances — are not counted twice. A ledger entry gains its account, a
+counterparty (another account or an external payee) and a kind, payment or
+transfer. **Budgets count payments only; transfers are excluded BY KIND, never
+by category.** Every user action writes exactly one record type: a Top-Up writes
+one ledger entry, Add a Goal writes one goal whose account comes with it.
+
+**Goals.** A goal's saved amount is its account's balance. Bali opens at
+RM 3,840 and the four drawn contributions are seeded transfers: 3,840 + 1,200 =
+5,040. Recent Contributions are the entries into the goal's account. Goal
+percent uses `Math.floor`, the budget rule; 56% and 92% are exact.
+
+**Net worth** stays the sum of its cards (`derive.ts` `netWorth`). A new Savings
+Goals holding card sums all goal accounts, on the Joint Account precedent of an
+undrawn card (*Claude, delegated: 6N*). A Top-Up moves money between two cards
+and leaves the total unchanged. The seed raises the Overview total by
+RM 16,080 (5,040 + 11,040).
+
+**Top-Up** (*Teku: debit the source account; Claude designed the screen*). A
+modal with Amount (RM) and From. From is a dropdown of the existing fiat
+accounts (Main, Joint Account), defaulting to the goal's funding account. The
+amount cannot exceed that account's balance. There is no add-account option.
+
+**Writers built** (*Claude, delegated: 1B*): Add a Goal; the auto-save toggle
+and amount, stored with no scheduled behaviour (Academy's "Set Up Auto-Save
+Goal — 3 of 6" reads it later); Top-Up; Edit goal and Delete goal; See All
+contributions. The goal forms follow Flow 10's Edit and Delete pattern. These
+show a "Coming soon." toast instead: Add and Edit Commitment, Set Reminder,
+View Promotion, Remind Me Later, and the image pencil.
+
+**Commitments** (*Claude, delegated: 4I*). Seeded, read-only, with no link to
+the ledger. Figma draws seven, not the inventory's five. Their amounts disagree
+with the ledger's Netflix, Anytime Fitness, U Mobile and Celcom rows; that is
+accepted until merchant rules can link a bill to its charges.
+
+**The Internet deal** (*Teku: 3H*). The suggested price is RM 69, matching the
+promo artwork, so the saving is 120 − 69 = RM 51/month and 51 × 12 =
+RM 612/year. **The saving is derived from the two prices, never typed.**
+
+**Images** (*Claude, delegated: 5L*). Stored as a reference string, never a
+`blob:`. Seeded goals use Figma's photos; a new goal gets one default image. A
+photo picker belongs with persistence's image storage.
+
+**Dates.** Goal target dates and contribution dates are typed data in
+`YYYY-MM-DD`, exempt from B5 like budget dates. A commitment's "next on" date is
+derived from its payment day.
+
+**Routes** (*Claude*). The Plans tab stays in-screen state (B7). Goal detail is
+`/finance/plans/goals/:goalId`; commitment detail is
+`/finance/plans/commitments/:commitmentId`. Both get explicit `chrome.ts` prefix
+entries, and Back uses `{ financeTab: 'plans' }`. Add a Goal, Top-Up, the smart
+insight and education are modals; education over the smart insight is a
+two-stack state. The smart insight opens from both drawn entry points. Finance
+keeps five tabs — Figma's four predates Receipts.
+
+**State** (*Claude*). A new app-level `PlansProvider` holds goals, commitments
+and offers as records only; derivations live in `derive.ts` (B8). The ledger and
+the accounts stay in `AccountsProvider`, which becomes a reducer when the Top-Up
+writer lands — its own header already anticipates this.
+
+**Harness coverage** (*Claude*). The walk covers 2 goals, 2 commitments
+(Internet, which carries the banner, and one without) and the overlays — not all
+seven commitments.
+
+**Suite time** (*Claude*). Three clean runs stay the standard even when they
+pass an hour. Nothing on disk caps it.
+
+**The Flow 11 gate plan.** 75 — the model, the seed, the Plans tab and the
+Savings Goals card; 76 — goal detail and See All; 77 — commitment detail, the
+smart insight and education; 78 — the goal writers; 79 — the completion record.
+**Gate 74's own row, "the re-pin and the records", is discharged by this gate.**
+
 ## Known conditions of this setup
 
 Everything below was established and verified during Phase 4. None of it is

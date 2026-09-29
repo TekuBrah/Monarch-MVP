@@ -99,12 +99,19 @@ import { TransactionPicker } from './TransactionPicker'
  * back affordance gives — so there is one rule ("leaving without Save discards")
  * rather than two behaviours depending on how you left.
  *
- * THE BACK AFFORDANCE SHIPS VISIBLY SHORT — register **G32**. `Modal` renders
- * `headerIconLeft` INSIDE the centred title group (`Modal.tsx:114-117`), and
- * its leading `mn-modal__header-side` span is `aria-hidden` with no children
- * (`:113`). So a back control lands beside the centred title rather than flush
- * left. NOT overridden with an MVP rule that moves it — that would be writing
- * over DS geometry, which this project does not do.
+ * THE BACK AFFORDANCE STILL SHIPS VISIBLY SHORT — register **G32** — BUT THE
+ * REASON CHANGED AT DS v2.8.0, so do not re-derive it from the old one. This
+ * viewer passes its back control through `headerIconLeft`, which `Modal` now
+ * maps to `OverlayHeader.titleLeading` — still INSIDE the centred title group.
+ * The classes the old note named (`.mn-modal__header-side`) no longer exist.
+ *
+ * WHAT IS NEW IS THAT A FLUSH-LEFT SLOT NOW EXISTS: `Modal.onBack` renders a
+ * real back control in the leading track. Adopting it here would close G32,
+ * and it is NOT done in this gate, whose scope is the two pickers. It is a
+ * one-prop change when someone takes it, and it MOVES PIXELS on every
+ * `view-*` baseline, which is why it is not a drive-by.
+ * Still not overridden with an MVP rule that moves the control — that would
+ * be writing over DS geometry, which this project does not do.
  * ─────────────────────────────────────────────────────────────────────────────
  * TWO STATES OF THE 'viewer' VIEW, DRIVEN BY THE DATA — `ReceiptCard`'s rule.
  *

@@ -772,26 +772,6 @@
   padding. So the menu takes the content column exactly, with no second gutter
   expression and no literal.
 */
-.mvp-txn-filter__merchants {
-  --menu-width: 100%;
-}
-
-/*
-  The picker's back affordance. A bare reset on a real <button>, identical in
-  shape to `.mvp-transactions__filter-btn` above and for the same reason:
-  `ButtonProps` exposes no `ariaLabel` and no `className`, so an icon-only DS
-  Button could not be given an accessible name. Appearance is the Icon's; this
-  rule only removes the user-agent button chrome.
-*/
-.mvp-txn-filter__back {
-  display: flex;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  cursor: pointer;
-}
-
 /* =========================================================================
    Flow 9 — the Receipts tab and its card (Gate 48)
 
@@ -2244,10 +2224,6 @@ button.mvp-receipt-card:focus-visible {
 
 /* The Select's dropdown takes the control's width through the DS's own seam:
    `.mn-menu` is `width: var(--menu-width, 426px)`, wider than the 311px field. */
-.mvp-budget-form__menu {
-  --menu-width: 100%;
-}
-
 /* `Frame 471` — the two dates side by side, 150.5 each, 10px apart.
    `minmax(0, 1fr)`, not `1fr`: a `1fr` track's minimum is its content's, and a
    native date input's intrinsic width pushed the second field ~40px past the

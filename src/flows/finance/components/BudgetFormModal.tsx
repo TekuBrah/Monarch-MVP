@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Button, Field, Icon, Menu, MenuItem, Modal, Select, Toggle } from '@monarch/design-system'
+import { useState } from 'react'
+import { Button, Field, Icon, Modal, OptionList, Select, Toggle } from '@monarch/design-system'
 import { TRANSACTION_CATEGORIES } from '../../../data/transactions'
 import type { Budget, TransactionCategoryId } from '../../../data/types'
 import {
@@ -73,10 +73,16 @@ import { useTouchedValidation } from '../useTouchedValidation'
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-/** The checkbox glyph — `TransactionFilterSheet`'s `boxGlyph`, same two shipped assets. */
-function boxGlyph(isSelected: boolean): 'check_box' | 'check_box_outline_blank' {
-  return isSelected ? 'check_box' : 'check_box_outline_blank'
-}
+/**
+ * THE OPTION ROWS, AT MODULE SCOPE. `TRANSACTION_CATEGORIES` is a module
+ * constant, so this derives once rather than on every render — and a stable
+ * array identity is what keeps `OptionList`'s roving-tabindex effect from
+ * re-running for no reason.
+ */
+const CATEGORY_OPTIONS = TRANSACTION_CATEGORIES.map((category) => ({
+  id: category.id,
+  label: category.label,
+}))
 
 export type BudgetFormModalProps =
   | {
@@ -103,25 +109,34 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
   const [draft, setDraft] = useState<BudgetDraft>(() =>
     props.mode === 'edit' ? draftFromBudget(props.budget) : EMPTY_BUDGET_DRAFT,
   )
-  const [isPickerOpen, setIsPickerOpen] = useState(false)
-  const categoryRef = useRef<HTMLDivElement>(null)
+  /**
+   * THE CATEGORY PICKER IS A VIEW, NOT A DROPDOWN — Gate 74-B.
+   *
+   * It was a `Select` whose `menuSlot` dropped a `Menu` panel over the
+   * Amount and date fields, and it needed a capture-phase `pointerdown`
+   * listener to close on an outside press, because `Select` has none of its
+   * own. Both are gone: the trigger now switches the MODAL'S OWN CONTENT to a
+   * selection view, so there is no floating panel to dismiss and no second
+   * surface stacked on the form.
+   *
+   * THE DRAFT IS A DRAFT. `pickerDraft` is seeded from the form when the view
+   * opens and reaches `draft.categories` only through "Add N Categories", so
+   * Back discards. That is the `TransactionFilterSheet` pending-copy shape, and
+   * it is what a footer commit REQUIRES: without it, Back would silently keep
+   * whatever had been tapped.
+   */
+  const [view, setView] = useState<'form' | 'categories'>('form')
+  const [pickerDraft, setPickerDraft] = useState<TransactionCategoryId[]>([])
 
-  /*
-    A PRESS ANYWHERE OUTSIDE THE CATEGORY CONTROL CLOSES ITS MENU. `Select` has
-    no outside-press handling of its own — only its chevron toggles — so without
-    this the open menu would sit over the Amount and date fields until the user
-    found the chevron. Capture phase, so it runs before the pressed control's
-    own handler. Escape is NOT handled here: the DS `Modal` owns Escape and
-    closes the whole modal, which discards the draft like every other dismissal.
-  */
-  useEffect(() => {
-    if (!isPickerOpen) return
-    const onPress = (event: PointerEvent) => {
-      if (!categoryRef.current?.contains(event.target as Node)) setIsPickerOpen(false)
-    }
-    document.addEventListener('pointerdown', onPress, true)
-    return () => document.removeEventListener('pointerdown', onPress, true)
-  }, [isPickerOpen])
+  const openCategories = () => {
+    setPickerDraft(draft.categories)
+    setView('categories')
+  }
+
+  const commitCategories = () => {
+    setDraft((current) => ({ ...current, categories: orderCategories(pickerDraft) }))
+    setView('form')
+  }
 
   const errors = budgetDraftErrors(draft)
   const validation = useTouchedValidation(errors)
@@ -129,15 +144,8 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
   const set = <K extends keyof BudgetDraft>(key: K) => (value: BudgetDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
 
-  const toggleCategory = (id: TransactionCategoryId) =>
-    setDraft((current) => ({
-      ...current,
-      categories: orderCategories(
-        current.categories.includes(id)
-          ? current.categories.filter((c) => c !== id)
-          : [...current.categories, id],
-      ),
-    }))
+  /** The picker's own toggle. It writes the DRAFT, never the form. */
+  const toggleCategory = (ids: string[]) => setPickerDraft(orderCategories(ids as TransactionCategoryId[]))
 
   const save = () => {
     if (!validation.attempt()) return
@@ -148,12 +156,47 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
     onSave(draftToBudgetInput(draft))
   }
 
+  const isCategoryView = view === 'categories'
+
+  /**
+   * PLURALISED FROM THE COUNT, never from a stored string. Zero still renders
+   * a label rather than an empty button: the control is disabled, and a
+   * disabled button with no words is a control that explains nothing.
+   */
+  const addCategoriesLabel = `Add ${pickerDraft.length} ${pickerDraft.length === 1 ? 'Category' : 'Categories'}`
+
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title={mode === 'create' ? 'Create A Budget' : 'Edit Budget'}
+      /*
+        THE TITLE BECOMES THE TASK in the selection view, and the header's own
+        back control returns to the form while `onClose` still dismisses the
+        whole modal. Two different exits, two different controls — which is
+        what the single hand-rolled affordance could not express.
+      */
+      title={isCategoryView ? 'Select category' : mode === 'create' ? 'Create A Budget' : 'Edit Budget'}
+      onBack={isCategoryView ? () => setView('form') : undefined}
+      backLabel="Back to the budget form"
+      /* R6 — full-bleed rows; see TransactionFilterSheet for the same call. */
+      contentPadding={isCategoryView ? 'none' : 'default'}
       footer={
+        isCategoryView ? (
+          /*
+            VERB PLUS COUNT, DISABLED AT ZERO. The verb follows the
+            destination: these go back INTO a form field, so "Add". Zero is a
+            genuinely invalid budget (`budgetDraftErrors` requires at least one
+            category), which is what makes disabling honest here rather than a
+            dead end.
+          */
+          <Button
+            variant="primary"
+            size="l"
+            label={addCategoriesLabel}
+            isDisabled={pickerDraft.length === 0}
+            onClick={commitCategories}
+          />
+        ) : (
         <>
           <Button
             variant="primary"
@@ -181,8 +224,18 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
             />
           )}
         </>
+        )
       }
     >
+      {isCategoryView ? (
+        <OptionList
+          selectionMode="multiple"
+          ariaLabel="Category"
+          options={CATEGORY_OPTIONS}
+          value={pickerDraft}
+          onChange={toggleCategory}
+        />
+      ) : (
       <div ref={validation.formRef} className="mvp-budget-form" onBlur={validation.onBlur}>
         <Field
           label="Name"
@@ -194,7 +247,18 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
           isRequired
           isInvalid={validation.isShown('name')}
         />
-        <div ref={categoryRef} className="mvp-budget-form__category" data-field="categories">
+        <div className="mvp-budget-form__category" data-field="categories">
+          {/*
+            A TRIGGER THAT NAVIGATES. It is pinned closed and its open request
+            is intercepted, exactly as the merchant trigger has been since Gate
+            46 — so the control opens the selection view instead of a popup,
+            and there is no `menuSlot` at all.
+
+            G21 IS STILL OPEN AND NOW APPLIES HERE TOO. `Select` renders
+            `aria-expanded` unconditionally, so this control permanently
+            announces a collapsed popup that does not exist. Registered, not
+            worked around: `SelectProps` exposes no role or aria passthrough.
+          */}
           <Select
             label="Category"
             ariaLabel="Category"
@@ -203,30 +267,10 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
             value={categoriesLabel(draft.categories)}
             isSelected={draft.categories.length > 0}
             isInvalid={validation.isShown('categories')}
-            isOpen={isPickerOpen}
-            onOpenChange={setIsPickerOpen}
-            menuSlot={
-              /* `--menu-width` is the DS's own seam (`.mn-menu`'s 426px default is
-                 wider than the card), set by `.mvp-budget-form__menu`. */
-              <div className="mvp-budget-form__menu">
-                <Menu
-                  searchBar={false}
-                  listAriaLabel="Category"
-                  slotContent={TRANSACTION_CATEGORIES.map((category) => {
-                    const isPicked = draft.categories.includes(category.id)
-                    return (
-                      <MenuItem
-                        key={category.id}
-                        label={category.label}
-                        isSelected={isPicked}
-                        iconSlot={<Icon name={boxGlyph(isPicked)} size="m" />}
-                        onSelect={() => toggleCategory(category.id)}
-                      />
-                    )
-                  })}
-                />
-              </div>
-            }
+            isOpen={false}
+            onOpenChange={(open) => {
+              if (open) openCategories()
+            }}
           />
         </div>
         <Field
@@ -277,6 +321,7 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
           />
         </div>
       </div>
+      )}
     </Modal>
   )
 }

@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   Button,
   Icon,
-  Menu,
-  MenuItem,
+  OptionList,
   RangeSlider,
   Select,
   Sheet,
@@ -77,32 +76,40 @@ export interface TransactionFilterSheetProps {
 type SheetView = 'filters' | 'merchant'
 
 /**
- * THE CHECKBOX IS A GLYPH, NEVER AN `<input type="checkbox">`.
+ * THE "All merchants" ROW'S ID. It is a row in the list rather than a control
+ * beside it, so it needs an id, and that id must not be a payee: `payees` are
+ * merchant DISPLAY names off the ledger, so a sentinel in this shape cannot
+ * collide with one.
  *
- * `MenuItem` renders `role="option"` with `aria-selected={isSelected}`
- * (`MenuItem.tsx:74-75`) inside `Menu`'s `role="listbox"` (`Menu.tsx:125`). An
- * interactive input nested inside a non-interactive `option` is ARIA-invalid,
- * would take focus away from the roving-tabindex the listbox manages, and
- * would give the row TWO selection states that can disagree — the input's
- * `checked` and the option's `aria-selected`. The glyph is driven by the same
- * `isSelected` the row announces, so there is exactly one source of truth and
- * the picture cannot drift from what a screen reader is told.
- *
- * THE DS SET THIS PRECEDENT ITSELF. `MenuItem`'s own `type="radio"` branch
- * draws a presentational dot and comments it: *"Presentational — the row
- * (role="option") owns selection semantics, not this dot."* This is that
- * pattern with a box instead of a dot, supplied through the free `iconSlot`
- * rather than added to the component.
- *
- * BOTH GLYPHS ARE SHIPPED DS ASSETS — `check_box` and
- * `check_box_outline_blank`, verified present in the sibling source
- * (`Icon/icons.ts:193-194`) AND in the pinned dist typings, because the Vite
- * alias compiles the first and `tsc` reads the second. No near-miss
- * substitution and no MVP-drawn box.
+ * IT IS NOT A NINETEENTH MERCHANT. Selecting it CLEARS; selecting a merchant
+ * deselects it. `applyMerchantSelection` owns that exclusion, because
+ * `OptionList` is a generic multi-select and knows nothing about a facet's
+ * cleared state.
  */
-function boxGlyph(isSelected: boolean): 'check_box' | 'check_box_outline_blank' {
-  return isSelected ? 'check_box' : 'check_box_outline_blank'
-}
+const ALL_MERCHANTS = '__all_merchants__'
+
+/**
+ * THE PICKER'S ROWS ARE A DS `OptionList` — Gate 74-B.
+ *
+ * Until this gate the rows were `Menu` + `MenuItem`, each carrying a
+ * hand-supplied checkbox glyph through `iconSlot`, inside a `.mn-menu` panel
+ * that painted its own background, radius and two-layer shadow and sat inset
+ * 16px from the sheet's sides. That is deferred item UI-1: a panel inside a
+ * panel, with the selected row's tint stopping 16px short of both edges.
+ *
+ * `OptionList` (DS v2.8.0) IS THAT DEFECT'S FIX AND IT IS NOT A WRAPPER
+ * ROUND `Menu` — it replaces it in this position. It declares no background,
+ * no radius, no padding and no shadow, so the rows sit directly on the sheet
+ * surface and run its whole width; with `Sheet contentPadding="none"` the
+ * selected tint reaches both edges. It also supplies the checkbox itself
+ * (`MenuItem type="checkbox"`), so the MVP no longer hands one in: the local
+ * `boxGlyph` helper is gone with the composition that needed it.
+ *
+ * G22 IS CLOSED ON THIS SURFACE BY THE SAME CHANGE. `Menu` emitted
+ * `role="listbox"` with no `aria-multiselectable`, so a genuinely
+ * multi-select picker announced single-select semantics. `OptionList` emits
+ * `aria-multiselectable` whenever its mode is `'multiple'`.
+ */
 
 export function TransactionFilterSheet({
   transactions,
@@ -254,10 +261,44 @@ export function TransactionFilterSheet({
    * dialog two dismiss gestures with two different meanings, which is the
    * ambiguity the in-place push exists to avoid.
    */
-  function toggleMerchant(payee: string) {
+  const merchantOptions = useMemo(
+    () => [
+      { id: ALL_MERCHANTS, label: 'All merchants' },
+      ...payees.map((payee) => ({ id: payee, label: payee })),
+    ],
+    [payees],
+  )
+
+  /**
+   * `OptionList` REPORTS THE WHOLE NEW SELECTION, so the intent is derived by
+   * comparing it with what is in force rather than by being told which row was
+   * tapped. Four cases, and every one of them preserves the behaviour the
+   * `Menu` composition had:
+   *
+   *   tapped "All merchants" while merchants were picked -> clear
+   *   tapped "All merchants" while it was ALREADY in force -> still cleared,
+   *     because it is the cleared state's own row and not a toggle
+   *   tapped a merchant while "All merchants" was in force -> just that one
+   *   tapped the last merchant off -> back to cleared, never `[]`
+   *
+   * THE EMPTY ARRAY IS STILL UNREACHABLE, which is what `toggleIn` guaranteed
+   * before: `null` is ABSENT and `[]` would mean "match nothing". So the
+   * selection handed to `OptionList` is never empty either — exactly one row
+   * is always selected at minimum.
+   *
+   * ORDER IS TAP ORDER, NOT SORTED. `OptionList` appends, the same way `toggleIn`
+   * did, so the trigger still reads back the act rather than a normalised set.
+   */
+  function applyMerchantSelection(next: string[]) {
+    const wasCleared = pending.payees === null
+    if (next.includes(ALL_MERCHANTS) && !wasCleared) {
+      clearMerchants()
+      return
+    }
+    const picked = next.filter((id) => id !== ALL_MERCHANTS)
     setPending((f) => ({
       ...f,
-      payees: toggleIn(f.payees, payee, TRANSACTION_FILTER_ALL.payees),
+      payees: picked.length === 0 ? TRANSACTION_FILTER_ALL.payees : picked,
     }))
   }
 
@@ -273,6 +314,9 @@ export function TransactionFilterSheet({
   function clearMerchants() {
     setPending((f) => ({ ...f, payees: TRANSACTION_FILTER_ALL.payees }))
   }
+
+  /** Never empty: cleared is expressed as the sentinel row being selected. */
+  const merchantSelection = pending.payees ?? [ALL_MERCHANTS]
 
   return (
     <Sheet
@@ -302,27 +346,30 @@ export function TransactionFilterSheet({
         the dismissal affordance `showCloseButton`'s own doc-comment names.
       */
       showCloseButton={false}
-      headerIconLeft={
-        isMerchantView ? (
-          /*
-            A BARE <button> WITH AN `aria-label`, NOT A DS `Button`.
-            `ButtonProps` exposes `label`, `leadingIcon` and `trailingIcon` but
-            NO `ariaLabel` and no `className` — so an icon-only DS Button would
-            render with no accessible name at all. This is the same composition
-            the filter trigger in `TransactionsLedger` already uses for exactly
-            that reason, and it is a real focusable control rather than a
-            clickable div.
-          */
-          <button
-            type="button"
-            className="mvp-txn-filter__back"
-            aria-label="Back to filters"
-            onClick={() => setView('filters')}
-          >
-            <Icon name="arrow_back" size="m" />
-          </button>
-        ) : undefined
-      }
+      /*
+        R6 — the picker view releases the content region's 16px SIDES so the
+        `OptionList` rows run the panel's whole width and a selected row's tint
+        reaches both edges. Only the sides: the bottom affordance padding and
+        the headerless top inset are untouched, so nothing vertical moves. The
+        filters view keeps the default, because its fields are meant to be
+        inset.
+      */
+      contentPadding={isMerchantView ? 'none' : 'default'}
+      /*
+        THE BACK CONTROL IS `OverlayHeader`'S OWN, NOT A HAND-ROLLED
+        `<button>` — Gate 74-B. Until this gate it was a bare button with an
+        `aria-label`, because `ButtonProps` exposes no `ariaLabel` and an
+        icon-only DS `Button` would have rendered with no accessible name at all.
+        DS v2.8.0 puts a real back control in the header itself, so the local
+        button and its `.mvp-txn-filter__back` reset rule are both gone.
+
+        IT IS THE LEADING SLOT, NOT THE TITLE GROUP. `Sheet.onBack` renders
+        flush left while the title stays centred, because OverlayHeader's two
+        side tracks are a fixed, identical width — so the centre is arithmetic
+        rather than a balance that holds only while the slots happen to match.
+      */
+      onBack={isMerchantView ? () => setView('filters') : undefined}
+      backLabel="Back to filters"
       headerAction={
         isMerchantView ? undefined : (
           /*
@@ -371,62 +418,13 @@ export function TransactionFilterSheet({
       }
     >
       {isMerchantView ? (
-        /*
-          COMPOSED FROM `Menu` + `MenuItem`. No new component — there is no
-          merchant-picker component in Figma to reproduce (settled at Gate 45,
-          after an earlier thread inferred one from a screenshot), so this is
-          the DS's own option-list primitive arranged by the consumer.
-
-          `--menu-width` IS THE DS'S OWN OVERRIDE SEAM, not a gap and not an
-          override of DS geometry. `.mn-menu` declares
-          `width: var(--menu-width, 426px)` and its comment names the custom
-          property as the caller's control. 426 is wider than the 375 panel, so
-          the default would overflow; taking the seam is using the component as
-          designed. Contrast G15, where `.mn-select`'s hard `width: 320px` had
-          NO seam at all until `sizing` shipped.
-        */
-        <div className="mvp-txn-filter__merchants">
-          <Menu
-            searchBar={false}
-            listAriaLabel="Select merchant"
-            slotContent={
-              <>
-                {/*
-                  "All merchants" SITS AT THE TOP, and it is the CLEAR option
-                  rather than a nineteenth merchant. Top because a clear action
-                  the user is looking for should not be at the end of a list
-                  they have to scroll; `isSelected` when the facet is at its
-                  default, so the picker states the current value rather than
-                  showing nothing selected.
-
-                  IT CARRIES A BOX LIKE EVERY OTHER ROW, deliberately. When
-                  nothing is selected, "All merchants" IS what is in force, so
-                  a checked box there is the truth rather than a decoration —
-                  and a single boxless row in a column of nineteen reads as a
-                  rendering fault rather than as a different kind of control.
-                */}
-                <MenuItem
-                  label="All merchants"
-                  isSelected={pending.payees === null}
-                  iconSlot={<Icon name={boxGlyph(pending.payees === null)} size="m" />}
-                  onSelect={clearMerchants}
-                />
-                {payees.map((payee) => {
-                  const isPicked = pending.payees?.includes(payee) ?? false
-                  return (
-                    <MenuItem
-                      key={payee}
-                      label={payee}
-                      isSelected={isPicked}
-                      iconSlot={<Icon name={boxGlyph(isPicked)} size="m" />}
-                      onSelect={() => toggleMerchant(payee)}
-                    />
-                  )
-                })}
-              </>
-            }
-          />
-        </div>
+        <OptionList
+          selectionMode="multiple"
+          ariaLabel="Select merchant"
+          options={merchantOptions}
+          value={merchantSelection}
+          onChange={applyMerchantSelection}
+        />
       ) : (
         <div className="mvp-txn-filter">
           {/*

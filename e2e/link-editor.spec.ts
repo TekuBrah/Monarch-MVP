@@ -171,7 +171,7 @@ for (const theme of THEMES) {
       to is RM 250.75; under any implementation that "reconciled" the two, one
       of those figures would have moved.
     */
-    await page.locator('.mn-modal__header-side--end .mn-btn').click()
+    await page.locator('.mn-overlay-header__side--end .mn-overlay-header__control').click()
     await expect(page.locator('[role="dialog"]')).toHaveCount(0)
     await activateTab(page, TRANSACTIONS_TAB)
     expect(await ledgerAmount(page, 'Aeon Big', '15 Sept, 22:03')).toBe(`-${FREE_ROW}`)
@@ -198,7 +198,7 @@ for (const theme of THEMES) {
 
     // BACK TO THE PICKER, UNCHANGED — and nothing was written.
     expect(await openDialogNames(page)).toEqual(['Link to transaction'])
-    await page.locator('.mn-modal__header-side--end .mn-btn').click()
+    await page.locator('.mn-overlay-header__side--end .mn-overlay-header__control').click()
     // ALREADY ON RECEIPTS — `activateTab` refuses a no-op, by design.
     const links = await libraryLinks(page)
     expect(links[TAKEN_RECEIPT], 'Cancel left the incumbent linked').toBe(true)
@@ -219,7 +219,7 @@ for (const theme of THEMES) {
       `-${TAKEN_ROW}`,
     )
 
-    await page.locator('.mn-modal__header-side--end .mn-btn').click()
+    await page.locator('.mn-overlay-header__side--end .mn-overlay-header__control').click()
     const links = await libraryLinks(page)
     // DISPLACED, NOT DELETED — still present, and no longer linked.
     expect(Object.keys(links)).toContain(TAKEN_RECEIPT)
@@ -308,7 +308,7 @@ for (const theme of THEMES) {
     )
 
     // AND NO TRANSACTION MOVED.
-    await page.locator('.mn-modal__header-side--end .mn-btn').click()
+    await page.locator('.mn-overlay-header__side--end .mn-overlay-header__control').click()
     await activateTab(page, TRANSACTIONS_TAB)
     expect(await ledgerAmount(page, 'Aeon Big', '04 Sept, 13:45')).toBe(`-${LINKED_ROW}`)
   })
@@ -337,7 +337,7 @@ for (const theme of THEMES) {
     ).toHaveText(`-${LINKED_ROW}`)
 
     // Back out of the picker and edit a field instead.
-    await page.locator('.mn-modal__title-group .mn-btn').click()
+    await page.locator('.mn-overlay-header__title-group .mn-btn').click()
     await page.locator('.mvp-receipt-details .mn-link').click()
     await page.locator('.mvp-receipt-editor input[type="text"]').fill('Aeon Big Wangsa Maju')
     await page.locator('.mn-modal__footer .mn-btn').click()
@@ -349,7 +349,7 @@ for (const theme of THEMES) {
     )
 
     // And on the tab behind it, the card is still the unlinked variant.
-    await page.locator('.mn-modal__header-side--end .mn-btn').click()
+    await page.locator('.mn-overlay-header__side--end .mn-overlay-header__control').click()
     expect((await libraryLinks(page))[RECEIPT]).toBe(false)
   })
 
@@ -371,7 +371,7 @@ for (const theme of THEMES) {
     await page.locator('.mvp-receipt-details .mn-link').click()
     await page.locator('.mvp-receipt-editor input[type="text"]').fill('Typed and abandoned')
 
-    const back = page.locator('.mn-modal__title-group .mn-btn')
+    const back = page.locator('.mn-overlay-header__title-group .mn-btn')
     await expect(back).toHaveAccessibleName('Back to receipt')
     await back.click()
 

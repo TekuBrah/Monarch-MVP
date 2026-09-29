@@ -119,15 +119,30 @@ async function fillForm(
 ): Promise<void> {
   if (values.name !== undefined) await modal.getByLabel('Name').fill(values.name)
   if (values.categories) {
+    if (values.categories.length === 0) {
+      // Gate 74-B: the footer is disabled at zero, so an empty selection cannot
+      // be committed and a click here would hang for the full timeout. Fail
+      // loudly and name the reason instead.
+      throw new Error('fillForm cannot commit zero categories: the picker footer is disabled at zero')
+    }
     await modal.getByRole('combobox', { name: 'Category' }).click()
-    for (const option of await modal.getByRole('option').all()) {
+    // Gate 74-B: the picker is a VIEW and it retitles the one dialog, so the
+    // form-named locator stops matching while it is open.
+    const picker = modal.page().getByRole('dialog', { name: 'Select category' })
+    for (const option of await picker.getByRole('option').all()) {
       const name = (await option.textContent())?.trim() ?? ''
       const wanted = values.categories.some((c) => label(c) === name)
       const picked = (await option.getAttribute('aria-selected')) === 'true'
       if (wanted !== picked) await option.click()
     }
-    // A press outside the control closes the menu.
-    await modal.getByRole('heading').click()
+    // The footer is what commits. The count in the label is derived, so it is
+    // asserted rather than guessed.
+    const count = values.categories.length
+    await picker
+      .getByRole('button', {
+        name: `Add ${count} ${count === 1 ? 'Category' : 'Categories'}`,
+      })
+      .click()
     await expect(modal.getByRole('option')).toHaveCount(0)
   }
   if (values.amount !== undefined) await modal.getByLabel('Amount (RM)').fill(values.amount)
@@ -421,10 +436,29 @@ test('the form validates in the browser: a left field shows invalid, and Save wi
   await check('Amount (RM)', '10.123', VALID.amount)
   await check('Date (To)', '2025-08-31', VALID.to)
 
-  // No category.
-  await fillForm(modal, { categories: [] })
-  await expect(modal.getByRole('combobox', { name: 'Category' })).toHaveAttribute('aria-invalid', 'true')
-  await blocked('no category')
+  /*
+    NO CATEGORY IS NO LONGER REACHABLE FROM A FILLED FORM — Gate 74-B.
+
+    Under the old dropdown a user could untick every category and the form
+    would sit in the invalid empty state until Save was pressed. The picker
+    commits through a footer that is DISABLED AT ZERO, so an empty selection
+    can no longer be committed at all: the only way out is Back, which
+    discards. The empty-form case is still covered — `form-validation.spec.ts`
+    asserts Category among the five fields a Save on a pristine form reveals.
+  */
+  await modal.getByRole('combobox', { name: 'Category' }).click()
+  const picker = page.getByRole('dialog', { name: 'Select category' })
+  for (const option of await picker.getByRole('option').all()) {
+    if ((await option.getAttribute('aria-selected')) === 'true') await option.click()
+  }
+  const addNone = picker.getByRole('button', { name: 'Add 0 Categories' })
+  await expect(addNone).toBeDisabled()
+  await picker.getByRole('button', { name: 'Back to the budget form' }).click()
+  // Back discards, so the form keeps what it had.
+  await expect(modal.getByRole('combobox', { name: 'Category' })).not.toHaveAttribute(
+    'aria-invalid',
+    'true',
+  )
 })
 
 test('the open modal covers the FAB (A9) — z-index 100 against 3, and the hit-test agrees', async ({

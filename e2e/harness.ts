@@ -805,6 +805,59 @@ export const OVERLAY_STATES: WalkState[] = [
       title: 'Filter transactions',
     },
   },
+  {
+    /*
+      THE MERCHANT PICKER'S OWN STATE — added at Gate 74-B.
+
+      Until this gate the picker view had NO coverage of any kind: no walk
+      state photographed it and no spec drove it, so the panel-in-a-panel
+      defect UI-1 names was invisible to the suite in both directions. This
+      gate replaces that panel with a DS `OptionList`, so the fix is put
+      under the visual net in the same change that makes it.
+
+      IT IS A SECOND STATE ON THE SAME CONTROL, not a variant of `filter`:
+      the two views differ in what is RENDERED, and only a prepare step can
+      reach the second, which is exactly what `prepare` is for.
+    */
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'merchant',
+      control: '.mvp-transactions__filter-btn',
+      controlLabel: 'Filter transactions',
+      title: 'Filter transactions',
+      /* The sheet retitles itself, so the dialog at capture is the picker. */
+      dialogs: ['Select merchant'],
+      prepare: [
+        {
+          control: '.mvp-txn-filter .mn-select__input',
+          controlName: 'Transaction Merchant',
+          action: 'click',
+          settlesOn: '.mn-option-list [role="option"]:has-text("All merchants")',
+          settlesText: 'All merchants',
+        },
+        {
+          control: '.mn-option-list [role="option"]:has-text("Aeon Big")',
+          controlName: 'Aeon Big',
+          action: 'click',
+          settlesOn: '.mn-option-list [role="option"][aria-selected="true"]',
+          settlesText: 'Aeon Big',
+        },
+        {
+          control: '.mn-option-list [role="option"]:has-text("IKEA")',
+          controlName: 'IKEA',
+          action: 'click',
+          /*
+            TWO ROWS SELECTED AT ONCE is the assertion that matters here: it
+            is what proves the facet is genuinely multi-select, and therefore
+            that the listbox must announce `aria-multiselectable` (G22).
+          */
+          settlesOn: '.mn-option-list [role="option"][aria-selected="true"]:has-text("IKEA")',
+          settlesText: 'IKEA',
+        },
+      ],
+    },
+  },
   // THE FILTERED LEDGER (Gate 44) — the only state in the walk where the
   // applied-chip row renders at all.
   //
@@ -1632,27 +1685,39 @@ export const OVERLAY_STATES: WalkState[] = [
       control: '.mn-card-monthly-budget__add-new',
       controlLabel: 'Add New Budget',
       title: 'Create A Budget',
+      /*
+        THE PICKER IS A VIEW SINCE GATE 74-B, so the dialog it captures is
+        named 'Select category', not 'Create A Budget' — hence `dialogs`.
+        The rows are a DS `OptionList`, so they are located by the listbox
+        rather than by the retired `.mvp-budget-form__menu` wrapper.
+      */
+      dialogs: ['Select category'],
       prepare: [
         {
           control: '.mvp-budget-form .mn-select__input',
           controlName: 'Category',
           action: 'click',
-          settlesOn: '.mvp-budget-form__menu [role="listbox"]',
+          settlesOn: '.mn-option-list[role="listbox"]',
           settlesText: TRANSACTION_CATEGORIES.map((c) => c.label).join(''),
         },
         {
-          control: '.mvp-budget-form__menu [role="option"]:has-text("Dining & Leisure")',
+          control: '.mn-option-list [role="option"]:has-text("Dining & Leisure")',
           controlName: 'Dining & Leisure',
           action: 'click',
-          settlesOn: '.mvp-budget-form__menu [role="option"][aria-selected="true"]',
+          settlesOn: '.mn-option-list [role="option"][aria-selected="true"]',
           settlesText: 'Dining & Leisure',
         },
         {
-          control: '.mvp-budget-form__menu [role="option"]:has-text("Shopping")',
+          control: '.mn-option-list [role="option"]:has-text("Shopping")',
           controlName: 'Shopping',
           action: 'click',
-          settlesOn: '.mvp-budget-form__menu [role="option"][aria-selected="true"]:has-text("Shopping")',
-          settlesText: 'Shopping',
+          /*
+            THE FOOTER IS THE SETTLE, because it is the one assertion that
+            proves the count is derived from the draft rather than drawn: two
+            rows ticked must read "Add 2 Categories".
+          */
+          settlesOn: '.mn-modal__footer .mn-btn',
+          settlesText: 'Add 2 Categories',
         },
       ],
     },

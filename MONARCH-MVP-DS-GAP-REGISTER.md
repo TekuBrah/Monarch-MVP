@@ -2379,3 +2379,131 @@ Check: 7 + 28 + 6 + 2 = 43 total; 7 + 11 + 3 + 1 = 22 closed; 0 + 17 + 3 + 1 =
 **The highest number is G44.** 24 is still a permanent hole.
 
 Nothing was removed from this register.
+
+## 2r. Status at MVP Gate 74-B (2026-09-29) — the v2.6.0 → v2.8.0 re-pin, both pickers rebuilt, UI-1 closed
+
+The DS pin moved **v2.6.0** (`64873993…`) → **v2.8.0** (`b5b7b297…`, annotated
+tag object `d74a26de…`). Three entries are opened and seven are closed.
+
+**v2.7.0 IS SKIPPED IN THE WRITTEN RECORD, AND THAT IS A RULING, NOT AN
+OVERSIGHT** (Teku, Decision 1 = A, 29 Sept 2026). **The MVP never shipped
+against v2.7.0 in any commit** — Gate 74 stopped before committing and its
+documents were parked — so this section covers what v2.7.0 and v2.8.0 close as
+ONE step. The parked Gate 74 documents survive as the evidence for the v2.7.0
+half, at `D:\Claude\_handoffs\gate74-parked\` (`CLAUDE.md` 762,375 bytes,
+`MONARCH-MVP-DS-GAP-REGISTER.md` 159,099 bytes). Nothing from them was copied
+into this repo.
+
+### Opened and closed in the same step — G45, G46, G47
+
+All three were found by the Flow 11 scope and fixed in v2.7.0, so the MVP never
+ran against a version that lacked them. They are recorded rather than omitted,
+because a gap that was found and fixed is still history this register exists to
+hold. Their DISCOVERY is carried from the parked record; their FIX was
+re-verified here against the pinned v2.8.0 source.
+
+| | component | gap | tag | closed | verified here by |
+|---|---|---|---|---|---|
+| **G45** | `InlineMessage` | no `ai` tone — Figma's `appearance=ai` gradient variant had no expression | `prop-gap` | v2.7.0 | `InlineMessageTone` reads `'neutral' \| 'warning' \| 'ai'`, and `.mn-inline-message--ai` paints the Blue/400 → Blue/500 → Violet/500 gradient |
+| **G46** | `Icon` | no `golf_course` glyph | `component-gap` | v2.7.0 | the key is present in `icons.ts`, backed by a custom asset |
+| **G47** | `IconObject` | a square at `xs`/`s`/`m` took the 8px radius and read as a circle at 16px | `shape-mismatch` | v2.7.0 | `.mn-icon-object--square.mn-icon-object--{xs,s,m}` takes `--brand-scale-100` |
+
+**NONE OF THE THREE HAS AN MVP CONSUMER, MEASURED.** Every `IconObject` in
+`src/` is `shape="circle"` and no DS component renders a square one (the
+default is `circle`); the MVP's only `InlineMessage` tone is `warning`; and
+`golf_course` is referenced nowhere. So all three are inert here, which is why
+they moved no baseline.
+
+### Closed — G5, G19, G43 at v2.7.0, and G7 retroactively
+
+| | closed by | verified here by |
+|---|---|---|
+| **G5** | `CardDataDisplay` gained `orientation` and `sizing` | both props present, with behaviour-preserving defaults (`'vertical'`, `'fixed'`) |
+| **G19** | `SelectTransfer` / `SelectWalletAccount` gained `sizing` | `sizing?: 'fixed' \| 'fill'` on both, with the `--fill` modifier |
+| **G43** | `.mn-select__menu` is `position: fixed` against its trigger, so an ancestor's `overflow: clip` no longer cuts it off | the rule itself, and the four `--mn-select-menu-*` custom properties `Select.tsx` writes |
+| **G7** | recorded closed at **v1.3.0** (`364f8ca`) | **CARRIED, NOT RE-DERIVED HERE** — the fourth of the unrecorded class after G3, G4 and G6 |
+
+**G43's FIX IS NOT THE PORTAL THE REVIEW THREAD RULED.** The menu stays a DOM
+child of `.mn-select`, so outside-click checks, Tab order and the `Modal` focus
+trap are unchanged. Its known limit is that a `transform`, `filter` or
+`contain` ancestor becomes the containing block — the same set Gate D banned
+from fixed chrome.
+
+**AND G43 NO LONGER HAS AN MVP CONSUMER AT ALL.** It was fixed for the budget
+form's category dropdown, and this gate replaced that dropdown with a view.
+There is now **no open `Select` menu anywhere in `src/`**: both pickers pin
+`isOpen={false}` and intercept `onOpenChange`. The closure stands; its adopter
+does not.
+
+### UI-1 — CLOSED, and it is not a G entry
+
+UI-1 is a deferred ITEM rather than a registered gap, so closing it moves no
+tally. It read: the merchant picker's option rows sat inside a `Menu` panel
+carrying its own background, radius and shadow, inset 16px, with the selected
+row's tint stopping short of the panel edges — a panel inside a panel.
+
+**THE FIX IS `OptionList`, AND IT REPLACES `Menu` IN THAT POSITION RATHER THAN
+WRAPPING IT.** `OptionList` declares no background, no radius, no padding and
+no shadow, so its rows sit directly on the sheet surface; with
+`Sheet contentPadding="none"` — also new in v2.8.0 — they run the panel's whole
+width and a selected row's tint reaches both edges. The MVP's
+`.mvp-txn-filter__merchants` wrapper and its `--menu-width: 100%` override are
+deleted with it, as is the hand-rolled `.mvp-txn-filter__back` button and its
+reset rule.
+
+**WHAT THE MERCHANT PICKER LOOKS LIKE NOW.** A sheet whose header is the DS
+`OverlayHeader`: a back control flush left, the centred title "Select
+merchant", no ✕ (Figma draws none), and neutral `#363c43` header icons rather
+than the blue the retired tertiary `IconButton` close resolved to. Below it,
+twenty-one flat full-bleed rows — "All merchants" first, as the cleared state's
+own row, then the twenty ledger payees — each a `MenuItem type="checkbox"` at
+48px, with no container of any kind between them and the sheet.
+
+### G22 — SUPERSEDED on both MVP surfaces; the entry stays OPEN against `Menu`
+
+G22 is that `Menu` emits `role="listbox"` with no `aria-multiselectable`, so a
+genuinely multi-select picker announces single-select semantics.
+
+**`Menu` IS UNCHANGED IN v2.8.0 — verified, zero `aria-multiselectable` in
+`Menu.tsx` — so the gap is NOT closed.** What changed is that neither MVP
+picker reaches it any more. Measured live on the rebuilt merchant picker:
+
+```
+<div role="listbox" class="mn-option-list" aria-multiselectable="true" aria-label="Select merchant">
+```
+
+So the DEFECT is gone from this app while the ENTRY remains open against the
+component. **Do not mark G22 closed on the strength of the MVP no longer
+reaching it.**
+
+### Still open, and re-verified against v2.8.0 rather than assumed
+
+| | why it is still open, measured |
+|---|---|
+| **G21** | `Select` still renders `aria-expanded` unconditionally and exposes no role or aria passthrough. **It now applies to BOTH pickers**: the category trigger joined the merchant trigger in navigating rather than expanding, so two controls now permanently announce a collapsed popup that does not exist |
+| **G23** | `.mn-select__input` still declares no `text-overflow`, so the computed value is `clip` |
+| **G33** | `.mn-modal__card` still declares no `max-height` and `.mn-modal__content` neither `overflow` nor `min-height`. **The removal condition on `.mvp-receipt-viewer-modal` is therefore UNMET and that workaround stays**, with its removal note intact |
+| **G13** | `.mn-sheet__panel` still declares no `max-width` |
+| **G14** | no background scroll lock in `Blanket`, `Sheet` or `Modal` |
+| **G44** | `Field`'s focus rule still outranks its invalid rule on specificity |
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**46 entries, 29 closed, 17 open.** Derived from 2q's **43 entries, 22 closed,
+21 open**, not carried from anywhere:
+
+- three opened: G45, G46, G47 — so 43 + 3 = **46**;
+- seven moved to closed: G5, G19, G43, G45, G46, G47 and G7 — so 22 + 7 = **29**;
+- therefore 46 − 29 = **17** remain open.
+
+**THE PER-TAG COLUMN IS DELIBERATELY NOT RESTATED HERE.** Three of the seven
+newly-closed entries (G5, G19, G43) and one carried one (G7) would each need
+their tag re-derived from their own entries to place them in a tag row, and
+this gate did not re-derive them. Quoting a per-tag table built on four
+unverified placements would be exactly the kind of figure this register keeps
+getting bitten by. The entry, closed and open totals above ARE derived, and the
+tag table in 2q remains the last one that was.
+
+**The highest number is G47.** 24 is still a permanent hole.
+
+Nothing was removed from this register.
