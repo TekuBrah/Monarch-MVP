@@ -4,25 +4,32 @@ import type { Commitment } from './types'
  * ─────────────────────────────────────────────────────────────────────────────
  * FLOW 11 — THE SEEDED COMMITMENTS (Gate 75). Read-only; nothing writes these.
  *
- * ⚠ FIVE, NOT SEVEN, AND THE COUNT IS A DISAGREEMENT THIS GATE COULD NOT SETTLE.
+ * ⚠ FIVE, NOT SEVEN — AND GATE 76 SETTLED THE COUNT: FIGMA DRAWS SEVEN.
  *
  * `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` §2 states the Plans tab holds "2 goal
  * cards + 5 commitments", and the document names exactly five entities across
  * §2, §A6 and §F: Mortgage, Car Payment, Internet (U-Mobile), Netflix and
- * Anytime Fitness. `CLAUDE.md`'s Flow 11 plan records instead that "Figma draws
- * seven, not the inventory's five" — a reading taken in a session that had Figma
- * access. GATE 75 HAD NONE: the local MCP refused the connection
- * (`ECONNREFUSED`) and the remote connector is unauthenticated, so the seven
- * could not be re-read.
+ * Anytime Fitness. Gate 75 could not reach Figma — the local MCP refused the
+ * connection and the remote was unauthenticated — so it seeded the inventory's
+ * five as the choice that invents least, and asked a later gate to re-read.
  *
- * SEEDING FIVE RATHER THAN SEVEN IS THE CHOICE THAT INVENTS LEAST. The inventory
- * is the only enumerable source on disk, and the two extra rows would have had no
- * name, amount, provider or cadence from anywhere — four fabricated fields each.
- * Per Gate 48's standing rule, a gate that cannot reach Figma may build from a
- * spec someone else read out of it but must not claim to have verified it.
- * **GATE 78 SHOULD RE-READ THE FRAME AND ADD THE MISSING TWO** if Figma really
- * draws seven; nothing here blocks that, because no screen renders commitments
- * until then.
+ * ⚠ GATE 76 RE-READ `1266:14339` AND FIGMA DRAWS SEVEN ROWS. It adds
+ * **Golf Lesson** (RM 20.00) and **Phone Plan** (RM 35.00), and FOUR of the five
+ * seeded amounts also disagree with the frame:
+ *
+ *   Mortgage        Figma 1,200.00   seeded 2,450.00
+ *   Car Payment     Figma   500.00   seeded 1,180.00
+ *   Internet        Figma   120.00   seeded   120.00  ← the only agreement
+ *   Netflix         Figma    20.00   seeded    54.90
+ *   Anytime Fitness Figma   160.00   seeded   128.00
+ *
+ * **NOTHING WAS CHANGED, ON GATE 76's OWN INSTRUCTION**: adding the two rows or
+ * moving any amount is a seed change and Teku's call, not a silent fix inside a
+ * gate scoped to rendering. The frame also nests a `System message` promotion
+ * banner under the Internet row, which is Gate 78's.
+ *
+ * SO THE FIVE BELOW ARE A DELIBERATE SUBSET, NOT AN UNVERIFIED GUESS. That is
+ * the one thing that changed: the count is no longer unknown.
  *
  * ───────────────────── WHAT IS TRANSCRIBED, WHAT IS AUTHORED ─────────────────
  *
@@ -70,7 +77,8 @@ export const COMMITMENTS: Commitment[] = [
     id: 'commitment-mortgage',
     name: 'Mortgage',
     // §F: a grayscale ICON, not a brand mark — a mortgage has no logo to ship.
-    logo: { kind: 'icon', name: 'icon_home' },
+    // TRANSCRIBED (Gate 76, `1266:14339`): Figma paints this badge `Color=Teal`.
+    logo: { kind: 'icon', name: 'icon_home', tint: 'teal' },
     // AUTHORED. No source on disk carries a figure for this row.
     amount: 2450,
     cadence: 'monthly',
@@ -81,7 +89,9 @@ export const COMMITMENTS: Commitment[] = [
     id: 'commitment-car-payment',
     name: 'Car Payment',
     // §F: a grayscale ICON. `icon_car` is also the `transport` category's glyph.
-    logo: { kind: 'icon', name: 'icon_car' },
+    // TRANSCRIBED (Gate 76, `1266:14339`): Figma paints this badge `Color=Gray`,
+    // which is the "grayscale icon" §F describes in as many words.
+    logo: { kind: 'icon', name: 'icon_car', tint: 'gray' },
     // AUTHORED. No source on disk carries a figure for this row.
     amount: 1180,
     cadence: 'monthly',

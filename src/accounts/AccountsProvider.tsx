@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from 'react'
 import { CRYPTO_HOLDINGS, CRYPTO_WALLETS, FIAT_ACCOUNTS } from '../data/accounts'
+import { COMMITMENTS } from '../data/commitments'
+import { GOALS } from '../data/goals'
 import { buildHoldings } from '../data/holdings'
 import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
@@ -20,9 +22,11 @@ import {
 } from '../data/derive'
 import type {
   Amount,
+  Commitment,
   CryptoHolding,
   CryptoWallet,
   FiatAccount,
+  Goal,
   Holding,
   Receipt,
   Transaction,
@@ -132,6 +136,35 @@ interface AccountsContextValue {
    * `transactionHasReceipt(receipts, id)` in `derive.ts`, never a field on a row.
    */
   receipts: Receipt[]
+
+  // ------------------------------------------------------------ Flow 11
+  /**
+   * The savings goals. Money the user owns, held outside the two cash accounts.
+   *
+   * STATE RATHER THAN A RE-EXPORTED CONSTANT, because Gate 79 writes these —
+   * Add a Goal, Edit, Delete and Top-Up all change a goal or its `savedAmount`.
+   * The mutators arrive there, WITH their first callers, which is the rule that
+   * kept `addTransaction` from being designed in the abstract.
+   *
+   * THEY LIVE HERE RATHER THAN IN A `PlansProvider` because a goal is money that
+   * interacts with accounts: a Top-Up debits a cash account and credits a goal in
+   * one user action, and a provider boundary running through the middle of that
+   * is a boundary in the wrong place — the argument that made `receipts` a peer
+   * of `transactions` rather than a third provider.
+   */
+  goals: Goal[]
+  /**
+   * The recurring commitments.
+   *
+   * A PLAIN CONSTANT PASSED THROUGH, NOT STATE, and the asymmetry with `goals`
+   * is deliberate: `Commitment` is READ-ONLY IN FLOW 11 (see its docstring), so
+   * `useState` here would be machinery with nothing able to move it — the shape
+   * Gate 48 declined for exactly this reason. It still reaches every screen
+   * through `useAccounts()`, so the day a flow writes one, this becomes state
+   * and not one consumer moves (B8).
+   */
+  commitments: Commitment[]
+
   /**
    * Append a transaction to the ledger.
    *
@@ -490,6 +523,13 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  /*
+    GOALS ARE STATE AND COMMITMENTS ARE NOT — see the two context fields above.
+    No mutator is declared for either at this gate: Flow 11's writers are Gate
+    79's, and they arrive with their first callers.
+  */
+  const [goals] = useState<Goal[]>(GOALS)
+
   const value = useMemo<AccountsContextValue>(() => {
     const primaryAccount = fiatAccounts[0]
     if (!primaryAccount) throw new Error('No fiat account seeded')
@@ -508,9 +548,25 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       cryptoChange: cryptoWalletChange(CRYPTO_HOLDINGS),
       transactions,
       holdings,
-      netWorth: netWorth(holdings, CRYPTO_HOLDINGS),
+      /*
+        GOAL MONEY COUNTS, AS A SEPARATE TERM. `netWorth` sums the holdings and
+        adds `goalsTotal(goals)`; goals are deliberately NOT a `Holding`, so one
+        can never be drilled into as a holding or picked as a Top-Up source.
+
+        THE SERIES IS DELIBERATELY NOT GIVEN THE SAME TERM. `netWorthSeries` is
+        month-to-date history derived per holding per day, and a goal carries no
+        per-day value to derive one from — `savedAmount` is a stored figure whose
+        contributions are a partial slice. Adding a flat constant to every point
+        would invent history the data does not have. The two were already not
+        equal before this gate (the fixed deposit's stored `currentValue` sits
+        RM 9.41 above its accrued value on the last day), so the hero figure and
+        the chart's last point have never been the same number.
+      */
+      netWorth: netWorth(holdings, CRYPTO_HOLDINGS, goals),
       netWorthSeries: netWorthSeries(holdings, CRYPTO_HOLDINGS),
       receipts,
+      goals,
+      commitments: COMMITMENTS,
       addTransaction,
       adjustFiatBalance,
       unlinkReceipt,
@@ -524,6 +580,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     fiatAccounts,
     transactions,
     receipts,
+    goals,
     addTransaction,
     adjustFiatBalance,
     unlinkReceipt,

@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
-import { ComingSoon } from '../../components/ComingSoon'
 import { mediaUrl } from '../../config/media'
 import { BudgetTab } from './BudgetTab'
 import { FinanceOverview } from './FinanceOverview'
+import { PlansTab } from './PlansTab'
 import { ReceiptsTab } from './ReceiptsTab'
 import { TransactionsLedger } from './TransactionsLedger'
 import { requestedFinanceTab } from './financeTabs'
@@ -103,7 +103,20 @@ export function FinanceScreen() {
         />
       </div>
 
-      {selected === 'overview' && <FinanceOverview />}
+      {/*
+        THE OVERVIEW'S "Savings Goals" CARD JUMPS TO THIS SCREEN'S PLANS TAB, and
+        it does so through a CALLBACK rather than `navigate`. The Finance tabs
+        are selected-states of one mounted screen and never reach the URL (B7),
+        so `navigate('/finance', { state: … })` from a card already ON
+        `/finance` would not remount `FinanceScreen` and the `useState`
+        initialiser that reads `requestedFinanceTab` would never re-run — the
+        tap would do nothing at all. Only the screen that owns `selected` can
+        change it, which is why the callback is passed down rather than the
+        route being written to.
+      */}
+      {selected === 'overview' && (
+        <FinanceOverview onShowPlans={() => setSelected('plans')} />
+      )}
       {selected === 'transactions' && <TransactionsLedger />}
       {/*
         Flow 10 (Gate 67) replaced this tab's `ComingSoon` stub. It has the
@@ -111,13 +124,17 @@ export function FinanceScreen() {
         already existed, so this CHANGES its four baselines and adds none.
       */}
       {selected === 'budget' && <BudgetTab />}
-      {selected === 'plans' && (
-        <ComingSoon
-          title="Plans"
-          description="Goals, savings plans and what it takes to reach them."
-          icon="icon_automatic_savings"
-        />
-      )}
+      {/*
+        Flow 11 (Gate 76) replaced this tab's `ComingSoon` stub — the same shape
+        as Receipts at Gate 48 and Budget at Gate 67: the walk state
+        `/finance [tab:plans]` already existed, so this CHANGES its four
+        baselines and adds none.
+
+        `ComingSoon` IS NO LONGER IMPORTED BY THIS FILE. It is still live —
+        `/transfer`, `/more` and `/steward` in `App.tsx`, and the Homepage's
+        Cards and Stocks tabs — but this screen no longer has a stubbed tab.
+      */}
+      {selected === 'plans' && <PlansTab />}
       {/*
         Flow 9 (Gate 48) replaced this tab's `ComingSoon` stub. THE WALK STATE
         WAS ALREADY THERE — `/finance [tab:receipts]` has been one of the 26 since

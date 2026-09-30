@@ -1830,9 +1830,9 @@ export const WALK: WalkState[] = [
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 16 routes (one `tab: null` state
   // each, from ROUTES — 14 plus the two budget drilldowns since Gate 69) + 7
-  // non-default tab states + 28 OVERLAY_STATES = 51 (Gate 71-B added
-  // `create-attempt`; it was 27 = 50 at Gate 71, and read 19 = 40 through
-  // Gate 69, already stale by then).
+  // non-default tab states + 29 OVERLAY_STATES = 52 (Gate 74-B added
+  // `merchant`; it read 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, and 19 = 40
+  // through Gate 69, already stale by then).
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the

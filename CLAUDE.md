@@ -14065,3 +14065,355 @@ first consumer rather than as a provider nothing reads; `MODEL-1`'s fix; the
 five-versus-seven commitment count, which needs Figma; the retro-fit sweep; G32
 adoption; persistence (NP1, now timed straight after Flow 11); `npm audit fix`;
 the DS repo; and branch deletion.
+## Flow 11 part 2 — the Plans tab and the Savings Goals card (Gate 76)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. This is the gate where Flow 11
+becomes visible and where **goal money enters net worth for the first time**.
+**|WALK| stays 52, `OVERLAY_STATES` stays 29, baselines 208 -> 208 (8 changed,
+ZERO added, ZERO deleted), tests 653 -> 666, spec files 28 -> 29.**
+`lint:tokens` scans **80** files (79 + `PlansTab.tsx`) with the same **4**
+exemptions — no new raw value entered the tree.
+
+### NET WORTH IS 481,038.84, AND GOALS ARE A SEPARATE TERM
+
+`464,958.84 + 16,080.00 = 481,038.84`, measured before and after. The 16,080 is
+`5,040 + 11,040`, the two seeded goals' `savedAmount`.
+
+`netWorth` gained a **third, REQUIRED parameter**:
+
+```ts
+netWorth(holdings, cryptoHoldings, goals)
+  = sum(holdings.map(holdingValue)) + goalsTotal(goals)
+```
+
+**REQUIRED RATHER THAN DEFAULTED TO `[]`, for `Transaction.kind`'s reason.** A
+default lets a call site omit it and silently UNDERSTATE net worth by the whole
+goal balance, with nothing reporting it. It is a compile error until each call
+site decides — and it fired immediately, on the gate's own measurement probe.
+
+**GOALS ARE STILL NOT A `Holding`, WHICH IS THE POINT RATHER THAN A FILING
+PREFERENCE.** Summing the collection as a second term keeps all three of Gate
+75's reasons true BY CONSTRUCTION: `holdings` still has nine members, so a goal
+has no `holdingValue`, cannot be drilled into at `/finance/holding/...`, and
+cannot be offered by Gate 79's Top-Up source picker. Asserted both ways —
+structurally in Node (no goal id in `holdings` or `fiatAccounts`) and in the
+browser (`/finance/holding/goal-bali-trip` redirects to `/finance`).
+
+#### THE CHART SERIES IS DELIBERATELY NOT GIVEN THE TERM
+
+The Gate 76 brief made this conditional on a measurement: if `netWorthSeries`'
+final point equals `netWorth`, that identity is load-bearing and goal money is
+added to the final point; if it does not, leave the series alone.
+
+**IT DOES NOT, AND IT DID NOT BEFORE THIS GATE.** Measured on the unmodified
+tree: `netWorth` 464,958.84 against `series[last]` **464,949.43** — a **RM 9.41**
+gap. The cause is the fixed deposit: `holdingValue` returns its stored
+`currentValue` while `holdingValueOnDay` computes the accrual to today. So the
+hero figure and the chart's last point have never been the same number, and the
+series was left untouched.
+
+**IT IS ALSO THE RIGHT ANSWER ON THE DATA, not merely the instructed one.** A
+goal carries no per-day value to derive a series from — `savedAmount` is a
+stored figure whose `contributions` are a partial slice — so adding a flat
+16,080 to every point would invent history the data does not have.
+
+**NOTHING ON SCREEN SHOWS THE GAP, AND ONE THING OFF SCREEN DOES.** The card
+prints no money on its axis: `xLabels` are days of the month, and the marker is
+the series' own CHANGE. But `NetWorthCard`'s `summary` — the chart's accessible
+description — reads `"Net worth month to date, {series[0]} to {amount}"`, i.e.
+it describes the SERIES using the HERO's figure. That was already off by 9.41
+and is now off by **16,089.52**.
+
+**REPORTED, NOT CHANGED.** It is pre-existing, the fix is a judgment call
+(describe the series by its own endpoints and it stops describing the visible
+hero), and silently rewriting accessible text in a gate scoped to "add goals to
+net worth" is scope creep. **It is Teku's call.**
+
+### The Savings Goals card — a tenth card, and a dormant rule
+
+One combined card in the existing balance grid, on the Joint Account precedent
+of a card Figma does not draw: `type="Savings"`, `name="Goals"`,
+`amount={formatMyr(goalsTotal(goals))}`, `iconColor="cyan"`,
+`icon_automatic_savings`.
+
+**IT IS OUTSIDE THE `holdings.map`, WHICH IS THE WHOLE STRUCTURAL CLAIM.** It is
+the only card in that grid that is not a `Holding`.
+
+**`cyan` IS A NEW CATEGORY TINT AND IT HAD TO BE.** The grid's badge colour
+encodes the CATEGORY — teal Bank Account, green Investment, yellow Assets,
+orange Crypto Wallet — so a new category needs a tint no other holds. Green
+would have been the natural reading (the goal cards' progress bars are green)
+and is exactly the one taken. Figma draws no such card, so there is no measured
+value to transcribe; stated as a choice rather than dressed up as one.
+
+**GATE 33's LONE-CARD RULE GOES DORMANT AT TEN, AND THAT IS THE RULE WORKING.**
+`.mvp-finance__grid-item:last-child:nth-child(odd)` is keyed to PARITY, not to a
+count, precisely so it "survives the fixture growing or shrinking". With ten
+cards every row pairs and nothing is held to one column. Measured: five rows
+before and five after, so **the document height does not change** and the
+`/finance` baseline moves only in the hero text and the last row's right half.
+
+#### THE TAP IS A CALLBACK, NOT A `navigate`, AND THAT IS NOT STYLE
+
+The card shows the Plans tab. The Finance tabs are in-screen `useState` and
+never reach the URL (B7), so `navigate('/finance', { state: { financeTab:
+'plans' } })` **from a card already on `/finance`** would not remount
+`FinanceScreen`, the `useState` initialiser that reads `requestedFinanceTab`
+would never re-run, and **the tap would do nothing at all**. Only the screen
+that owns `selected` can change it, so `FinanceScreen` passes `onShowPlans`
+down. Asserted: the tab flips and `page.url()` is unchanged.
+
+### The Plans tab
+
+`PlansTab.tsx` replaces the `ComingSoon` stub. **A REPLACED STUB CHANGES
+BASELINES AND ADDS NONE** — Gate 48's rule, collected on for the third time.
+`ComingSoon` is no longer imported by `FinanceScreen` and is still live at
+`/transfer`, `/more`, `/steward` and the Homepage's two stub tabs.
+
+Measured through the browser at 375, DPR 2, against `1266:14339`:
+
+| | Figma | measured |
+|---|---|---|
+| goal card | 200 x 144 | **200 x 144** |
+| card 1 / card 2 x | 16 / 224 (pitch 208, gap 8) | **16 / 224** |
+| heading inset / width | 16 / 343 | **16 / 343** |
+| heading -> card row | 16 | **16** |
+| between the two sections | 212 - (8 + 180) = 24 | **24** |
+| commitment row gap | 16 | **16** |
+| icon badge | `Size=Xl` = 40 | **40 x 40** |
+| brand logo | `Size=XXL 40` | **40 x 40** |
+
+**THE GOAL ROW SCROLLS BECAUSE FIGMA'S OWN ROW OVERFLOWS.** `card/goals` is a
+hard `width: 200px` (the DS declares it and exposes no sizing prop) and Figma
+places two at x=0 and x=208 inside a 343 column: `2 x 200 + 8 = 408` against
+343, so the second card is cut off **in the file itself**. That is the Smart
+Insights carousel's disposition (A12 / SYS-9, "intentional horizontal scroll"),
+so the row takes `.mvp-column--bleed` and `overflow-x: auto`. Measured
+`scrollWidth` **440** = `16 + 200 + 8 + 200 + 16`.
+
+**SO THE DS's 200px IS NOT A GAP TO REGISTER.** It is the drawn width, and the
+overflow is the drawn behaviour. No gap number was opened.
+
+**THE GOAL CARDS ARE INERT, AND OMITTING `onClick` IS NOT MERELY "NOT WIRING
+IT".** `CardGoals` renders a plain `<div>` without `onClick` and a real
+`<button>` with it, so the card is not focusable, not announced as a control and
+carries no pointer cursor. Their destination — `/finance/plans/goals/:goalId` —
+does not exist until Gate 77, and a tap target that leads nowhere is worse than
+an untapped card. Asserted: `tagName === 'DIV'`.
+
+**NEITHER "Add New" IS RENDERED.** `SectionHeader` draws its `Link` only when
+given `linkLabel`, so omitting it is the whole suppression — Gate 44's ruling
+that a control which is drawn, focusable and announced while unable to act is
+worse than one that is not there.
+
+#### The commitment tint is TRANSCRIBED, and deriving it was measured wrong
+
+`CommitmentLogo`'s icon case gained `tint: IconObjectColor`, on the
+`Holding.badgeColor` precedent ("measured from Figma per category, not chosen
+here"). The brand case cannot carry one — a `Logo` is artwork with its own
+colours — which is exactly why this is a tagged union.
+
+**DERIVING THE TINT FROM `TRANSACTION_CATEGORIES`' `hue` WAS THE TIDIER DESIGN
+AND IT IS WRONG.** Figma paints Mortgage **teal** and Car Payment **gray**,
+while their categories (`bills`, `transport`) map to **red** and **lime** — so
+the rule contradicts the frame on **both** of the two rows that exist to check
+it. The two values are transcribed instead.
+
+#### `hasReceiptIcon={false}` IS PASSED, NOT OMITTED
+
+The prop **defaults to `true`**, so omitting it draws a `receipt_long` glyph
+beside every amount. This is the fifth instance of the omitted-prop trap in this
+repo (`Link.iconBefore`, `ReceiptCard`, the holding drill-down at Gate 53-B,
+`HeaderDefault.hasSubtitle`). A commitment is a plan, not a receipt. Asserted
+per row: exactly one `<svg>`, which is the leading mark.
+
+### ⚠ FIGMA DRAWS SEVEN COMMITMENTS. THE SEED HAS FIVE. KEPT AT FIVE.
+
+Gate 75 could not reach Figma and seeded the inventory's five, flagging the
+count as unsettled. **This gate reached the frame and Figma draws SEVEN**, with
+five of the five seeded amounts also disagreeing:
+
+| row | Figma | seeded |
+|---|---|---|
+| Mortgage | 1,200.00 | **2,450.00** |
+| Car Payment | 500.00 | **1,180.00** |
+| Internet | 120.00 | 120.00 |
+| Netflix | 20.00 | **54.90** |
+| **Golf Lesson** | 20.00 | **absent** |
+| Anytime Fitness | 160.00 | **128.00** |
+| **Phone Plan** | 35.00 | **absent** |
+
+Figma's order also nests the Internet row with a `System message` banner
+("Maxis Promotion Available." / "RM69/month Potential Savings.", a `View`
+button) directly beneath it — that banner is Gate 78's.
+
+**REPORTED AND NOT FIXED, per the gate's own ruling: a seeded addition is Gate
+78's, not a silent fix here.** Changing amounts or adding rows is a seed change
+and it is Teku's call. Note Figma's banner copy reads "RM69/month Potential
+Savings", i.e. **69 as the SAVING**, which agrees with neither §A1's RM 50
+(120 − 70) nor `CLAUDE.md`'s ruling 3H RM 51 (120 − 69). Gate 78 owns that too.
+
+### Two divergences taken deliberately
+
+- **THE DUE-DATE DAY IS PADDED AND FIGMA'S IS NOT.** Figma writes "next on
+  1 Oct"; `commitmentDueLabel` reuses `formatDayMonth` and writes "next on
+  01 Sept". One formatter across the app outranks one frame's leading zero —
+  the same call already made on two-decimal money against Figma's "RM 700" and
+  on `formatPercent` trimming zeros against "24.00%". Adding a second day format
+  to match one caption is how an app ends up with two conventions and no rule.
+- **`goalPercent` FLOORS.** `budgetPercentLeft`'s rule: a progress figure must
+  never overstate. Both seeded goals are exact integers (56.0%, 92.0%), so the
+  seed cannot tell floor from round — the spec covers `999/1000 -> 99` for the
+  first goal that can.
+
+### The goal images — Figma's own artwork, and a trap in getting it
+
+Gate 75 seeded two filenames with no files behind them, and `settleImages`
+fails the walk on `naturalWidth === 0`, so this blocked the suite. The brief
+authorised a generated placeholder. **None was needed: Figma was reachable, so
+the real fills were taken out of the frame.**
+
+**THE NODE `export` RENDER IS USELESS HERE AND WAS TRIED FIRST.** Asking
+`download_assets` for an export of either image slot returns a **blank white**
+600 x 204 JPEG — and the tell is that the two different nodes return a
+**byte-identical** file (sha `01f24036…`). The photographs are image FILLS on a
+nested layer that the export did not rasterise. **Use `rawImages`, not
+`export`.**
+
+Both were centre-cropped to cover and encoded JPEG through a headless Chromium
+canvas — no new dependency:
+
+| file | bytes | natural | slot |
+|---|---|---|---|
+| `goal_bali_trip.jpg` | 34,628 | 600 x 204 | 200 x 68 at DPR 3 |
+| `goal_emergency_funds.jpg` | 17,960 | 600 x 204 | same |
+
+**600 x 204 IS THE SLOT AT DPR 3, SO `object-fit: cover` HAS NOTHING TO CROP** —
+`.mn-card-goals` is a hard 200px at every viewport. That is deliberate against
+the Gate 25 census, which found the academy PNG shipping 128,696 bytes for a
+221 x 152 render. `public/media/goals/README.md` carries the provenance, the
+node ids and the re-export condition.
+
+### TWO DEFECTS THE RENDER FOUND THAT READING THE RULES DID NOT
+
+Gate 51's lesson, collected on twice.
+
+**1 · BOTH `<ul>`s DREW LIST BULLETS.** Every other list in `finance.css` carries
+`list-style: none` (13 sites) and both new ones were missing it. Invisible in
+the CSS, obvious in a screenshot.
+
+**2 · A `padding` SHORTHAND ON THE GOAL ROW WOULD HAVE COLLAPSED THE GUTTER.**
+The first fix reached for `padding: 0` as part of the reset — which is Gate 14's
+documented hazard verbatim: `.mvp-column--bleed` supplies horizontal LONGHANDS,
+and a shorthand on the adopting element is equal specificity and later in source
+order, so it wins. **No padding reset is needed anyway**: the UA's 40px indent is
+`padding-inline-start`, and the class's author-origin `padding-left` already
+beats it. Only the margin had to go, because the UA's 1em block margin would
+have ADDED to the section's 16px gap. Measured after: `padding-left` 16,
+`scroll-padding-left` 16, `margin` 0.
+
+### Verification
+
+**THE BASELINE PREDICTION WAS WRITTEN BEFORE THE FIRST RUN AND HELD IN BOTH
+DIRECTIONS: 8 changed, 0 added, 0 deleted, and ZERO behaviour-spec failures.**
+The pre-mint run reported **8 failed / 645 passed (20.6m)**, the eight being
+exactly `finance-{375,430}-{light,dark}` and
+`finance-plans-{375,430}-{light,dark}`, with nothing failing outside that set.
+645 + 8 = 653.
+
+**THE FAILING RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT.** The manifest
+digest was **`36087b7f…`** before the first change and after the failing run —
+byte-identical, 208 files, zero untracked in the snapshot directory.
+`updateSnapshots: 'none'` honoured.
+
+The mint was scoped by `-g` to those eight states, **dry-run first**: the
+pattern selected `Total: 8 tests in 1 file` and nothing else. Reconciled against
+the start manifest: **208 -> 208, 8 changed, 0 added, 0 deleted, 200
+byte-identical**, end digest **`9bd417a5…`**.
+
+**ALL EIGHT MINTED BASELINES WERE OPENED, NOT TRUSTED FROM A GREEN RUN.**
+
+**THIRTEEN MUTATION PROOFS, ONE PER NEW TEST, ALL HELD.** Each was selected by
+its exact regex-escaped title anchored with `$` (a leading `^` matches nothing —
+Playwright greps the full title including the project and file prefix), spawned
+through an **argument array with no shell**, and required to run **exactly one
+test**, fail on an **assertion** (checked against a denylist of timeouts,
+module-resolution and compile errors before being accepted), restore
+**SHA-256-identical**, and pass again.
+
+| | mutation | fails on |
+|---|---|---|
+| M01 | `goalsTotal` sums `targetAmount` | `toBe` |
+| M02 | `goalPercent` rounds instead of flooring | `toBe` |
+| M03 | the clamp removed | `toBe` |
+| M04 | Bali's seeded `savedAmount` 5040 -> 5041 | `toBe` |
+| M05 | `netWorth` drops its `goalsTotal` term | `toBeCloseTo` |
+| M06 | a holding takes a goal's id | `not.toContain` |
+| M07 | the "next on" prefix | `toBe` |
+| M08 | `'yearly'` returns `'Monthly'` | `toBe` |
+| M09/10 | `hasReceiptIcon` omitted (light / dark) | `toHaveCount` |
+| M11 | the card shows `formatMyr(0)` | `toContainText` |
+| M12 | the card navigates instead of switching tab | `toBeVisible` |
+| M13 | a holding takes a goal's id | `toBeVisible` |
+
+`npx tsc -b --force`, `npm run build`, `lint:tokens` (80 files, 4 exemptions)
+and `lint:linkage` (all four sources on v2.8.0) all pass.
+
+**THREE CLEAN RUNS OF THE FINAL TREE: 666 passed / 0 failed each**, 21.3 / 20.4
+/ 20.4 minutes, with the baseline manifest digest **`9bd417a5…`** after every
+one — identical to each other and to the post-mint digest, so all 208 baselines
+are byte-stable across the three.
+
+**THE TEST ARITHMETIC: 653 + 13 = 666.** The 13 are all `plans.spec.ts`; no walk
+state was added, so `visual` stays 208 (52 x 2 x 2), `routes` 105 (52 x 2 + 1)
+and `section-headers` 106 (52 x 2 + 2), each confirmed from `--list`.
+
+**ARM 1 OF THE BASELINE GUARD IS GREEN AT THIS GATE'S CLOSE**, which is worth
+saying out loud because most recent gates closed with it red: every baseline
+change is a modification to an already-tracked path, so nothing was added,
+renamed or deleted and all three arms stay green.
+
+### What this gate changed
+
+`src/data/derive.ts` (`goalsTotal`, `goalPercent`, `commitmentCadenceLabel`,
+`commitmentDueLabel`, and `netWorth`'s third parameter); `src/data/types.ts`
+(`CommitmentLogo`'s icon case gained `tint`); `src/data/commitments.ts` (the two
+transcribed tints, and a header rewritten now the seven-versus-five count is
+settled); `src/config/media.ts` (`goalImageUrl`);
+`src/accounts/AccountsProvider.tsx` (`goals` as state, `commitments` as a
+pass-through constant); `src/flows/finance/PlansTab.tsx` (new);
+`src/flows/finance/FinanceScreen.tsx` (the stub swapped, `onShowPlans` passed);
+`src/flows/finance/FinanceOverview.tsx` (the tenth card, and three stale comment
+claims corrected); `src/flows/finance/finance.css` (+5 rules);
+`e2e/plans.spec.ts` (new, 13 tests); `public/media/goals/` (two JPEGs and a
+README); `CLAUDE.md`; and 8 re-minted baselines.
+
+**NO MUTATOR WAS ADDED.** Flow 11's writers are Gate 79's and arrive with their
+first callers — the rule that kept `addTransaction` from being designed in the
+abstract. `AccountsProvider` is still not a reducer.
+
+**ONE CORRECTION OWED FROM AN EARLIER GATE, MADE HERE.** `e2e/harness.ts`'s
+`WALK` comment read `28 OVERLAY_STATES = 51` where the code has said 29 = 52
+since Gate 74-B added `merchant`. Comment only; the arithmetic is spread, so
+nothing ever read it — which is exactly why it went stale.
+
+**ONE SIDE EFFECT, REPORTED BECAUSE IT TOUCHED LINES THIS GATE DID NOT AUTHOR.**
+`finance.css` carried a pre-existing 120-line block of lone LFs (Gate 75's
+survey recorded it as mixed and inert); normalising the file after appending to
+it converted that block to CRLF. **It produces no diff** — git's clean filter
+normalises before comparing, and `git diff --numstat` reports the file as a pure
++97/-0 addition. `e2e/harness.ts` is a wholly-LF file and was deliberately left
+LF; a first attempt at its comment fix failed its CRLF anchor, which is what
+caught it.
+
+### Deliberately not in scope
+
+Goal detail and the contributions bottom sheet (Gate 77); commitment detail, the
+smart insight, the education overlay and the Internet offer seed (78); every
+writer — Add a Goal, Edit, Delete, auto-save, Top-Up (79); the completion record
+(80); adding Figma's two extra commitments or changing any seeded amount
+(Teku's, reported above); the `NetWorthCard` summary string (reported above);
+`MODEL-1`; the retro-fit sweep; G32 adoption; G33's workaround, untouched and
+still carrying its removal condition; persistence (NP1); `npm audit fix`; the DS
+repo; and branch deletion.

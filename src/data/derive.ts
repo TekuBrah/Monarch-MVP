@@ -10,7 +10,9 @@ import type {
   Holding,
   BankHolding,
   Budget,
+  Commitment,
   CryptoWallet,
+  Goal,
   Receipt,
   Transaction,
   TransactionCategory,
@@ -194,18 +196,33 @@ export function goldValue(holding: GoldHolding): Amount {
 }
 
 /**
- * NET WORTH = `sum(holdings)` AND NOTHING ELSE.
+ * NET WORTH = `sum(holdings)` PLUS `sum(goals)`, AND NOTHING ELSE.
  *
  * This is the figure the whole flow is built to make honest. Figma draws
  * RM 450,958.84 beside eight cards that sum to RM 449,958.84 and a ninth account
  * it does not draw at all; deriving is what makes that visible instead of
  * shipping a hand-typed hero number that quietly stops matching its own cards.
+ *
+ * GOALS ARE A SEPARATE TERM, NOT A `Holding` — Gate 76, on Gate 75's ruling.
+ * Goal money is the user's and belongs in the total, but a goal is not an
+ * account: it has no `holdingValue`, no drill-down at `/finance/holding/...`,
+ * and it must never appear in Gate 79's Top-Up source picker. Summing the
+ * collection HERE rather than widening `Holding` is what makes all three true by
+ * construction rather than by a filter somebody has to remember. See `Goal` in
+ * `types.ts` for the three reasons in full.
+ *
+ * `goals` IS REQUIRED RATHER THAN DEFAULTED TO `[]`, for the reason
+ * `Transaction.kind` is a required field: a default lets a call site omit it and
+ * silently UNDERSTATE net worth by the whole goal balance, with nothing
+ * reporting it. There is exactly one production call site, and it is a compile
+ * error until it decides.
  */
 export function netWorth(
   holdings: Holding[],
   cryptoHoldings: CryptoHolding[],
+  goals: Goal[],
 ): Amount {
-  return sum(holdings.map((h) => holdingValue(h, cryptoHoldings)))
+  return sum(holdings.map((h) => holdingValue(h, cryptoHoldings))) + goalsTotal(goals)
 }
 
 /**
@@ -1513,4 +1530,80 @@ export function budgetLegend(budget: Budget, transactions: Transaction[]): Budge
  */
 export function budgetPeriodLabel(budget: Budget): string {
   return `${formatDayMonth(budget.from)} - ${formatDayMonth(budget.to)}`
+}
+
+// -------------------------------------------------- Flow 11: goals (Gate 76)
+
+/**
+ * COMBINED GOAL MONEY — the figure the Overview's "Savings Goals" card shows,
+ * and the term `netWorth` adds to `sum(holdings)`.
+ *
+ * SUMMED IN WHOLE SEN, the move `categoryTotal`, `budgetSpent` and `netWorth`
+ * already make: a float sum of two-decimal figures can miss the cent, and this
+ * one lands in the app's largest printed number.
+ *
+ * IT SUMS `savedAmount`, NEVER `contributions`. That is `Goal.savedAmount`'s own
+ * contract — the contributions list is a partial slice of history, so it cannot
+ * reconstruct a balance and must not be asked to.
+ */
+export function goalsTotal(goals: Goal[]): Amount {
+  return goals.reduce((total, goal) => total + toSen(goal.savedAmount), 0) / 100
+}
+
+/**
+ * How far along a goal is, 0-100.
+ *
+ * `Math.floor`, CLAMPED, ON `budgetPercentLeft`'s RULE — a progress figure must
+ * never overstate. 99.6% of the way to a target is not "100%", and a card
+ * reading 100% beside an amount short of its target is the kind of disagreement
+ * this app derives figures to avoid.
+ *
+ * THE SEED LANDS ON TWO EXACT INTEGERS, so floor and round agree today: Bali
+ * 5,040 / 9,000 = 56.0% and Emergency 11,040 / 12,000 = 92.0%, which are the two
+ * percentages Figma's own cards print. `ProgressBar` defaults its own label to
+ * `Math.round(value)`, so passing the floored integer is also what stops the
+ * label and the bar disagreeing the first time a goal lands off an integer.
+ *
+ * A ZERO OR NEGATIVE TARGET RETURNS 0 rather than dividing by it. Nothing in the
+ * app can create one — `budgetDraftErrors`' equivalent rule requires a positive
+ * amount — but a bar is a rendering, not a place to discover a bad record.
+ */
+export function goalPercent(goal: Goal): number {
+  if (goal.targetAmount <= 0) return 0
+  const pct = Math.floor((toSen(goal.savedAmount) * 100) / toSen(goal.targetAmount))
+  return Math.min(100, Math.max(0, pct))
+}
+
+// -------------------------------------------- Flow 11: commitments (Gate 76)
+
+/**
+ * `"Monthly"` / `"Yearly"` — the caption under a commitment's name.
+ *
+ * A SWITCH WITH NO `default`, so a third `CommitmentCadence` is a compile error
+ * here rather than a row that silently prints nothing. Same construction as
+ * `TransactionMark`'s, and the same reason.
+ */
+export function commitmentCadenceLabel(commitment: Commitment): string {
+  switch (commitment.cadence) {
+    case 'monthly':
+      return 'Monthly'
+    case 'yearly':
+      return 'Yearly'
+  }
+}
+
+/**
+ * `"next on 01 Sept"` — the caption under a commitment's amount.
+ *
+ * ⚠ THE DAY IS TWO DIGITS AND FIGMA'S IS ONE ("next on 1 Oct"), AND THE
+ * DIVERGENCE IS DELIBERATE. It reuses `formatDayMonth`, which is what the budget
+ * period and the ledger's own timestamps already print ("30 Aug - 20 Sept",
+ * "04 Sept"). One formatter across the app outranks one frame's leading zero —
+ * the same call this repo already made on two-decimal money against Figma's
+ * "RM 700", and on `formatPercent` trimming zeros against Figma's "24.00%".
+ * Adding a second day format to match one caption is how an app ends up with two
+ * conventions and no rule.
+ */
+export function commitmentDueLabel(commitment: Commitment): string {
+  return `next on ${formatDayMonth(commitment.nextDueOn)}`
 }

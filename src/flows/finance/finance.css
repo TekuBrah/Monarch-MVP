@@ -2252,3 +2252,100 @@ button.mvp-receipt-card:focus-visible {
   margin: 0;
   color: var(--mapped-text-default-default);
 }
+
+/* ──────────────────────────────────────────────── Plans tab (Gate 76, Flow 11)
+
+  Figma `Finance_Plan` (`1266:14339`). `Frame 449` holds two sections; each
+  section (`Frame 314`, `Frame 453`) is a column with `px-16` and a 16px gap
+  between its heading and its body.
+
+  THE GEOMETRY, READ OFF THE FRAME RATHER THAN ASSUMED. `Frame 314` sits at
+  y=8 and is 180 tall; `Frame 453` starts at y=212. 8 + 180 = 188, so the space
+  between the two sections is 212 - 188 = 24 — `--spacing-600`. The 8 above the
+  first section is `--spacing-200`.
+
+  THE SIDE INSET IS APPLIED IN MARKUP, NOT HERE, and it is applied at two
+  different levels on purpose. The commitments section takes `.mvp-column`
+  whole. The goals section CANNOT, because its heading is inset while its card
+  row is full-bleed and scrolls — so the heading gets its own `.mvp-column`
+  wrapper and the row gets `.mvp-column--bleed`, which carries the same gutter
+  as padding. Both derive from `--mvp-gutter`; neither writes a spacing token at
+  a gutter site.
+*/
+.mvp-plans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  padding-top: var(--spacing-200);
+}
+
+.mvp-plans__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/*
+  THE GOAL ROW SCROLLS BECAUSE FIGMA'S OWN ROW OVERFLOWS. `card/goals` is a
+  hard 200px (the DS declares `width: 200px` and exposes no sizing prop) and
+  Figma places two at x=0 and x=208 inside a 343px column: 2 x 200 + 8 = 408.
+  The second card is cut off at the frame edge in the file itself — the same
+  disposition the Smart Insights carousel carries (A12 / SYS-9, "intentional
+  horizontal scroll").
+
+  NO SCROLLBAR RULE HERE, DELIBERATELY. Gate 44 declared the suppression ONCE,
+  on `*` in `index.css`, precisely so a new scroll container does not arrive
+  with a visible bar and a per-site fix. Re-adding one here is what that gate
+  forbids.
+
+  A `padding` SHORTHAND IS NOT WRITTEN ON THIS ELEMENT. `.mvp-column--bleed`
+  supplies longhands, and a shorthand here is equal specificity and later in
+  source order, so it would win and collapse the gutter (Gate 14).
+*/
+.mvp-plans__goals {
+  display: flex;
+  gap: var(--spacing-200);
+  /*
+    THE UA LIST RESET, MINUS THE PADDING — and the omission is the load-bearing
+    part, not an oversight.
+
+    A `padding` SHORTHAND HERE WOULD SILENTLY COLLAPSE THE GUTTER. That is Gate
+    14's finding in as many words: `.mvp-column--bleed` supplies horizontal
+    LONGHANDS, and a shorthand on the adopting element is equal specificity and
+    later in source order, so it wins. The Smart Insights carousel keeps only
+    `padding-bottom` of its own for exactly this reason.
+
+    NO PADDING RESET IS NEEDED ANYWAY. The UA's 40px indent is
+    `padding-inline-start`, and `.mvp-column--bleed`'s author-origin
+    `padding-left` beats it — so the indent is already gone. Measured below.
+
+    THE MARGIN DOES HAVE TO GO. The UA gives a `ul` a 1em block margin, which
+    would ADD to this section's own 16px gap and put the row 32px below its
+    heading rather than Figma's 16.
+  */
+  margin: 0;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mvp-plans__goals > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/*
+  `Frame 472` — the commitment rows, 16px apart. Figma's own list nests the
+  Internet row with its promotion banner inside a sub-frame at a 4px gap; that
+  banner is Gate 78's, so this is a flat list until it arrives.
+*/
+.mvp-plans__commitments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  /* The UA sheet's own bullets and 40px indent, reset as everywhere else. */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

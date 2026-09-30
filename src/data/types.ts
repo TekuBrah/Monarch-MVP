@@ -881,7 +881,21 @@ export type CommitmentCadence = 'monthly' | 'yearly'
  *
  * THE `icon` CASE IS NOT A DS GAP. A mortgage has no brand mark to ship; a
  * generic glyph is the correct rendering, not a substitute for a missing one.
+ *
+ * THE ICON CASE CARRIES ITS OWN TINT, AND THE BRAND CASE CANNOT (Gate 76). A
+ * `Logo` is artwork with its own colours and takes no tint; an `IconObject`
+ * badge must be given one. Putting it on the icon member alone is the whole
+ * reason this is a tagged union — a shared `tint` field would be meaningless on
+ * every brand row.
+ *
+ * IT IS TRANSCRIBED FROM FIGMA PER ROW, NOT DERIVED FROM `category`, and that
+ * was settled by measurement rather than taste. Figma paints Mortgage TEAL and
+ * Car Payment GRAY (`1266:14339`), while their categories are `bills` and
+ * `transport`, whose `TRANSACTION_CATEGORIES` hues are RED and LIME — so a
+ * category rule contradicts the frame on both rows that exist to check it.
+ * `Holding.badgeColor` is the same field for the same reason, with the same
+ * note: measured from Figma, not chosen here.
  */
 export type CommitmentLogo =
   | { kind: 'brand'; name: LogoName }
-  | { kind: 'icon'; name: IconName }
+  | { kind: 'icon'; name: IconName; tint: IconObjectColor }

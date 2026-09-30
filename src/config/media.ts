@@ -270,3 +270,36 @@ const TRANSACTION_LOGO_DIR = '/media/transactions'
 export function transactionLogoUrl(filename: string): string {
   return `${TRANSACTION_LOGO_DIR}/${filename}`
 }
+
+// ------------------------------------------------------ goal imagery (Flow 11)
+
+/**
+ * The directory savings-goal photographs are served from.
+ *
+ * DECLARED ONCE SO NO COMPONENT WRITES A LITERAL `/media/...` PATH — this file's
+ * own top-level rule, honoured for the third case the slot model cannot express.
+ */
+const GOAL_IMAGE_DIR = '/media/goals'
+
+/**
+ * Resolve a `Goal.image` filename to a public URL.
+ *
+ * THE `receiptUrl()` / `transactionLogoUrl()` ARGUMENT FOR A THIRD TIME, and it
+ * transfers without modification: a `MediaSlot` is ONE logical name resolving to
+ * ONE url a customisation flow can swap, while a goal photograph is per-record
+ * product data — each `Goal` names its own file, and there is no "the goal image"
+ * for a slot to point at.
+ *
+ * NO PLACEHOLDER AND NO FALLBACK, DELIBERATELY. A slot falls back because it can
+ * legitimately be unset; a goal whose file is missing is a DATA DEFECT, and
+ * substituting a placeholder would hide it. `settleImages` in `e2e/harness.ts`
+ * asserts `naturalWidth > 0` on every rendered image, so the walk fails loudly
+ * rather than photographing an empty box.
+ *
+ * A PHOTO PICKER IS NOT THIS FUNCTION'S BUSINESS. `Goal.image` is a bare
+ * filename precisely so a future picker stores a reference rather than a `blob:`
+ * that cannot survive the document that made it — see `Goal.image`.
+ */
+export function goalImageUrl(filename: string): string {
+  return `${GOAL_IMAGE_DIR}/${filename}`
+}
