@@ -1346,10 +1346,23 @@ export function transactionAccount(
  * ─────────────────────────────────────────────────────────────────────────────
  * FLOW 10 — A BUDGET'S FIGURES, ALL DERIVED (Decision 2A).
  *
- * SPENT is every OUTFLOW in the budget's categories whose date falls inside its
+ * SPENT is every PAYMENT in the budget's categories whose date falls inside its
  * range, inclusive at both ends. CREDITS ARE EXCLUDED: a refund or an incoming
- * transfer is not spending. A transfer to a person counts under whatever
- * category the ledger gives it. Nothing about spent is seeded.
+ * transfer is not spending. Nothing about spent is seeded.
+ *
+ * TRANSFERS ARE EXCLUDED BY KIND, NEVER BY CATEGORY (Flow 11, Gate 75). A row
+ * carrying `kind: 'transfer'` is money moving between things the user owns, or
+ * between the user and a person, so it is not spending however it is
+ * categorised. Reading `kind` rather than `method` is what makes that correct
+ * in both directions: a `Fund Transfer` bill payment still counts, and a
+ * `Crypto Transfer` never does. The two crypto rows this excludes are
+ * `others`-category outflows of RM 350.69 and RM 400.15 inside
+ * `budget-monthly`'s window, which is why that budget's spent fell by RM 750.84
+ * at that gate.
+ *
+ * THE PREVIOUS SENTENCE HERE READ "a transfer to a person counts under whatever
+ * category the ledger gives it". That was true when written and is now the
+ * opposite of the rule — the clause is removed rather than annotated.
  *
  * THE DATE TEST COMPARES STRINGS. `occurredAt` is written without a zone
  * ("2025-09-15T22:03:00"), so its first 10 characters ARE the local calendar
@@ -1357,16 +1370,38 @@ export function transactionAccount(
  * answer. `'YYYY-MM-DD'` strings order the same way lexically as by date.
  *
  * MONEY IS SUMMED IN WHOLE SEN. Five float additions do not reliably land on a
- * two-decimal figure, and `toBe(3359.67)` should not depend on the order of the
- * rows.
+ * two-decimal figure, and `toBe(2608.83)` should not depend on the order of the
+ * rows. (That example read 3359.67 until Gate 75 excluded transfers.)
  * ─────────────────────────────────────────────────────────────────────────────
  */
-function toSen(amount: Amount): number {
+/**
+ * Money as whole sen.
+ *
+ * EXPORTED AT GATE 75 FOR A SECOND CALLER — `adjustFiatBalance` in
+ * `AccountsProvider`, which adds a delta to a stored balance. Two float
+ * additions do not reliably land on a two-decimal figure, and a balance that
+ * drifts by a hundredth stops matching the ledger it came from. Exported rather
+ * than re-declared there, because two definitions of "money in sen" is the
+ * two-sources-for-one-fact shape this repo keeps removing.
+ */
+export function toSen(amount: Amount): number {
   return Math.round(amount * 100)
 }
 
-/** Whether a row counts toward a budget: an outflow, in category, in range. */
+/**
+ * Whether a row counts toward a budget: a payment, an outflow, in category, in
+ * range.
+ *
+ * THE KIND TEST COMES FIRST because it is the cheapest and the most decisive;
+ * order is otherwise immaterial, since every clause must hold.
+ *
+ * IT DOES NOT FILTER BY `accountId`, AND THAT IS A KNOWN GAP RATHER THAN AN
+ * OVERSIGHT — see `MODEL-1` in the gap register. `Budget` carries no account
+ * scope, so a budget is implicitly every account: `budget-monthly`'s counted
+ * rows span `main` and `joint`, measured. Out of scope at Gate 75.
+ */
 function countsToward(budget: Budget, t: Transaction): boolean {
+  if (t.kind !== 'payment') return false
   if (t.amount >= 0) return false
   if (!budget.categories.includes(t.category)) return false
   const day = t.occurredAt.slice(0, 10)

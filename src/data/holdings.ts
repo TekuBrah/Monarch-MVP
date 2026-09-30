@@ -1,5 +1,5 @@
 import { FIAT_ACCOUNTS } from './accounts'
-import type { Holding } from './types'
+import type { FiatAccount, Holding } from './types'
 
 /**
  * The nine holdings the Finance Overview sums to net worth.
@@ -50,9 +50,18 @@ import type { Holding } from './types'
  *      data (the rule `CryptoHolding.changePct` already set in Flow 1).
  */
 
-/** The Main and Joint balances come from the cash accounts, not restated here. */
-function bankBalance(id: string): number {
-  const account = FIAT_ACCOUNTS.find((a) => a.id === id)
+/**
+ * The Main and Joint balances come from the cash accounts, not restated here.
+ *
+ * IT TAKES THE ACCOUNTS AS AN ARGUMENT RATHER THAN READING `FIAT_ACCOUNTS`, and
+ * that is the whole of the Gate 75 change to this file. Reading the module
+ * constant bound these balances AT IMPORT TIME, so once `AccountsProvider` made
+ * the accounts writable the Homepage's balance card would have moved while this
+ * file's bank cards, the net-worth hero and the net-worth chart silently did not
+ * — a divergence with nothing to report it.
+ */
+function bankBalance(accounts: FiatAccount[], id: string): number {
+  const account = accounts.find((a) => a.id === id)
   if (!account) throw new Error(`No fiat account "${id}"`)
   return account.balance
 }
@@ -70,129 +79,158 @@ function bankBalance(id: string): number {
 const FD_REMAINING_MONTHS = 15
 const FD_TERM_YEARS = 3
 
-export const HOLDINGS: Holding[] = [
-  {
-    id: 'fd',
-    type: 'fixed-deposit',
-    category: 'Bank Account',
-    name: 'Fixed Deposit',
-    icon: 'icon_bank',
-    badgeColor: 'teal',
-    // AUTHORITATIVE. The principal is derived FROM this, not the reverse — B3.
-    currentValue: 150000,
-    ratePct: 3.5,
-    termYears: FD_TERM_YEARS,
-    remainingMonths: FD_REMAINING_MONTHS,
-  },
-  {
-    id: 'main',
-    type: 'bank',
-    category: 'Bank Account',
-    name: 'Main',
-    icon: 'icon_bank',
-    badgeColor: 'teal',
-    balance: bankBalance('main'),
-    // AUTHORED — the file shows no account number anywhere.
-    accountNo: '•••• 8842',
-    bank: 'Monarch Bank',
-    accountType: 'Savings Account',
-    accountId: 'main',
-  },
-  {
-    // AUTHORED CARD — Flow 4's picker, promoted to net worth. See the header.
-    id: 'joint',
-    type: 'joint',
-    category: 'Bank Account',
-    name: 'Joint Account',
-    icon: 'icon_bank',
-    badgeColor: 'teal',
-    balance: bankBalance('joint'),
-    accountNo: '•••• 3160',
-    bank: 'Monarch Bank',
-    accountType: 'Joint Savings',
-    accountId: 'joint',
-  },
-  {
-    id: 'stocks',
-    type: 'stocks',
-    category: 'Investment',
-    name: 'Stocks',
-    icon: 'icon_stocks',
-    badgeColor: 'green',
-    invested: 85000,
-    linesLabel: 'Stocks held',
-    // AUTHORED composition; sums to the sourced RM 98,476.23 exactly.
-    lines: [
-      { id: 'maybank', name: 'Maybank', symbol: 'MAYBANK', valueMyr: 42180.5, changePct: 0 },
-      { id: 'tenaga', name: 'Tenaga Nasional', symbol: 'TENAGA', valueMyr: 31295.73, changePct: 0 },
-      { id: 'pbbank', name: 'Public Bank', symbol: 'PBBANK', valueMyr: 25000, changePct: 0 },
-    ],
-  },
-  {
-    id: 'unit-trust',
-    type: 'unit-trust',
-    category: 'Investment',
-    name: 'Unit Trust',
-    icon: 'icon_stocks',
-    badgeColor: 'green',
-    invested: 48000,
-    linesLabel: 'Funds held',
-    // AUTHORED composition; sums to the sourced RM 52,150.00 exactly.
-    lines: [
-      { id: 'ut-apac', name: 'Asia Pacific Dynamic Income', valueMyr: 28900, changePct: 0 },
-      { id: 'ut-islamic', name: 'Islamic Equity Growth', valueMyr: 23250, changePct: 0 },
-    ],
-  },
-  {
-    id: 'prs',
-    type: 'prs',
-    category: 'Investment',
-    name: 'PRS',
-    icon: 'icon_stocks',
-    badgeColor: 'green',
-    invested: 11000,
-    linesLabel: 'Funds held',
-    // AUTHORED composition; sums to the sourced RM 12,000.00 exactly.
-    lines: [
-      { id: 'prs-growth', name: 'PRS Growth Fund', valueMyr: 7200, changePct: 0 },
-      { id: 'prs-conservative', name: 'PRS Conservative Fund', valueMyr: 4800, changePct: 0 },
-    ],
-  },
-  {
-    id: 'gold',
-    type: 'gold',
-    category: 'Assets',
-    name: 'Gold',
-    icon: 'icon_gold',
-    badgeColor: 'yellow',
-    // Value is `grams * pricePerGram` and is never stored — 4.00 g at RM 500.00
-    // is the sourced RM 2,000.00, split into the two facts a gold holding
-    // actually has. AUTHORED split; the product is Figma's.
-    grams: 4,
-    pricePerGram: 500,
-    // The drill-down's third tile is "Purchase value". AUTHORED.
-    invested: 1750,
-  },
-  {
-    id: 'wallet-marg',
-    type: 'crypto-wallet',
-    category: 'Crypto Wallet',
-    name: "Marge's Wallet",
-    icon: 'icon_crypto',
-    badgeColor: 'orange',
-    invested: 90000,
-    walletId: 'marg',
-  },
-  {
-    id: 'wallet-fun',
-    type: 'crypto-wallet',
-    category: 'Crypto Wallet',
-    name: 'Fun Wallet',
-    icon: 'icon_crypto',
-    badgeColor: 'orange',
-    // Deliberately BELOW its current value — not every holding is a gain, and a
-    // screen where all five "Invested" tiles show a profit reads as a mock-up.
-    invested: 6000,
-    walletId: 'fun',
-  },
-]
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE HOLDINGS, BUILT FROM A GIVEN SET OF CASH ACCOUNTS (Gate 75).
+ *
+ * THIS WAS A MODULE CONSTANT AND HAD TO STOP BEING ONE IN THE SAME CHANGE THAT
+ * MADE THE CASH ACCOUNTS WRITABLE. `netWorth` and `netWorthSeries` both derive
+ * from `holdings`, and the two bank cards' balances derive from the accounts, so
+ * a frozen `HOLDINGS` beside live accounts is not a stale figure in one place —
+ * it is the Homepage disagreeing with the Finance Overview, the net-worth hero
+ * and the chart, with every check green.
+ *
+ * IT IS A PURE FUNCTION OF ITS ARGUMENT. Nothing here reads `FIAT_ACCOUNTS`, so
+ * a caller holding accounts in state gets holdings that follow, and the
+ * derivation cannot silently fall back to the seed.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export function buildHoldings(accounts: FiatAccount[]): Holding[] {
+  return [
+    {
+      id: 'fd',
+      type: 'fixed-deposit',
+      category: 'Bank Account',
+      name: 'Fixed Deposit',
+      icon: 'icon_bank',
+      badgeColor: 'teal',
+      // AUTHORITATIVE. The principal is derived FROM this, not the reverse — B3.
+      currentValue: 150000,
+      ratePct: 3.5,
+      termYears: FD_TERM_YEARS,
+      remainingMonths: FD_REMAINING_MONTHS,
+    },
+    {
+      id: 'main',
+      type: 'bank',
+      category: 'Bank Account',
+      name: 'Main',
+      icon: 'icon_bank',
+      badgeColor: 'teal',
+      balance: bankBalance(accounts, 'main'),
+      // AUTHORED — the file shows no account number anywhere.
+      accountNo: '•••• 8842',
+      bank: 'Monarch Bank',
+      accountType: 'Savings Account',
+      accountId: 'main',
+    },
+    {
+      // AUTHORED CARD — Flow 4's picker, promoted to net worth. See the header.
+      id: 'joint',
+      type: 'joint',
+      category: 'Bank Account',
+      name: 'Joint Account',
+      icon: 'icon_bank',
+      badgeColor: 'teal',
+      balance: bankBalance(accounts, 'joint'),
+      accountNo: '•••• 3160',
+      bank: 'Monarch Bank',
+      accountType: 'Joint Savings',
+      accountId: 'joint',
+    },
+    {
+      id: 'stocks',
+      type: 'stocks',
+      category: 'Investment',
+      name: 'Stocks',
+      icon: 'icon_stocks',
+      badgeColor: 'green',
+      invested: 85000,
+      linesLabel: 'Stocks held',
+      // AUTHORED composition; sums to the sourced RM 98,476.23 exactly.
+      lines: [
+        { id: 'maybank', name: 'Maybank', symbol: 'MAYBANK', valueMyr: 42180.5, changePct: 0 },
+        { id: 'tenaga', name: 'Tenaga Nasional', symbol: 'TENAGA', valueMyr: 31295.73, changePct: 0 },
+        { id: 'pbbank', name: 'Public Bank', symbol: 'PBBANK', valueMyr: 25000, changePct: 0 },
+      ],
+    },
+    {
+      id: 'unit-trust',
+      type: 'unit-trust',
+      category: 'Investment',
+      name: 'Unit Trust',
+      icon: 'icon_stocks',
+      badgeColor: 'green',
+      invested: 48000,
+      linesLabel: 'Funds held',
+      // AUTHORED composition; sums to the sourced RM 52,150.00 exactly.
+      lines: [
+        { id: 'ut-apac', name: 'Asia Pacific Dynamic Income', valueMyr: 28900, changePct: 0 },
+        { id: 'ut-islamic', name: 'Islamic Equity Growth', valueMyr: 23250, changePct: 0 },
+      ],
+    },
+    {
+      id: 'prs',
+      type: 'prs',
+      category: 'Investment',
+      name: 'PRS',
+      icon: 'icon_stocks',
+      badgeColor: 'green',
+      invested: 11000,
+      linesLabel: 'Funds held',
+      // AUTHORED composition; sums to the sourced RM 12,000.00 exactly.
+      lines: [
+        { id: 'prs-growth', name: 'PRS Growth Fund', valueMyr: 7200, changePct: 0 },
+        { id: 'prs-conservative', name: 'PRS Conservative Fund', valueMyr: 4800, changePct: 0 },
+      ],
+    },
+    {
+      id: 'gold',
+      type: 'gold',
+      category: 'Assets',
+      name: 'Gold',
+      icon: 'icon_gold',
+      badgeColor: 'yellow',
+      // Value is `grams * pricePerGram` and is never stored — 4.00 g at RM 500.00
+      // is the sourced RM 2,000.00, split into the two facts a gold holding
+      // actually has. AUTHORED split; the product is Figma's.
+      grams: 4,
+      pricePerGram: 500,
+      // The drill-down's third tile is "Purchase value". AUTHORED.
+      invested: 1750,
+    },
+    {
+      id: 'wallet-marg',
+      type: 'crypto-wallet',
+      category: 'Crypto Wallet',
+      name: "Marge's Wallet",
+      icon: 'icon_crypto',
+      badgeColor: 'orange',
+      invested: 90000,
+      walletId: 'marg',
+    },
+    {
+      id: 'wallet-fun',
+      type: 'crypto-wallet',
+      category: 'Crypto Wallet',
+      name: 'Fun Wallet',
+      icon: 'icon_crypto',
+      badgeColor: 'orange',
+      // Deliberately BELOW its current value — not every holding is a gain, and a
+      // screen where all five "Invested" tiles show a profit reads as a mock-up.
+      invested: 6000,
+      walletId: 'fun',
+    },
+  ]
+}
+
+/**
+ * The holdings as the SEED produces them.
+ *
+ * KEPT AS AN EXPORT BECAUSE TWO CALLERS WANT THE SEED SPECIFICALLY, not live
+ * state: `e2e/harness.ts` expands `:holdingId` over it to build the walk before
+ * a browser exists, and `TransactionDetailSheet` resolves a row's institution
+ * from it. `AccountsProvider` is the one caller that does NOT use this — it
+ * calls `buildHoldings` over its own account state, which is the point.
+ */
+export const HOLDINGS: Holding[] = buildHoldings(FIAT_ACCOUNTS)

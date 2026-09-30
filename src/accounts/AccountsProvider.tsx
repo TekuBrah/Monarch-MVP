@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { CRYPTO_HOLDINGS, CRYPTO_WALLETS, FIAT_ACCOUNTS } from '../data/accounts'
-import { HOLDINGS } from '../data/holdings'
+import { buildHoldings } from '../data/holdings'
 import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
 import {
@@ -16,6 +16,7 @@ import {
   cryptoWalletTotal,
   netWorth,
   netWorthSeries,
+  toSen,
 } from '../data/derive'
 import type {
   Amount,
@@ -71,17 +72,23 @@ import type {
  * sheet's "Unlink receipt" writes exactly that field, and it cost one
  * `useCallback` and one line in the value object. Nothing else moved.
  *
- * SO THERE ARE NOW SEVEN MUTATORS, AND ONE OF THEM STILL HAS NO CALLER. This
- * line said "two" from Gate 49, was stale from Gate 50 when `addReceipt`
- * arrived, and was corrected at Gate 51 for `deleteReceipt`; Gate 51-B adds
- * `linkReceipt` and `updateReceipt`, and Gate 61 `replaceReceipt`. Six have
- * callers; `addTransaction` still has none and is still the seam described
- * above. Do not sweep it as dead code.
+ * SO THERE ARE NOW EIGHT MUTATORS, AND TWO OF THEM HAVE NO CALLER. This line
+ * said "two" from Gate 49, was stale from Gate 50 when `addReceipt` arrived, and
+ * was corrected at Gate 51 for `deleteReceipt`; Gate 51-B adds `linkReceipt` and
+ * `updateReceipt`, Gate 61 `replaceReceipt`, and Gate 75 `adjustFiatBalance`.
+ * Six have callers; `addTransaction` and `adjustFiatBalance` have none and are
+ * both seams. Do not sweep either as dead code.
  *
- * SIX OF THE SEVEN WRITE `receipts` AND NOTHING ELSE. Only `addTransaction`
- * touches the ledger, and it is the one nothing calls — so no user action in
- * this app can currently change a transaction. That is the P6 ruling made
- * structural rather than promised: receipts never rewrite the bank.
+ * SIX OF THE EIGHT WRITE `receipts` AND NOTHING ELSE, and the other two are the
+ * two with no callers. So no user action in this app can currently change a
+ * transaction OR a balance — that is the P6 ruling made structural rather than
+ * promised: receipts never rewrite the bank.
+ *
+ * `fiatAccounts` IS STATE AS OF GATE 75, AND `holdings` IS DERIVED FROM IT.
+ * Those two had to move together: `netWorth`, `netWorthSeries` and the two bank
+ * cards all read `holdings`, so live accounts beside a frozen `HOLDINGS` seed
+ * would have left the Homepage's balance card disagreeing with every net-worth
+ * surface, with nothing reporting it. See `buildHoldings` in `holdings.ts`.
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT IS STILL NOT SOLVED, stated so it is not mistaken for solved. This is a
  * provider holding two arrays, not a store. There is no reducer, no action
@@ -135,6 +142,25 @@ interface AccountsContextValue {
    * owns identity), no validation.
    */
   addTransaction: (transaction: Transaction) => void
+  /**
+   * Move a cash account's balance by `delta` — negative to debit.
+   *
+   * THE SECOND SEAM WITH NO CALLER, and the first one that writes money. Gate
+   * 79's Top-Up debits the source account and credits a goal; this is the
+   * account half. `addTransaction` remains the Gate 48 seam beside it, and
+   * neither is dead code — see the block comment above.
+   *
+   * IT TAKES A DELTA, NOT A NEW BALANCE, because every caller knows how much
+   * moved and only this function should have to know what the balance was. A
+   * setter would make two concurrent writes race on a figure each had read
+   * before the other landed; a delta composes.
+   *
+   * IT ADDS IN WHOLE SEN. Two float additions do not reliably land on a
+   * two-decimal figure, and a balance that drifts by a hundredth is a balance
+   * that stops matching the ledger it was derived from — the same reason
+   * `budgetSpent` sums in sen.
+   */
+  adjustFiatBalance: (accountId: string, delta: Amount) => void
   /**
    * Break a receipt’s link to its transaction. Gate 49.
    *
@@ -354,6 +380,24 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     setTransactions((current) => [...current, transaction])
   }, [])
 
+  /**
+   * THE CASH ACCOUNTS ARE STATE AS OF GATE 75, and `holdings` below is derived
+   * from them in the same change. Splitting those two would have shipped an app
+   * whose Homepage balance card moved while its Finance Overview card, net-worth
+   * hero and chart did not — see `buildHoldings` for why.
+   */
+  const [fiatAccounts, setFiatAccounts] = useState<FiatAccount[]>(FIAT_ACCOUNTS)
+
+  const adjustFiatBalance = useCallback((accountId: string, delta: Amount) => {
+    setFiatAccounts((current) =>
+      current.map((account) =>
+        account.id === accountId
+          ? { ...account, balance: (toSen(account.balance) + toSen(delta)) / 100 }
+          : account,
+      ),
+    )
+  }, [])
+
   // IMMUTABLE UPDATE, AND THE `map` IS NOT STYLE. Mutating the record in place
   // would leave the array identity unchanged, so the `useMemo` below would not
   // rebuild and no consumer would re-render — the write would land in the data
@@ -447,22 +491,28 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AccountsContextValue>(() => {
-    const primaryAccount = FIAT_ACCOUNTS[0]
+    const primaryAccount = fiatAccounts[0]
     if (!primaryAccount) throw new Error('No fiat account seeded')
 
+    // DERIVED FROM THE ACCOUNT STATE, never from the `HOLDINGS` seed. This is
+    // the half of the Gate 75 change that keeps every net-worth surface in step
+    // with the two bank cards.
+    const holdings = buildHoldings(fiatAccounts)
+
     return {
-      fiatAccounts: FIAT_ACCOUNTS,
+      fiatAccounts,
       primaryAccount,
       cryptoWallets: CRYPTO_WALLETS,
       cryptoHoldings: CRYPTO_HOLDINGS,
       cryptoTotal: cryptoWalletTotal(CRYPTO_HOLDINGS),
       cryptoChange: cryptoWalletChange(CRYPTO_HOLDINGS),
       transactions,
-      holdings: HOLDINGS,
-      netWorth: netWorth(HOLDINGS, CRYPTO_HOLDINGS),
-      netWorthSeries: netWorthSeries(HOLDINGS, CRYPTO_HOLDINGS),
+      holdings,
+      netWorth: netWorth(holdings, CRYPTO_HOLDINGS),
+      netWorthSeries: netWorthSeries(holdings, CRYPTO_HOLDINGS),
       receipts,
       addTransaction,
+      adjustFiatBalance,
       unlinkReceipt,
       addReceipt,
       deleteReceipt,
@@ -471,9 +521,11 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       replaceReceipt,
     }
   }, [
+    fiatAccounts,
     transactions,
     receipts,
     addTransaction,
+    adjustFiatBalance,
     unlinkReceipt,
     addReceipt,
     deleteReceipt,

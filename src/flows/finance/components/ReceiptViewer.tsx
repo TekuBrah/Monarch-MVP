@@ -108,8 +108,11 @@ import { TransactionPicker } from './TransactionPicker'
  * WHAT IS NEW IS THAT A FLUSH-LEFT SLOT NOW EXISTS: `Modal.onBack` renders a
  * real back control in the leading track. Adopting it here would close G32,
  * and it is NOT done in this gate, whose scope is the two pickers. It is a
- * one-prop change when someone takes it, and it MOVES PIXELS on every
- * `view-*` baseline, which is why it is not a drive-by.
+ * one-prop change when someone takes it, and it moves **12 baselines**, which
+ * is why it is not a drive-by. TWELVE AND NOT 28: `headerIconLeft` below is
+ * passed only when `view !== 'viewer'`, so only the picker, editor and replace
+ * states render a back control, and `OverlayHeader`'s leading track is a fixed
+ * width whether filled or not — the four viewer states cannot shift.
  * Still not overridden with an MVP rule that moves the control — that would
  * be writing over DS geometry, which this project does not do.
  * ─────────────────────────────────────────────────────────────────────────────

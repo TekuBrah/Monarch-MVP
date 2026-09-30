@@ -2507,3 +2507,104 @@ tag table in 2q remains the last one that was.
 **The highest number is G47.** 24 is still a permanent hole.
 
 Nothing was removed from this register.
+
+---
+
+## 2s. Status at MVP Gate 75 (2026-09-30) — the Flow 11 money model; no DS change
+
+**NO DS RE-PIN AND NO DS EDIT.** v2.8.0 throughout, `lint:linkage` PASS with all
+four sources agreeing. This gate built a data model, so it opened no component
+gap and closed none: **the tally is unchanged at 46 entries, 29 closed, 17
+open, and the highest number is still G47.** 24 remains a permanent hole.
+
+**NO MVP-LOCAL OVERRIDE WAS ADDED FOR ANY OPEN ENTRY.** G13, G14, G21, G22, G23,
+G33, G34, G40, G44 and the rest stand exactly as 2r left them, and G33's
+`.mvp-receipt-viewer-modal` workaround is untouched with its removal note
+intact — `.mn-modal__card` still declares no `max-height` under v2.8.0.
+
+### `MODEL-1` — OPENED: a budget has no account scope
+
+**IT HAS NO `G` NUMBER ON PURPOSE, AND THAT IS A CLASSIFICATION RATHER THAN AN
+OMISSION.** A `G` entry states a gap in a DS component and is closed by a DS
+release; this is entirely MVP logic in `src/data/derive.ts`, and no DS release
+can ever touch it. Giving it a number would put an entry in the tally that
+cannot move, and would misreport the DS's own open count forever. It follows the
+precedent 2r set for `UI-1` — "a deferred ITEM rather than a registered gap, so
+closing it moves no tally" — under a prefix of its own because it is a
+data-model question and not a UI defect. **Teku may rename it; the naming is
+Claude's and is flagged as such.**
+
+**THE FINDING.** `countsToward` tests kind, sign, category and date. It does
+**not** test `accountId`, and `Budget` carries no account scope to test against —
+so a budget is implicitly EVERY account the user holds.
+
+**MEASURED, NOT PRESUMED.** `budget-monthly`'s counted rows before this gate's
+own change spanned **three** accounts:
+
+| account | rows | spent |
+|---|---|---|
+| `main` | 12 | 2,433.51 |
+| `marg` — a CRYPTO WALLET | 2 | 750.84 |
+| `joint` | 2 | 175.32 |
+
+**THE WALLET HALF CLOSED ITSELF AT THIS GATE, BY COINCIDENCE AND NOT BY DESIGN.**
+Both `marg` rows are the two `Crypto Transfer` rows the kind exclusion removes,
+so after Gate 75 no crypto-wallet row counts toward any budget. **That is luck,
+not a fix**: a crypto-wallet row with `kind: 'payment'` would count today, and
+nothing prevents one.
+
+**THE RESIDUAL IS `joint`: 2 rows, RM 175.32 of `budget-monthly`'s RM 2,608.83.**
+`txn-lotus-0905` (−96.14, groceries) and `txn-giant-0902` (−79.18, groceries),
+both spent from the Joint Account and both counted toward a budget that never
+said it covered it.
+
+**IT IS A DESIGN QUESTION, NOT A DEFECT, WHICH IS WHY IT IS RECORDED AND NOT
+FIXED.** A "Monthly Budget" with no stated scope arguably SHOULD count everything
+the household spends, and on that reading the current behaviour is correct. What
+is missing is the ability to say otherwise: a user cannot budget one account.
+Resolving it means a scope field on `Budget`, its control in the create and edit
+forms, and a ruling on what an existing scope-less budget means — none of which
+is Gate 75's. **Independent of `kind`; out of scope here** (Teku, 30 Sept 2026).
+
+### The merchant picker's absent footer — a RULED EXCEPTION, recorded so it survives a retro-fit
+
+**THIS WAS IN `CLAUDE.md` AND NOT IN THIS REGISTER, AND 2r's ONLY MENTION OF IT
+WAS A DESCRIPTIVE CLAUSE** — "'All merchants' first, as the cleared state's own
+row" — which records the row without recording why the footer is absent. A
+retro-fit session reading 2r would find a multi-select picker missing the
+pattern's commit footer and "correct" it. It is written here as a permanent
+exception.
+
+**THE PATTERN.** A dropdown inside a `Modal` or `Sheet` becomes a dedicated
+selection view, and a MULTI-SELECT picker confirms through a footer reading a
+verb plus a count, disabled at zero. The category picker in `BudgetFormModal`
+follows it exactly: "Add N Categories", disabled at zero.
+
+**THE MERCHANT PICKER IS MULTI-SELECT AND HAS NO FOOTER. IT COMMITS ON TAP, with
+the back control as its only return, and that is correct.** Three reasons, and
+the first is the one that cannot be designed around:
+
+1. **ITS ZERO STATE IS NOT A STATE — IT IS A ROW.** `TransactionFilter.payees` is
+   `string[] | null`, where `null` means the facet is ABSENT and `[]` is
+   **unreachable by design**: `toggleIn` collapses an emptied list back to
+   `null`. So "nothing selected" renders as the always-present "All merchants"
+   row, which is the facet's default and the state a user most often wants to
+   commit. A footer disabled at zero would disable the control in exactly that
+   state.
+2. **THERE IS NO HONEST COUNT TO PRINT FOR IT.** "Apply 0 Merchants" is wrong and
+   "Apply 1 Merchant" for a clear action is wronger.
+3. **THE SHEET ALREADY HAS ONE PRIMARY ACTION** — `Apply Filter · N results`. A
+   second commit control inside the picker would let a user commit from a screen
+   that is not showing them what they are committing, which is the argument that
+   has governed this sheet since Gate 43.
+
+**THE CATEGORY PICKER'S FOOTER IS NOT INCONSISTENT WITH THIS.** Zero categories
+is a genuinely invalid budget — `budgetDraftErrors` requires at least one — so
+there the disabled state is honest, and the destination is a form field rather
+than a live result, which is why its verb is "Add" and not "Apply".
+
+**IF THE FOOTER IS EVER WANTED THERE, THE "All merchants" ROW MUST GO FIRST** and
+the cleared state needs some other expression. That is a change to what the facet
+means, not a change of control, and it is Teku's.
+
+### Nothing was removed from this register.

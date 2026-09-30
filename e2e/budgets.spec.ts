@@ -9,6 +9,7 @@ import {
   budgetSpent,
   budgetSpentByCategory,
 } from '../src/data/derive'
+import { formatMyr } from '../src/data/format'
 import { TRANSACTIONS } from '../src/data/transactions'
 import type { Budget, Transaction } from '../src/data/types'
 
@@ -46,6 +47,9 @@ function row(id: string, occurredAt: string, amount: number, category: Transacti
     accountId: 'main',
     merchant: id,
     method: 'Card Payment',
+    // A synthetic row is a PAYMENT, so it counts — the transfer case is
+    // exercised by its own test below rather than by the shared builder.
+    kind: 'payment',
     amount,
     currency: 'MYR',
     occurredAt,
@@ -64,15 +68,21 @@ test('the seeded ledger is the shape the budgets are derived over', () => {
   expect(Object.fromEntries(byMonth)).toEqual({ '2026-09': 2, '2025-09': 18, '2025-08': 5 })
 })
 
-test('Monthly Budget: spent 3,359.67, available 4,140.33, 55% left', () => {
-  expect(budgetSpent(MONTHLY, TRANSACTIONS)).toBe(3359.67)
-  // 7,500.00 − 3,359.67 = 4,140.33
-  expect(budgetAvailable(MONTHLY, TRANSACTIONS)).toBe(4140.33)
-  // floor(4,140.33 / 7,500 × 100) = floor(55.204) = 55
-  expect(budgetPercentLeft(MONTHLY, TRANSACTIONS)).toBe(55)
+/**
+ * THESE THREE FIGURES MOVED AT GATE 75 AND THE OLD ONES ARE NAMED ON PURPOSE.
+ * Before transfers were excluded by kind this read 3,359.67 / 4,140.33 / 55%.
+ * The two crypto rows the exclusion removes are `others` outflows of 350.69 and
+ * 400.15 inside this window: 3,359.67 − 750.84 = 2,608.83.
+ */
+test('Monthly Budget: spent 2,608.83, available 4,891.17, 65% left', () => {
+  expect(budgetSpent(MONTHLY, TRANSACTIONS)).toBe(2608.83)
+  // 7,500.00 − 2,608.83 = 4,891.17
+  expect(budgetAvailable(MONTHLY, TRANSACTIONS)).toBe(4891.17)
+  // floor(4,891.17 / 7,500 × 100) = floor(65.2156) = 65
+  expect(budgetPercentLeft(MONTHLY, TRANSACTIONS)).toBe(65)
 })
 
-test('Monthly Budget: spent by category is the seven verified figures, 16 rows', () => {
+test('Monthly Budget: spent by category is the seven figures, 14 rows', () => {
   expect(budgetSpentByCategory(MONTHLY, TRANSACTIONS)).toEqual([
     { category: 'bills', spent: 143.9, count: 2 },
     { category: 'groceries', spent: 1118.46, count: 5 },
@@ -80,8 +90,13 @@ test('Monthly Budget: spent by category is the seven verified figures, 16 rows',
     { category: 'healthcare', spent: 26.29, count: 1 },
     { category: 'transport', spent: 100, count: 1 },
     { category: 'shopping', spent: 968.42, count: 2 },
-    { category: 'others', spent: 878.84, count: 3 },
+    // 878.84 OVER 3 ROWS BEFORE GATE 75. The two crypto transfers left, so the
+    // one remaining row is `txn-anytimefitness-0903` at 128.00.
+    { category: 'others', spent: 128, count: 1 },
   ])
+  // Six categories are untouched by the exclusion; only `others` held transfers.
+  const total = budgetSpentByCategory(MONTHLY, TRANSACTIONS).reduce((n, c) => n + c.count, 0)
+  expect(total).toBe(14)
 })
 
 test('Entertainment: spent 123.76, available 876.24, 87% left', () => {
@@ -99,9 +114,11 @@ test('credits are excluded — the window holds +350.00 and +1,500.00 and neithe
   }).map((t) => t.amount)
   expect(credits.sort((a, b) => a - b)).toEqual([350, 1500])
 
-  // Both credits are `others`. The category's spent is its three outflows only.
+  // Both credits are `others`, and since Gate 75 both are also `kind: 'transfer'`
+  // — so they are excluded twice over. The category's one remaining counted row
+  // is `txn-anytimefitness-0903`, a 128.00 card payment.
   const others = budgetSpentByCategory(MONTHLY, TRANSACTIONS).find((c) => c.category === 'others')
-  expect(others).toEqual({ category: 'others', spent: 878.84, count: 3 })
+  expect(others).toEqual({ category: 'others', spent: 128, count: 1 })
 })
 
 test('an overspent budget has NEGATIVE available and 0% left', () => {
@@ -145,6 +162,107 @@ test('the period label matches Figma, and every budget field survives JSON', () 
   derivations above return, through the DS card. A screenshot shows the digits,
   but it cannot say they came from the ledger.
 */
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FLOW 11 (GATE 75) — A TRANSFER DOES NOT COUNT, EVEN IN ITS OWN CATEGORY.
+ *
+ * THIS IS THE ONE BEHAVIOUR `kind` MADE ASSERTABLE, and it is written so that
+ * every plausible wrong implementation fails it:
+ *
+ *   - a `countsToward` that ignores `kind` fails assertion 2;
+ *   - one filtering on `method` instead fails assertion 3, because a
+ *     `Fund Transfer` bill payment MUST still count;
+ *   - one excluding by CATEGORY rather than by kind fails assertion 4, because
+ *     `others` still has a counted row.
+ *
+ * THE ROWS ARE THE REAL SEED, NOT SYNTHETIC. The claim is that the shipped
+ * ledger's own transfers are excluded, and a constructed row cannot establish it.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+test('a transfer does not count toward a budget that lists its own category', () => {
+  const transfers = TRANSACTIONS.filter((t) => t.kind === 'transfer')
+  expect(transfers).toHaveLength(5)
+
+  // The two that would otherwise count: outflows, in category, in range.
+  const wouldCount = transfers.filter(
+    (t) =>
+      t.amount < 0 &&
+      MONTHLY.categories.includes(t.category) &&
+      t.occurredAt.slice(0, 10) >= MONTHLY.from &&
+      t.occurredAt.slice(0, 10) <= MONTHLY.to,
+  )
+  expect(wouldCount.map((t) => t.id).sort()).toEqual([
+    'txn-granddaughter-0911',
+    'txn-rachum-0910',
+  ])
+
+  // 1 — both are 'others', a category this budget DOES list. So nothing about
+  // the category is what removes them.
+  expect(wouldCount.every((t) => t.category === 'others')).toBe(true)
+  expect(MONTHLY.categories).toContain('others')
+
+  // 2 — and 750.84 is out of spent: 2,608.83 + 750.84 = 3,359.67, the figure
+  // this budget reported until Gate 75.
+  const excluded = wouldCount.reduce((sen, t) => sen - Math.round(t.amount * 100), 0) / 100
+  expect(excluded).toBe(750.84)
+  expect(budgetSpent(MONTHLY, TRANSACTIONS) + excluded).toBe(3359.67)
+
+  // 3 — A FUND TRANSFER BILL PAYMENT STILL COUNTS. This is what separates
+  // reading 'kind' from reading 'method': four Fund Transfer rows are ordinary
+  // purchases, and 'dining' holds one of them.
+  const fundPayments = TRANSACTIONS.filter(
+    (t) => t.method === 'Fund Transfer' && t.kind === 'payment',
+  )
+  expect(fundPayments.map((t) => t.id).sort()).toEqual([
+    'txn-aia-0825',
+    'txn-ikea-0906',
+    'txn-tonyroma-0910',
+    'txn-touchngo-0909',
+  ])
+  const counted = budgetSpentByCategory(MONTHLY, TRANSACTIONS)
+  const dining = counted.find((c) => c.category === 'dining')
+  // txn-tonyroma-0910 is a Fund Transfer of −98.26 and is inside this figure.
+  expect(dining).toEqual({ category: 'dining', spent: 123.76, count: 2 })
+
+  // 4 — AND THE EXCLUSION IS BY KIND, NOT BY CATEGORY: 'others' is not dropped,
+  // it keeps the one payment it still has.
+  const others = counted.find((c) => c.category === 'others')
+  expect(others).toEqual({ category: 'others', spent: 128, count: 1 })
+})
+
+test('every seeded row carries an explicit kind, and exactly five transfer', () => {
+  // A MISSING 'kind' IS A COMPILE ERROR, not a runtime one — so this asserts the
+  // CLASSIFICATION, which the compiler cannot hold.
+  expect(TRANSACTIONS.filter((t) => t.kind === 'transfer').map((t) => t.id)).toEqual([
+    'txn-rachum-0911',
+    'txn-granddaughter-0911',
+    'txn-rachum-0910',
+    'txn-maybank-0907',
+    'txn-maybank-0828',
+  ])
+  expect(TRANSACTIONS.filter((t) => t.kind === 'payment')).toHaveLength(20)
+
+  // BOTH CRYPTO TRANSFERS ARE TRANSFERS (Teku, 30 Sept 2026): crypto in Monarch
+  // is an investment move or money sent to a person, never a purchase.
+  const crypto = TRANSACTIONS.filter((t) => t.method === 'Crypto Transfer')
+  expect(crypto).toHaveLength(2)
+  expect(crypto.every((t) => t.kind === 'transfer')).toBe(true)
+
+  // THE THREE INBOUND CREDITS ARE TRANSFERS TOO, and there is deliberately no
+  // 'income' kind: direction is carried by the sign, which countsToward reads.
+  const credits = TRANSACTIONS.filter((t) => t.amount > 0)
+  expect(credits.map((t) => t.id).sort()).toEqual([
+    'txn-maybank-0828',
+    'txn-maybank-0907',
+    'txn-rachum-0911',
+  ])
+  expect(credits.every((t) => t.kind === 'transfer')).toBe(true)
+
+  // AND FOUR OF THE SEVEN FUND TRANSFERS ARE PAYMENTS — 'Fund Transfer' is a
+  // payment rail, not a movement type.
+  expect(TRANSACTIONS.filter((t) => t.method === 'Fund Transfer')).toHaveLength(7)
+})
+
 test('the Budget tab draws each seeded budget from its derived figures', async ({ page }) => {
   await gotoRoute(page, '/finance', 'light')
   await activateTab(page, { id: 'budget', label: 'Budget' })
@@ -157,14 +275,23 @@ test('the Budget tab draws each seeded budget from its derived figures', async (
   const monthly = cards.nth(0)
   await expect(monthly.locator('.mn-card-monthly-budget__header-title')).toHaveText('Monthly Budget')
   await expect(monthly).toContainText('30 Aug - 20 Sept')
-  await expect(monthly).toContainText('55%')
-  await expect(monthly).toContainText('RM 4,140.33')
-  await expect(monthly).toContainText('RM 7,500.00')
-  await expect(monthly).toContainText('RM 3,359.67')
+  // THE THREE FIGURES MOVED AT GATE 75 — they read 55%, RM 4,140.33 and
+  // RM 3,359.67 before transfers stopped counting. They are DERIVED here rather
+  // than restated, so the next change to the rule moves the assertion with it:
+  // the literals above are what this test existed to catch drifting.
+  await expect(monthly).toContainText(`${budgetPercentLeft(MONTHLY, TRANSACTIONS)}%`)
+  await expect(monthly).toContainText(formatMyr(budgetAvailable(MONTHLY, TRANSACTIONS)))
+  await expect(monthly).toContainText(formatMyr(MONTHLY.limit))
+  await expect(monthly).toContainText(formatMyr(budgetSpent(MONTHLY, TRANSACTIONS)))
+  // Pinned too, so a derivation that silently returned 0 could not pass.
+  await expect(monthly).toContainText('65%')
+  await expect(monthly).toContainText('RM 2,608.83')
   await expect(monthly.getByRole('button', { name: 'Details for Monthly Budget' })).toHaveCount(1)
 
   const entertainment = cards.nth(1)
   await expect(entertainment.locator('.mn-card-monthly-budget__header-title')).toHaveText('Entertainment')
+  // UNCHANGED BY GATE 75, and asserted as literals because that is the claim:
+  // this budget lists only `dining`, which held no transfer.
   await expect(entertainment).toContainText('87%')
   await expect(entertainment).toContainText('RM 876.24')
   await expect(entertainment).toContainText('RM 1,000.00')

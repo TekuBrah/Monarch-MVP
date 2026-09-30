@@ -136,6 +136,34 @@ export interface Budget {
 export type TransactionMethod = 'Card Payment' | 'Fund Transfer' | 'Crypto Transfer'
 
 /**
+ * WHAT THE MOVEMENT IS, as opposed to how it was paid (Flow 11, Gate 75).
+ *
+ * A `payment` leaves the user's money; a `transfer` moves it between things the
+ * user owns, or between the user and a person. Budgets count payments only —
+ * `countsToward` in `derive.ts` reads this field and nothing else about movement.
+ *
+ * IT IS REQUIRED, NOT OPTIONAL, AND THAT IS THE WHOLE POINT. An optional field
+ * lets a future row omit it and silently count toward a budget, which is the
+ * exact defect this field exists to prevent. Omitting it is a type error.
+ *
+ * IT IS STORED, NEVER DERIVED FROM `method` AT READ TIME. The two are
+ * independent axes and conflating them is wrong in both directions: `Fund
+ * Transfer` is a payment RAIL that a bill payment uses (Tony Roma's, Touch N Go,
+ * IKEA and AIA all pay by it), while a `Crypto Transfer` is never a purchase in
+ * Monarch — it is an investment move or money sent to a person (Teku's ruling,
+ * 30 Sept 2026). A read-time rule over `method` would have to encode that
+ * asymmetry in every reader; the field states it once, in the data.
+ *
+ * THERE IS DELIBERATELY NO `'income'` VALUE. Direction is carried by the SIGN of
+ * `amount`, and `countsToward` already excludes every non-negative row, so an
+ * income value would encode in a field what the sign already encodes — and the
+ * two could then disagree. The only case that would earn the distinction is
+ * salary, which this ledger does not contain and which would need counterparty
+ * data no row carries (Teku's ruling, 30 Sept 2026).
+ */
+export type TransactionKind = 'payment' | 'transfer'
+
+/**
  * Who the row is with — a curated merchant mark, a person, or a photograph.
  *
  * A DISCRIMINATED UNION rather than a bag of optional fields, for the same
@@ -194,6 +222,11 @@ export interface Transaction {
   logo: TransactionLogo
   /** Figma: the caption under the merchant — "Card Payment". */
   method: TransactionMethod
+  /**
+   * Spending, or a money-move — see `TransactionKind`. Budgets count `payment`
+   * rows only.
+   */
+  kind: TransactionKind
   /** Negative for an outflow. */
   amount: Amount
   currency: CurrencyCode
@@ -680,3 +713,175 @@ export interface Receipt {
   /** `Transaction.id`, or `null` for an unlinked capture. */
   transactionId: string | null
 }
+
+// ------------------------------------------------------ goals (Flow 11, Gate 75)
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A SAVINGS GOAL. Money the user owns, held outside the two cash accounts.
+ *
+ * GOALS ARE THEIR OWN COLLECTION, NOT A `Holding` VARIANT, and that was a
+ * decision with three reasons rather than a filing preference:
+ *
+ *   1. `netWorth` sums `holdings`. A `Holding` variant would raise net worth the
+ *      moment the seed landed, and no screen consumes goal money until Gate 76
+ *      adds the "Savings Goals" card — so the figure would move before anything
+ *      explained it. As a separate collection the seed is provably inert.
+ *   2. A GOAL IS NOT A SPENDABLE ACCOUNT. Gate 79's Top-Up picks its source from
+ *      the cash accounts; a goal must never appear in that picker, and keeping
+ *      goals out of `Holding` makes that true by construction rather than by a
+ *      filter somebody has to remember.
+ *   3. Every `Holding` renders through `holdingFields` and the holding
+ *      drill-down. A goal has its own screen at `/finance/plans/goals/:goalId`,
+ *      so a `Holding` variant would also hand it a route it should not have.
+ *
+ * Gate 76 sums this collection into the balance grid as one combined card, on
+ * the Joint Account precedent of a card Figma does not draw.
+ *
+ * NP1: EVERY FIELD IS PLAIN SERIALISABLE DATA — strings, numbers, a boolean and
+ * an array of the same. No `Date`, no function, no class instance, so the
+ * persistence that arrives after Flow 11 is a storage adapter, not a rewrite.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export interface Goal {
+  id: string
+  /** The card's title — "Bali Trip", "Emergency Funds". */
+  name: string
+  /** What the user is saving toward. Positive, in MYR. */
+  targetAmount: Amount
+  /**
+   * What is saved so far. A STORED value, not a sum of `contributions`.
+   *
+   * SAME RATIONALE AS `FiatAccount.balance`, and it is the reason that field is
+   * stored too: `contributions` is a partial slice of history — Figma's drill-down
+   * shows "Recent Contributions", not every movement since the goal opened — so it
+   * cannot reconstruct a balance and must not be asked to. Gate 79's Top-Up writes
+   * both: one ledger entry and this figure.
+   */
+  savedAmount: Amount
+  /**
+   * `'YYYY-MM-DD'`. A date the user TYPED, so it is exempt from B5 (see
+   * `today.ts`) for the same reason `Budget.from`/`to` are, and it is compared as
+   * a STRING for the same reason: a zone-less date turned into a `Date` brings the
+   * device's timezone into the answer.
+   */
+  targetDate: string
+  /**
+   * A BARE FILENAME, never a URL and never a `blob:`.
+   *
+   * The directory is `src/config/media.ts`'s to own, which is the precedent
+   * `Receipt.filename` and `TransactionLogo`'s `image` case already set — a record
+   * that spelled `/media/...` itself would be the literal path that file's own
+   * top-level rule forbids. A `blob:` would not survive the document that made it,
+   * which is why a photo picker waits for persistence's image storage.
+   */
+  image: string
+  /**
+   * The auto-save setting, STORED WITH NO SCHEDULED BEHAVIOUR.
+   *
+   * Nothing in this app runs on a timer, and nothing reads this to move money.
+   * It is stored because Figma's drill-down draws the toggle and the amount, and
+   * because Academy's Essential Task "Set Up Auto-Save Goal — 3 of 6" reads
+   * whether it is on. Gate 78 is where that reader arrives.
+   *
+   * THE AMOUNT SURVIVES THE TOGGLE GOING OFF, deliberately: switching auto-save
+   * off and on again should not silently forget the figure the user typed. So the
+   * amount is meaningful only while `isEnabled`, and it is not cleared.
+   */
+  autoSave: GoalAutoSave
+  /**
+   * Recent contributions, NEWEST FIRST — a partial slice, not the full history.
+   * See `savedAmount` for why it cannot be summed to a balance.
+   */
+  contributions: GoalContribution[]
+}
+
+/** The auto-save setting. See `Goal.autoSave`. */
+export interface GoalAutoSave {
+  isEnabled: boolean
+  /** Positive, in MYR. Meaningful only while `isEnabled`; never cleared. */
+  amount: Amount
+}
+
+/**
+ * One payment into a goal.
+ *
+ * `source` IS A TWO-VALUE UNION RATHER THAN AN `isAutomatic` BOOLEAN, because
+ * Figma labels the rows in words and a boolean would need a lookup table at
+ * every read site to get back to them. It also leaves room for a third origin
+ * (an interest credit, say) without every reader having to re-interpret `false`.
+ */
+export interface GoalContribution {
+  id: string
+  /** Positive, in MYR — money going in. */
+  amount: Amount
+  /** `'YYYY-MM-DD'`. Typed data, exempt from B5, compared as a string. */
+  date: string
+  source: 'automatic' | 'manual'
+}
+
+// ------------------------------------------------ commitments (Flow 11, Gate 75)
+
+/**
+ * A recurring obligation — Figma's Commitments half of the Plans tab.
+ *
+ * SEEDED AND READ-ONLY IN FLOW 11, WITH NO LINK TO THE LEDGER (Claude,
+ * delegated: 4I). The amounts here disagree with the ledger's own Netflix,
+ * Anytime Fitness, U Mobile and Celcom rows, and that is accepted rather than
+ * reconciled: linking a bill to its charges needs merchant rules this app does
+ * not have, and inventing the link would put a false join on screen. `Internet`
+ * is the clearest case — the commitment is RM 120.00 (the figure Figma's own
+ * smart-insight panel calls "Current") while the ledger's U Mobile row is
+ * RM 75.00.
+ */
+export interface Commitment {
+  id: string
+  /** Figma: the row's title — "Internet", "Mortgage". */
+  name: string
+  /** The provider's mark — see `CommitmentLogo`. */
+  logo: CommitmentLogo
+  /** Positive, in MYR: what is charged each period. */
+  amount: Amount
+  cadence: CommitmentCadence
+  /**
+   * `'YYYY-MM-DD'` — when the next charge falls.
+   *
+   * STORED, NOT DERIVED FROM A PAYMENT DAY. Deriving it would need a rule for
+   * every cadence plus a rule for month-ends (a "31st" commitment in February),
+   * and Flow 11 renders this and nothing else. Gate 78 is where a derivation
+   * would earn its keep, if a screen ever needs the day rather than the date.
+   */
+  nextDueOn: string
+  category: TransactionCategoryId
+}
+
+/**
+ * How often a commitment is charged.
+ *
+ * ALL FIVE SEEDED ROWS ARE `'monthly'`; `'yearly'` HAS NO INSTANCE YET, and it
+ * is in the union rather than added later because this domain plainly contains
+ * yearly obligations — road tax, an annual insurance premium — and widening a
+ * stored field's meaning after screens read it is the more expensive change.
+ * That is a different case from `.mvp-column--outset`, which was an unshipped
+ * CSS class with no adopter: a union member costs no bytes and no render path,
+ * and every reader must switch on it exhaustively either way.
+ */
+export type CommitmentCadence = 'monthly' | 'yearly'
+
+/**
+ * A commitment's mark — a brand logo, or a generic icon.
+ *
+ * A DISCRIMINATED UNION, for the reason `TransactionLogo` is one: Figma draws
+ * both kinds, and they render through DIFFERENT DS components with disjoint
+ * inputs (`Logo name` out of the closed `LogoName` registry, against `Icon
+ * name` out of the icon registry). Inventory §F records exactly this split —
+ * "grayscale icons (Mortgage, Car Payment) and brand logos (U-Mobile,
+ * Netflix)" — and a `{ logo?, icon? }` pair would admit both-set and
+ * neither-set, which is the lattice of meaningless states the tag removes.
+ *
+ * THE `icon` CASE IS NOT A DS GAP. A mortgage has no brand mark to ship; a
+ * generic glyph is the correct rendering, not a substitute for a missing one.
+ */
+export type CommitmentLogo =
+  | { kind: 'brand'; name: LogoName }
+  | { kind: 'icon'; name: IconName }

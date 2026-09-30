@@ -81,6 +81,7 @@ function row(id: string, merchant: string, amount: number, occurredAt: string): 
     merchant,
     logo: { kind: 'merchant', name: 'ikea' },
     method: 'Card Payment',
+    kind: 'payment',
     amount,
     currency: 'MYR',
     occurredAt,

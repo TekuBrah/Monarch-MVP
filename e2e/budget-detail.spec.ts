@@ -38,11 +38,14 @@ const ENTERTAINMENT = byId('budget-entertainment')
 
 test('the legend orders by spend, and Monthly opens on Groceries: RM 1,118.46 over 5 rows', () => {
   const legend = budgetLegend(MONTHLY, TRANSACTIONS)
+  // `others` SAT THIRD UNTIL GATE 75, at 878.84. Excluding the two crypto
+  // transfers took 750.84 out of that one category, so it fell to 128.00 and
+  // dropped behind `bills` — the single ordering the exclusion changed.
   expect(legend.map((e) => e.category)).toEqual([
     'groceries',
     'shopping',
-    'others',
     'bills',
+    'others',
     'dining',
     'transport',
     'healthcare',

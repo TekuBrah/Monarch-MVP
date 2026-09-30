@@ -10663,6 +10663,13 @@ alongside G21-G23 on the same picker. No MVP-local override was written.
 navigation. The nav bar gradient fixed it; Teku confirmed on the live app at
 `8f91e5e`, 23 Sept.
 
+**AND IT CANNOT REPRODUCE IN ANY COMMITTED BASELINE, WHICH IS WHY NO BASELINE
+RECORDS THE FIX** (recorded at Gate 75). The nav scrim landed at Gate 15 with
+its runway; every baseline in the current set was minted long after that, so
+there is no before-state on disk to diff against. A future session must not
+read the absence of a diff as the absence of a fix — the evidence is Teku's
+device confirmation, not the visual net.
+
 **UI-3 — status strip transparency, DEFERRED with a chosen solution.** Gate
 44-B established true transparency is impossible for an installed web app on
 Android; the per-route matched colour (`#1a2351` on artwork routes) is
@@ -11807,6 +11814,13 @@ decompose exactly:
 | | count | what |
 |---|---|---|
 | visual | **96** | 24 overlay states x 2 viewports x 2 themes |
+
+**THE 24 IS CORRECT AS MEASURED AND DISAGREES WITH TODAY'S HARNESS — dated note
+added at Gate 75 (2026-09-30).** The re-pin ran BEFORE `merchant` was added, so
+`OVERLAY_STATES` held **28** and four of them declare `confirm` (no dialog is
+open at capture, so no overlay header renders): 28 − 4 = **24**. The harness now
+holds **29**, giving 29 − 4 = **25**. Anyone re-deriving this figure against the
+current tree will get 25 and should NOT read the record as wrong.
 | `link-editor` | **12** | NOT a regression — see the deleted-class note below |
 
 **THE 96 ARE THE OVERLAY HEADER, AND THE MECHANISM IS ONE COMPONENT.** v2.8.0
@@ -11919,6 +11933,13 @@ aria-multiselectable="true" aria-label="Select merchant">`. `Menu` itself is
 unchanged in v2.8.0 and still emits no `aria-multiselectable`.
 
 #### IT GETS NO FOOTER, AND THAT IS THE ONE PLACE THE PATTERN DID NOT TRANSFER
+
+**ALSO IN THE GAP REGISTER AS OF GATE 75, §2s, AS A PERMANENT RULED EXCEPTION.**
+It lived only here, and §2r's only mention of it was the descriptive clause
+"'All merchants' first, as the cleared state's own row" — which records the row
+without recording why the footer is absent. A retro-fit session reading the
+register alone would find a multi-select picker missing the pattern's commit
+footer and "correct" it.
 
 The pattern says a multi-select picker confirms through a footer reading verb
 plus count, disabled at zero. **This picker is genuinely multi-select and it
@@ -12095,6 +12116,7 @@ what makes the merchant rows full-bleed. **`^` ANCHORING DOES NOT WORK HERE**
 file (`[chromium] > budget-writers.spec.ts:398:1 > ...`), so a leading `^`
 matches nothing and the driver reports "No tests found" rather than a proof.
 Anchor the END only.
+
 **THREE CLEAN RUNS: 642 passed / 1 failed each**, 20.6 / 20.1 / 19.6 min, with
 all 208 baselines byte-identical across all three (manifest digest
 `ce99c20e…` after every run).
@@ -12111,8 +12133,15 @@ Staging is Teku’s. Do not read it as a regression and do not relax the guard.
 - **the retro-fit sweep** — every surface other than the two pickers keeps its
   existing patterns, by design;
 - **closing G32** by moving `ReceiptViewer`'s back control into `Modal.onBack`.
-  The slot now exists, so it is a one-prop change, and it MOVES PIXELS on every
-  `view-*` baseline — which is why it is not a drive-by;
+  The slot now exists, so it is a one-prop change, and it moves **12 baselines**
+  — which is why it is not a drive-by. **NOT 28, i.e. NOT every `view-*`
+  baseline, corrected at Gate 75:** `headerIconLeft` is passed only when
+  `view !== 'viewer'` (`ReceiptViewer.tsx:828`), so of the seven `view-*`
+  states only `view-picker`, `view-editor` and `view-replace` render a back
+  control — 3 x 4 = 12. The other four (`view`, `view-unlinked`,
+  `view-delete`, `view-unread`) draw the viewer itself and pass nothing, and
+  `OverlayHeader`'s leading track is a FIXED width whether filled or not, so
+  they cannot shift;
 - **G33's workaround.** `.mn-modal__card` still declares no `max-height`, so
   the removal condition on `.mvp-receipt-viewer-modal` is unmet and both rules
   stay;
@@ -13678,3 +13707,361 @@ points at the tip regardless. **A merge commit is not a defect**: do not report
 one as a finding, do not rebase or rewrite history to remove one, and do not
 treat the absence of merge commits as something to verify either. Find the gate
 by its tag.
+
+## The Flow 11 money model (Gate 75)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read or written. This
+gate built a data model, not a screen: nothing under `src/flows/` renders
+differently, no route, tab or overlay was added, and **|WALK| stays 52 with
+`OVERLAY_STATES` at 29**. Tests **643 -> 653**, spec files **27 -> 28**.
+`lint:tokens` scans **79** files (77 + `goals.ts` + `commitments.ts`) with the
+same **4** exemptions — no new raw value entered the tree.
+
+**SIXTEEN BASELINES MOVED, AND THE PROMPT EXPECTED ZERO.** That is Phase 1
+earning its keep rather than a surprise: the gate's own brief said the expected
+outcome was zero and that Phase 1 "may legitimately convert it to a small
+predicted number before you change anything". It did, by name, before a line was
+edited.
+
+### `Transaction.kind` — the field, and why it is not derived from `method`
+
+`'payment' | 'transfer'`, **required**, on every one of the 25 seeded rows.
+`countsToward` in `derive.ts` reads it and budgets count payments only.
+
+**REQUIRED AND NOT OPTIONAL, WHICH IS THE WHOLE POINT.** An optional field lets a
+future row omit it and silently count toward a budget — the exact defect the
+field exists to prevent. It is a compile error, and it fired immediately: two
+spec files build synthetic `Transaction` objects and both failed `tsc` until they
+declared a kind. **That is the guarantee working on its first run**, not a chore.
+
+**STORED, NEVER DERIVED FROM `method` AT READ TIME, because the two axes are
+independent and conflating them is wrong in BOTH directions.** `Fund Transfer` is
+a payment RAIL that four ordinary purchases use here (Tony Roma's, Touch N Go,
+IKEA, AIA); a `Crypto Transfer` is never a purchase in Monarch — it is an
+investment move or money sent to a person (Teku, 30 Sept 2026). A read-time rule
+over `method` would have to encode that asymmetry in every reader.
+
+**THE CLASSIFICATION, all 25 rows: 20 payment, 5 transfer.** The five:
+
+| row | method | amount | why |
+|---|---|---|---|
+| `txn-granddaughter-0911` | Crypto | −350.69 | crypto is never a purchase |
+| `txn-rachum-0910` | Crypto | −400.15 | same |
+| `txn-rachum-0911` | Fund | **+350** | inbound from a person |
+| `txn-maybank-0907` | Fund | **+1,500** | inbound from an external bank |
+| `txn-maybank-0828` | Fund | **+5,200** | same |
+
+**THE THREE CREDITS WERE A STOP AND TEKU RULED THEM, AND THE RULING'S REASONING
+IS THE DURABLE PART.** The transfer rule as briefed covered crypto rows and
+merchant outflows and reached none of the three, so Gate 75 stopped rather than
+choosing. Decision 1 = A: all three are transfers, because the field measures
+whether money was SPENT and all three answer no.
+
+**THERE IS DELIBERATELY NO `'income'` VALUE.** Direction is carried by the SIGN
+of `amount`, and `countsToward` already excludes every non-negative row — so an
+income value would encode in a field what the sign already encodes, and the two
+could then disagree. The only case that would earn the distinction is salary,
+which this ledger does not hold and which needs counterparty data no row carries.
+
+**SO THE THREE CREDITS' KIND CHANGES NO FIGURE TODAY**, because credits were
+already excluded by sign. It matters for what later readers see, which is why it
+was a ruling and not a coin toss.
+
+**"BILL PAYMENTS TO NAMED MERCHANTS" WAS READ AS "OUTFLOWS TO NAMED MERCHANTS",
+AND TEKU CONFIRMED IT.** On a strict reading neither a restaurant meal nor an
+e-wallet reload is a *bill*, and that reading would have left all four Fund
+Transfer outflows unsettled instead of one clause covering them.
+
+### What it cost the budgets — derived before the change, matched exactly after
+
+| | before | after |
+|---|---|---|
+| `budget-monthly` spent | 3,359.67 | **2,608.83** (−750.84 = 350.69 + 400.15) |
+| available | 4,140.33 | **4,891.17** |
+| percent left | 55% | **65%** |
+| counted rows | 16 | **14** |
+| `budget-entertainment` | 123.76 / 876.24 / 87% | **unchanged** |
+
+**ENTERTAINMENT CANNOT MOVE AND THAT IS STRUCTURAL, NOT LUCK.** It lists only
+`dining`, and both excluded rows are `others`.
+
+**THE DONUT AND LEGEND MOVED TOO, AND ONE ORDERING CHANGED.** `others` fell
+878.84 -> **128.00** and dropped from third to **fourth, behind `bills`** — the
+only reordering. Every share moved with the new total (groceries 33.29% ->
+42.87%, shopping 28.82% -> 37.12%, others 26.16% -> 4.91%). **The default-open
+category stays `groceries`**, so Gate 69's Decision E behaviour is untouched.
+
+**`others` KEEPS A COUNTED ROW, WHICH IS THE PROOF THE EXCLUSION IS BY KIND AND
+NOT BY CATEGORY:** `txn-anytimefitness-0903`, a 128.00 card payment.
+
+### `holdings` had to become derived IN THE SAME CHANGE, and that is the trap
+
+`FIAT_ACCOUNTS` is now `useState` in `AccountsProvider` with a mutator. **`HOLDINGS`
+could not stay a module constant beside it.**
+
+**THE MECHANISM.** `bankBalance('main')` was called at MODULE EVALUATION, so the
+two bank cards' balances were frozen at the seed. `netWorth` and `netWorthSeries`
+both derive from `holdings`. So live accounts beside a frozen `HOLDINGS` would
+have produced an app in which the Homepage's balance card moved and the Finance
+Overview card, the net-worth hero and the net-worth chart **silently did not** —
+with every check green and nothing reporting the divergence.
+
+`holdings.ts` now exports **`buildHoldings(accounts)`**, a pure function of its
+argument that reads `FIAT_ACCOUNTS` nowhere, so a caller holding accounts in
+state gets holdings that follow and the derivation cannot fall back to the seed.
+
+**`HOLDINGS` SURVIVES AS `buildHoldings(FIAT_ACCOUNTS)` FOR TWO CALLERS THAT WANT
+THE SEED SPECIFICALLY** — `e2e/harness.ts`, which expands `:holdingId` into the
+walk before a browser exists, and `TransactionDetailSheet`, which resolves a
+row's institution. `AccountsProvider` is the one caller that does NOT use it.
+
+**MEASURED BOTH WAYS.** Net worth is **464,958.84 before and after, identical** —
+Phase 1.4's prediction to the sen — and a probe debiting Main by 1,000 returns
+**463,958.84**, which is what proves the derivation is live rather than
+accidentally frozen at the same number.
+
+**`adjustFiatBalance(accountId, delta)` IS THE SECOND SEAM WITH NO CALLER**,
+beside `addTransaction`. Gate 79's Top-Up debits the source account. **Do not
+sweep either as dead code.** It takes a DELTA rather than a new balance, because
+every caller knows how much moved and only this function should have to know what
+the balance was — and because two concurrent setters would race on a figure each
+read before the other landed, where deltas compose. It adds in **whole sen**, via
+`toSen`, now exported from `derive.ts` rather than re-declared: two definitions of
+"money in sen" is the two-sources-for-one-fact shape this repo keeps removing.
+
+**THE PROVIDER IS STILL NOT A REDUCER**, deliberately. Eight mutators, six with
+callers.
+
+### Goals are their own collection, NOT a `Holding` variant
+
+Three reasons, and the first is the one that decided it:
+
+1. **`netWorth` SUMS `holdings`.** A `Holding` variant would have raised net worth
+   the moment the seed landed, before Gate 76's card exists to explain it. As a
+   separate collection the seed is provably inert — see the 464,958.84 above.
+2. **A GOAL IS NOT A SPENDABLE ACCOUNT.** Gate 79's Top-Up picks its source from
+   the cash accounts, and a goal must never appear in that picker. Keeping goals
+   out of `Holding` makes that true by construction rather than by a filter
+   someone has to remember.
+3. **EVERY `Holding` RENDERS THROUGH `holdingFields` AND THE HOLDING DRILL-DOWN.**
+   A goal has its own screen at `/finance/plans/goals/:goalId`, so a variant would
+   also hand it a route it should not have.
+
+Gate 76 sums the collection into the balance grid as one combined card, on the
+Joint Account precedent of a card Figma does not draw. **Combined saved is
+RM 16,080.00** (5,040 + 11,040), and net worth rises by it AT GATE 76.
+
+**`savedAmount` IS STORED, NOT A SUM OF `contributions`** — `FiatAccount.balance`'s
+own rationale, and the reason that field is stored too: the contributions list is
+a partial slice of history (Figma draws "Recent Contributions") so it cannot
+reconstruct a balance and must not be asked to.
+
+**BUT THE SEED'S ROWS SUM TO IT EXACTLY, AND THAT SUPERSEDES THE FLOW 11 PLAN'S
+OPENING-BALANCE MODEL.** The plan described Bali as "opens at RM 3,840 plus four
+drawn contributions of RM 1,200". That shape cannot also satisfy Gate 75's rule
+that the list sums to the stored figure, so the opening balance is carried as the
+list's oldest rows instead. Bali: 12 automatic x 250 = 3,000 plus 1,000 + 500 +
+340 + 200 = 2,040, **= 5,040 over 16 rows**. Emergency: 10 x 900 = 9,000 plus
+1,500 + 540 = 2,040, **= 11,040 over 12 rows**. Asserted in `e2e/goals.spec.ts`.
+
+**BALI'S SIXTEEN ROWS ARE A LENGTH, NOT A SET OF FIGURES.** Gate 77's "See All"
+bottom sheet must scroll a list whose length it does not know, and a three-row
+seed would let a sheet that silently caps at its own height pass.
+
+**BOTH AUTO-SAVE STATES ARE SEEDED** — Bali on at 250 (transcribed), Emergency
+off — so Gate 78's Academy reader cannot ignore the flag and still pass. The
+amount survives the toggle going off, by contract.
+
+**⚠ NEITHER GOAL IMAGE FILE EXISTS, DELIBERATELY, AND GATE 76 MUST SUPPLY BOTH.**
+Figma's cards carry photographs this repo has no source for, and fabricating
+artwork is not a build step. The filenames NAME WHAT IS NEEDED, in the Gate 24
+icon-census pattern: `public/media/goals/goal_bali_trip.jpg` and
+`goal_emergency_funds.jpg`. Nothing renders them today — `Goal.image` has no
+reader and **no `goalImageUrl()` resolver was added**, because a resolver with no
+consumer is the dead-code shape this repo rejects. **If Gate 76 renders a goal
+card without those files, `settleImages` fails the walk on `naturalWidth === 0`.**
+
+### ⚠ FIVE COMMITMENTS, NOT SEVEN, AND THIS GATE COULD NOT SETTLE IT
+
+**BOTH FIGMA PATHS WERE DOWN**: the local MCP refused the connection
+(`ECONNREFUSED`) and the remote connector is unauthenticated. Per Gate 48's
+standing rule, this gate built from a spec someone else read and **does not claim
+to have verified it against the file**.
+
+The inventory §2 states the Plans tab holds "2 goal cards + **5** commitments",
+and the document names exactly five entities across §2, §A6 and §F: Mortgage, Car
+Payment, Internet (U-Mobile), Netflix, Anytime Fitness. **The Flow 11 plan in this
+file records instead that "Figma draws seven, not the inventory's five"** — a
+reading taken in a session that had Figma access.
+
+**FIVE WAS SEEDED BECAUSE IT INVENTS LEAST.** The inventory is the only enumerable
+source on disk, and the two extra rows would have had no name, amount, provider or
+cadence from anywhere — four fabricated fields each. `e2e/goals.spec.ts` asserts
+the five by name, so **a later gate adding the missing two fails loudly rather
+than quietly**, which is the wanted outcome. **Gate 78 should re-read the frame.**
+
+**WHAT IS TRANSCRIBED, SOURCED AND AUTHORED, stated per field.** Transcribed: all
+five names, the two brands, the icon-versus-logo split (§F: "grayscale icons
+(Mortgage, Car Payment) and brand logos (U-Mobile, Netflix)"), and Internet's
+RM 120.00 — §A1's "Current". Sourced from this repo's ledger: Netflix 54.90 and
+Anytime Fitness 128.00. Authored: Mortgage's and Car Payment's amounts, every
+`nextDueOn`, every `category`.
+
+**THE LEDGER LINK IS NOT MODELLED, AND THE AGREEMENT ABOVE IS A COINCIDENCE OF
+SOURCING RATHER THAN A JOIN.** Nothing points at a transaction. Internet is where
+the gap shows plainly: the commitment is RM 120.00 while `txn-umobile-0820` is
+RM 75.00, and **neither is wrong** — they are a plan and a charge.
+
+**NO OFFER OR SMART-INSIGHT DATA IS SEEDED, AND IT NEEDS A RULING FIRST.** §A1
+records THREE contradictory savings figures for one promotion and its stated
+disposition is **FIX IN FIGMA at RM 50/month** (120 − 70); the Flow 11 plan's
+later ruling 3H takes **RM 51** (120 − 69) because RM 69 matches the promo
+artwork. **The two disagree and Gate 78 owns it.** Whichever wins, the saving must
+be DERIVED from the two prices and never typed.
+
+### `MODEL-1` — a budget has no account scope. Registered, not fixed.
+
+`countsToward` tests kind, sign, category and date, and **not `accountId`** —
+`Budget` carries no account scope to test against, so a budget is implicitly
+every account. Measured, before this gate's own change, `budget-monthly`'s
+counted rows spanned three accounts: `main` 12 rows / 2,433.51, `marg` (a CRYPTO
+WALLET) 2 / 750.84, `joint` 2 / 175.32.
+
+**THE WALLET HALF CLOSED ITSELF AT THIS GATE BY COINCIDENCE, NOT BY DESIGN** —
+both `marg` rows are the two crypto transfers. A crypto-wallet row with
+`kind: 'payment'` would still count, and nothing prevents one. **The residual is
+`joint`: RM 175.32 of `budget-monthly`'s RM 2,608.83.**
+
+It is a design question rather than a defect — a scope-less "Monthly Budget"
+arguably should count everything — so it is recorded in the gap register as
+**`MODEL-1`**, with no `G` number because no DS release can close MVP logic and a
+number would sit in the DS tally unable to move. Out of scope here (Teku, 30 Sept
+2026).
+
+### The four Flow 11 rulings, 30 Sept 2026
+
+Recorded here because rulings that live only in a review thread have gone missing
+before — Gate 72 found three.
+
+1. **A Top-Up is a ledger row**, not a bespoke write.
+2. **Crypto rows are transfers and stop counting toward budgets** — shipped here.
+3. **The Finance Overview gets a combined "Savings Goals" card** in the balance
+   grid, on the Joint Account pattern of an undrawn card. Gate 76.
+4. **"See All" contributions is a BOTTOM SHEET**, not a route and not a modal.
+   Gate 77.
+
+### A throwaway measurement spec is ALLOWED in a read-only phase
+
+**RULED AT GATE 75, and the rule is stated so it is not re-litigated.** A probe
+spec outside `src/` is permitted during a read-only phase provided it is
+**deleted**, the tree is **verified clean** afterwards, and it is **reported**.
+Gate 75 ran one at `e2e/__gate75-probe.spec.ts` in three iterations, deleted it
+with `test-results/`, and confirmed `git status --porcelain` empty and `--list`
+back to 643.
+
+#### A VIEWPORT-ONLY HIT TEST IS STRUCTURALLY BLIND TO THE UNDIMMED TAIL
+
+**THIS IS THE REUSABLE LESSON AND IT OVERTURNED THIS GATE'S OWN FIRST READ.**
+Gate 54-B established `document.elementFromPoint` as the correct instrument for
+predicting which baselines a text change moves, against a DOM census that
+over-predicts by every occluded state. That is still right, and it has a second
+blind spot nobody had written down:
+
+**`elementFromPoint` ANSWERS ONLY WITHIN THE VIEWPORT, WHILE `fullPage: true`
+CAPTURES THE WHOLE DOCUMENT.** So content below the fold is IN the baseline and a
+`position: fixed` overlay **cannot reach it** — the Gate α "undimmed strip below
+the fold" mechanism, generalised. Measured here: the budget drill-down is
+**1,816px** tall against an 812px viewport, and its eight changed legend figures
+sit at document y **879–1,632**, undimmed, in every capture. A centre-point test
+reported the `edit` and `edit-delete` states as fully covered; they move.
+
+**THE SECOND HALF: A `mn-blanket` BLOCKER IS NOT A COVER.** A blanket is
+translucent, so an element behind one shows through dimmed and its pixels still
+differ. Only an opaque card — `mvp-budget-form`, `mn-field__input`,
+`mn-menu-item`, `mn-modal__footer` — genuinely hides content. **Read which element
+the hit test names, not merely that it named something other than the target.**
+
+### Line endings — the full survey, because two named cases are not the picture
+
+**27 OF THE TRACKED TEXT FILES CARRY LONE LFs, AND ONLY TWO ARE MIXED.** The two
+mixed ones are the genuinely anomalous cases and both were verified inert — `git
+diff` on each is empty, because git's clean filter normalises before comparing,
+which is the same mechanism `.gitattributes` relies on:
+
+| file | lone LF | CRLF | |
+|---|---|---|---|
+| `src/flows/finance/finance.css` | **120**, contiguous at 2092–2211 | 2,134 | MIXED |
+| `src/flows/finance/TransactionFilterSheet.tsx` | **1**, line 5 | 607 | MIXED |
+
+The other 25 are wholly LF, largest first: `e2e/harness.ts` (2,973),
+`package-lock.json` (2,819), `MONARCH-MVP-PHASE5-ARCHITECTURE-08022026.md` (510),
+`e2e/budget-writers.spec.ts` (507), `e2e/link-editor.spec.ts` (438),
+`FLOW-10-COMPLETION.md` (417), `BudgetFormModal.tsx` (374), and nineteen more
+down to `src/vite-env.d.ts` (1).
+
+**SO "THE STRAY LF" IS AN AMBIGUOUS THING TO HUNT, which is why the survey is here
+rather than the two names.** A wholly-LF file is just a file some tool wrote that
+way; a MIXED file is CRLF except for a run, which is the shape worth noticing.
+`finance.css`'s block is two gates older than `TransactionFilterSheet.tsx`'s one
+line. Both are inert and neither was touched.
+
+**`sed -i` ON THIS MACHINE REWRITES CRLF TO LF**, which is how these arise
+(recorded at Gate 52, measured again here). New files written this gate were
+normalised to CRLF deliberately.
+
+#### AND THE SAME SPLIT MAKES A BYTE COUNT AGAINST `git show` MEANINGLESS
+
+**`git show HEAD:<file>` EMITS THE INDEX FORM, WHICH IS LF; THE WORKING TREE IS
+CRLF. SO THE DIFFERENCE BETWEEN THEM INCLUDES ONE BYTE PER LINE THAT IS NOT A
+CHANGE AT ALL.** Measured on this gate's own record:
+
+| | raw `git show` vs worktree | LF-normalised |
+|---|---|---|
+| `CLAUDE.md` | +34,718 | **+20,672** |
+| `MONARCH-MVP-DS-GAP-REGISTER.md` | +8,118 | **+5,508** |
+
+The gap is 14,046 and 2,610 — the LINE COUNTS (14,047 and 2,611 lines, less one
+for a file not ending in a newline). **A gate whose stop condition is "the
+record grew by more than the inserted text" will trip on a correct insertion
+unless it normalises first**, which is exactly what nearly happened here.
+
+Compare a working tree against a working tree, or normalise both sides. The same
+caution applies to `git diff --numstat`, which counts LINES and is therefore
+immune — 368 added / 2 removed on `CLAUDE.md` at this gate, which reconciles
+with the line delta above and is the figure to prefer.
+
+### Two record checks that came back CLEAN
+
+Stated because a check that found nothing is worth the same as one that did, and
+because the prompt expected both to need fixing.
+
+- **`ReceiptViewer.tsx`'s G32 comment is CURRENT, not stale.** It correctly
+  describes v2.8.0's `OverlayHeader` mapping and says the old classes no longer
+  exist, and this file's own §2r note already records that it was corrected at
+  +13/−6. No note anywhere calls it stale. **What WAS wrong in it was the
+  12-versus-28 claim**, corrected above in both places.
+- **There was never a literal "28 baselines" figure to correct for G32.** Grep
+  returns zero matches in `CLAUDE.md` and in the register. The deferred entry said
+  "every `view-*` baseline", which is 28 by inference and wrong for the same
+  reason — corrected to 12, with the mechanism.
+
+### Verification
+
+| | |
+|---|---|
+| `npx tsc -b --force` | clean |
+| `npm run lint:tokens` | 79 files, 4 exemptions, PASS |
+| `npm run lint:linkage` | PASS, all four sources on v2.8.0 |
+| tests | 643 -> **653** = 643 + 8 (`goals.spec.ts`, new) + 2 (`budgets.spec.ts` 9 -> 11). No walk state was added, so `visual` stays 208, `routes` 105 and `section-headers` 106 |
+| baselines | **208 -> 208**, 16 changed, 0 added, 0 deleted |
+
+### Deliberately not in scope
+
+The Plans tab and the Savings Goals card (Gate 76); goal detail and the
+contributions sheet (77); commitment detail, the smart insight, the education
+overlay and the offer seed (78); every writer — Add a Goal, Edit, Delete,
+auto-save, Top-Up (79); a `PlansProvider`, which arrives at Gate 76 with its
+first consumer rather than as a provider nothing reads; `MODEL-1`'s fix; the
+five-versus-seven commitment count, which needs Figma; the retro-fit sweep; G32
+adoption; persistence (NP1, now timed straight after Flow 11); `npm audit fix`;
+the DS repo; and branch deletion.
