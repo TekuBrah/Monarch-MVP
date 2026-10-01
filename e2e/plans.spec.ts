@@ -141,9 +141,13 @@ test.describe('the Plans tab', () => {
         await expect(card).toContainText(formatMyr(g.savedAmount))
         await expect(card).toContainText(formatMyr(g.targetAmount))
 
-        // INERT THIS GATE. `CardGoals` renders a <button> only when it is given
-        // `onClick`, and the goal detail screen does not exist until Gate 77.
-        await expect(card).toHaveJSProperty('tagName', 'DIV')
+        // TAPPABLE AS OF GATE 78. `CardGoals` renders a <button> only when it
+        // is given `onClick`, so the root element IS the assertion that the
+        // card is focusable and announced as a control. It read 'DIV' from
+        // Gate 76 until the goal drilldown existed to tap through to; that
+        // assertion was REWRITTEN here rather than a second one added beside
+        // it, which would have left the suite asserting both.
+        await expect(card).toHaveJSProperty('tagName', 'BUTTON')
       }
 
       const rows = page.locator('.mvp-plans__commitments .mn-list-item')
@@ -257,5 +261,9 @@ test.describe('the Savings Goals card', () => {
     // `HoldingDetailScreen` redirects an unknown id to /finance with `replace`.
     await expect(page.locator('.mvp-finance__networth')).toBeVisible()
     expect(new URL(page.url()).pathname).toBe('/finance')
+    // STRENGTHENED AT GATE 78, when there was finally a goal screen to NOT get.
+    // Before it existed this could only say "not the holding screen"; now it can
+    // say the holdings route does not reach the goal drill-down either.
+    await expect(page.locator('.mvp-goal-detail')).toHaveCount(0)
   })
 })

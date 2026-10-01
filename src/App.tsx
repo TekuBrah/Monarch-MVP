@@ -3,6 +3,7 @@ import { AppShell } from './shell/AppShell'
 import { ComingSoon } from './components/ComingSoon'
 import { BudgetDetailScreen } from './flows/finance/BudgetDetailScreen'
 import { FinanceScreen } from './flows/finance/FinanceScreen'
+import { GoalDetailScreen } from './flows/finance/GoalDetailScreen'
 import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
 
@@ -49,6 +50,14 @@ export default function App() {
         {/* Flow 10 (Gate 69) — one route per budget, for the same B7/B8 reasons
             as the holdings: its own chrome, and data from `useBudgets()`. */}
         <Route path="finance/budget/:budgetId" element={<BudgetDetailScreen />} />
+        {/* Flow 11 (Gate 78) — one route per goal. The path carries `plans/goals`
+            rather than the budgets' flatter `finance/budget/<id>` because the
+            Plans tab holds TWO kinds of detail: a commitment drill-down lands at
+            `finance/plans/commitments/<id>` (Gate 80), and a single
+            `finance/plans/<id>` could not tell the two id spaces apart. Same
+            B7/B8 reasons otherwise — its own chrome, and data from
+            `useAccounts()`. */}
+        <Route path="finance/plans/goals/:goalId" element={<GoalDetailScreen />} />
         <Route
           path="more"
           element={

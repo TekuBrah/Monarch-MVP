@@ -100,6 +100,16 @@ const BYPASS_EXCEPTIONS: { selector: string; why: string }[] = [
     selector: '.mvp-balance-card__identity',
     why: 'BalanceCard card identity <header> row',
   },
+  {
+    selector: '.mvp-goal-detail__target',
+    why:
+      'the goal drill-down\'s "Target" row (Gate 78) — a labelled key/value row, ' +
+      'not a section heading. Figma\'s own left node IS a `Label` instance (`1066:13575`), ' +
+      'so hand-rolling a <span> to dodge this guard would duplicate a DS component; and ' +
+      '`SectionHeader` cannot serve it, because its trailing slot is a blue `Link` ' +
+      'where this row\'s right-hand node is a plain semibold date. Same shape as the ' +
+      'three card-identity rows above.',
+  },
 ]
 
 /**

@@ -14811,3 +14811,438 @@ sweep; **MODEL-1**, still registered and still unfixed; **MODEL-2**, opened here
 G33's workaround, untouched and still carrying its removal condition; UI-3;
 the goal image picker; persistence (NP1); `npm audit fix`; the DS repo; and
 branch deletion.
+## Flow 11 part 4 — the goal drill-down and the contributions sheet (Gate 78)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/` and the sibling checkout's `src/`.
+**|WALK| 52 -> 55, `OVERLAY_STATES` 29 -> 30, `ROUTES` 16 -> 18, baselines
+208 -> 220 (12 added, ZERO changed, ZERO deleted), tests 667 -> 709, spec files
+29 -> 30.** `lint:tokens` scans **83** files (80 + the screen, the row and the
+sheet) with the same **4** exemptions — no new raw value entered the tree.
+
+### Figma — the REMOTE connector worked and the local one refused
+
+`figma-local` returned `ECONNREFUSED`; the remote connector authenticated
+(`whoami` -> the file owner, pro) and served every read. **That is the reverse
+of Gate 76, where local was up with the wrong document open, and of Gate 77,
+where local refused outright.** Do not predict which path works — try remote
+first and verify with an authenticated round trip rather than a port check.
+
+Section `1266:14338` holds six frames; this gate read `1266:14344`
+`Finance_Plan_drilldown`, **375 x 864** — taller than the viewport, which is the
+file's way of saying the screen scrolls.
+
+**⚠ THERE IS A `Bottom Sheet` INSTANCE ON THAT FRAME AND IT SPECIFIES NOTHING.**
+`873:6583`, 375 x 812, `hidden="true"`, and `get_metadata` returns it with **no
+children** — in the instance AND in the main component. It is an unconfigured
+component someone dropped on the canvas, the same shape as the bare `Field` Gate
+49 found on both transaction-detail frames. So the carried claim that "there is
+no contributions bottom-sheet frame anywhere in the file" is right in substance
+and wrong in letter: a node exists, it is empty, and it is not a design.
+**Everything about the sheet below is therefore the 21 Sept ruling's second half
+— what Teku did not design follows Claude's judgement — except the rows, which
+are the drawn `list/chart legend` rows the screen above already uses.**
+
+**TWO-SOURCE RECONCILIATION: THE INVENTORY AGREES WITH THE FRAME AND ADDS THREE
+DISPOSITIONS.** §2 lists the drilldown at 375 x 864; §E classifies its chrome
+**SUPPRESSED** on the basis that it carries bottom action buttons; §G confirms
+both goal percentages reconcile exactly (56.0%, 92.0%). It also records, as
+"Figma source inconsistencies — recorded, not corrected":
+
+| | the inconsistency | what shipped |
+|---|---|---|
+| **A4** | "Edit Goals", plural, on a single-goal page | transcribed as drawn |
+| **A5** | three date formats in one Section | one formatter per shape — `monthLabel` for the target, `formatDayMonth` for a row |
+| **A7** | "Manual Top Up" on one row and "Manual Top-Up" on another, **in the same list** | the hyphenated form, which is also what the footer's own "Top-Up" button says |
+
+**§H's OPEN QUESTION IS ANSWERED FOR THE DRILL-DOWN.** It recorded the progress
+bars as "stated honestly: unverified — I cannot confirm whether they are DS
+component instances or raw geometry". Read at this gate, `877:6571` contains a
+real `Progress bar indicator` instance (`936:8586`) wrapping a real
+`❖ Progress bar` (`936:8577`), the latter carrying a Code Connect hint of
+`<ProgressBar value="{progress}" />`. They are instances.
+
+### The route — `/finance/plans/goals/:goalId`
+
+**THE PATH SHAPE DIVERGES FROM THE BUDGET DRILL-DOWN'S, DELIBERATELY.** That one
+is `/finance/budget/<id>`; this carries `plans/goals` because the Plans tab holds
+**two** kinds of detail, and a flat `/finance/plans/<id>` could not tell a goal id
+from a commitment id — the commitment drill-down takes the sibling path at Gate
+80. This is the Flow 11 plan's own recorded decision, not an invention here.
+
+Everything else follows `BudgetDetailScreen` exactly: a route param rather than a
+route-scoped provider (B8), data from the app-level `useAccounts()`, chrome
+declared by prefix in `chrome.ts` (`{ nav: 'suppressed', fab: false, statusBar:
+'page' }`), and an unknown id redirecting to the Plans tab with `replace` so Back
+cannot reach a dead URL. **No `isDeleting` ref**, because nothing on this screen
+deletes — that guard is Gate 71's and belongs with its delete.
+
+**THE HARNESS EXPANDS `:goalId` OVER `GOALS`**, as it does for holdings and
+budgets, and its expander **throws** on an unexpanded `:param` — so adding a
+route without its expansion is a loud failure rather than a silently skipped
+screen.
+
+**A GOAL STILL NEVER ACQUIRES A HOLDING DRILL-DOWN ROUTE, AND IT IS STRUCTURAL.**
+No goal id is in `holdings` or `fiatAccounts`, so the holdings route has nothing
+to resolve. Measured in-app: `/finance/holding/goal-bali-trip` lands on `/finance`
+with the **Overview** tab, because `HoldingDetailScreen`'s redirect carries no
+plans flag, while `/finance/plans/goals/goal-nope` lands on `/finance` with the
+**Plans** tab.
+
+### The goal cards became tappable, and it moved no pixel
+
+`CardGoals` renders a `<div>` without `onClick` and a `<button>` with one. The
+tap is a `navigate` and not a callback — the Overview tab's Savings Goals card
+takes a callback precisely because `/finance -> /finance` would not remount
+`FinanceScreen`, and this card goes to a genuinely different path.
+
+**ZERO BASELINES MOVED, PREDICTED FROM SOURCE AND THEN MEASURED.**
+`.mn-card-goals` already carries the full reset — `background: none`, `border:
+none`, `padding: 0`, `font-family: inherit`, `text-align: left` — plus an
+explicit `width: 200px`, so the button's `width: auto` is moot. The UA
+`button { font: 400 13.3333px Arial }` shorthand **also resets `line-height`**,
+which is the half worth checking: every text node under the card carries an
+explicit `type-*` class, and each of those sets family, weight, size,
+line-height AND letter-spacing. Measured after: the container computes
+`13.3333px` and the title still computes `16px/24px`, the percentage and readout
+`12px/16px`, with both cards at 200 x 144 at x=16 and x=224 — Gate 76's own
+figures. Same mechanism Gate 49 measured for `ListItem`.
+
+### The screen, measured against the frame
+
+Through a Playwright-launched Chromium at the pinned viewport, DPR 2:
+
+| | Figma | measured @375 |
+|---|---|---|
+| status bar | 375 x 44 @ y=0 | **375 x 44 @ y=0** |
+| header | 375 x 48 @ y=44 | **375 x 48 @ y=44** |
+| image | x=16, 343 x 128 | **x=16, 343 x 128** |
+| image -> target gap | 24 | **24** |
+| target row -> bar gap | 16 | **16** |
+| progress bar | 343 x 36 | **343 x 36** |
+| bar -> auto-save gap | 16 | **16** |
+| auto-save card | 343 x 60 | **343 x 60** |
+| auto-save -> contributions gap | 24 | **24** |
+| heading -> rows gap | 24 | **24** |
+| target row height | 20 | **16** |
+| contributions heading height | 20 | **16** |
+| a contribution row | 48 | **44** |
+
+**THE THREE HEIGHT DELTAS ARE ONE CAUSE, AND IT IS A DELIBERATE DS DECISION
+RATHER THAN A DEFECT.** `--responsive-font-copy-body-sm-line-height` is **16px
+below the DS's one breakpoint and 20px at `min-width: 768px`**, read from
+`globals.css`. Figma authors at 375 and specifies 20, so every `body/sm` and
+`body/sm-semibold` in this app renders 4px shorter than the frame says — which
+is why the existing `.mvp-section-header` has rendered 16 since Gate 6. **Not a
+gap, not registered, and not to be "fixed" by overriding a line-height.**
+
+**THE SECTIONS ARE 24px APART, NOT THE BUDGET DRILL-DOWN'S 32.** Different
+screens, different drawn spacing; neither is a convention the other must follow.
+
+**ONE SECTION HOLDS THREE CHILDREN AT GAP 16, WHICH IS `Frame 417` EXACTLY.**
+Figma nests the target row and the bar inside a `Frame 439` and puts the
+auto-save card beside it, but every gap in that subtree is 16 — so a single
+column reproduces it without the wrapper: 20 + 16 + 36 + 16 + 60 = 148, the
+frame's own height.
+
+**THE IMAGE IS `aspect-ratio`, AND ITS `<img>` IS ABSOLUTELY POSITIONED.** A
+flex item's automatic minimum height is its content, so an in-flow `<img>` would
+beat the ratio and grow the box to the photograph's own height — the receipt
+viewer's finding, and here the photographs are 600 x 204, so in flow they would
+have forced a 116px-taller box at 375. Measured at 430: **398 x 148.52**, the
+ratio holding.
+
+**THE TARGET ROW IS NOT A `SectionHeader`, AND THE REASON IS ITS RIGHT-HAND
+NODE.** That component's trailing slot is a blue `Link`; this row's is a plain
+semibold date. Figma's left node IS a `Label` instance (`1066:13575`), so the
+left half is the DS component and the row is composed around it.
+
+#### Three things drawn and inert, named by the gate that wires them
+
+Top-Up, Edit Goals, the auto-save toggle, the auto-save pencil and the image
+pencil are **all Gate 81's**. They render as drawn and do nothing — the
+precedent Gate 67 set for the Budget tab's "Details"/"Add New" and Gate 69 for
+this screen's sibling "Edit". **"See All" is the one control this gate wires**,
+because the sheet is this gate's deliverable.
+
+**THE "Ai Image" TAG IS RENDERED UNCONDITIONALLY AND THAT IS A CLAIM THE DATA
+CANNOT YET CHECK.** Both seeded images genuinely are the AI artwork Figma ships,
+so the badge is true today; `Goal` carries no provenance field, so the day the
+image picker lands (deferred to persistence) a user-uploaded photograph would
+wear an "Ai Image" badge that is false. **It must become conditional on a stored
+provenance flag at that point**, and widening `Goal` for it now would be a model
+change with no consumer. Flagged for Teku.
+
+**THE IMAGE PENCIL'S FILL IS AN MVP-LOCAL CORRECTION.** Figma paints it a raw
+`rgba(0,0,0,0.4)` with no binding while the `Tag` two corners away binds
+`surface/Overlay/default`; both take `--mapped-surface-overlay-default` here, so
+two chips on one photograph share a surface. Exactly the reading Gate 50 took
+for the staged-tile remove button, which had the same shape.
+
+**THE AUTO-SAVE AMOUNT SURVIVES THE TOGGLE BEING OFF** — `GoalAutoSave`'s stated
+contract, and Emergency Funds is the seeded goal that exercises it. Measured:
+`aria-checked="false"` with "RM 900.00/mth" still printing.
+
+### The contributions sheet
+
+**A `Sheet` AND NOT A ROUTE OR MODAL** — Teku's ruling, because the list has
+unknown length and must scroll. `sizing="fill"` opens the panel at its existing
+`calc(100dvh - var(--brand-scale-1100))` cap, so the surface is not a function
+of how many contributions a goal happens to have. Measured: panel
+`[0, 48, 375, 812]`, height **764 = max-height 764**, content region 651 against
+a 960 scrollHeight, `scrollTop` clamping to **309**.
+
+**THE ✕ IS KEPT, UNLIKE `TransactionFilterSheet`'s.** That sheet suppresses it
+because Figma draws a header with "Reset" and no ✕; this surface has no frame to
+defer to and no back control — it is opened from a screen, not pushed from
+another view — so the ✕ is the only visible dismissal.
+
+**THE EMPTY LEADING SLOT IS THE POINT, AND IT WAS VERIFIED IN THE RENDERED DOM
+RATHER THAN IN THE PROPS** (Teku flagged it as very important). `OverlayHeader`
+is `grid-template-columns: var(--brand-scale-800) minmax(0, 1fr)
+var(--brand-scale-800)` — two FIXED, identical side tracks — and both `<div>`s
+render whatever they hold. Measured with no `onBack`: `32px 279px 32px`, the
+leading side `{x: 16, w: 32, h: 24}` with **zero children** and `aria-hidden`,
+and **title centre 187.5 === header centre 187.5**. The title truncates
+(`ellipsis / nowrap / hidden`) rather than pushing the header out of shape. The
+close control computes `rgb(54, 60, 67)` = `--mapped-icon-default-default` —
+**dark grey, not primary blue**.
+
+**`contentPadding` IS LEFT AT `'default'`, AND UI-1's RULE IS STILL SATISFIED.**
+"No inner container, no second shadow, no box within a box" — measured, a row
+computes `background: rgba(0,0,0,0)`, `box-shadow: none`, `border-width: 0px`,
+`border-radius: 0px`, so it already sits flat on the sheet surface. `'none'`
+exists for a full-bleed child whose own tint must reach the panel edges
+(`OptionList`'s selected row); a contribution row has no tint and no selected
+state, so releasing the sides would only pull the text off the content column
+the screen behind it uses.
+
+**THE TITLE IS "Contributions", NOT "Recent Contributions".** The screen's
+heading says "Recent" because it shows a four-row slice; the sheet is the whole
+list. Judgement, since nothing draws it.
+
+#### The row — `ContributionRow`, composition, two call sites
+
+`variant="contribution"` is the whole reason this uses `ChartLegendItem`: the DS
+ships it described as "Recent contributions item", and it is what swaps the
+title and amount to medium weight and drops the trailing chevron. The default is
+`'legend'`, so omitting it would draw a budget-donut row.
+
+**`hasIcon={false}` IS PASSED, NOT OMITTED — THE OMITTED-PROP TRAP FOR THE SIXTH
+TIME.** `ChartLegendItem` defaults `icon` to `<Icon name="question_mark" />` and
+`hasIcon` to `true`, and on the `contribution` variant `showIcon` is exactly
+`hasIcon` — so leaving both out draws a grey question-mark badge on every row.
+Figma draws no leading badge at all. After `Link.iconBefore`, `ReceiptCard`, the
+holding drill-down at Gate 53-B, `HeaderDefault.hasSubtitle` and
+`ListItem.hasReceiptIcon`.
+
+**THE AMOUNT TAKES THE MAGNITUDE.** A contribution row in the ledger is
+NEGATIVE — it debits `main`, and this ledger's sign is relative to `accountId` —
+while the goal's own screen is showing money arriving, and Figma prints
+"RM 250.00" unsigned. `goalContributions`' own docstring says a caller takes the
+magnitude rather than expecting a positive number back; `Math.abs` is that
+caller doing so.
+
+**`contributionSource!` RESTS ON A STATED MODEL INVARIANT.** `types.ts` says the
+field "MUST BE SET EXACTLY WHEN `goalId` IS", records that two peer optionals
+cannot express that, and says the invariant is asserted in `goals.spec.ts`
+instead — which it is, in both directions. `BudgetDetailScreen`'s
+`transactionCategory(...)!` is the same pattern. Filtering the row out instead
+would drop a defective row from the list AND its count, hiding the defect.
+
+#### The screen shows four; the sheet shows all
+
+`RECENT_CONTRIBUTIONS = 4`, **because Figma draws four**: `Frame 418` is 240px,
+which is exactly `4 x 48 + 3 x 16`, so the container hugs four rows rather than
+clipping a longer list. The seeded goals hold 16 and 12, so the slice is
+load-bearing rather than decorative.
+
+**"See All" IS SUPPRESSED WHEN THE SLICE IS THE WHOLE LIST.** Figma draws the
+link unconditionally, but it draws a goal with more contributions than fit — and
+a link whose sheet would repeat the four rows directly above it is a control that
+cannot do anything, which Gate 44 ruled is worse than no control. Undesigned
+state, so this is judgement.
+
+### `monthLabel` was EXPORTED rather than duplicated
+
+`2025-09 -> September 2025`, already the month heading on the Receipts and
+Transactions tabs, and already extracted at Gate 51-B "when the second consumer
+arrived". `goalTargetLabel` is the fourth consumer and the first outside
+`derive.ts`, so the function became exported. **Inventory A5 records three date
+formats inside this one Section; a fourth expression of a format the app already
+owns is how that becomes four.**
+
+### The section-header guard fired on the new screen, and it was right
+
+`section-headers.spec.ts` asserts that every DS `Label` sits inside a
+`.mvp-section-header`, with a reviewed exception list. The Target row's `Label`
+is outside one, so **six tests went red** — the three new walk states x two
+themes — and the guard's own failure message prescribes the fix: "If one of
+these is a legitimate new use, add it to `BYPASS_EXCEPTIONS` with a reason."
+
+`.mvp-goal-detail__target` is now on that list, with the reason stated: Figma's
+own left node IS a `Label` instance, so hand-rolling a `<span>` to dodge the
+guard would duplicate a DS component (rule 1); and `SectionHeader` cannot serve
+the row because its trailing slot is a blue `Link`. **Same shape as the three
+card-identity rows already on the list, and NOT a loosening** — the exception is
+one selector with a written reason.
+
+**THIS WAS NOT PREDICTED, AND IT IS THE GATE'S MAIN CALIBRATION MISS.** The
+sweep was read for its POSITIVE arm (headings bind the subtle token) and its
+NEGATIVE arm — the bypass count — was not considered at all. The lesson
+generalises past this guard: **when a new screen introduces a DS primitive the
+app normally wraps, check what asserts on the wrapper.**
+
+### What it cost, and what proves it
+
+| | before | after |
+|---|---|---|
+| `ROUTES` | 16 | **18** |
+| `OVERLAY_STATES` | 29 | **30** |
+| \|WALK\| | 52 | **55** |
+| `visual.spec.ts` | 208 | **220** |
+| `routes.spec.ts` | 105 | **111** |
+| `section-headers.spec.ts` | 106 | **112** |
+| `goal-detail.spec.ts` | — | **18** |
+| suite | 667 | **709** |
+| baselines | 208 | **220** |
+
+|WALK| = 55 confirmed three ways (220/4, (111-1)/2, (112-2)/2), and the
+section-header sweep's own log prints `55 walk state(s) = 18 route state(s) + 7
+non-default tab state(s) over 2 tabbed screen(s) + 30 overlay state(s)`.
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE NINTH TIME**: three added walk
+states cost **12 baseline files and 24 tests** (visual +12, routes +6,
+section-headers +6).
+
+**THE BASELINE PREDICTION WAS WRITTEN BEFORE ANY FILE CHANGED AND HELD EXACTLY:
+12 added, 0 changed, 0 deleted.** Reconciled against a SHA-256 manifest taken
+outside the repo: 208 -> 220, 12 added, 0 changed, 0 deleted, **208
+byte-identical**, added and changed sets not overlapping. Start digest
+`d644be41…0dc70480`, end digest `ee76e28e…d3248e40`, both by the standing
+command.
+
+**THE PRE-MINT RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT**: 208 files
+byte-identical to the start manifest, **zero** untracked in the snapshot
+directory, **zero** "writing actual" lines. `updateSnapshots: 'none'` honoured.
+
+**THE MINT WAS DRY-RUN FIRST** — `e2e/visual.spec.ts -g "plans/goals" --list`
+selected `Total: 12 tests in 1 file`, exactly the predicted set — then run with
+`--update-snapshots=all`, writing 12 distinct files.
+
+**ALL 12 MINTED PNGs WERE OPENED.** Both goals at both widths in both themes,
+and the sheet at both widths in both themes. The sheet's title is visibly
+centred with the ✕ on only one side, which is the fixed-track arithmetic
+showing; Emergency's toggle reads off with its amount still printed; dark flips
+every token.
+
+**ZERO-CHANGE PREDICTIONS, STATED IN WRITING AND MEASURED.** Net worth stays
+481,038.84, no budget figure moves, no account balance moves — and none of them
+*could*, because this gate changed no transaction, no account and no
+`savedAmount`, and `countsToward` tests `kind` first.
+
+### Eighteen mutation proofs, and two of them are findings
+
+Each: mutate, run exactly ONE test by its regex-escaped `$`-anchored title
+through an argument array with **no shell**, require an ASSERTION failure
+checked against a denylist (module-resolution, syntax, TS errors, timeouts,
+navigation failures, "No tests found"), restore, verify SHA-256, re-run green.
+
+**THE NEGATIVE CONTROL FOUND A BUG IN THE DRIVER ITSELF, WHICH IS WHY IT IS RUN
+FIRST.** A deliberate syntax error, run against an unrelated passing test,
+printed `NO PROOF` **and then `PROVED`**: `fail()` returns `false`, so
+`if (verdict) return verdict` was falsy and execution fell through to the
+restored-run check. Fixed to `if (verdict !== null)`. **A driver that certifies
+a compile error is exactly the Gate 63 failure, and it was one line away.**
+
+**M16 PASSED UNDER MUTATION — a finding, not a formality.** The test asserted
+`scrollbar-width: none` on `.mn-sheet__content`, and deleting the app's global
+rule in `src/index.css` left it green, because **`Sheet.css` carries a
+suppression of its own**. So that assertion was pinning the DS's behaviour and
+said nothing about this app's convention. It now also reads the `<ul>` inside
+the sheet — an MVP element the DS never styles, which can only be `none` because
+of the rule on `*` — and the mutation fails as it should. Both states reported.
+
+**M11 WAS DELETED RATHER THAN PROVED, AND THAT IS ALSO A FINDING.** Its test —
+"a goal id on the holdings route resolves to nothing" — duplicated one
+`plans.spec.ts` has carried since Gate 76. Gate 78 **strengthened that one in
+place** with a `.mvp-goal-detail` assertion, which only became meaningful once
+this screen existed, and deleted the near-duplicate. Its proof (M19) also had to
+be rebuilt: injecting a MALFORMED holding crashed the render, so the test failed
+at `gotoRoute`'s theme settle rather than on the route — the driver correctly
+refused to certify it, and the mutation now injects a well-formed one.
+
+### Two stale CURRENT-fact counts corrected, one of them not this gate's
+
+- **`e2e/harness.ts`'s WALK arithmetic** — "16 routes … + 29 OVERLAY_STATES =
+  52" -> 18 / 30 / 55.
+- **`src/shell/useStatusBarColor.ts`** read "the other twelve" and "wrong on 12
+  of 14 routes". **It was ALREADY STALE BY TWO before this gate** — Gate 69's
+  two budget drilldowns took `ROUTES` to 16 and nothing updated it. It now reads
+  16 of 18 and says to re-derive from `ROUTES` rather than trust the sentence.
+- **`src/flows/finance/finance.css`** said the Internet promotion banner "is
+  Gate 78's". It is not: Gate 78 is the goal drill-down and touches no
+  commitment. Corrected, with the misattribution recorded in place.
+
+Everything else matching a count regex is a dated, gate-anchored historical
+statement (24 walk states at Gate alpha, 128 baselines at Gate 50, 218 tests at
+Gate 48, 12 baselines for G32) and was correctly left alone.
+
+### ⚠ `grep -c $'\r$'` IS NOT A RELIABLE CRLF DETECTOR IN THIS ENVIRONMENT
+
+**AND IT NEARLY WROTE CRLF INTO A WHOLLY-LF FILE.** A first line-ending survey
+using it reported `e2e/harness.ts` as 2976 CRLF lines out of 2976. `od -c` and a
+byte-level scan both say the file contains **no `\r` at all**. Every subsequent
+edit was made through a script that reads the file, refuses to run if the file
+is MIXED, and writes back in the file's own ending — and `harness.ts` was
+written LF for that reason.
+
+**THE REPO IS GENUINELY MIXED, PER FILE, AND CRLF DOMINATES BOTH DIRECTORIES**:
+`e2e/` is 26 CRLF to 7 LF, `src/` (ts/tsx/css) 71 CRLF to 7 LF plus **one MIXED**
+— `TransactionFilterSheet.tsx`, one lone LF at line 5, exactly as Gate 75
+recorded and untouched here. New files were written CRLF; every edited file kept
+its own.
+
+**Gate 76's note that `e2e/harness.ts` "is a wholly-LF file and was deliberately
+left LF" is still true. Its companion claim that the file was CRLF at the Gate
+75 survey is what the broken instrument produced.** Use a byte scan, not grep.
+
+### What this gate changed
+
+`src/App.tsx` (the route and its import); `src/shell/chrome.ts` (the prefix);
+`src/data/derive.ts` (`monthLabel` exported, `goalTargetLabel`,
+`contributionSourceLabel`, the `ContributionSource` type import);
+`src/flows/finance/GoalDetailScreen.tsx`, `components/ContributionRow.tsx` and
+`components/GoalContributionsSheet.tsx` (all new);
+`src/flows/finance/PlansTab.tsx` (the tap); `src/flows/finance/finance.css`
+(+16 rules and one corrected gate reference); `src/shell/useStatusBarColor.ts`
+(the stale route count); `e2e/harness.ts` (the GOALS import, the `:goalId`
+expansion, the overlay state, the WALK arithmetic);
+`e2e/section-headers.spec.ts` (one `BYPASS_EXCEPTIONS` entry);
+`e2e/plans.spec.ts` (the card is a `<button>`; the holding-route test
+strengthened); `e2e/goal-detail.spec.ts` (new, 18 tests, no baseline); the gap
+register (**G48**); `CLAUDE.md`; and 12 minted baselines.
+
+**NO MUTATOR WAS ADDED.** Flow 11's writers are Gate 81's and arrive with their
+first callers — the rule that kept `addTransaction` from being designed in the
+abstract. `AccountsProvider` is still not a reducer, and `addTransaction` and
+`adjustFiatBalance` are still the zero-caller seams Gates 48 and 75 built.
+
+**ARM 1 OF THE BASELINE GUARD IS RED AT THIS GATE'S CLOSE AND THAT IS CORRECT**:
+12 untracked baselines, so the suite closes at **708 passed / 1 failed**. Arm 2
+stays green because nothing was renamed or deleted (the Gate alpha correction),
+and arm 3 because every file on disk is a name the walk asks for. Staging is
+Teku's.
+
+### Deliberately not in scope
+
+Every writer — Top-Up, Edit Goals, the auto-save toggle and its pencil, and the
+image pencil (Gate 81); the commitment drill-down, the smart insight, the
+education overlay and the Internet offer seed (Gate 80 — for the record, Teku
+has ruled the current plan RM 120/month and the offer RM 70/month, so the saving
+derives to RM 50/month and RM 600/year, overriding the RM 69 and RM 51 printed
+in the frames); the ten-month spending seed (Gate 82); the completion record
+(Gate 83); the retro-fit sweep; **MODEL-1** and **MODEL-2**, both still
+registered and unfixed; G33's modal workaround, untouched and still carrying its
+removal condition; UI-2 and UI-3; the goal image picker, deferred to
+persistence; the contrast findings, paused for the DS round; and the DS repo.

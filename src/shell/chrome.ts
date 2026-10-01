@@ -107,6 +107,12 @@ const CHROME_BY_PREFIX: [string, ChromeConfig][] = [
   // Flow 10's budget drilldowns (Gate 69), `/finance/budget/<id>` — a
   // drill-down like the holdings, so the same suppressed chrome.
   ['/finance/budget/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
+  // Flow 11's goal drilldowns (Gate 78), `/finance/plans/goals/<id>` — a
+  // drill-down like the holdings and the budgets, so the same suppressed
+  // chrome. Inventory §E classifies `…_drilldown` (`1266:14344`) as SUPPRESSED
+  // on exactly that basis: it carries its own bottom action buttons, so the nav
+  // pill and the FAB would collide with them.
+  ['/finance/plans/goals/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
 ]
 
 export const DEFAULT_CHROME: ChromeConfig = { nav: 'suppressed', fab: false, statusBar: 'page' }

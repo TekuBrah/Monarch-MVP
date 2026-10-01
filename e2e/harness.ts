@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { expect, type Page } from '@playwright/test'
 import { BUDGETS } from '../src/data/budgets'
 import { HOLDINGS } from '../src/data/holdings'
+import { GOALS } from '../src/data/goals'
 import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import { capturedImageName } from './capture'
 
@@ -231,6 +232,13 @@ export const ROUTES: string[] = ROUTE_TABLE.flatMap(({ path }) => {
   // `BUDGETS` rather than listed, for the same reason as the holdings above.
   if (path === '/finance/budget/:budgetId') {
     return BUDGETS.map((b) => `/finance/budget/${b.id}`)
+  }
+  // Gate 78 - Flow 11's goal drilldown, one route per SEEDED goal. Expanded
+  // over `GOALS` rather than listed, for the same reason as the holdings and
+  // the budgets above: a hand-written list would go quietly green the day a
+  // goal is renamed, and `GoalDetailScreen` redirects any id it cannot find.
+  if (path === '/finance/plans/goals/:goalId') {
+    return GOALS.map((g) => `/finance/plans/goals/${g.id}`)
   }
   throw new Error(
     `harness: parameterised route "${path}" has no expansion. Every :param must be ` +
@@ -1811,6 +1819,29 @@ export const OVERLAY_STATES: WalkState[] = [
       },
     },
   },
+  //
+  // -- 30 . THE GOAL DRILL-DOWN'S "See All" CONTRIBUTIONS SHEET (Gate 78) -----
+  //
+  // ONE STATE, NOT TWO, AND BALI IS THE ONE THAT EARNS IT. The sheet's whole
+  // reason for existing is that the list is longer than the screen can show, so
+  // the state worth photographing is the goal with the most rows: Bali holds 16
+  // contributions against the screen's four-row slice, where Emergency holds 12.
+  // A second state on Emergency would re-photograph the same component against
+  // the same component's behaviour with different numbers in it.
+  //
+  // IT IS THE ONLY CONTROL ON THAT SCREEN THIS GATE WIRES. Top-Up, Edit Goals,
+  // the auto-save toggle and both pencils are drawn and inert until Gate 81, so
+  // none of them can open anything for the walk to find.
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'contributions',
+      control: '.mvp-goal-detail__contributions .mn-link',
+      controlLabel: 'See All',
+      title: 'Contributions',
+    },
+  },
 ]
 
 /**
@@ -1831,11 +1862,12 @@ export const WALK: WalkState[] = [
     ]
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
-  // an enumerated entry rather than an axis. 16 routes (one `tab: null` state
-  // each, from ROUTES — 14 plus the two budget drilldowns since Gate 69) + 7
-  // non-default tab states + 29 OVERLAY_STATES = 52 (Gate 74-B added
-  // `merchant`; it read 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, and 19 = 40
-  // through Gate 69, already stale by then).
+  // an enumerated entry rather than an axis. 18 routes (one `tab: null` state
+  // each, from ROUTES — 14, plus the two budget drilldowns since Gate 69 and
+  // the two goal drilldowns since Gate 78) + 7 non-default tab states + 30
+  // OVERLAY_STATES = 55 (Gate 78 added `contributions`; it read 16/29 = 52 at
+  // Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, and 19 = 40 through
+  // Gate 69, already stale by then).
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the

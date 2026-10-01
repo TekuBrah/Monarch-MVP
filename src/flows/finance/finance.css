@@ -2338,13 +2338,197 @@ button.mvp-receipt-card:focus-visible {
 /*
   `Frame 472` — the commitment rows, 16px apart. Figma's own list nests the
   Internet row with its promotion banner inside a sub-frame at a 4px gap; that
-  banner is Gate 78's, so this is a flat list until it arrives.
+  banner arrives with the commitment drill-down and the smart insight, so this
+  is a flat list until then. (Written as "Gate 78's" at Gate 76; Gate 78 is the
+  goal drill-down and does not touch commitments.)
 */
 .mvp-plans__commitments {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-400);
   /* The UA sheet's own bullets and 40px indent, reset as everywhere else. */
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  ============================================================================
+  FLOW 11 — THE GOAL DRILL-DOWN (Gate 78)
+  ============================================================================
+
+  Figma `Finance_Plan_drilldown` (`1266:14344`). Every number below is read off
+  that frame's own geometry rather than eyeballed from the render:
+
+    header block      `Frame 451`   0   ..  92
+    body              `Frame 455`   108 .. 665   -> 16px below the header
+      image           `Frame 453`   0   .. 128
+      target block    `Frame 454`   152 .. 300   -> 24px gap
+      contributions   `Frame 455`   324 .. 608   -> 24px gap
+
+  So the sections are 24px apart, NOT the 32px the budget drill-down uses.
+  Different screens, different drawn spacing; neither is a convention the other
+  has to follow.
+*/
+.mvp-goal-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+.mvp-goal-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  padding-top: var(--spacing-400);
+}
+
+/*
+  `Frame 413` — 343 x 128, radius `Border Radius/md`, and the photograph fills
+  it. `aspect-ratio` rather than a height, so the box keeps Figma's proportion
+  at 430 as well as at 375 where the two happen to agree.
+
+  THE IMAGE IS ABSOLUTELY POSITIONED, for the reason the receipt viewer records:
+  a flex item's automatic minimum height is its content, so an in-flow <img>
+  would beat `aspect-ratio` and grow the box to the photograph's own height.
+  Here the photographs are 600 x 204, so in flow they would have forced a
+  116px-taller box at 375.
+*/
+.mvp-goal-detail__image {
+  position: relative;
+  aspect-ratio: 343 / 128;
+  border-radius: var(--brand-scale-200);
+  overflow: hidden;
+}
+
+.mvp-goal-detail__image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* `873:7320` — the tag and the pencil, 8px in from the image's edges. */
+.mvp-goal-detail__image-chrome {
+  position: absolute;
+  inset: var(--spacing-200);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+/*
+  THE PENCIL'S FILL IS BOUND, WHERE FIGMA'S IS A RAW LITERAL. The node paints
+  `rgba(0,0,0,0.4)` with no variable behind it, while the `Tag` in the opposite
+  corner binds `surface/Overlay/default`. Two chips on one photograph sharing a
+  surface is the reading Gate 50 took for the staged-tile remove button, which
+  had the same raw-literal-beside-a-bound-sibling shape.
+*/
+.mvp-goal-detail__image-edit {
+  display: inline-flex;
+  padding: var(--spacing-100);
+  border: none;
+  border-radius: var(--brand-scale-100);
+  background: var(--mapped-surface-overlay-default);
+  color: var(--mapped-icon-primary-on-color);
+  cursor: pointer;
+}
+
+.mvp-goal-detail__image-edit:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+}
+
+/*
+  `Frame 417` — target row, bar and auto-save card, all 16px apart.
+  20 + 16 + 36 + 16 + 60 = 148, which is the frame's own height.
+*/
+.mvp-goal-detail__progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/* `Frame 414` — the `Label` left, the target month right. */
+.mvp-goal-detail__target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+}
+
+.mvp-goal-detail__target-date {
+  color: var(--mapped-text-default-default);
+}
+
+/*
+  `877:6595` — a plain frame, not a DS card: subtlest surface, `md` radius,
+  `Scale/200` padding, the text block left and the `Toggle` right.
+*/
+.mvp-goal-detail__autosave {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-300);
+  padding: var(--spacing-200);
+  border-radius: var(--brand-scale-200);
+  background: var(--mapped-surface-subtlest-default);
+}
+
+.mvp-goal-detail__autosave-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+  min-width: 0;
+}
+
+.mvp-goal-detail__autosave-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* `Frame 440` — the amount and its pencil, `Scale/250` apart. */
+.mvp-goal-detail__autosave-amount {
+  display: flex;
+  align-items: center;
+  gap: var(--brand-scale-250);
+  color: var(--mapped-text-primary-default);
+}
+
+.mvp-goal-detail__autosave-edit {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mapped-icon-primary-default);
+  cursor: pointer;
+}
+
+.mvp-goal-detail__autosave-edit:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+}
+
+/* `Frame 455` (nested) — the heading, then 24px, then the rows. */
+.mvp-goal-detail__contributions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+}
+
+/*
+  `Frame 418` — 16px between rows, and the UA list sheet's bullets and 40px
+  indent reset as everywhere else in this file.
+
+  SHARED WITH THE "See All" SHEET, which is why it carries no positioning of
+  its own: the screen puts it on the content column and the sheet puts it in
+  `.mn-sheet__content`, and the rows are the same rows in both.
+*/
+.mvp-goal-detail__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
   margin: 0;
   padding: 0;
   list-style: none;

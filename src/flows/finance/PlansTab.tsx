@@ -1,4 +1,6 @@
 import { CardGoals, IconObject, ListItem, Logo, Icon } from '@monarch/design-system'
+import { useNavigate } from 'react-router-dom'
+
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { goalImageUrl } from '../../config/media'
@@ -37,6 +39,7 @@ import type { Commitment } from '../../data/types'
  * target that leads nowhere is worse than an untapped card.
  */
 export function PlansTab() {
+  const navigate = useNavigate()
   const { goals, commitments } = useAccounts()
 
   return (
@@ -76,6 +79,25 @@ export function PlansTab() {
                 percentage={goalPercent(goal)}
                 current={formatMyr(goal.savedAmount)}
                 total={formatMyr(goal.targetAmount)}
+                /*
+                  TAPPABLE AS OF GATE 78, AND THIS IS A `navigate` RATHER THAN
+                  A CALLBACK. The Savings Goals card on the Overview tab takes a
+                  callback because /finance -> /finance would not remount
+                  `FinanceScreen`, so its tab `useState` initialiser would never
+                  re-run; this card goes to a genuinely different path, so the
+                  router is what should move.
+
+                  PASSING `onClick` ALSO FLIPS THE CARD'S ROOT <div> -> <button>,
+                  which is what makes it focusable and announced as a control.
+                  It moves no pixel: `.mn-card-goals` already carries the full
+                  reset (background/border/padding/font-family/text-align) and
+                  an explicit `width: 200px`, and every text node under it - the
+                  title and all three `ProgressBar` labels - carries an explicit
+                  `type-*` class, each of which sets font-size AND line-height,
+                  so the UA button `font` shorthand is fully overridden. Same
+                  mechanism Gate 49 measured for `ListItem`.
+                */
+                onClick={() => navigate(`/finance/plans/goals/${goal.id}`)}
               />
             </li>
           ))}

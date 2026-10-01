@@ -2667,3 +2667,93 @@ one — a user photographing a bank slip for their own records is not obviously
 wrong. **Out of scope here** (Gate 77, 2026-10-01).
 
 ### Nothing was removed from this register at this gate.
+## 2u. Status at MVP Gate 78 (2026-10-01) — the goal drill-down and its contributions sheet
+
+**NO DS RE-PIN.** v2.8.0 throughout. This gate built one route, one sheet and
+one shared row component, all of them composition over DS exports. **ONE `G`
+ENTRY OPENED — G48 — and nothing closed, so the tally moves by one.**
+
+**EVERY OPEN ENTRY CARRIED FORWARD UNCHANGED** — G6, G13, G14, G17 (prop half),
+G19–G23, G28–G33, G44, `MODEL-1` and `MODEL-2`, all still registered, all still
+deferred, and the G33 workaround class still in its two files carrying its
+removal condition. UI-3 is still deferred to a native repackage.
+
+### G48 — OPENED: `ChartLegendItem`'s `contribution` variant paints its title subtle, where Figma binds the default text colour
+
+| | |
+|---|---|
+| **Component** | `ChartLegendItem`, `variant="contribution"` |
+| **Kind** | `token-mismatch` |
+| **Found at** | MVP Gate 78, building the goal drill-down's Recent Contributions rows |
+| **Status** | OPEN. Shipped as the DS paints it; no MVP-local override was written (rule 3). |
+
+**THE DS SIDE, read from the pinned v2.8.0 source.**
+`ChartLegendItem.css` declares:
+
+```css
+.mn-chart-legend-item--legend .mn-chart-legend-item__title {
+  color: var(--mapped-text-default-default);
+}
+.mn-chart-legend-item--contribution .mn-chart-legend-item__title {
+  color: var(--mapped-text-subtle-default);
+}
+```
+
+and the component's own doc comment describes `contribution` as "(medium
+weight, **subtle title color**)", so the subtle binding is deliberate rather
+than a slip.
+
+**THE FIGMA SIDE, read through the remote connector on `879:6552`.** All four
+`list/chart legend` rows on `Finance_Plan_drilldown` (`1266:14344`) bind their
+TITLE to **`text/default/default`** (`#363c43`) and their SUBTITLE to
+`text/subtle/default` (`#6b7786`), with the title at `body/m-medium`. So the
+frame agrees with the DS on weight, on the subtitle and on the amount, and
+disagrees on the title colour alone.
+
+**MEASURED IN THE RENDER:** the title computes `rgb(107, 119, 134)` — the subtle
+token — against the amount's `rgb(54, 60, 67)`. Visible in the twelve
+`finance-plans-goals-*` baselines as a lighter "Auto Save" / "Manual Top-Up"
+beside a darker amount.
+
+**WHY IT SHIPPED AS-IS.** The variant is correct in every other respect and is
+the component the DS explicitly ships for this surface ("Recent contributions
+item"); an MVP-local `color` on `.mn-chart-legend-item__title` would be the
+equal-specificity override on DS appearance that Gate 13 removed on measurement.
+Rule 3: report, do not override.
+
+**WHAT CANNOT BE SETTLED FROM HERE.** The `list/chart legend` COMPONENT SET
+lives in the DS file (`xhA5ARVgSeD3gA41lYDqST`), which this gate is barred from
+reading, so it is not knowable from the case-study file whether Figma's
+`contribution` VARIANT binds subtle and this instance overrides it, or whether
+the variant itself binds default. **The DS round should read the component set
+before deciding which side moves.**
+
+### Recorded, NOT registered — the `body/sm` line-height is a deliberate responsive token
+
+Three heights on the new screen come in 4px under Figma's: the Target row and
+the Recent Contributions heading render **16** against a drawn 20, and a
+contribution row renders **44** against a drawn 48 (title 24 + gap 4 + subtitle
+**16**).
+
+**ONE CAUSE, AND IT IS A DS DECISION RATHER THAN A DEFECT.** `globals.css`
+declares `--responsive-font-copy-body-sm-line-height: 16px` and raises it to
+**20px** inside `@media (min-width: 768px)`. Figma authors this app exclusively
+at 375 and specifies 20, so every `body/sm` and `body/sm-semibold` in the app
+renders 4px shorter than the frame says — which is why `.mvp-section-header` has
+rendered 16 since Gate 6, and why this is not new at Gate 78.
+
+**NO `G` NUMBER.** Nothing is wrong with the component; the DS has a responsive
+type ramp and Figma has one frame width. Registered here only so the next
+session that measures a `body/sm` box against Figma does not open a gap for it.
+
+### Recorded — `Finance_Plan_drilldown` carries a hidden, EMPTY `Bottom Sheet` instance
+
+`873:6583`, 375 x 812, `hidden="true"`. `get_metadata` returns it with **no
+children**, in the instance and in the main component alike, and
+`get_variable_defs` on the frame attributes nothing to it. It is an unconfigured
+component instance left on the canvas — the same shape as the bare `Field` Gate
+49 found on both transaction-detail frames, and not built for the same reason.
+
+**IT IS NOT A SPEC FOR THE CONTRIBUTIONS SHEET.** That surface is undesigned,
+and Gate 78 built it under the 21 Sept ruling's second half. Recorded so a later
+session that finds the node does not read it as a design it failed to implement.

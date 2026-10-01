@@ -4,6 +4,7 @@ import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import type {
   Amount,
+  ContributionSource,
   CryptoHolding,
   FixedDepositHolding,
   GoldHolding,
@@ -1055,7 +1056,7 @@ export function groupReceiptsByMonth(receipts: Receipt[]): ReceiptMonthGroup[] {
  * the visitor's; a month name that changed language per visitor would be a
  * baseline that only agrees by luck.
  */
-function monthLabel(key: string): string {
+export function monthLabel(key: string): string {
   return new Date(`${key}-01T00:00:00`).toLocaleDateString('en-GB', {
     month: 'long',
     year: 'numeric',
@@ -1627,6 +1628,49 @@ export function goalPercent(goal: Goal): number {
   if (goal.targetAmount <= 0) return 0
   const pct = Math.floor((toSen(goal.savedAmount) * 100) / toSen(goal.targetAmount))
   return Math.min(100, Math.max(0, pct))
+}
+
+/**
+ * `December 2026` — the figure beside "Target" on the goal drill-down.
+ *
+ * `monthLabel` RATHER THAN A FOURTH DATE FORMATTER. Figma prints "March 2026"
+ * (`1266:14344`), which is month-plus-year and exactly what the month headings
+ * on the Receipts and Transactions tabs already produce — so this slices the
+ * key out of the stored day and hands it to the one function that owns that
+ * format. Inventory A5 records THREE date formats inside this Section alone;
+ * adding a fourth expression of a format the app already has is how that
+ * becomes four.
+ *
+ * THE DAY IS DELIBERATELY DISCARDED. `Goal.targetDate` is a full `YYYY-MM-DD`
+ * because a future gate may want the day, and this row does not: Figma names a
+ * month. Slicing here keeps that a rendering decision rather than a stored one.
+ */
+export function goalTargetLabel(goal: Goal): string {
+  return monthLabel(goal.targetDate.slice(0, 7))
+}
+
+/**
+ * `Auto Save` / `Manual Top-Up` — what a contribution row is titled.
+ *
+ * A SWITCH WITH NO `default`, so a third `ContributionSource` is a compile
+ * error here rather than a row that silently prints nothing. Same construction
+ * as `commitmentCadenceLabel` and `TransactionMark`, and the same reason.
+ *
+ * THE HYPHEN IS A CHOICE FIGMA DOES NOT MAKE, AND IT HAD TO BE MADE HERE.
+ * Inventory A7 records the file contradicting itself inside one list: the
+ * drill-down draws "Manual Top Up" on its second row and "Manual Top-Up" on its
+ * fourth. One stored source cannot print two spellings, so the hyphenated form
+ * wins — it is what the footer's own "Top-Up" button says, and the Flow 11 plan
+ * spells the writer "Top-Up" throughout. Do not "fix" this back to match
+ * whichever row of the frame is being read.
+ */
+export function contributionSourceLabel(source: ContributionSource): string {
+  switch (source) {
+    case 'automatic':
+      return 'Auto Save'
+    case 'manual':
+      return 'Manual Top-Up'
+  }
 }
 
 // -------------------------------------------- Flow 11: commitments (Gate 76)

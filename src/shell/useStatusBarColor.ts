@@ -43,10 +43,16 @@ import type { Theme } from '../theme/ThemeProvider'
  *
  * The strip abuts viewport y=0, so it is continuous only with whatever that
  * route paints there — and this app paints two different things. Two routes
- * (`/`, `/finance`) put `HeaderBg`'s photograph at y=0; the other twelve put
+ * (`/`, `/finance`) put `HeaderBg`'s photograph at y=0; every other route puts
  * the page surface there, which dark-flips. A single value is therefore wrong
- * on 12 of 14 routes whichever one is chosen, which is why this reads
- * `chromeFor().statusBar` rather than shipping a constant.
+ * on 16 of the 18 routes the walk visits whichever one is chosen, which is why
+ * this reads `chromeFor().statusBar` rather than shipping a constant.
+ *
+ * THE COUNT MOVES WITH THE ROUTE TABLE, AND IT HAS. It was written as "12 of
+ * 14" at Gate 44-B and was already wrong by two before Gate 78 read it: Gate 69
+ * added the two budget drilldowns. Re-derive it from `ROUTES` in the harness
+ * rather than trusting this sentence; what does NOT move is that the split is
+ * two artwork routes against all the rest.
  *
  * ---------------------------------------------------------------
  * NOTHING HAPPENS IN A BROWSER TAB — BY CONSTRUCTION
