@@ -2608,3 +2608,62 @@ the cleared state needs some other expression. That is a change to what the face
 means, not a change of control, and it is Teku's.
 
 ### Nothing was removed from this register.
+
+## 2t. Status at MVP Gate 77 (2026-10-01) — contributions become ledger rows; no DS change
+
+**NO DS RE-PIN AND NO DS FILE WAS READ OUTSIDE `node_modules`.** v2.8.0
+throughout. This gate moved 28 savings-goal contributions out of `Goal` and into
+the one transaction ledger; it built no screen, added no component and wrote no
+MVP-local override of any DS rule. **No `G` entry opened, closed or changed, so
+the tally is unmoved.**
+
+**EVERY OPEN ENTRY CARRIED FORWARD UNCHANGED** — G6, G13, G14, G17 (prop half),
+G19–G23, G28–G33 and `MODEL-1`, all still registered, all still deferred, and
+the G33 workaround class still in its two files carrying its removal condition.
+UI-3 is still deferred to a native repackage.
+
+### `MODEL-2` — OPENED: the link picker offers savings transfers as receipt targets
+
+**NO `G` NUMBER, FOR `MODEL-1`’S REASON.** This is entirely MVP logic in
+`src/flows/finance/components/TransactionPicker.tsx` and `src/data/autoMatch.ts`;
+no DS release can close it, so a number would sit in the tally unable to move.
+**Teku may rename it; the naming is Claude’s and is flagged as such.**
+
+**THE FINDING.** The manual link picker lists every OUTFLOW in the ledger,
+grouped by month — `.filter((t) => t.amount < 0)`, applied once, which is the
+whole of its selection rule. Gate 77 put 28 savings-goal contributions into that
+ledger as negative rows, so the picker now offers "Bali Trip −RM 250.00" and
+"Emergency Funds −RM 900.00" as things a photographed receipt could be linked to.
+
+**MEASURED, NOT PRESUMED.** Before Gate 77 the picker listed 22 outflows in 3
+month groups; it now lists 50 in 14. The `[overlay:view-picker]` and
+`[overlay:view-replace]` baselines record it.
+
+**IT IS NOISE, NOT A DEFECT, AND THE DISTINCTION MATTERS.** A savings transfer
+has no receipt, so nothing a user links there is correct — but nothing is broken
+either: the link is a deliberate user action, `linkReceipt` writes only the
+receipt collection, and no amount moves. What it costs is a longer list to scroll
+past on the way to the row the user wants.
+
+**AUTO-MATCH IS UNAFFECTED, AND THAT WAS CHECKED RATHER THAN ASSUMED.**
+`candidatesFor` requires the MERCHANT to agree as well as the total and the date,
+and no receipt’s merchant matches "Bali Trip" or "Emergency Funds". The
+leave-one-out figures are unmoved.
+
+**THE RANKING IS ALSO UNAFFECTED TODAY, BY COINCIDENCE RATHER THAN BY DESIGN —
+WHICH IS THE PART WORTH WRITING DOWN.** `rankedSuggestions` admits a row on an
+EXACT TOTAL ALONE, so a contribution whose magnitude equalled a receipt total
+would enter the Suggested list and could outrank the correct row. The eight
+contribution magnitudes {200, 250, 340, 500, 540, 900, 1000, 1500} happen to
+intersect none of the ten receipt totals {26.29, 79.18, 96.14, 98.26, 137.59,
+263.20, 320, 429.19, 830.83, 2647.67}. **A future contribution of RM 320.00 would
+collide**, and nothing in the code prevents it.
+
+**THE FIX, IF TEKU WANTS ONE, IS ONE PREDICATE:** exclude rows carrying a
+`goalId` from the picker’s `outflows`, and from `rankedSuggestions`. It was NOT
+done here because Gate 77 was scoped to moving the data and because "a receipt
+cannot belong to a savings transfer" is a product claim rather than a derivable
+one — a user photographing a bank slip for their own records is not obviously
+wrong. **Out of scope here** (Gate 77, 2026-10-01).
+
+### Nothing was removed from this register at this gate.

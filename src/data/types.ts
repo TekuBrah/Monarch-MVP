@@ -164,10 +164,11 @@ export type TransactionMethod = 'Card Payment' | 'Fund Transfer' | 'Crypto Trans
 export type TransactionKind = 'payment' | 'transfer'
 
 /**
- * Who the row is with — a curated merchant mark, a person, or a photograph.
+ * Who the row is with — a curated merchant mark, a person, a photograph of the
+ * merchant, or a savings goal.
  *
  * A DISCRIMINATED UNION rather than a bag of optional fields, for the same
- * reason `Holding` is one: the three cases render through DIFFERENT DS
+ * reason `Holding` is one: the four cases render through DIFFERENT DS
  * components with disjoint inputs, so `{ logo?, initials?, filename? }` would
  * admit every combination of set and unset — a lattice of meaningless states
  * that every call site would then have to defend against. The tag makes the
@@ -208,11 +209,38 @@ export type TransactionKind = 'payment' | 'transfer'
  * reads the tag — so a rename would touch every consumer to buy a better word
  * and no behaviour. Recorded as a deliberate imprecision rather than left to be
  * rediscovered.
+ *
+ * -------- `goal` - A SAVINGS GOAL'S OWN PHOTOGRAPH (Gate 77) --------
+ *
+ * A FOURTH CASE RATHER THAN A REUSE OF `image`, AND THE REASON IS THE
+ * DIRECTORY. Gate 77 moved goal contributions into this ledger, so a row's
+ * counterparty can now be a savings goal, carrying the goal's own photograph.
+ * `image` was the obvious reuse and it does not work: its filename resolves
+ * through `transactionLogoUrl()` to `/media/transactions`, while a `Goal.image`
+ * lives in `/media/goals` and is resolved by `goalImageUrl()`. Two collections,
+ * owned by two records, and `media.ts`'s top-level rule is that the DIRECTORY is
+ * its business and never a component's.
+ *
+ * THE TWO ALTERNATIVES ARE BOTH WORSE. Copying the JPEGs into
+ * `/media/transactions` duplicates bytes and puts one photograph in two places
+ * nothing keeps in step. Adding a directory discriminant to `image`
+ * (`{ kind, filename, dir }`) is the bag of optionals this union exists to
+ * avoid, one level down.
+ *
+ * IT CARRIES THE FILENAME AND NOT THE GOAL ID, deliberately. `TransactionMark`
+ * is a presentational switch that resolves one url; handing it a goal id would
+ * make it reach for the goals collection, which is a data dependency a mark has
+ * no business having. The row already carries `goalId` for anything that needs
+ * the record.
+ *
+ * ADDING IT WAS A COMPILE ERROR UNTIL `TransactionMark` HANDLED IT, which is
+ * exactly what that switch's missing `default` is for - see its header.
  */
 export type TransactionLogo =
   | { kind: 'merchant'; name: LogoName }
   | { kind: 'person'; initials: string }
   | { kind: 'image'; filename: string }
+  | { kind: 'goal'; filename: string }
 
 export interface Transaction {
   id: string
@@ -249,6 +277,48 @@ export interface Transaction {
    * total. The render path is unchanged — `ListItem.hasReceiptIcon` still takes
    * a boolean; it is now computed at the call site rather than read off the row.
    */
+  /**
+   * The savings goal this row paid into, when it is a contribution.
+   *
+   * OPTIONAL, UNLIKE `kind`, AND THE ASYMMETRY IS DELIBERATE. Omission is the
+   * norm - 25 of the 53 seeded rows carry no goal - so requiring it would be
+   * noise on every ordinary row rather than a guard. `kind` is required because
+   * omitting IT silently counts a row toward a budget; omitting this one means
+   * the row is not a contribution, which is the common case and is true.
+   *
+   * IT IS THE JOIN, AND IT REPLACED AN EMBEDDED LIST (Gate 77). A goal used to
+   * carry its own `contributions` array, which made a contribution a second kind
+   * of money movement living outside the ledger - invisible to the Transactions
+   * tab, to its search and facets, and to the account drill-down the money
+   * actually left. `goalContributions()` in `derive.ts` filters the one ledger on
+   * this field instead.
+   *
+   * `Goal.savedAmount` IS STILL STORED AND IS STILL NEVER SUMMED FROM THESE
+   * ROWS. That is `savedAmount`'s own contract and this change does not weaken
+   * it: the seeded rows happen to sum to the two stored totals today, nothing
+   * depends on that, and no test asserts it, because a Top-Up keeps the two in
+   * step only by writing both.
+   */
+  goalId?: string
+  /**
+   * How a contribution was made - see `ContributionSource`.
+   *
+   * IT MUST BE SET EXACTLY WHEN `goalId` IS, AND THE TYPE CANNOT SAY SO. Two
+   * peer optionals admit both-set and neither-set, which is the lattice
+   * `TransactionLogo`'s tag exists to collapse - so this is a weaker shape than
+   * this file usually accepts, and it is stated rather than hidden. Grouping the
+   * pair into one optional object would have made the invariant a type error,
+   * and would also have made every reader spell `t.contribution?.goalId` for a
+   * field the model names as `goalId`. The invariant is asserted in
+   * `e2e/goals.spec.ts` in both directions instead.
+   *
+   * IT IS CARRIED RATHER THAN DROPPED BECAUSE FIGMA'S GOAL DRILL-DOWN TITLES ITS
+   * ROWS WITH IT - "Auto Save" and "Manual Top Up", read off `1266:14344` - and
+   * nothing else on a row could reconstruct it. Deriving it from the amount
+   * (`amount === autoSave.amount`) would call a manual top-up of exactly the
+   * auto-save figure automatic, which is wrong for a value the user chose.
+   */
+  contributionSource?: ContributionSource
   /**
    * Which account the row moved through.
    *
@@ -790,10 +860,19 @@ export interface Goal {
    */
   autoSave: GoalAutoSave
   /**
-   * Recent contributions, NEWEST FIRST — a partial slice, not the full history.
-   * See `savedAmount` for why it cannot be summed to a balance.
+   * NO `contributions` FIELD. IT WAS HERE UNTIL GATE 77 AND ITS ABSENCE IS THE
+   * POINT - do not add it back.
+   *
+   * It was an embedded array of `GoalContribution`, which made a contribution a
+   * second kind of money movement living outside the ledger. Twenty-eight real
+   * transfers were invisible to the Transactions tab, to its search and facets,
+   * to the account drill-down the money left, and to anything that asks "what
+   * happened to my money". Same defect class as the stored `hasReceipt` boolean
+   * Gate 48 removed: one fact modelled twice, in two places nothing reconciles.
+   *
+   * `goalContributions(transactions, goalId)` in `derive.ts` answers it from the
+   * one ledger instead, filtered on `Transaction.goalId`.
    */
-  contributions: GoalContribution[]
 }
 
 /** The auto-save setting. See `Goal.autoSave`. */
@@ -804,21 +883,20 @@ export interface GoalAutoSave {
 }
 
 /**
- * One payment into a goal.
+ * How a contribution reached a goal. See `Transaction.contributionSource`.
  *
- * `source` IS A TWO-VALUE UNION RATHER THAN AN `isAutomatic` BOOLEAN, because
- * Figma labels the rows in words and a boolean would need a lookup table at
- * every read site to get back to them. It also leaves room for a third origin
- * (an interest credit, say) without every reader having to re-interpret `false`.
+ * A TWO-VALUE UNION RATHER THAN AN `isAutomatic` BOOLEAN, because Figma labels
+ * the rows in words ("Auto Save", "Manual Top Up", node `1266:14344`) and a
+ * boolean would need a lookup table at every read site to get back to them. It
+ * also leaves room for a third origin - an interest credit, say - without every
+ * reader having to re-interpret `false`.
+ *
+ * IT SURVIVED THE MOVE INTO THE LEDGER (Gate 77) WHILE `GoalContribution` DID
+ * NOT. That record's other three fields all had a `Transaction` counterpart -
+ * `id`, `amount`, and `date` widening into `occurredAt` - and this one had none,
+ * so it is the only part of the old shape that had to be carried across.
  */
-export interface GoalContribution {
-  id: string
-  /** Positive, in MYR — money going in. */
-  amount: Amount
-  /** `'YYYY-MM-DD'`. Typed data, exempt from B5, compared as a string. */
-  date: string
-  source: 'automatic' | 'manual'
-}
+export type ContributionSource = 'automatic' | 'manual'
 
 // ------------------------------------------------ commitments (Flow 11, Gate 75)
 

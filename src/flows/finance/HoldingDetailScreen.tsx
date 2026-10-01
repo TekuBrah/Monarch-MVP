@@ -140,7 +140,7 @@ export function HoldingDetailScreen() {
                       GATE 53-B — DERIVED, NEVER OMITTED. `ListItem` defaults
                       `hasReceiptIcon` to TRUE (`ListItem.tsx:51`), so omitting it
                       drew a `receipt_long` mark on EVERY `default` row of the bank
-                      drill-down — 21 rows on `/finance/holding/main` against the 8
+                      drill-down — 49 rows on `/finance/holding/main` against the 8
                       that actually have a receipt. Gate 48 wired the derived value
                       at `TransactionsLedger` and `HomepageFiat` and missed this,
                       the third site that renders a ledger row.

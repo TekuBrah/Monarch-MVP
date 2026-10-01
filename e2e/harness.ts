@@ -872,7 +872,7 @@ export const OVERLAY_STATES: WalkState[] = [
   //
   // IT LANDS EXACTLY ON `TRANSACTION_FILTER_APPLIED`, WHICH IS THE POINT
   // rather than a coincidence: this walks the sheet to that constant — Type
-  // Card Payment, RM 0-500 — over the 25-row ledger, and the prepare steps'
+  // Card Payment, RM 0-500 — over the 53-row ledger, and the prepare steps'
   // own assertions prove it arrived.
   //
   // IT WAS FIGMA'S OWN FOUR CHIPS UNTIL GATE 53, AND THE DATE FACET IS WHAT
@@ -885,7 +885,7 @@ export const OVERLAY_STATES: WalkState[] = [
   // demonstrate filtering. The full derivation, including every candidate that
   // was measured and rejected, is on `TRANSACTION_FILTER_APPLIED` itself.
   //
-  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 25 rows at open, 16
+  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 53 rows at open, 16
   // after Type = Card Payment (the 7 Fund Transfers and 2 Crypto Transfers drop
   // out), 14 after the RM 500 cap (`txn-ikea-0908` at -830.83 and
   // `txn-ikea-0815` at -2647.67 drop out). A step that silently failed would
@@ -1497,13 +1497,16 @@ export const OVERLAY_STATES: WalkState[] = [
   // same Modal, so `dialogs` reads `['Link to transaction', ...]` rather than
   // the file name. It is the only state that photographs the pick path at all.
   //
-  // THE ROW IS CHOSEN BY AMOUNT, NOT BY POSITION. All 25 ledger magnitudes are
-  // distinct (re-derived at Gate 53: 25 rows, 25 distinct cents, zero
-  // duplicates — the two rows added there are 70.85 and 38.60, neither of which
-  // collided), so
-  // `RM 26.29` names exactly one row and goes on naming it if the sort order or
-  // the row count changes. An `nth-child` would silently pick a different row
-  // the day a transaction is added above it.
+  // THE ROW IS CHOSEN BY AMOUNT, NOT BY POSITION. `RM 26.29` names exactly one
+  // row and goes on naming it if the sort order or the row count changes. An
+  // `nth-child` would silently pick a different row the day a transaction is
+  // added above it.
+  //
+  // THE OLD FORM OF THIS CLAIM — all 25 ledger magnitudes being distinct — IS
+  // NO LONGER TRUE, and this locator does not need it to be. Gate 77 relocated
+  // 28 goal contributions into the ledger and twelve of them are -250.00. What
+  // it requires is that ITS amount names one row, which it still does;
+  // distinctness across the whole ledger was always stronger than was needed.
   //
   // IT MUST BE A ROW THAT ALREADY HAS A RECEIPT, which is the whole trigger:
   // `txn-caring-0913` carries `receipt-caring01`. Picking a FREE row links

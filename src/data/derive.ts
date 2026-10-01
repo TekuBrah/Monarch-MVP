@@ -499,8 +499,14 @@ export const TRANSACTION_FILTER_ALL: TransactionFilter = {
 /**
  * A DEMONSTRATION FILTER — one applied filter the suite can photograph.
  *
- * Payee All, **Type Card Payment**, **All Time**, RM 0-500. Over the 25-row
+ * Payee All, **Type Card Payment**, **All Time**, RM 0-500. Over the 53-row
  * ledger it returns **14 rows**.
+ *
+ * THE COUNT DID NOT MOVE WHEN THE LEDGER MORE THAN DOUBLED AT GATE 77, and that
+ * is the Type facet doing the work: all 28 relocated contributions are 'Fund
+ * Transfer', so the 'Card Payment' chip excludes every one of them before the
+ * amount cap is reached. The `[overlay:applied]` ladder is unmoved for the same
+ * reason - 16 after the chip, 14 after the cap, both measured.
  *
  * ──────────── IT IS NO LONGER FIGMA'S FILTER, AND THAT IS GATE 53 ────────────
  *
@@ -587,9 +593,14 @@ export const TRANSACTION_FILTER_APPLIED: TransactionFilter = {
  * So the clocks genuinely disagree, and by a lot: the harness pins `TODAY` to
  * 2026-08-15 (`PINNED_NOW` in `e2e/harness.ts`, chosen so the fixed deposit and
  * the net-worth chart derive sensibly). A "This Month" facet measured against
- * `TODAY` would ask for August 2026 and match ZERO of the 25 rows — a filter
- * that is technically correct, silently empty, and impossible to tell apart
- * from a broken predicate.
+ * `TODAY` would ask for August 2026 and match 2 of the 53 rows — a filter that
+ * is technically correct, all but empty, and impossible to tell apart from a
+ * broken predicate.
+ *
+ * IT MATCHED ZERO UNTIL GATE 77 AND NOW MATCHES TWO, WHICH IS WORSE. The two
+ * are savings contributions dated 2026-08-01 and 2026-08-15; an empty result at
+ * least looks broken, while a plausible two-row month does not. The argument
+ * for measuring from the newest row is unchanged and is now stronger.
  *
  * Measuring from the newest row keeps the facet DERIVED — move the ledger
  * forward a year and the window follows it, with no literal to update. The
@@ -600,9 +611,15 @@ export const TRANSACTION_FILTER_APPLIED: TransactionFilter = {
  *
  * THE LEDGER'S PRESENT IS NO LONGER 2025-09-15. Gate 53 added two rows dated
  * 2026-09-12 — the date printed on the paper they were captured from — so this
- * function now returns September 2026 while 23 of the 25 rows remain in
+ * function now returns September 2026 while 24 of the 53 rows remain in
  * September and August 2025. The clocks are `TODAY` (Aug 2026), the newest row
- * (Sept 2026), and the bulk of the fixture (Sept 2025).
+ * (Sept 2026), and the bulk of the SPENDING fixture (Sept 2025).
+ *
+ * GATE 77 DID NOT ADD A FOURTH CLOCK AND IT WIDENED THE THIRD. The 28 relocated
+ * contributions span 2025-09-15 to 2026-08-15 - every month between the two
+ * spending clusters - so ten months of this ledger now hold savings and nothing
+ * else. `ledgerNow()` itself is unmoved: the newest contribution is a month
+ * behind the newest spending row.
  *
  * THE "DERIVED, SO IT FOLLOWS" PROPERTY WORKED EXACTLY AS DESIGNED AND THAT WAS
  * THE PROBLEM. The window followed the newest row, as promised — straight past
@@ -899,13 +916,13 @@ export function clearFacet(
  * so a call site that simply forgets this call draws the glyph on every row and
  * nothing types, lints or reviews as wrong. Gate 48 wired two of the three
  * sites that render a ledger row and missed `HoldingDetailScreen`, which drew a
- * receipt mark on all 21 rows of `/finance/holding/main` against the 8 that
- * have one, for five gates. `e2e/receipt-glyph.spec.ts` is the guard: it checks
- * every rendered ledger row against this function at every call site, so the
- * next omission reddens the suite instead of minting a baseline of itself.
+ * receipt mark on every row of `/finance/holding/main` (21 at the time, 49 since
+ * Gate 77) against the 8 that have one, for five gates. `e2e/receipt-glyph.spec.ts`
+ * is the guard: it checks every rendered ledger row against this function at
+ * every call site, so the next omission reddens the suite instead of minting a baseline of itself.
  *
  * LINEAR SCAN, DELIBERATELY, AND IT IS NOT A PERFORMANCE OVERSIGHT. Ten receipts
- * against 25 rows is 250 comparisons for a whole ledger render. An index would
+ * against 53 rows is 530 comparisons for a whole ledger render. An index would
  * be a second structure to build, memoise and keep in step — the exact shape of
  * the problem this function exists to remove. Build one when a measurement says
  * to, not before.
@@ -1542,12 +1559,50 @@ export function budgetPeriodLabel(budget: Budget): string {
  * already make: a float sum of two-decimal figures can miss the cent, and this
  * one lands in the app's largest printed number.
  *
- * IT SUMS `savedAmount`, NEVER `contributions`. That is `Goal.savedAmount`'s own
- * contract — the contributions list is a partial slice of history, so it cannot
- * reconstruct a balance and must not be asked to.
+ * IT SUMS `savedAmount`, NEVER THE CONTRIBUTION ROWS. That is `Goal.savedAmount`'s
+ * own contract, and Gate 77 did not weaken it by moving those rows into the
+ * ledger: what a goal can be filtered out of the ledger is a partial slice of
+ * history, so it cannot reconstruct a balance and must not be asked to. The
+ * seeded rows do happen to sum to the two stored totals; nothing depends on it.
  */
 export function goalsTotal(goals: Goal[]): Amount {
   return goals.reduce((total, goal) => total + toSen(goal.savedAmount), 0) / 100
+}
+
+/**
+ * ONE GOAL'S CONTRIBUTIONS, NEWEST FIRST, OUT OF THE ONE LEDGER (Gate 77).
+ *
+ * THIS REPLACED AN EMBEDDED ARRAY AND THAT IS THE WHOLE OF THE CHANGE. A `Goal`
+ * used to carry its own `contributions`, which made a contribution a second kind
+ * of money movement living outside the ledger - invisible to the Transactions
+ * tab, to its search and its facets, and to the drill-down of the account the
+ * money actually left. Same defect class as the stored `hasReceipt` boolean Gate
+ * 48 removed: one fact modelled twice, in two places nothing reconciles.
+ *
+ * IT RETURNS `Transaction[]` AND NOT A NARROWER SHAPE, deliberately. A
+ * contribution IS a ledger row - it has a timestamp, an account, a method and a
+ * sign - and projecting it into a smaller record here would rebuild the very
+ * thing this gate deleted, one call away from the data.
+ *
+ * THE ROWS ARE NEGATIVE, because a contribution DEBITS its source account and
+ * this ledger's sign is relative to `accountId`. A caller that prints the figure
+ * the way Figma does - "RM 250.00", unsigned, node `1266:14344` - takes the
+ * magnitude; it does not get a positive number from here, because a positive
+ * number here would be a row claiming money arrived in `main`.
+ *
+ * NEWEST FIRST, SORTED HERE RATHER THAN ASSUMED OF THE SEED. Array order in
+ * `transactions.ts` is not display order anywhere - `filterTransactions`,
+ * `recentTransactions` and `groupTransactionsByMonth` all sort - and the 28
+ * seeded rows are appended as one block rather than interleaved, so a caller
+ * relying on file order would be relying on nothing.
+ */
+export function goalContributions(
+  transactions: Transaction[],
+  goalId: string,
+): Transaction[] {
+  return transactions
+    .filter((t) => t.goalId === goalId)
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
 }
 
 /**

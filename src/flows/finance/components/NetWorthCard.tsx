@@ -91,9 +91,27 @@ export function NetWorthCard({
           showAxis
           // Chrome is interface, not data — it dark-flips; the series does not.
           chromeTone="onColor"
+          /*
+            THE SUMMARY DESCRIBES THE SERIES, AND UNTIL GATE 77 IT ENDED ON THE
+            HERO FIGURE INSTEAD. `amount` is net worth, which since Gate 76
+            includes goal money; the series does not, and cannot, because a goal
+            carries no per-day value to derive a point from. So the accessible
+            description of this chart claimed it ended RM 16,089.52 away from
+            where it visibly ends - 16,080 of goals plus the 9.41 the fixed
+            deposit's accrual has always contributed.
+
+            BOTH ENDPOINTS NOW COME FROM `series`, so the sentence cannot
+            disagree with the line it describes. The fallback is `amount` only
+            for an empty series, where there is no line to describe at all.
+
+            THE SERIES ITSELF IS UNTOUCHED, deliberately. Adding a flat 16,080
+            to every point would invent a savings history the data does not
+            have; the two figures differing is honest and is recorded in
+            `AccountsProvider`.
+          */
           summary={`Net worth month to date, ${formatMyr(
             series[0] ?? amount,
-          )} to ${formatMyr(amount)}`}
+          )} to ${formatMyr(series[series.length - 1] ?? amount)}`}
         />
       </div>
     </section>

@@ -122,7 +122,7 @@ import type { Transaction, TransactionCategory } from './types'
  *
  *         THE 16 IS GATE 48'S FIGURE AND IS NOT CURRENT. Gate 53 re-anchored
  *         that constant off the date facet — see the block on it in
- *         `derive.ts` — and it now matches 14 of 25 rows.
+ *         `derive.ts` — and it now matches 14 of 53 rows.
  *
  *     THE HEADLINE ABOVE — "15 satisfy Flow 8's applied filter" — IS THEREFORE
  *     ALSO STALE AND HAS BEEN CORRECTED. Do not restore either number by editing
@@ -141,7 +141,7 @@ export const TRANSACTION_CATEGORIES: TransactionCategory[] = [
 ]
 
 /**
- * 25 rows. FOURTEEN satisfy `TRANSACTION_FILTER_APPLIED` and 11 are outside it.
+ * 53 rows. FOURTEEN satisfy `TRANSACTION_FILTER_APPLIED` and 39 are outside it.
  * They exist so that clearing the filter is a visible act rather than a no-op: a
  * filter whose input equals its output is not a filter.
  *
@@ -584,5 +584,461 @@ export const TRANSACTIONS: Transaction[] = [
     currency: 'MYR',
     occurredAt: '2025-08-08T08:30:00',
     category: 'healthcare',
+  },
+
+  // ===== SAVINGS-GOAL CONTRIBUTIONS (Gate 77) ==============================
+  //
+  // TWENTY-EIGHT ROWS RELOCATED OUT OF `goals.ts`, NOT AUTHORED HERE. Until
+  // Gate 77 a `Goal` carried its own `contributions` array, which made a
+  // contribution a second kind of money movement living outside this ledger:
+  // invisible to the Transactions tab, to its search and its facets, and to the
+  // account drill-down the money actually left. Every one of these rows existed
+  // before this gate; none was invented and none was discarded.
+  //
+  // THEY ARE APPENDED AS A BLOCK RATHER THAN INTERLEAVED INTO THE MONTH
+  // SECTIONS ABOVE, AND THAT COSTS NOTHING because array order is not display
+  // order anywhere: `filterTransactions`, `recentTransactions`,
+  // `groupTransactionsByMonth` and `holdingFields` all sort date-descending
+  // themselves. Keeping the block together is what makes the provenance
+  // readable - these 28 came from one place, on one day.
+  //
+  // ------------------------- WHAT EACH FIELD IS -----------------------------
+  //
+  //   `kind: 'transfer'`  - money moved between things the user owns, so it is
+  //     not spending. `countsToward` rejects by `kind` FIRST, so not one budget
+  //     figure moves; measured before and after, both budgets identical.
+  //
+  //   `amount` NEGATIVE  - a contribution DEBITS its source account. That is
+  //     Teku's own Top-Up ruling applied to a past top-up, and it is what keeps
+  //     the sign convention this ledger already uses: the sign is relative to
+  //     `accountId`, which is why a Maybank credit is +5,200 on `main` and a
+  //     crypto transfer out of Marge's wallet is -350.69 on `marg`.
+  //
+  //   `accountId: 'main'`  - AN ATTRIBUTION, AND THE ONE AUTHORED CHOICE HERE.
+  //     Nothing in the old `GoalContribution` recorded a source account. Main is
+  //     the primary cash account and the only one with real history, so the 28
+  //     rows are attributed to it wholesale, exactly as Flow 7 attributed the
+  //     pre-existing ledger. It is what makes `transactionAccount()` resolve to
+  //     a real institution on the detail sheet; a goal id there would resolve to
+  //     nothing. Reversible in one edit if Teku wants them split or moved.
+  //
+  //   `occurredAt` TIME  - the other authored detail, and it is authored ONCE.
+  //     A `GoalContribution` carried a bare `date`; a `Transaction` requires a
+  //     timestamp. Every row takes 09:00:00, a standing-order hour. One repeated
+  //     time is the least-invented choice available and it leaves the synthetic
+  //     part visible, where 28 fabricated clock readings would hide it.
+  //
+  //   `category`  - INERT FOR EVERY BUDGET COMPUTATION, because `countsToward`
+  //     rejects on `kind` before it reads a category. `'others'` is the existing
+  //     catch-all; no new category was invented, which would have widened the
+  //     budget form's picker for a row that can never be budgeted.
+  //
+  //   `logo: { kind: 'goal' }`  - the goal's own photograph. A FOURTH tagged
+  //     case rather than a reuse of `image`, because the two resolve through
+  //     different directories - see `TransactionLogo` in `types.ts`.
+  //
+  // ------------------- THE DATE SPAN, REPORTED NOT FIXED ---------------------
+  //
+  // THESE 28 ROWS SPAN 2025-09-15 TO 2026-08-15 AND THE SPENDING DOESN'T.
+  // The 25 pre-existing rows sit in two clusters - 23 in Aug/Sept 2025 and 2 in
+  // Sept 2026 - so ten whole months of this ledger (Oct 2025 through Jul 2026)
+  // now contain SAVINGS AND NOTHING ELSE. That is a property of the spending
+  // seed, not of these rows, and adjusting it is a product call nobody has made.
+  //
+  // `ledgerNow()` IS UNMOVED, WHICH IS THE ONE THING THAT COULD HAVE BROKEN. It
+  // is the newest row, still 2026-09-12T16:13; the newest contribution is
+  // 2026-08-15. So the date facet's anchor and the `[overlay:applied]` ladder
+  // are both untouched, measured rather than assumed.
+  {
+    id: 'txn-bali-c16',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-08-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c15',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-07-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c14',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'manual',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -500,
+    currency: 'MYR',
+    occurredAt: '2026-07-02T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c13',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-06-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c12',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'manual',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -340,
+    currency: 'MYR',
+    occurredAt: '2026-05-18T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c11',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-05-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c10',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-04-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c09',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-03-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c08',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'manual',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -1000,
+    currency: 'MYR',
+    occurredAt: '2026-03-10T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c07',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-02-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c06',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2026-01-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c05',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2025-12-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c04',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2025-11-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c03',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2025-10-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c02',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'manual',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -200,
+    currency: 'MYR',
+    occurredAt: '2025-10-05T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-bali-c01',
+    accountId: 'main',
+    goalId: 'goal-bali-trip',
+    contributionSource: 'automatic',
+    merchant: 'Bali Trip',
+    logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -250,
+    currency: 'MYR',
+    occurredAt: '2025-09-15T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c12',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-08-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c11',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'manual',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -1500,
+    currency: 'MYR',
+    occurredAt: '2026-07-20T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c10',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-07-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c09',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-06-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c08',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-05-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c07',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'manual',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -540,
+    currency: 'MYR',
+    occurredAt: '2026-04-22T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c06',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-04-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c05',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-03-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c04',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-02-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c03',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2026-01-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c02',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2025-12-01T09:00:00',
+    category: 'others',
+  },
+  {
+    id: 'txn-emerg-c01',
+    accountId: 'main',
+    goalId: 'goal-emergency-funds',
+    contributionSource: 'automatic',
+    merchant: 'Emergency Funds',
+    logo: { kind: 'goal', filename: 'goal_emergency_funds.jpg' },
+    method: 'Fund Transfer',
+    kind: 'transfer',
+    amount: -900,
+    currency: 'MYR',
+    occurredAt: '2025-11-01T09:00:00',
+    category: 'others',
   },
 ]

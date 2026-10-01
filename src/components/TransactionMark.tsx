@@ -1,10 +1,10 @@
 import { Avatar, Logo } from '@monarch/design-system'
-import { transactionLogoUrl } from '../config/media'
+import { goalImageUrl, transactionLogoUrl } from '../config/media'
 import type { TransactionLogo } from '../data/types'
 
 /**
- * The leading visual on a ledger row — a curated merchant mark, a person, or a
- * photograph of the merchant itself.
+ * The leading visual on a ledger row — a curated merchant mark, a person, a
+ * photograph of the merchant itself, or a savings goal (Gate 77).
  *
  * COMPOSITION, NOT A PRIMITIVE (rule 4). It defines nothing: it switches between
  * two DS components on the data's own tag, resolves one url, and forwards a
@@ -65,6 +65,19 @@ export function TransactionMark({
       says the thing is absent, pass the value.
     */
     return <Avatar size={size} src={transactionLogoUrl(mark.filename)} alt="" />
+  }
+  if (mark.kind === 'goal') {
+    /*
+      A SEPARATE BRANCH FROM `image`, AND THE ONLY LINE THAT DIFFERS IS THE
+      RESOLVER. A goal photograph lives in `/media/goals` and an arbitrary
+      merchant photograph in `/media/transactions`; `media.ts` owns both
+      directories, and this switch owns neither. See `TransactionLogo`.
+
+      `alt=""` FOR THE `image` CASE’S REASON, unchanged: every call site renders
+      this mark beside the goal's name as text, so a describing `alt` would make
+      a screen reader announce that name twice. Passed rather than omitted.
+    */
+    return <Avatar size={size} src={goalImageUrl(mark.filename)} alt="" />
   }
   return <Logo name={mark.name} size={size} />
 }

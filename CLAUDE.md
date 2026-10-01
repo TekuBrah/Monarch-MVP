@@ -14417,3 +14417,397 @@ writer — Add a Goal, Edit, Delete, auto-save, Top-Up (79); the completion reco
 `MODEL-1`; the retro-fit sweep; G32 adoption; G33's workaround, untouched and
 still carrying its removal condition; persistence (NP1); `npm audit fix`; the DS
 repo; and branch deletion.
+
+## Flow 11 part 3 — contributions become ledger rows (Gate 77)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. This gate built no screen: it moved
+a data structure and let the existing screens repaint. **|WALK| stays 52,
+`OVERLAY_STATES` stays 29, baselines 208 -> 208 (48 changed, ZERO added, ZERO
+deleted), tests 666 -> 667, spec files stay 29.** `lint:tokens` scans **80**
+files — unchanged, because no file entered `src/` — with the same **4**
+exemptions.
+
+### A `Goal` NO LONGER CARRIES ITS OWN CONTRIBUTIONS
+
+Twenty-eight rows left `goals.ts` and entered `transactions.ts` as ordinary
+ledger entries carrying `goalId`. `Goal.contributions` and the
+`GoalContribution` type are **deleted**; `goalContributions(transactions,
+goalId)` in `derive.ts` answers the same question by filtering the one ledger.
+**None of the 28 was invented and none was discarded.**
+
+**THE DEFECT WAS THAT A CONTRIBUTION WAS A SECOND KIND OF MONEY MOVEMENT LIVING
+OUTSIDE THE LEDGER.** Twenty-eight real transfers were invisible to the
+Transactions tab, to its search and its four facets, and to the drill-down of
+the account the money actually left. Same class as the stored `hasReceipt`
+boolean Gate 48 removed: one fact modelled twice, in two places nothing
+reconciles.
+
+**`Goal.savedAmount` IS STILL STORED AND IS STILL NEVER SUMMED FROM THESE ROWS**
+— `FiatAccount.balance`'s rationale, unchanged. The seeded rows do sum to 5,040
+and 11,040, **nothing depends on that, and no test asserts it any more.** Gate
+75 did assert it; that assertion was **deleted on purpose**, because a Top-Up
+keeps the two in step only by writing both, so the identity would fail the first
+time a user contributed through the UI — which is correct behaviour, not a
+regression.
+
+### `accountId: 'main'`, NEGATIVE — and that is a ruling, not a coin toss
+
+**THE SIGN IS RELATIVE TO `accountId` IN THIS LEDGER**, which is why a Maybank
+credit is **+5,200** on `main` and a crypto transfer out of Marge's wallet is
+**−350.69** on `marg`. So the sign and the account have to be chosen together,
+and there were exactly two consistent options:
+
+| | consequence |
+|---|---|
+| `accountId: 'main'`, amount NEGATIVE | the main drill-down grows 21 -> 49; the ledger shows an outflow |
+| `accountId: <goal id>`, amount POSITIVE | the drill-down is untouched; the ledger shows **+RM 250 green**, reading as income |
+
+**THE FIRST IS TEKU'S OWN TOP-UP RULING APPLIED TO A PAST TOP-UP** — *"Top-Up:
+debit the source account"*, recorded in the Flow 11 plan above. A seeded
+contribution IS a past top-up.
+
+**AND THE SECOND BREAKS A DERIVATION, WHICH SETTLED IT.**
+`transactionAccount()` resolves a row's institution by looking up bank holdings
+and then crypto wallets; a goal id matches neither, so the detail sheet's
+Payment Method row would have had nothing to print. With `main` it resolves to
+**Monarch Bank** — verified in the minted `detail` baseline.
+
+**`main` IS AN ATTRIBUTION AND IT IS THE ONE AUTHORED CHOICE HERE.** Nothing in
+the old `GoalContribution` recorded a source account. Main is the primary cash
+account and the only one with real history, so all 28 are attributed to it
+wholesale — exactly as Flow 7 attributed the pre-existing ledger. **Reversible
+in one edit** if Teku wants them split or moved.
+
+**THE TIME OF DAY IS THE OTHER AUTHORED DETAIL, AND IT IS AUTHORED ONCE.** A
+`GoalContribution` carried a bare `date`; a `Transaction` requires a timestamp.
+Every row takes **09:00:00**, a standing-order hour. One repeated time is the
+least-invented choice available and it leaves the synthetic part visible, where
+28 fabricated clock readings would hide it.
+
+**`category: 'others'` IS INERT FOR EVERY BUDGET COMPUTATION**, because
+`countsToward` rejects on `kind` before it reads a category. No new category was
+invented — that would have widened the budget form's picker for a row that can
+never be budgeted.
+
+### THE TRANSACTION MARK NEEDED A FOURTH CASE. `image` COULD NOT SERVE.
+
+**THE GATE BRIEF SAID A CONTRIBUTION WOULD RENDER "THROUGH THE TRANSACTION IMAGE
+KIND ADDED AT GATE 53". IT CANNOT, AND THE REASON IS THE DIRECTORY.**
+`{ kind: 'image', filename }` resolves through `transactionLogoUrl()` to
+`/media/transactions`, while a `Goal.image` lives in `/media/goals` and is
+resolved by `goalImageUrl()`. Reusing `image` would have asked for
+`/media/transactions/goal_bali_trip.jpg`, which does not exist — and
+`settleImages` in `e2e/harness.ts` would have failed the walk on
+`naturalWidth === 0` on every state that renders the ledger.
+
+So `TransactionLogo` gained `{ kind: 'goal'; filename: string }`, and the two
+alternatives were rejected on the file's own rules: copying the JPEGs into
+`/media/transactions` duplicates bytes and puts one photograph in two places
+nothing keeps in step, and a directory discriminant on `image`
+(`{ kind, filename, dir }`) is the bag of optionals that union exists to avoid,
+one level down. **No asset was added**, per the brief's instruction.
+
+**ADDING THE CASE WAS A COMPILE ERROR UNTIL `TransactionMark` HANDLED IT, WHICH
+IS THE MECHANISM PROVING ITSELF.** That switch has no `default` precisely so a
+new tag cannot compile and render nothing, and `npx tsc -b --force` reported it
+at the documented line:
+
+```
+src/components/TransactionMark.tsx(69,27): error TS2339: Property 'name' does not
+exist on type '{ kind: "merchant"; ... } | { kind: "goal"; filename: string; }'.
+```
+
+**IT CARRIES THE FILENAME AND NOT THE GOAL ID**, so the mark stays a
+presentational switch that resolves one url rather than reaching for the goals
+collection. Verified at render: `/media/goals/goal_bali_trip.jpg`,
+`naturalWidth` **600**, drawn 32x32 at `object-fit: cover`.
+
+### ⚠ TEN MONTHS OF THIS LEDGER ARE NOW SAVINGS AND NOTHING ELSE
+
+**REPORTED, NOT FIXED.** Measured before anything was written:
+
+| | span | shape |
+|---|---|---|
+| the 25 spending rows | 2025-08-08 .. 2026-09-12 | **two clusters** — 23 in Aug/Sept 2025, 2 in Sept 2026 |
+| the 28 contributions | 2025-09-15 .. 2026-08-15 | twelve contiguous months, filling the gap |
+
+So the ledger went from 25 rows in **three** months to 53 in **fourteen**, and
+**October 2025 through July 2026 contain no spending at all** — twelve months of
+a user's life in which they apparently saved and never bought anything. That is
+a property of the SPENDING seed, not of these rows, and adjusting it is a
+product call nobody has made. It is asserted as an executable month histogram in
+`e2e/budgets.spec.ts` so it cannot drift silently.
+
+**`ledgerNow()` IS UNMOVED, WHICH IS THE ONE THING THAT COULD HAVE BROKEN.** It
+is the newest row's timestamp and the date facet measures back from it; the
+newest contribution (2026-08-15) is a month behind the newest spending row
+(2026-09-12T16:13). Asserted. Had a contribution been newer, the "This Month"
+facet and the `[overlay:applied]` ladder would both have moved.
+
+**ONE SIDE-EFFECT ON THE DIAGNOSIS `ledgerNow()` EXISTS TO PREVENT, AND IT IS
+WORSE THAN BEFORE.** `derive.ts` records that a "This Month" facet measured
+against `TODAY` would ask for August 2026 and match **zero** rows — "silently
+empty, and impossible to tell apart from a broken predicate". It now matches
+**two**, both savings contributions. An empty result at least looks broken; a
+plausible two-row month does not. The argument for measuring from the newest row
+is unchanged and is now stronger.
+
+### The three zero-change predictions — written first, then measured
+
+All three held exactly.
+
+| | before | after |
+|---|---|---|
+| net worth | 481,038.84 | **481,038.84** |
+| `budget-monthly` | 2,608.83 / 4,891.17 / 65% | **identical**, and every legend figure identical |
+| `budget-entertainment` | 123.76 / 876.24 / 87% | **identical** |
+| `main` / `joint` balance | 27,978.59 / 15,000 | **identical** |
+| Homepage recent two | iFruits, Rosyam | **identical** |
+
+**NET WORTH CANNOT MOVE AND THAT WAS READ OFF `holdings.ts` RATHER THAN HOPED
+FOR**: `bankBalance()` returns the STORED `account.balance`, so no derivation
+anywhere sums the ledger into a balance.
+
+**NO BUDGET CAN MOVE BECAUSE `countsToward` TESTS `kind` FIRST.** A moved budget
+figure would have meant it was reading something other than `kind`, which was a
+stop condition rather than something to adjust.
+
+### What changed on screen
+
+| | before | after |
+|---|---|---|
+| ledger rows | 25 | **53** |
+| `/finance/holding/main` | 21 | **49** |
+| distinct payees / merchant picker options | 20 | **22** |
+| the filter sheet's Apply button | `Apply Filter · 25 results` | **`· 53 results`** |
+| `TRANSACTION_FILTER_APPLIED` matches | 14 | **14 — unmoved** |
+
+**THE APPLIED FILTER DID NOT MOVE, AND THAT IS THE TYPE FACET DOING THE WORK.**
+All 28 contributions are `Fund Transfer`, so the `Card Payment` chip excludes
+every one of them before the amount cap is reached. The `[overlay:applied]`
+ladder — 16 after the chip, 14 after the cap — needed **no harness edit**, and
+that state is the one baseline in the mint scope that was correctly NOT
+rewritten.
+
+### Baselines — predicted file by file, and exact
+
+**PREDICTED IN WRITING BEFORE THE FIRST RUN: 48 changed, 0 added, 0 deleted**,
+as twelve named walk states x 2 viewports x 2 themes. The pre-mint run reported
+**48 failed / 618 passed** and the failing set was exactly those twelve, with
+nothing failing outside it.
+
+The twelve: `/finance [tab:transactions]` and its eight overlays (`filter`,
+`merchant`, `detail`, `detail-linked`, `detail-unread`, `add-source`,
+`add-library`, `add-library-filled`), `/finance/holding/main`, and
+`/finance [tab:receipts]`'s `view-picker` and `view-replace`.
+
+**THE TWO RECEIPTS STATES ARE THE ONES AN "IT IS THE TRANSACTIONS TAB" READING
+WOULD MISS.** `TransactionPicker` lists every OUTFLOW grouped by month, so it
+gained 28 rows and ten new month groups.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT.** 208 files,
+digest byte-identical to the start manifest (`9bd417a5…`), zero untracked in the
+snapshot directory, zero "writing actual" lines. `updateSnapshots: 'none'`
+honoured.
+
+Minted with `--update-snapshots=all` scoped by `-g`, dry-run first (52 tests, 13
+states — the twelve plus `applied`). Reconciled against the manifest taken
+outside the repo: **208 -> 208, 48 changed, 0 added, 0 deleted, 160
+byte-identical**, with the added and changed sets not overlapping.
+
+**ALL 48 WERE CHECKED STRUCTURALLY AND TWELVE WERE OPENED** — one per state,
+rotating so all four viewport/theme combinations appear across the set. The
+structural pass decoded every one of the 48 and confirmed its dimensions; the
+twelve opened confirm the merchant picker's 22 options, the sheet's
+`· 53 results`, the main drill-down's unchanged balance above 49 rows, and the
+goal photograph rendering in the circular avatar.
+
+**ARM 1 OF THE BASELINE GUARD STAYS GREEN AT THIS GATE'S CLOSE** — every change
+is a modification to an already-tracked path, so nothing was added, renamed or
+deleted and all three arms are green.
+
+### THE SPEC PREDICTION WAS WRONG, IN THE WAY THIS FILE KEEPS RECORDING
+
+**PREDICTED: `receipt-glyph.spec.ts` and `goals.spec.ts` break. ACTUAL: those
+two AND five count assertions in `budgets.spec.ts`.** The gate reasoned
+carefully about which SURFACES render transactions and never asked which SPECS
+assert on the ledger's SHAPE.
+
+That is Gate 54's lesson recurring, one step sideways: *when a user-visible
+VALUE changes, grep the suite for the old value* — and a row COUNT is a value.
+**The grep that would have caught it is `grep -rn "25 rows\|25-row" e2e/`**, and
+this gate ran it only after the failures.
+
+| spec | assertion | now |
+|---|---|---|
+| `budgets.spec.ts` | `TRANSACTIONS` has 25 rows, in three months | 53, in fourteen — with the span finding written into it |
+| | `transfers` has 5 | 33 (5 + 28) |
+| | the five transfer ids, listed | the five NON-contribution transfer ids, filtered on `goalId === undefined` |
+| | `excluded` is 750.84 | 1,000.84 — `txn-bali-c01` joined the set |
+| | 7 `Fund Transfer` rows | 7 non-contribution, 35 in all |
+
+**ONE OF THOSE CHANGES STRENGTHENED THE TEST RATHER THAN ACCOMMODATING IT.**
+`txn-bali-c01` is an outflow of −250 dated 2025-09-15 in category `others`,
+inside `budget-monthly`'s window — **every condition `countsToward` tests except
+`kind`**. It is excluded for exactly one reason, and that reason is the field
+the test exists to pin.
+
+#### `receipt-glyph.spec.ts`'s join key was a proxy, and the proxy expired
+
+**ITS GUARD FIRED CORRECTLY AND FAILED ALL FIVE OF ITS LEDGER TESTS**, naming
+the cause: two seed rows now share a formatted amount. Twelve rows share
+**−RM 250.00** and ten share **−RM 900.00**.
+
+**UNIQUENESS WAS SUFFICIENT, NOT NECESSARY.** What the spec needs is that a
+formatted amount is unambiguous FOR THE QUESTION ASKED — that every row sharing
+a key gives the same `hasReceipt` answer. Distinctness implied that and is
+strictly stronger. The guard now asserts the weaker, real requirement directly,
+which is a correction rather than a loosening: link a receipt to one of the
+twelve −RM 250.00 contributions and the key goes ambiguous and the spec fails
+again. **That is M8, and it is proved.**
+
+### Phase 2 — the chart summary describes the series
+
+`NetWorthCard`'s `summary` read *"Net worth month to date, {series[0]} to
+{amount}"* — describing the SERIES using the HERO's figure, and out by the whole
+of the goal money plus the fixed deposit’s accrual — **RM 16,089.52** as Gate 76
+measured it, and a figure that moves with the day, which is why the test below
+asserts a RELATION rather than this number. Both endpoints now come from `series`.
+
+**THE SERIES ITSELF WAS NOT TOUCHED.** A goal carries no per-day value, so
+adding a flat 16,080 to every point would invent a savings history the data does
+not have.
+
+**ZERO BASELINES, MEASURED NOT ASSUMED**: the summary is an `aria-label`, and a
+probe confirmed its text appears nowhere in `document.body.innerText`.
+
+**IT IS ASSERTED AS A RELATION, NOT AS A STRING** (`e2e/plans.spec.ts`, +1 test,
+667 total). `netWorthSeries` reads `TODAY`, which in a spec's Node context is the
+real clock rather than the browser's pinned one, so an exact expected figure
+computed there would be computed for the wrong day. What is stable is that the
+two figures must DIFFER while any goal holds money, and that the gap is at least
+the whole of that money.
+
+### Eleven mutation proofs, and a negative control that refused
+
+Each: mutate, run exactly one test by its regex-escaped `$`-anchored title
+through an argument array with no shell, require an ASSERTION failure against a
+denylist of timeouts and compile errors, restore, verify SHA-256, re-run green.
+
+| | mutation | proves |
+|---|---|---|
+| **NC** | a syntax error in `derive.ts`, run against an unrelated test | **the driver REFUSED to certify it** — "ran null tests, expected 1" |
+| M1 | `goalContributions` also returns goal-less rows | the join |
+| M2 | its `.sort` deleted | newest-first — see below |
+| M3 | one contribution credits its account | the sign |
+| M4 | an ordinary row given a `contributionSource` | the paired-optionals guard, the source-without-goal direction |
+| M5 | one contribution reclassified `payment` | the budget exclusion |
+| M6 | one contribution re-dated into September 2025 | the month histogram |
+| M7 | the classification list unfiltered | the five named transfers |
+| M8 | a receipt repointed at a −250 contribution | the ambiguous-key guard |
+| M9 | the summary back on `amount` | Phase 2 |
+| M10 | the goal mark resolved through `transactionLogoUrl` | the fourth union case |
+
+**M2 PASSED FIRST, AND THAT IS THE MOST USEFUL THING HERE.** The seed's file
+order is already newest-first per goal, so deleting the sort returned the right
+answer anyway — the assertion could not fail, and the comment beside it claimed
+a property the test was not testing. **It now asserts over a REVERSED ledger
+too**, which is the one permutation guaranteed to be wrong if nothing sorts, and
+is deterministic where a shuffle would not be. M2 proves after the fix.
+
+### Verification
+
+| | |
+|---|---|
+| `npx tsc -b --force` | clean |
+| `npm run lint:tokens` | **80 files, 4 exemptions**, PASS — both unchanged |
+| `npm run lint:linkage` | PASS, all four sources on v2.8.0 |
+| tests | **667** = 666 + 1 (`plans.spec.ts`, the chart summary) |
+| \|WALK\| / `OVERLAY_STATES` | **52 / 29**, unchanged |
+| baselines | **208 -> 208**, 48 changed, 0 added, 0 deleted |
+
+**THREE CLEAN RUNS OF THE FINAL TREE: 667 passed / 0 failed each**, 20.7 /
+19.9 / 20.6 minutes, with the baseline manifest digest **`d644be41…`** after
+every one — identical to each other and to the post-mint digest, so all 208
+baselines are byte-stable across the three. The start digest was
+**`9bd417a5…`**; both were taken with the standing command, and a digest quoted
+without that command is not evidence.
+
+```bash
+cd e2e/visual.spec.ts-snapshots && ls *.png | sort | while read f; do sha256sum "$f"; done | sha256sum
+```
+
+**THE PROSE GREW BY +394 LINES IN `CLAUDE.md` AND +59 IN THE GAP REGISTER**, by
+`git diff --numstat`, which counts LINES and is therefore immune to the CRLF/LF
+trap that made Gate 75 report +34,718 bytes where the real growth was +20,672.
+Every file this gate edited was wholly CRLF except `e2e/harness.ts`, which is
+wholly LF, and `src/flows/finance/TransactionFilterSheet.tsx`, which carries one
+pre-existing lone LF at line 5 — both recorded in Gate 75’s survey, both left
+exactly as they were, and both still producing git’s "LF will be replaced by
+CRLF" warning that they produced before this gate.
+### Figma — the remote connector, and what the goal drill-down actually draws
+
+**`figma-local` REFUSED THE CONNECTION (`ECONNREFUSED`); THE REMOTE CONNECTOR
+WORKED**, authenticated, on file key `v9MI8jxTaXiJA234Hkanlf`. This is the
+reverse of the predecessor gate, where local was up with the wrong document
+open. Verify with an authenticated round trip, not a port check.
+
+**`1266:14344` DRAWS "Recent Contributions" AS FOUR `list/chart legend`
+INSTANCES, NOT AS LEDGER ROWS**, titled by SOURCE — "Auto Save", "Manual Top Up"
+— with the date as a subtitle and the amount **positive and unsigned**
+("RM 250.00"). That is Gate 78's surface, and it is why
+`Transaction.contributionSource` had to be carried rather than dropped: nothing
+else on a row could reconstruct that title, and deriving it from the amount
+(`amount === autoSave.amount`) would call a manual top-up of exactly the
+auto-save figure automatic.
+
+**THE SIGN DIFFERENCE IS NOT A CONTRADICTION.** The ledger shows the debit on
+`main`; the goal's own screen shows money arriving. Gate 78 takes the magnitude.
+
+**THERE IS NO CONTRIBUTIONS-SHEET FRAME IN THE FILE** — that surface is
+undesigned and is Gate 78's.
+
+### `contributionSource` is a weaker shape than this file usually accepts
+
+`goalId?: string` and `contributionSource?: ContributionSource` are **two peer
+optionals that must be set together, and the type cannot say so.** That is the
+lattice `TransactionLogo`'s tag exists to collapse.
+
+**IT IS STATED RATHER THAN HIDDEN.** Grouping the pair into one optional object
+would have made the invariant a type error — and would also have made every
+reader spell `t.contribution?.goalId` for a field the model names as `goalId`.
+**The invariant is asserted in both directions** in `e2e/goals.spec.ts`: a row
+with a goal and no source, and a row with a source and no goal. M4 proves the
+second direction.
+
+### What this gate changed
+
+`src/data/types.ts` (the fourth `TransactionLogo` case, `goalId`,
+`contributionSource`, `ContributionSource`, `Goal.contributions` deleted);
+`src/data/goals.ts` (both contribution arrays gone, header rewritten);
+`src/data/transactions.ts` (+28 rows in one labelled block);
+`src/data/derive.ts` (`goalContributions`, plus five stale counts);
+`src/components/TransactionMark.tsx` (the `goal` branch);
+`src/flows/finance/components/NetWorthCard.tsx` (Phase 2);
+`src/flows/finance/{TransactionsLedger,TransactionFilterSheet,HoldingDetailScreen}.tsx`
+(stale counts only); `e2e/{goals,budgets,receipt-glyph,automatch}.spec.ts` and
+`e2e/harness.ts` (rewritten assertions and stale counts); `e2e/plans.spec.ts`
+(+1 test); and 48 re-minted baselines.
+
+**NO CSS RULE WAS TOUCHED, NO COMPONENT WAS ADDED, NO MUTATOR WAS ADDED AND NO
+FILE ENTERED `src/`.** `addTransaction` and `adjustFiatBalance` are still the
+zero-caller seams Gates 48 and 75 built — do not sweep them.
+
+### Deliberately not in scope
+
+The goal detail route, the contributions bottom sheet and `ChartLegendItem`
+`variant="contribution"` (Gate 78); the commitments seed, the Internet offer and
+the smart insight (Gate 79 — for the record, Teku has ruled the current plan at
+RM 120 and the offer at RM 70, so the saving derives to RM 50/month and
+RM 600/year, overriding the RM 69 and RM 51 printed in the frames); every writer
+including Top-Up (Gate 80); the completion record (Gate 81); the retro-fit
+sweep; **MODEL-1**, still registered and still unfixed; **MODEL-2**, opened here;
+G33's workaround, untouched and still carrying its removal condition; UI-3;
+the goal image picker; persistence (NP1); `npm audit fix`; the DS repo; and
+branch deletion.

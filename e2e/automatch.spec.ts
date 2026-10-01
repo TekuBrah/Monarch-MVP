@@ -45,10 +45,17 @@ import type { Receipt, Transaction } from '../src/data/types'
  * not transfer: the thing under test here IS this module, so importing it is
  * the point, not a hazard.
  * ─────────────────────────────────────────────────────────────────────────────
- * THE AMBIGUITY BRANCH IS TESTED ONLY ON CONSTRUCTED DATA, AND HAS TO BE. After
- * Gate 48's reconciliation no two of the 25 rows share a magnitude, so "two
- * candidates" can never arise from the seed. The constructed rows below exist
+ * THE AMBIGUITY BRANCH IS TESTED ONLY ON CONSTRUCTED DATA, AND HAS TO BE. "Two
+ * candidates" cannot arise from the seed, so the constructed rows below exist
  * for that reason and no other.
+ *
+ * THE REASON CHANGED AT GATE 77 AND THE CONCLUSION DID NOT, WHICH IS WORTH
+ * STATING. Until then it was simply that Gate 48's reconciliation left no two
+ * rows sharing a magnitude. That is now false - twelve relocated contributions
+ * share -250.00 and ten share -900.00 - but `candidatesFor` requires the
+ * MERCHANT to agree as well, and no two rows share a magnitude, a merchant AND
+ * a date inside the three-day window. Measured, not assumed: the closest
+ * same-goal, same-amount pair is twelve days apart.
  */
 
 /** What a receipt's own transcription says, as the rule reads it. */

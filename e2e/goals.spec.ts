@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { COMMITMENTS } from '../src/data/commitments'
+import { goalContributions } from '../src/data/derive'
 import { GOALS } from '../src/data/goals'
 import { TRANSACTIONS } from '../src/data/transactions'
 import type { Goal } from '../src/data/types'
@@ -15,9 +16,19 @@ import type { Goal } from '../src/data/types'
  *
  * WHAT IT IS FOR: the seeds carry authored detail beside transcribed totals, and
  * the constraint `holdings.ts` states for its line lists is that authored detail
- * must never contradict the sourced figure. These tests are that constraint made
- * executable. A drifting contribution row is otherwise invisible until Gate 77
- * renders the list beside the total it disagrees with.
+ * must never contradict the sourced figure.
+ *
+ * GATE 77 MOVED THE CONTRIBUTIONS INTO THE LEDGER, so the three tests below that
+ * used to read `goal.contributions` now read `goalContributions(TRANSACTIONS,
+ * id)`. They were REWRITTEN IN PLACE rather than added beside, because leaving
+ * both would have left the suite asserting an embedded array that no longer
+ * exists and a ledger join that does.
+ *
+ * ONE ASSERTION WAS DELETED OUTRIGHT AND ITS ABSENCE IS DELIBERATE: that the
+ * contributions sum to `savedAmount`. They still do - 5,040 and 11,040 - but
+ * NOTHING MAY DEPEND ON IT. `savedAmount` is stored and a Top-Up keeps the two
+ * in step only by writing both, so a test asserting the identity would fail the
+ * first time a user contributed through the UI, which is correct behaviour.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -52,47 +63,103 @@ test('the two transcribed goal figures are Figma’s own and reconcile', () => {
 })
 
 /**
- * THE INVARIANT THIS FILE EXISTS FOR.
+ * THE COMPOSITION OF EACH SET, WHICH IS WHAT SURVIVED THE MOVE.
  *
- * `savedAmount` is STORED and is never summed at read time — see its docstring
- * for why, which is `FiatAccount.balance`'s reason. That makes this a constraint
- * on the SEED rather than on the code: the authored rows must add up to the
- * transcribed total, because Gate 77 renders both on one screen.
+ * GATE 75 ASSERTED THAT THESE ROWS SUM TO `savedAmount`. THAT ASSERTION IS GONE
+ * ON PURPOSE - see the header. What is still worth pinning is that the 28 rows
+ * came across intact: the counts and the two subtotals per goal, which is what a
+ * dropped or duplicated row during the relocation would have moved.
+ *
+ * IT READS THE LEDGER, SO IT ALSO PROVES THE JOIN. `goalContributions` filtering
+ * on `goalId` is the only way these rows are reachable now; a row that lost its
+ * `goalId` in the move fails here rather than silently vanishing from a screen
+ * nobody has built yet.
  */
-test('every goal’s contributions sum to exactly its stored savedAmount', () => {
-  for (const goal of GOALS) {
-    const sum = goal.contributions.reduce((sen, c) => sen + toSen(c.amount), 0)
-    expect(sum, `${goal.id} contributions vs savedAmount`).toBe(toSen(goal.savedAmount))
-  }
-
-  // The arithmetic written out, so a failure says which half moved.
-  // Bali: 12 automatic × 250 = 3,000, plus 1,000 + 500 + 340 + 200 = 2,040.
-  const baliAuto = BALI.contributions.filter((c) => c.source === 'automatic')
-  const baliManual = BALI.contributions.filter((c) => c.source === 'manual')
+test('each goal’s contributions came across intact, counted and subtotalled', () => {
+  // Bali: 12 automatic x 250 = 3,000, plus 1,000 + 500 + 340 + 200 = 2,040.
+  const bali = goalContributions(TRANSACTIONS, BALI.id)
+  expect(bali).toHaveLength(16)
+  const baliAuto = bali.filter((t) => t.contributionSource === 'automatic')
+  const baliManual = bali.filter((t) => t.contributionSource === 'manual')
   expect(baliAuto).toHaveLength(12)
   expect(baliManual).toHaveLength(4)
-  expect(baliAuto.reduce((n, c) => n + toSen(c.amount), 0)).toBe(toSen(3000))
-  expect(baliManual.reduce((n, c) => n + toSen(c.amount), 0)).toBe(toSen(2040))
+  expect(baliAuto.reduce((n, t) => n + toSen(Math.abs(t.amount)), 0)).toBe(toSen(3000))
+  expect(baliManual.reduce((n, t) => n + toSen(Math.abs(t.amount)), 0)).toBe(toSen(2040))
 
-  // Emergency: 10 automatic × 900 = 9,000, plus 1,500 + 540 = 2,040.
-  const emAuto = EMERGENCY.contributions.filter((c) => c.source === 'automatic')
-  const emManual = EMERGENCY.contributions.filter((c) => c.source === 'manual')
+  // Emergency: 10 automatic x 900 = 9,000, plus 1,500 + 540 = 2,040.
+  const emergency = goalContributions(TRANSACTIONS, EMERGENCY.id)
+  expect(emergency).toHaveLength(12)
+  const emAuto = emergency.filter((t) => t.contributionSource === 'automatic')
+  const emManual = emergency.filter((t) => t.contributionSource === 'manual')
   expect(emAuto).toHaveLength(10)
   expect(emManual).toHaveLength(2)
-  expect(emAuto.reduce((n, c) => n + toSen(c.amount), 0)).toBe(toSen(9000))
-  expect(emManual.reduce((n, c) => n + toSen(c.amount), 0)).toBe(toSen(2040))
+  expect(emAuto.reduce((n, t) => n + toSen(Math.abs(t.amount)), 0)).toBe(toSen(9000))
+  expect(emManual.reduce((n, t) => n + toSen(Math.abs(t.amount)), 0)).toBe(toSen(2040))
+
+  // 28 rows and no more: nothing else in the ledger claims a goal.
+  expect(TRANSACTIONS.filter((t) => t.goalId !== undefined)).toHaveLength(28)
 })
 
-test('contributions are newest first, all positive, and all in the past', () => {
-  for (const goal of GOALS) {
-    const dates = goal.contributions.map((c) => c.date)
-    expect(dates, `${goal.id} newest first`).toEqual([...dates].sort().reverse())
-    expect(goal.contributions.every((c) => c.amount > 0)).toBe(true)
-    expect(new Set(goal.contributions.map((c) => c.id)).size).toBe(goal.contributions.length)
+/**
+ * THE SHAPE EVERY CONTRIBUTION ROW MUST HAVE, AND THE PAIRED-OPTIONALS GUARD.
+ *
+ * `goalId` AND `contributionSource` MUST BE SET TOGETHER AND THE TYPE CANNOT SAY
+ * SO - two peer optionals admit both-set and neither-set. `Transaction`'s own
+ * docstring states that weakness rather than hiding it, and this is where the
+ * invariant is enforced. BOTH DIRECTIONS ARE CHECKED: a row with a goal and no
+ * source, and a row with a source and no goal.
+ *
+ * THE ROWS ARE NEGATIVE NOW, WHERE THE EMBEDDED RECORDS WERE POSITIVE. A
+ * contribution debits its source account, and this ledger’s sign is relative to
+ * `accountId` - the same convention that makes a Maybank credit +5,200 on `main`
+ * and a crypto transfer out of a wallet -350.69 on `marg`.
+ */
+test('every contribution row is a signed, kinded, goal-marked ledger row', () => {
+  const rows = TRANSACTIONS.filter((t) => t.goalId !== undefined)
+
+  for (const t of rows) {
+    expect(t.kind, `${t.id} kind`).toBe('transfer')
+    expect(t.amount, `${t.id} debits its source account`).toBeLessThan(0)
+    expect(t.accountId, `${t.id} account`).toBe('main')
+    expect(t.logo.kind, `${t.id} mark`).toBe('goal')
+    expect(t.contributionSource, `${t.id} has a source`).toBeDefined()
 
     // Against the harness clock (PINNED_NOW = 2026-08-15) every contribution is
-    // history and every target is ahead, so both goals read as in progress.
-    for (const c of goal.contributions) expect(c.date <= '2026-08-15').toBe(true)
+    // history, so both goals read as in progress.
+    expect(t.occurredAt.slice(0, 10) <= '2026-08-15', `${t.id} is in the past`).toBe(
+      true,
+    )
+  }
+
+  // The other direction: no row carries a source without a goal.
+  expect(
+    TRANSACTIONS.filter((t) => t.contributionSource !== undefined && t.goalId === undefined),
+    'a row carries contributionSource with no goalId',
+  ).toEqual([])
+
+  // Ids stayed unique across the whole ledger after 28 rows were added.
+  expect(new Set(TRANSACTIONS.map((t) => t.id)).size).toBe(TRANSACTIONS.length)
+
+  /*
+    `goalContributions` SORTS; IT DOES NOT TRUST THE SEED’S FILE ORDER — AND
+    THIS IS ASSERTED OVER A REVERSED LEDGER, BECAUSE OVER THE REAL ONE IT
+    CANNOT FAIL. The 28 rows are appended to `transactions.ts` as one block,
+    already newest first per goal, so filtering preserves that order and a
+    `goalContributions` with its `.sort` deleted returns the right answer
+    anyway. Measured: that exact mutation PASSED this test until the reversed
+    input was added.
+
+    Reversing is enough and shuffling would be worse: a random order makes the
+    test non-deterministic for no extra coverage, and reverse is the one
+    permutation guaranteed to be wrong if nothing sorts.
+  */
+  const reversed = [...TRANSACTIONS].reverse()
+  for (const goal of GOALS) {
+    for (const ledger of [TRANSACTIONS, reversed]) {
+      const dates = goalContributions(ledger, goal.id).map((t) => t.occurredAt)
+      expect(dates, `${goal.id} newest first`).toEqual([...dates].sort().reverse())
+      expect(dates.length).toBeGreaterThan(1)
+    }
     expect(goal.targetDate > '2026-08-15').toBe(true)
   }
 })
@@ -111,7 +178,11 @@ test('auto-save is seeded on and off, and the amount survives the toggle', () =>
 
   // Emergency's automatic rows are history from when it was on, which is why a
   // disabled goal legitimately holds them.
-  expect(EMERGENCY.contributions.some((c) => c.source === 'automatic')).toBe(true)
+  expect(
+    goalContributions(TRANSACTIONS, EMERGENCY.id).some(
+      (t) => t.contributionSource === 'automatic',
+    ),
+  ).toBe(true)
 })
 
 test('goal images are bare filenames, never a URL or a blob', () => {

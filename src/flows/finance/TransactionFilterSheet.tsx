@@ -132,7 +132,7 @@ export function TransactionFilterSheet({
    * the apostrophes in their names.
    *
    * THREE COUNTS SIT CLOSE TOGETHER HERE AND NONE OF THEM IS THE OPTION LIST.
-   * Re-derived at Gate 53 over the 25-row ledger: 20 distinct payees, 18 from
+   * Re-derived at Gate 77 over the 53-row ledger: 22 distinct payees, 18 from
    * the naive grep, and 16 rows carrying `logo.kind === 'merchant'` — the last
    * of which is now joined by 2 `'image'` and 2 `'person'`, and 16 + 2 + 2 = 20
    * only by coincidence of this fixture. THE COUNT IS 20 AND IT COMES FROM THE
@@ -155,8 +155,9 @@ export function TransactionFilterSheet({
    *
    * THE NUMBERS NO LONGER AGREE AND THE SEMANTICS ARE UNAFFECTED. Gate 48 took
    * that constant to 16 and Gate 53 re-anchored it onto the type facet over a
-   * 25-row ledger, so it now returns 14. N is still whatever
-   * `filterTransactions` returns for the PENDING filter; only the constant the
+   * 53-row ledger, so it still returns 14. Gate 77 relocated 28 contributions
+   * into the ledger and the count did not move: the Type chip excludes every one
+   * of them. N is still whatever `filterTransactions` returns for the PENDING filter; only the constant the
    * harness happens to walk to has moved.
    *
    * IT INCLUDES THE SEARCH TERM, WHICH FIGMA CANNOT ADJUDICATE because the

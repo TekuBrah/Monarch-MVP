@@ -28,7 +28,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  *
  * THE NINE ROWS FIGMA DRAWS ARE AN OUTPUT, NOT A LIST, AND THAT IS STILL TRUE —
  * WHAT CHANGED AT GATE 44 IS WHEN THE SCREEN IS IN THAT STATE. Every row here
- * comes from `filterTransactions()` over the whole 25-row ledger; nothing is
+ * comes from `filterTransactions()` over the whole 53-row ledger; nothing is
  * hand-picked, which is what makes the filter a filter rather than a caption
  * over a fixed list.
  *
@@ -42,7 +42,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * `derive.ts`; do not try to reconstruct the frame's nine from it.
  *
  * BUT THE SCREEN NO LONGER OPENS THERE. Gate 44 reversed the earlier ruling
- * that it should: the initial filter is `TRANSACTION_FILTER_ALL`, all 25 rows
+ * that it should: the initial filter is `TRANSACTION_FILTER_ALL`, all 53 rows
  * show, and the chip row is empty. Figma's frame is a picture of the screen
  * MID-USE — it is what the screen looks like once a filter has been applied,
  * and reproducing it as the initial state made an applied filter look like a

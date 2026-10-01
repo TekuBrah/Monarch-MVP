@@ -42,7 +42,7 @@ import { formatSignedMyr } from '../src/data/format'
  * of step with a copy kept here, because there is no copy.
  *
  * THE JOIN KEY IS THE FORMATTED AMOUNT, and its uniqueness is asserted rather
- * than assumed (`AMOUNT_KEY_IS_UNIQUE` below). An index would have been the
+ * than assumed (`AMBIGUOUS_KEYS` below). An index would have been the
  * obvious key and is the wrong one: it silently addresses a different row the
  * day a transaction is added above it — the Gate 49 lesson about `nth-child`.
  *
@@ -62,13 +62,41 @@ import { formatSignedMyr } from '../src/data/format'
  * those modules reaches the DS runtime or a browser API.
  */
 
-/** Every formatted amount in the seed is distinct, so it addresses one row. */
-const AMOUNT_KEY_IS_UNIQUE =
-  new Set(TRANSACTIONS.map((t) => formatSignedMyr(t.amount))).size === TRANSACTIONS.length
+/**
+ * formatted amount -> the set of hasReceipt answers the seed gives for it.
+ *
+ * THE KEY WAS "EVERY FORMATTED AMOUNT IS DISTINCT" UNTIL GATE 77, AND THAT
+ * STOPPED BEING TRUE THE MOMENT CONTRIBUTIONS ENTERED THE LEDGER: twelve rows
+ * share -RM 250.00 and ten share -RM 900.00. The guard fired, correctly, and
+ * failed all seven tests in this file rather than letting them address the
+ * wrong row.
+ *
+ * UNIQUENESS WAS A SUFFICIENT PROXY, NOT THE PROPERTY THIS SPEC NEEDS. What it
+ * needs is that a formatted amount is UNAMBIGUOUS FOR THE QUESTION ASKED - that
+ * every row sharing a key gives the same hasReceipt answer. Distinctness implied
+ * that and is strictly stronger; the weaker statement is the real requirement,
+ * and asserting it directly is a correction rather than a loosening.
+ *
+ * IT STILL FAILS LOUDLY IF THE KEY GOES AMBIGUOUS. Link a receipt to one of the
+ * twelve -RM 250.00 contributions and that key maps to both answers, which is
+ * exactly when the assertions below could silently address the wrong row.
+ */
+const TRUTH_SETS = new Map<string, Set<boolean>>()
+for (const t of TRANSACTIONS) {
+  const key = formatSignedMyr(t.amount)
+  const answers = TRUTH_SETS.get(key) ?? new Set<boolean>()
+  answers.add(transactionHasReceipt(RECEIPTS, t.id))
+  TRUTH_SETS.set(key, answers)
+}
+
+/** The keys that would address rows disagreeing about the question. */
+const AMBIGUOUS_KEYS = [...TRUTH_SETS]
+  .filter(([, answers]) => answers.size > 1)
+  .map(([key]) => key)
 
 /** formatted amount -> whether that transaction has a receipt, from the seed. */
 const TRUTH = new Map(
-  TRANSACTIONS.map((t) => [formatSignedMyr(t.amount), transactionHasReceipt(RECEIPTS, t.id)]),
+  [...TRUTH_SETS].map(([key, answers]) => [key, [...answers][0] as boolean]),
 )
 
 /**
@@ -111,9 +139,9 @@ async function expectDerivedGlyphs(
   { discriminating, unlinked = [] }: { discriminating: boolean; unlinked?: string[] },
 ): Promise<void> {
   expect(
-    AMOUNT_KEY_IS_UNIQUE,
-    'two seed rows now share a formatted amount — the join key of this spec is ambiguous, and the assertions below would silently address the wrong row',
-  ).toBe(true)
+    AMBIGUOUS_KEYS,
+    'seed rows sharing a formatted amount now DISAGREE about having a receipt — the join key of this spec is ambiguous, and the assertions below would silently address the wrong row',
+  ).toEqual([])
 
   const rows = await readRows(page, container)
   expect(
@@ -157,8 +185,9 @@ async function expectDerivedGlyphs(
 
 test('HoldingDetailScreen — /finance/holding/main', async ({ page }) => {
   await gotoRoute(page, '/finance/holding/main', 'light')
-  // The site Gate 48 missed. 21 rows, 8 with a receipt — both kinds present, so
-  // this one surface rejects a hard-coded value in either direction.
+  // The site Gate 48 missed. 49 rows since Gate 77 moved 28 goal contributions
+  // onto this account, 8 of them with a receipt — both kinds present, so this
+  // one surface rejects a hard-coded value in either direction.
   await expectDerivedGlyphs(page, '.mvp-finance-detail__list', '/finance/holding/main', {
     discriminating: true,
   })

@@ -187,6 +187,54 @@ test.describe('the Savings Goals card', () => {
     await expect(page.locator('.mvp-finance__grid-item')).toHaveCount(10)
   })
 
+  /**
+ * THE CHART'S ACCESSIBLE SUMMARY DESCRIBES THE SERIES, NOT THE HERO (Gate 77).
+   *
+   * IT ENDED ON THE HERO FIGURE UNTIL THIS GATE, which made the sentence claim
+   * the line finishes somewhere it visibly does not. Gate 76 put goal money into
+   * `netWorth` and deliberately NOT into `netWorthSeries` - a goal carries no
+   * per-day value, so a flat term added to every point would invent a savings
+   * history the data does not have - and the summary was reading one from each.
+   *
+   * ASSERTED AS A RELATION, NOT AS A STRING. `netWorthSeries` reads `TODAY`,
+   * which in a spec's Node context is the real clock rather than the browser's
+   * pinned one, so an exact expected figure computed here would be computed for
+   * the wrong day. What is stable is that the two figures MUST differ while any
+   * goal holds money, and that the gap is at least the whole of that money.
+   *
+   * THE SUMMARY PAINTS NOTHING - it is an `aria-label` - so this moves no
+   * baseline. That was measured, not assumed.
+   */
+  test('the chart summary ends on the series, not on the hero', async ({ page }) => {
+    await gotoRoute(page, '/finance', 'light')
+
+    const chart = page.locator('.mvp-finance__networth-chart [aria-label]')
+    const summary = (await chart.getAttribute('aria-label')) ?? ''
+    expect(summary, 'the chart lost its accessible summary').toContain(
+      'Net worth month to date',
+    )
+
+    // "…, RM A to RM B" - B is the figure this gate moved onto the series.
+    const figures = summary.match(/RM [\d,]+\.\d{2}/g) ?? []
+    expect(figures, 'the summary no longer names two figures').toHaveLength(2)
+    const summaryEnd = figures[1]
+
+    const hero = (await page.locator('.mvp-finance__networth-amount').textContent()) ?? ''
+
+    // 1 - THE HALF THAT FAILS ON A REVERT. Reading `amount` here puts the hero
+    //     figure back into the sentence and these two become equal.
+    expect(
+      summaryEnd,
+      'the summary ends on the hero figure again - it must describe the series',
+    ).not.toBe(hero.trim())
+
+    // 2 - and the gap is at least the whole of the goal money, because the
+    //     series omits all of it. (It is larger: the fixed deposit accrues.)
+    const toNumber = (text: string) => Number(text.replace(/[^\d.]/g, ''))
+    expect(toNumber(hero) - toNumber(summaryEnd)).toBeGreaterThanOrEqual(
+      goalsTotal(GOALS),
+    )
+  })
   test('tapping it shows the Plans tab, and changes no route', async ({ page }) => {
     await gotoRoute(page, '/finance', 'light')
     const before = page.url()

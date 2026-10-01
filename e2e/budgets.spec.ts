@@ -59,13 +59,48 @@ function row(id: string, occurredAt: string, amount: number, category: Transacti
 }
 
 test('the seeded ledger is the shape the budgets are derived over', () => {
-  expect(TRANSACTIONS).toHaveLength(25)
+  expect(TRANSACTIONS).toHaveLength(53)
   const byMonth = new Map<string, number>()
   for (const t of TRANSACTIONS) {
     const month = t.occurredAt.slice(0, 7)
     byMonth.set(month, (byMonth.get(month) ?? 0) + 1)
   }
-  expect(Object.fromEntries(byMonth)).toEqual({ '2026-09': 2, '2025-09': 18, '2025-08': 5 })
+
+  /*
+    GATE 77 TOOK THIS LEDGER FROM 25 ROWS IN THREE MONTHS TO 53 IN FOURTEEN,
+    and the SHAPE is the finding rather than the count. The 25 spending rows
+    sit in two clusters - 23 in Aug/Sept 2025 and the two Gate 53 rows in Sept
+    2026 - and the 28 relocated contributions span the whole gap between them.
+
+    SO TEN MONTHS OF THIS LEDGER ARE SAVINGS AND NOTHING ELSE: Oct 2025
+    through Jul 2026 contain no spending at all. That is a property of the
+    SPENDING seed, not of the contributions, and adjusting it is a product
+    call nobody has made - recorded here rather than fixed.
+  */
+  expect(Object.fromEntries(byMonth)).toEqual({
+    '2026-09': 2,
+    '2026-08': 2,
+    '2026-07': 4,
+    '2026-06': 2,
+    '2026-05': 3,
+    '2026-04': 3,
+    '2026-03': 3,
+    '2026-02': 2,
+    '2026-01': 2,
+    '2025-12': 2,
+    '2025-11': 2,
+    '2025-10': 2,
+    '2025-09': 19,
+    '2025-08': 5,
+  })
+
+  // `ledgerNow()` IS UNMOVED, WHICH IS WHAT COULD HAVE BROKEN THE DATE FACET.
+  // The newest row is still the Gate 53 pair; the newest contribution is
+  // 2026-08-15, a month behind it.
+  const newest = [...TRANSACTIONS].sort((a, b) =>
+    b.occurredAt.localeCompare(a.occurredAt),
+  )[0]
+  expect(newest?.occurredAt).toBe('2026-09-12T16:13:00')
 })
 
 /**
@@ -181,7 +216,8 @@ test('the period label matches Figma, and every budget field survives JSON', () 
  */
 test('a transfer does not count toward a budget that lists its own category', () => {
   const transfers = TRANSACTIONS.filter((t) => t.kind === 'transfer')
-  expect(transfers).toHaveLength(5)
+  // 5 original transfers + the 28 goal contributions Gate 77 relocated.
+  expect(transfers).toHaveLength(33)
 
   // The two that would otherwise count: outflows, in category, in range.
   const wouldCount = transfers.filter(
@@ -191,7 +227,15 @@ test('a transfer does not count toward a budget that lists its own category', ()
       t.occurredAt.slice(0, 10) >= MONTHLY.from &&
       t.occurredAt.slice(0, 10) <= MONTHLY.to,
   )
+  /*
+    A CONTRIBUTION JOINED THIS SET AT GATE 77 AND IT STRENGTHENS THE TEST.
+    `txn-bali-c01` is an outflow of -250 dated 2025-09-15 in category `others`,
+    which this budget lists, inside this budget’s window - every condition
+    `countsToward` tests EXCEPT `kind`. It is excluded for exactly one reason,
+    and that reason is the field this whole test exists to pin.
+  */
   expect(wouldCount.map((t) => t.id).sort()).toEqual([
+    'txn-bali-c01',
     'txn-granddaughter-0911',
     'txn-rachum-0910',
   ])
@@ -201,11 +245,14 @@ test('a transfer does not count toward a budget that lists its own category', ()
   expect(wouldCount.every((t) => t.category === 'others')).toBe(true)
   expect(MONTHLY.categories).toContain('others')
 
-  // 2 — and 750.84 is out of spent: 2,608.83 + 750.84 = 3,359.67, the figure
-  // this budget reported until Gate 75.
+  // 2 — and 1,000.84 is out of spent. 750.84 of that is the two crypto
+  // transfers, which is what took this budget from the 3,359.67 it reported
+  // until Gate 75 down to 2,608.83; the remaining 250.00 is Gate 77’s
+  // `txn-bali-c01`, which never counted because it never existed here before.
   const excluded = wouldCount.reduce((sen, t) => sen - Math.round(t.amount * 100), 0) / 100
-  expect(excluded).toBe(750.84)
-  expect(budgetSpent(MONTHLY, TRANSACTIONS) + excluded).toBe(3359.67)
+  expect(excluded).toBe(1000.84)
+  expect(budgetSpent(MONTHLY, TRANSACTIONS)).toBe(2608.83)
+  expect(budgetSpent(MONTHLY, TRANSACTIONS) + excluded).toBe(3609.67)
 
   // 3 — A FUND TRANSFER BILL PAYMENT STILL COUNTS. This is what separates
   // reading 'kind' from reading 'method': four Fund Transfer rows are ordinary
@@ -230,16 +277,27 @@ test('a transfer does not count toward a budget that lists its own category', ()
   expect(others).toEqual({ category: 'others', spent: 128, count: 1 })
 })
 
-test('every seeded row carries an explicit kind, and exactly five transfer', () => {
+test('every seeded row carries an explicit kind, and the transfers are classified', () => {
   // A MISSING 'kind' IS A COMPILE ERROR, not a runtime one — so this asserts the
   // CLASSIFICATION, which the compiler cannot hold.
-  expect(TRANSACTIONS.filter((t) => t.kind === 'transfer').map((t) => t.id)).toEqual([
+  /*
+    LISTED WITHOUT THE CONTRIBUTIONS, WHICH IS WHY THIS FILTERS ON `goalId`.
+    Gate 77 added 28 more transfers, and naming all 33 here would turn a
+    classification assertion into a transcription of the seed. The five below
+    are the ones a reader has to think about; the 28 are transfers by
+    construction and are pinned in `goals.spec.ts`.
+  */
+  const classified = TRANSACTIONS.filter(
+    (t) => t.kind === 'transfer' && t.goalId === undefined,
+  )
+  expect(classified.map((t) => t.id)).toEqual([
     'txn-rachum-0911',
     'txn-granddaughter-0911',
     'txn-rachum-0910',
     'txn-maybank-0907',
     'txn-maybank-0828',
   ])
+  expect(TRANSACTIONS.filter((t) => t.goalId !== undefined)).toHaveLength(28)
   expect(TRANSACTIONS.filter((t) => t.kind === 'payment')).toHaveLength(20)
 
   // BOTH CRYPTO TRANSFERS ARE TRANSFERS (Teku, 30 Sept 2026): crypto in Monarch
@@ -258,9 +316,17 @@ test('every seeded row carries an explicit kind, and exactly five transfer', () 
   ])
   expect(credits.every((t) => t.kind === 'transfer')).toBe(true)
 
-  // AND FOUR OF THE SEVEN FUND TRANSFERS ARE PAYMENTS — 'Fund Transfer' is a
-  // payment rail, not a movement type.
-  expect(TRANSACTIONS.filter((t) => t.method === 'Fund Transfer')).toHaveLength(7)
+  // AND FOUR OF THE SEVEN NON-CONTRIBUTION FUND TRANSFERS ARE PAYMENTS —
+  // 'Fund Transfer' is a payment rail, not a movement type. Gate 77's 28
+  // contributions ride the same rail, which is why they are excluded here:
+  // counting them would restate their own classification rather than test this
+  // one.
+  expect(
+    TRANSACTIONS.filter(
+      (t) => t.method === 'Fund Transfer' && t.goalId === undefined,
+    ),
+  ).toHaveLength(7)
+  expect(TRANSACTIONS.filter((t) => t.method === 'Fund Transfer')).toHaveLength(35)
 })
 
 test('the Budget tab draws each seeded budget from its derived figures', async ({ page }) => {
