@@ -1537,7 +1537,46 @@ button.mvp-receipt-card:focus-visible {
   text-align: right;
 }
 
+/*
+  ── THE MOVEMENT SUMMARY'S TWO NOTE LINES (Gate 79) ───────────────────────
+
+  THE ROWS THEMSELVES NEEDED NO CSS. `MovementSummary` renders the same
+  `.mvp-txn-detail__info` section, the same `__rows` `<dl>` and the same
+  `InfoRow`s the Transaction info section above already declares — a label/value
+  row is a layout and this is that layout, so only the two prose lines beneath it
+  are new.
+
+  `margin: 0` FOR THE UA-SHEET REASON THE PARAGRAPHS ABOVE RECORD: these are real
+  `<p>` elements and the section is a flex column with a `gap`, so the UA's block
+  margin would be ADDED to that gap. This app ships no CSS reset of its own.
+
+  THE TWO COLOURS ARE DIFFERENT ON PURPOSE, AND IT IS NOT DECORATION. The note is
+  an EXPLANATION of an absence ("you will not find this 250 in your budget"), so
+  it takes `text/subtle/default` — the value `.mvp-txn-detail__row-label` already
+  uses on this same surface. The progress line is a FIGURE the user can act on, so
+  it takes `text/default/default` and reads as data rather than as a second
+  disclaimer.
+
+  SUBTLE IS SAFE HERE AND THE REGISTERED SHORTFALL IS ELSEWHERE. The 4.33:1
+  finding is `text/subtle` on `surface/subtlest` — the prompt card's own body
+  line. These two sit on the sheet's panel surface, which is what `__row-label`
+  already does and what is unflagged.
+*/
+.mvp-txn-detail__movement-note,
+.mvp-txn-detail__movement-progress {
+  margin: 0;
+}
+
+.mvp-txn-detail__movement-note {
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-txn-detail__movement-progress {
+  color: var(--mapped-text-default-default);
+}
+
 /* ── The receipt card ──────────────────────────────────────────────────── */
+
 
 .mvp-txn-detail__receipt {
   display: flex;

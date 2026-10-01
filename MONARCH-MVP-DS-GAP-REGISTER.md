@@ -2624,6 +2624,14 @@ UI-3 is still deferred to a native repackage.
 
 ### `MODEL-2` — OPENED: the link picker offers savings transfers as receipt targets
 
+> **⚠ CLOSED AT MVP GATE 79 (2026-10-01) — see §2v.** `canCarryReceipt` replaced
+> both `.filter((t) => t.amount < 0)` calls, the picker went 50 outflows in 14
+> month groups to 20 purchases in 3, and the eight `view-picker` / `view-replace`
+> baselines record it. Everything below is Gate 77's record and is left as
+> written, including the "fix, if Teku wants one" paragraph — the fix shipped is
+> BROADER than the one proposed there, and §2v says why.
+
+
 **NO `G` NUMBER, FOR `MODEL-1`’S REASON.** This is entirely MVP logic in
 `src/flows/finance/components/TransactionPicker.tsx` and `src/data/autoMatch.ts`;
 no DS release can close it, so a number would sit in the tally unable to move.
@@ -2757,3 +2765,97 @@ component instance left on the canvas — the same shape as the bare `Field` Gat
 **IT IS NOT A SPEC FOR THE CONTRIBUTIONS SHEET.** That surface is undesigned,
 and Gate 78 built it under the 21 Sept ruling's second half. Recorded so a later
 session that finds the node does not read it as a design it failed to implement.
+
+## 2v. Status at MVP Gate 79 (2026-10-01) — transaction dispositions; `MODEL-2` CLOSED
+
+**NO DS RE-PIN.** v2.8.0 throughout, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. This gate added no component, no
+new file under `src/`, and no DS prop. **NO `G` ENTRY OPENED AND NONE CLOSED, so
+the `G` tally does not move** — what moved is `MODEL-2`, which carries no `G`
+number by design.
+
+**EVERY OPEN ENTRY CARRIED FORWARD UNCHANGED** — G6, G13, G14, G17 (prop half),
+G19–G23, G28–G33, G44, G48 and `MODEL-1`, all still registered, all still
+deferred, and the G33 workaround class still in its two files carrying its
+removal condition. UI-3 is still deferred to a native repackage.
+
+### `MODEL-2` — CLOSED: the link picker offers purchases only
+
+**THE MECHANISM, IN ONE PREDICATE.** `canCarryReceipt(t)` in `derive.ts` is
+`transactionDisposition(t) === 'purchase'`, and it replaced the two independent
+`.filter((t) => t.amount < 0)` calls the register named as the fix — one in
+`TransactionPicker.tsx`'s row list, one in `rankedSuggestions`. Both sites now
+call the same exported predicate rather than each carrying its own copy of the
+selection rule, which is what the entry asked for.
+
+**IT IS BROADER THAN THE FIX THE ENTRY PROPOSED, AND DELIBERATELY SO.** That
+text said "exclude rows carrying a `goalId`". The predicate excludes every
+TRANSFER, which also removes the two seeded Crypto Transfers to a person
+(`txn-granddaughter-0911`, `txn-rachum-0910`) — rows that itemised nothing and so
+cannot carry a receipt either, by the same argument. A `goalId` test would have
+left those two in the list and would have had to be widened again the first time
+a transfer without a goal appeared.
+
+**MEASURED, BOTH WAYS.** The picker listed **50 outflows in 14 month groups**
+and now lists **20 purchases in 3**. 30 rows removed = 28 goal contributions + 2
+crypto sends. `txn-caring-0913` (RM 26.29), which `[overlay:view-replace]`'s
+prepare step clicks, is a payment and survives; the ten linked receipts all point
+at payments, so the picker still shows 10 linked + 10 free and
+`receipt-glyph.spec.ts`'s discriminating guard is unaffected.
+
+**THE RANKING WAS THE HALF THAT MATTERED, AND THE ENTRY SAID SO.** A row enters
+the Suggested group on an EXACT TOTAL ALONE — no merchant, no date — so a
+contribution whose magnitude equalled a receipt total could outrank the correct
+row. The entry measured that the eight contribution magnitudes miss all ten
+receipt totals today **by coincidence** and that a future RM 320.00 contribution
+would collide. That coincidence is no longer load-bearing.
+
+**⚠ `candidatesFor` WAS NOT CHANGED, AND THAT IS STATED RATHER THAN QUIETLY
+LEFT.** Auto-match requires the merchant to agree as well as the total and the
+date, which is why `MODEL-2` recorded it as unaffected and did not name it in the
+fix. It remains COINCIDENTALLY safe rather than structurally safe: a transfer
+whose merchant matched a receipt's could still be auto-linked, and nothing in the
+code prevents it. It was left alone because auto-match is a WRITE path that
+decides links at save time, and this gate was required to hold its measured
+figures still — adding the predicate there is a one-line follow-up with zero
+measurable effect on today's seed. **Flagged for whoever takes the next
+auto-match gate.**
+
+### Recorded, NOT registered — the transfer and income summaries are undesigned work
+
+**NEITHER SURFACE EXISTS IN FIGMA, AND THAT WAS CONFIRMED BY MCP RATHER THAN
+ASSERTED.** The remote connector was the path that worked (`figma-local` returned
+`ECONNREFUSED`); `whoami` authenticated before any read. Section `1266:14277`
+("Receipt add and link | 28 Jan 2026") enumerates eight instances plus one
+annotation and one component frame, and **both detail frames are the PURCHASE
+shape** — `1266:14278` draws the "Add a receipt to track what you bought" prompt
+and `1266:14279` the linked receipt. Flow 8's own section `1266:14327` holds three
+frames, none of them a detail. The on-disk flow inventory's §9 table lists exactly
+the same seven frames, so the two sources agree with **zero disagreements**.
+
+So the row set, the two note lines and the suppression of the Transaction info
+section are all Claude's judgement under the 21 Sept ruling. **No `G` number**:
+nothing here is a DS shortfall.
+
+### Recorded — `1266:14278` still carries the unconfigured `Field` Gate 49 found
+
+`I1266:14278;1029:9930`, 343 × 44 at y=492, at the foot of the Content region.
+Confirmed present at Gate 79. Gate 49 recorded it as a dropped instance with the
+literal placeholder `Placeholder` and no label, and did not build it; nothing has
+changed. **A node that exists but specifies nothing is still undesigned work** —
+the same disposition as the hidden empty `Bottom Sheet` on the goal drilldown
+(§2u).
+
+### Recorded — `BankHolding.accountNo` exists and the transfer summary does NOT print it
+
+The From row names the account ("Main", "Joint Account", "Marge's Wallet") and
+stops there. `FiatAccount` carries no account number, but `BankHolding` does —
+`'•••• 8842'` and `'•••• 3160'`, both marked AUTHORED in `holdings.ts` and both
+absent from Figma — and `CryptoWallet` has no counterpart at all.
+
+**TWO SHAPES FOR ONE ROW IS WHY IT IS OMITTED.** Two of the five non-contribution
+transfers move through a wallet, so a masked number would appear on some From
+rows and not others. Adding it is one template literal in `accountDisplayName`
+and four re-minted baselines. **Teku's call.**
+
+### Nothing was removed from this register at this gate.

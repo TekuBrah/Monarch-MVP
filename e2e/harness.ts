@@ -1035,6 +1035,62 @@ export const OVERLAY_STATES: WalkState[] = [
       title: 'Transaction details',
     },
   },
+  // ─────────────────────────────────────────────────────────────── Gate 79 ──
+  // THE TRANSFER SUMMARY — the third body the detail sheet can render, and the
+  // first walk state in this suite to open the sheet on anything but a purchase.
+  //
+  // BEFORE THIS GATE EVERY DETAIL STATE OPENED AN AEON BIG PURCHASE. All six —
+  // `detail`, `detail-linked`, `detail-unread`, `add-source`, `add-library`,
+  // `add-library-filled` — carry a `controlLabel` reading "Card Payment", so the
+  // transfer and income bodies had no coverage of any kind and the `MODEL-2`
+  // defect (a savings transfer being offered a receipt) was invisible to the
+  // visual net. This state puts the fix under the net in the same change.
+  //
+  // `txn-bali-c16` — Bali Trip, -250.00, 15 Aug 2026 09:00, `automatic`. IT IS
+  // THE RICHEST ROW AVAILABLE and that is why it was chosen: a goal contribution
+  // is the only disposition that renders ALL SEVEN elements — From, To, Date,
+  // Type, Reference, the budgets note AND the progress line. Every other transfer
+  // omits two of them.
+  //
+  // ITS FIGURES ARE THE PROMPT'S OWN EXAMPLE, AND NOT BY COINCIDENCE: it is the
+  // NEWEST Bali contribution, so `goalSavedAfter` subtracts nothing and the line
+  // reads the stored total — "Bali Trip: RM 5,040.00 of RM 9,000.00 after this".
+  // That makes this baseline the one place the backwards walk is pinned at its
+  // boundary condition (zero later rows) rather than mid-series.
+  //
+  // THE ROW IS SELECTED BY ITS TIMESTAMP, NOT BY ITS AMOUNT, and that is a
+  // DEPARTURE from the two states above — forced, not stylistic. Gate 49 could
+  // select by amount because all 23 ledger magnitudes were then distinct; Gate 77
+  // relocated 28 contributions into the ledger and TWELVE of them are -250.00, so
+  // `:has-text("RM 250.00")` names twelve rows and would fail Playwright's strict
+  // mode. `occurredAt` is distinct across all 53 rows (measured), and only two
+  // render "15 Aug" at all — this one at 09:00 and `txn-ikea-0815` at 16:40.
+  //
+  // ONE STATE AND NOT TWO, AND THE SECOND ONE IS DELIBERATELY DECLINED. A
+  // non-goal transfer (`txn-granddaughter-0911`) differs from this only by TWO
+  // ABSENT ROWS, which is the same component with less in it rather than a new
+  // rendered surface — and an absence is asserted more precisely by
+  // `toHaveCount(0)` than photographed. `transaction-disposition.spec.ts` covers
+  // both omissions in both themes. The Gate alpha cost of the alternative is 4
+  // baseline files and 8 tests for two fewer rows.
+  //
+  // ⚠ INCOME GETS NO WALK STATE BECAUSE THE SEED CONTAINS NO INCOME ROW. All
+  // three credits are `kind: 'transfer'` (Gate 75 Decision 1 = A), so the
+  // transfer branch claims them and the income branch is unreachable from data —
+  // measured, 20 / 33 / 0. It is covered in Node over a synthetic row and its
+  // render is UNPHOTOGRAPHED; that is stated in `CLAUDE.md` rather than papered
+  // over, and the seed-quality gate is where a real income row would come from.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'detail-transfer',
+      control: '.mvp-transactions__list > li:has-text("15 Aug, 09:00") .mn-list-item',
+      controlLabel: 'Bali Trip Fund Transfer -RM 250.00 15 Aug, 09:00',
+      title: 'Transaction details',
+    },
+  },
+
   // ─────────────────────────────────────────────────────────────── Gate 50 ──
   // THE CAPTURE SURFACES. Four states, and they are NOT four frames: Figma draws
   // three (the source picker, the bulk modal, and a camera screen that is
@@ -1864,10 +1920,19 @@ export const WALK: WalkState[] = [
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
   // an enumerated entry rather than an axis. 18 routes (one `tab: null` state
   // each, from ROUTES — 14, plus the two budget drilldowns since Gate 69 and
-  // the two goal drilldowns since Gate 78) + 7 non-default tab states + 30
-  // OVERLAY_STATES = 55 (Gate 78 added `contributions`; it read 16/29 = 52 at
-  // Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, and 19 = 40 through
-  // Gate 69, already stale by then).
+  // the two goal drilldowns since Gate 78) + 7 non-default tab states + 31
+  // OVERLAY_STATES = 56 (Gate 79 added `detail-transfer`; it read 18/30 = 55 at
+  // Gate 78, 16/29 = 52 at Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71,
+  // and 19 = 40 through Gate 69, already stale by then).
+  //
+  // ⚠ RE-DERIVE THIS FROM DISK RATHER THAN TRUSTING IT. Nothing reads this
+  // comment, which is exactly why it has gone stale twice. The anchored command
+  // is the authority:
+  //   awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts |
+  //     grep -c "^    overlay: {"
+  // A bare `grep -c "id: '"` over the same slice OVER-COUNTS, because overlay
+  // states that also carry a tab have a nested `tab: { id: ... }`.
+
   // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
   // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
   // sheet in each of its two states; Gate 50 the eighth through eleventh, the

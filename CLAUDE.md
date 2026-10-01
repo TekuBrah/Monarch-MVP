@@ -15246,3 +15246,393 @@ in the frames); the ten-month spending seed (Gate 82); the completion record
 registered and unfixed; G33's modal workaround, untouched and still carrying its
 removal condition; UI-2 and UI-3; the goal image picker, deferred to
 persistence; the contrast findings, paused for the DS round; and the DS repo.
+
+## Transaction dispositions, and the close of `MODEL-2` (Gate 79)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. The transaction detail sheet stopped
+being one body and became three, discriminated by what kind of money movement the
+row is. **|WALK| 55 -> 56, `OVERLAY_STATES` 30 -> 31, `ROUTES` 18 (unchanged),
+baselines 220 -> 224 (4 added, 8 changed, 0 deleted), tests 709 -> 738, spec
+files 30 -> 31.** `lint:tokens` scans **83** files — UNCHANGED, because no file
+entered `src/` — with the same **4** exemptions.
+
+### THE RULE IS DERIVED, AND THE ORDER IS THE PART THAT MATTERS
+
+`transactionDisposition(t)` in `derive.ts`, evaluated in this order:
+
+```
+kind === 'transfer'  ->  transfer
+amount >= 0          ->  income
+otherwise            ->  purchase
+```
+
+**NO FIELD WAS ADDED AND NOTHING IS STORED.** `kind` is required on every row
+(Gate 75) and the sign of `amount` already carries direction, so a stored
+disposition would be a third copy of a fact the record states twice — the shape
+`Transaction.hasReceipt` had before Gate 48 deleted it.
+
+**⚠ `kind` IS TESTED BEFORE THE SIGN, AND THE SEED EXERCISES THAT RATHER THAN
+MERELY PERMITTING IT.** Three seeded rows are CREDITS THAT ARE TRANSFERS —
+`txn-rachum-0911` (+350), `txn-maybank-0907` (+1,500) and `txn-maybank-0828`
+(+5,200), all ruled transfers at Gate 75 Decision 1 = A because the field
+measures whether money was SPENT and all three answer no. Swap the two tests and
+those three silently become income, **the counts still close at 53**, and the
+picker is still right. That is why the ordering has a test of its own and a
+mutation proof (M2) rather than resting on the totals.
+
+**ZERO IS INCOME, NOT A PURCHASE**, matching `countsToward`'s own `>= 0`
+boundary exactly so the two cannot disagree about a hypothetical zero row.
+
+### ⚠ THE INCOME DISPOSITION HAS ZERO ROWS IN THE SEED, AND IT SHIPPED ANYWAY
+
+**MEASURED BEFORE ANYTHING WAS BUILT: 20 purchase / 33 transfer / 0 income.**
+All three of this ledger's credits are `kind: 'transfer'`, so the transfer branch
+claims them first and the income branch is **unreachable from the data**.
+
+**IT IS A GUARD, NOT A FEATURE, WHICH IS WHY IT IS NOT THE DEAD CODE THIS REPO
+NORMALLY REJECTS.** A `payment` with a non-negative amount is representable, and
+the day one exists it must not be offered a receipt. A two-value discriminator
+would make that row a PURCHASE by default — which is the `MODEL-2` defect
+returning through a different door. The branch is covered in Node over a
+synthetic row; **its RENDER is unphotographed and no walk state can reach it**,
+and that is stated here rather than papered over. A real income row belongs to
+the seed-quality gate.
+
+### THE THREE BODIES
+
+| disposition | what the sheet draws below the summary |
+|---|---|
+| **purchase** | UNCHANGED — the receipt loop (capturing / linked / prompt), then Transaction info |
+| **transfer** | the movement summary |
+| **income** | the movement summary, with a different budgets line |
+
+**NOT ONE LINE OF THE PURCHASE PATH MOVED**, which is why the six purchase
+baselines were predicted not to change and did not. `InfoRow`'s `icon` became
+optional and every purchase call site still passes one, so its render is
+byte-identical.
+
+**THE MOVEMENT SUMMARY REPLACES *BOTH* THE RECEIPT LOOP AND TRANSACTION INFO,
+AND THAT SECOND HALF IS THIS GATE'S OWN CALL.** The brief said the receipt
+section is replaced. Replacing only that would print **Date twice** — the summary
+carries it and so does Transaction info — and would keep two rows that mean
+nothing on a movement: **`category` is `others` on all 33 seeded transfers**
+(measured), a filler that makes the record valid and nothing more, and Payment
+Method names the INSTITUTION ("Monarch Bank") where From names the ACCOUNT
+("Main"), which is the same fact told worse. Figma draws no transfer frame at
+all, so neither reading is settled by the file.
+
+### THE ROWS, AND THE TWO THAT ARE OMITTED RATHER THAN PLACEHOLDERED
+
+```
+From       Main                    To         Bali Trip
+Date       15 Aug, 09:00           Type       Auto Save
+Reference  txn-bali-c16
+
+Transfers aren't counted in budgets.
+Bali Trip: RM 5,040.00 of RM 9,000.00 after this
+```
+
+**FROM AND TO ARE DECIDED BY THE SIGN, AND THEY HAVE TO BE**, because the sign in
+this ledger is relative to `accountId`: `txn-maybank-0828` is `+5,200` ON `main`
+and `txn-granddaughter-0911` is `−350.69` ON `marg`. An outflow is
+`account -> counterparty`; a credit is `counterparty -> account`. **One rule
+serves both the transfer and the income dispositions.**
+
+**THE GOAL IS LOOKED UP, NOT READ OFF `merchant`.** All 28 contributions carry
+the goal's name in `merchant` too, so against the seed alone the two are
+indistinguishable — which is exactly why the spec renames a goal to separate
+them. The lookup is what lets a rename move its own 16 rows with it.
+
+**`accountDisplayName` IS NOT `transactionAccount`.** That one answers "which
+INSTITUTION" and returns `bank` ("Monarch Bank") for BOTH cash accounts, which is
+what the Payment Method row prints. From/To need the ACCOUNT, and they need the
+wallet leg too: two seeded Crypto Transfers carry `accountId: 'marg'`.
+
+**TYPE IS OMITTED WHEN `contributionSource` IS ABSENT, NOT DRAWN WITH AN EM
+DASH.** `UNREAD_FIGURE` means "this field exists and was not read"; these rows
+have no source at all, so the dash would assert something false. The same applies
+to the progress line.
+
+**⚠ THE REFERENCE IS PRINTED VERBATIM, AND THE BRIEF ASKED FOR IT "FORMATTED FOR
+READING".** It is `txn-bali-c16`, an internal slug, and every available transform
+— upper-casing, stripping the prefix, regrouping — dresses a slug as a reference
+number without making it one. One formatter per shape and no invented formats is
+this repo's standing rule, already applied to two-decimal money against Figma's
+"RM 700" and to the padded day against its "next on 1 Oct". **Flagged for Teku:
+if a real reference format is wanted it belongs on the record, not in a display
+helper.**
+
+**THE BUDGETS LINE WAS VERIFIED AGAINST `countsToward`, NOT ASSUMED.** It rejects
+a transfer on its FIRST clause (`kind !== 'payment'`) and income on its SECOND
+(`amount >= 0`), so the line is true of both. The spec asserts it the way a user
+would see it — removing every non-purchase row from the ledger must not move any
+budget's spent figure.
+
+### `goalSavedAfter` — a historical position from a stored present value
+
+```
+afterThis = goal.savedAmount − (every LATER contribution's magnitude)
+```
+
+**IT DERIVES A PAST POSITION AND IT DOES NOT DERIVE `savedAmount`**, which is the
+whole licence for it: that field is stored and is never summed from the ledger
+(its own contract, restated at Gate 77), so walking BACKWARDS from it is the only
+way to place a past row without re-deriving the stored authority. Nothing here
+asserts the contributions sum to it, and nothing may.
+
+**MAGNITUDES, BECAUSE A CONTRIBUTION IS A DEBIT.** Summing the signed values
+would ADD to the stored total instead of walking back from it — proved by M13.
+
+**⚠ IT IS NOT CLAMPED, AND THE SERIES WAS MEASURED BEFORE THE RULE WAS TRUSTED.**
+28 rows across both goals, **zero misbehaving**: no negative, none above target,
+and the series strictly decreasing as it walks back.
+
+| | Bali Trip (16 rows) | Emergency Funds (12 rows) |
+|---|---|---|
+| newest row | **5,040.00** (= the stored total) | **11,040.00** |
+| oldest row | **250.00** | **900.00** |
+| its own magnitude | 250.00 | 900.00 |
+| ⇒ opening balance | **0.00** | **0.00** |
+
+**THAT LAST LINE IS A PROPERTY OF THIS SEED RATHER THAN OF THE FUNCTION**, and it
+is pinned in the spec because it is what makes the whole series interpretable:
+the contributions account for the whole of each stored total. A figure outside
+`[0, target]` would be a seed finding, and clamping would have buried it.
+
+**IT ALSO SUPERSEDES THE FLOW 11 PLAN'S OPENING-BALANCE MODEL IN THIS FILE.**
+That plan reads "Bali opens at RM 3,840 and the four drawn contributions are
+seeded transfers: 3,840 + 1,200 = 5,040". Gate 75 carried the opening balance as
+the list's OLDEST ROWS instead, and this measurement is the confirmation: the
+opening balance is 0.00, not 3,840.
+
+### `MODEL-2` IS CLOSED — one predicate, two call sites
+
+`canCarryReceipt(t)` is `transactionDisposition(t) === 'purchase'`, and it
+replaced the two independent `.filter((t) => t.amount < 0)` calls the register
+named as the fix: one in `TransactionPicker`'s row list, one in
+`rankedSuggestions`.
+
+**THE OLD PREDICATE WAS TOO WIDE RATHER THAN WRONG.** It excluded credits for the
+right reason and admitted every savings transfer, because a contribution is an
+outflow. Measured both ways: the picker listed **50 outflows in 14 month groups**
+and now lists **20 purchases in 3** — 30 rows removed, being 28 contributions and
+2 crypto sends.
+
+**THE RANKING WAS THE HALF THAT MATTERED.** A row enters the Suggested group on
+an EXACT TOTAL ALONE, so a contribution whose magnitude equalled a receipt total
+could outrank the correct row. `MODEL-2` measured that today's eight contribution
+magnitudes miss all ten receipt totals **by coincidence**, and that a future
+RM 320.00 contribution would collide. That coincidence is no longer load-bearing.
+
+**⚠ `candidatesFor` WAS NOT CHANGED.** Auto-match requires the merchant to agree
+as well, which is why `MODEL-2` recorded it unaffected and did not name it in the
+fix — so it stays COINCIDENTALLY rather than structurally safe. It was left alone
+because auto-match is a WRITE path whose measured figures this gate had to hold
+still. One line, zero measurable effect today; see the register.
+
+### The walk state, and the one that was declined
+
+`/finance [tab:transactions] [overlay:detail-transfer]` opens `txn-bali-c16`.
+
+**BEFORE THIS GATE EVERY DETAIL STATE OPENED AN AEON BIG PURCHASE** — all six
+carry a `controlLabel` reading "Card Payment" — so the transfer body had no
+coverage of any kind and the `MODEL-2` defect was invisible to the visual net.
+
+**THE CONTRIBUTION IS THE RICHEST ROW AVAILABLE**: it is the only disposition
+that renders all seven elements. It is also the NEWEST Bali contribution, so
+`goalSavedAfter` subtracts nothing and the baseline pins the backwards walk at
+its boundary condition.
+
+**⚠ IT IS SELECTED BY ITS TIMESTAMP, NOT ITS AMOUNT, AND THAT IS A DEPARTURE
+FORCED BY THE DATA.** Gate 49 could select by amount because all 23 ledger
+magnitudes were then distinct. Gate 77 relocated 28 contributions into the ledger
+and **twelve of them render `-RM 250.00`** (ten more render `-RM 900.00`), so an
+amount locator resolves to twelve and fails strict mode. `occurredAt` is distinct
+across all 53 rows, and only two render "15 Aug" at all — this one at 09:00 and
+`txn-ikea-0815` at 16:40.
+
+**A SECOND STATE FOR A NON-GOAL TRANSFER WAS DECLINED.** It differs only by two
+ABSENT rows, which is the same component with less in it rather than a new
+rendered surface — and an absence is asserted more precisely by `toHaveCount(0)`
+than photographed. The Gate α cost would have been 4 baseline files and 8 tests
+for two fewer rows. Both omissions are covered in both themes by the spec.
+
+### Figma — the REMOTE connector worked and the local one refused
+
+`figma-local` returned `ECONNREFUSED`; the remote authenticated (`whoami` →
+the file owner, pro) and served every read. **That is the same split as Gate 78
+and the reverse of Gate 77** — do not predict which path works, and verify with an
+authenticated round trip rather than a port check.
+
+**THERE IS NO TRANSFER-DETAIL FRAME AND NO INCOME-DETAIL FRAME, CONFIRMED BY MCP
+RATHER THAN ASSERTED.** Section `1266:14277` ("Receipt add and link | 28 Jan
+2026") enumerates eight instances plus one annotation and one component frame,
+and **both detail frames are the PURCHASE shape** — `1266:14278` draws the "Add a
+receipt" prompt, `1266:14279` the linked receipt. Flow 8's own section
+`1266:14327` holds three frames, none of them a detail.
+
+**TWO-SOURCE RECONCILIATION: ZERO DISAGREEMENTS.** The on-disk inventory's §9
+table lists exactly the same seven frames with the same ids and the same
+dimensions.
+
+**ONE NODE THAT EXISTS AND SPECIFIES NOTHING, re-confirmed.**
+`I1266:14278;1029:9930` — the bare 343 × 44 `Field` at the foot of the Content
+region that Gate 49 recorded as a dropped instance — is still there and is still
+not built. A node that exists but is empty is still undesigned work, exactly as
+Gate 78 found for the hidden `Bottom Sheet`.
+
+### The masked account number exists, and the From row does not print it
+
+**PREMISE 0.8 ASKED ABOUT THE WRONG TYPE.** `FiatAccount` carries no account
+number — correct — but `BankHolding`, which is what `transaction.accountId` joins
+to, carries `accountNo`: `'•••• 8842'` and `'•••• 3160'`, both marked AUTHORED
+and both absent from Figma. `CryptoWallet` has no counterpart.
+
+**NAME ONLY, BECAUSE TWO OF THE FIVE NON-CONTRIBUTION TRANSFERS MOVE THROUGH A
+WALLET.** A masked number would appear on some From rows and not others — one row
+with two shapes. Adding it is one template literal and four re-minted baselines.
+**Teku's call.**
+
+### Baselines — predicted file by file BEFORE the first run, and exact
+
+**THE SWEEP CAME FIRST.** The counts, the eleven premises and every picker and
+disposition assertion in `e2e/` were swept before the prediction was written, and
+the prediction went to a scratch file outside the repo before the first edit.
+That ordering is Gate 77's lesson (it swept after and five count assertions went
+red unpredicted) and Gate 78 did not state the order at all.
+
+| | predicted | actual |
+|---|---|---|
+| added | **4** — `finance-transactions-detail-transfer-{375,430}-{light,dark}` | **4**, the same four |
+| changed | **8** — `finance-receipts-view-{picker,replace}-{375,430}-{light,dark}` | **8**, the same eight |
+| deleted | 0 | **0** |
+| failures outside that set | 0 | **0** |
+
+**THE PRE-MINT RUN REPORTED 12 FAILED / 726 PASSED (23.9 min)** — 4 "snapshot
+doesn't exist" and 8 pixel diffs, every one in `visual.spec.ts`, with no route,
+no section-header and no behaviour spec failing.
+
+**THE MECHANISM FOR THE EIGHT WAS ARGUED IN ADVANCE, NOT DISCOVERED.** The
+picker's card is `position: fixed` and capped, so the DOCUMENT height does not
+move — both pairs are still 2094px tall, measured. What moves is the content
+INSIDE the scrolling card: the first ~320px is unchanged (context, search,
+Suggested + its one row, "September 2026" + its two purchase rows) and the fourth
+group onward differs, which is above the fold. `view-replace` shows that same
+picker DIMMED THROUGH A TRANSLUCENT BLANKET — Gate 54-B's rule that a dimmed
+difference is still a difference — and the minted images confirm it directly.
+
+**AND THE SIX PURCHASE DETAIL STATES DID NOT MOVE**, which is the control that
+proves the purchase path is untouched: `detail`, `detail-linked`,
+`detail-unread`, `add-source`, `add-library` and `add-library-filled` all came
+back byte-identical.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT.** 220 files,
+byte-identical to the start manifest, **zero** untracked in the snapshot
+directory and **zero** "writing actual" lines. `updateSnapshots: 'none'` honoured.
+
+**THE MINT WAS DRY-RUN FIRST.** `-g "overlay:(detail-transfer|view-picker|view-replace)\]"
+--list` selected `Total: 12 tests in 1 file`, exactly the predicted set, and the
+mint then ran with `--update-snapshots=all`. Reconciled against the manifest taken
+outside the repo before the first change: **220 -> 224, 4 added, 8 changed, 0
+deleted, 212 byte-identical, and the added and changed sets do not overlap** — so
+4 + 8 = 12 reconciles directly with the pre-mint failure count.
+
+Start digest **`ee76e28e…d3248e40`** (identical to Gate 78's recorded close, so
+the baselines were untouched since the tag), end digest **`a4289149…edf81ebc`**,
+both by the standing command:
+
+```bash
+cd e2e/visual.spec.ts-snapshots && ls *.png | sort | while read f; do sha256sum "$f"; done | sha256sum
+```
+
+**ALL TWELVE MINTED PNGs WERE OPENED, NOT TRUSTED FROM A GREEN RUN** — Gate 51
+and Gate 76 each shipped a visible defect behind a green suite. The four
+`detail-transfer` images show the sheet at scroll 0 over the full 4186px ledger
+with all five rows and both note lines; the eight picker images show Suggested,
+then September 2026, then September 2025, **with not one contribution row in any
+of them**.
+
+### Mutation proofs — 18, and the negative control earned its place
+
+Each: mutate, run exactly ONE test by its regex-escaped `$`-anchored title through
+an **argument array with no shell**, require an ASSERTION failure checked against
+a denylist (no-tests-found, TS errors, syntax errors, module resolution,
+timeouts, navigation failures) BEFORE being accepted, restore, verify SHA-256,
+re-run green.
+
+**THE NEGATIVE CONTROL RAN FIRST AND PRINTED `NO PROOF — ran null tests`**, which
+is the Gate 63 / Gate 78 failure reproduced on purpose: a deliberate syntax error
+aimed at a passing test. A driver that certifies that is one line away, and this
+one refuses it because `proof()` tests its verdict for `null` rather than for
+truthiness.
+
+| | mutation | the test it reddens |
+|---|---|---|
+| M1 | transfers classified as purchases | the counts |
+| **M2** | **the two tests swapped — sign before `kind`** | the rule order; fails `txn-rachum-0911 is a credit AND a transfer / Expected "transfer" / Received "income"` |
+| M3 | `amount >= 0` -> `> 0` | zero is income |
+| M4 | `canCarryReceipt` back to `amount < 0` | the admitted set |
+| M5 | `countsToward` drops its `kind` clause | the budgets line |
+| M6 / M7 | the outflow / credit branch of `movementParties` | From and To |
+| M8 | the goal lookup replaced by `merchant` | the rename test |
+| M9 | the orphan `goalId` fallback | the fallback |
+| M10 | `bank.name` -> `bank.bank` | account vs institution |
+| M11 | `slice(0, index)` -> `index + 1` | the newest row |
+| M12 | `slice(0, index - 1)` | monotonicity |
+| M13 | `Math.abs` dropped | magnitudes |
+| M14 | the non-contribution guard returns a figure | undefined |
+| M15 | the progress line suppressed | the full summary |
+| M16 | Type rendered unconditionally | the omission |
+| M17 | the purchase branch never taken | the purchase control |
+| **M18** | **the picker's filter reverted to `amount < 0`** | `MODEL-2` itself |
+
+**ONE PROOF PER LIGHT/DARK PAIR FOR M15–M17, STATED RATHER THAN SKIPPED
+QUIETLY.** Each of those mutations removes or adds a NODE and is
+theme-independent, so running the dark twin exercises the same code path a second
+time rather than proving a second thing.
+
+**NO PROOF PASSED UNDER MUTATION AT THIS GATE.** Gate 77 and Gate 78 each found
+one and had to strengthen a test; this one found none. That is reported as a
+result rather than as an absence of work — the control that could have caught a
+broken driver did fire, correctly.
+
+### What this gate changed
+
+`src/data/types.ts` (`TransactionDisposition`); `src/data/derive.ts`
+(`transactionDisposition`, `canCarryReceipt`, `accountDisplayName`,
+`movementParties`, `goalSavedAfter`); `src/data/autoMatch.ts`
+(`rankedSuggestions`' filter); `src/flows/finance/components/TransactionDetailSheet.tsx`
+(the three-way body, `MovementSummary`, `InfoRow`'s optional icon, two props);
+`src/flows/finance/components/TransactionPicker.tsx` (the filter and its stale
+header note); `src/flows/finance/TransactionsLedger.tsx` (the two props);
+`src/flows/finance/finance.css` (+3 rules); `e2e/harness.ts` (one overlay state
+and the stale WALK arithmetic); `e2e/transaction-disposition.spec.ts` (new, 21
+tests, no baseline); the gap register (`MODEL-2` closed, three recorded items);
+`CLAUDE.md`; and 12 baselines.
+
+**NO COMPONENT WAS ADDED AND NO FILE ENTERED `src/`.** `MovementSummary` is a
+local function beside `PromptBlock` and `ReceiptBlock`, which is why `lint:tokens`
+still scans 83 files. No mutator was added — `addTransaction` and
+`adjustFiatBalance` are still the zero-caller seams Gates 48 and 75 built, and
+`AccountsProvider` is still not a reducer. No DS file was edited and the pin did
+not move.
+
+**THE TEST ARITHMETIC, PER SUITE:** 709 + 8 (one walk state — `visual` 220 ->
+224, `routes` 111 -> 113, `section-headers` 112 -> 114) + **21
+(`transaction-disposition.spec.ts`, new)** = **738**. Attributed per suite
+because Gate 78 reported `667 + 24 + 18 = 709` without saying which suite the 18
+belonged to.
+
+### Deliberately not in scope
+
+Adding the masked account number to the From row (reported above, Teku's call);
+a reference format on the record; `candidatesFor`, left coincidentally safe and
+registered; an income row in the seed (the seed-quality gate); the commitments
+seed (Gate 80); **MODEL-1**, still registered and unfixed; the writers (Gate 81);
+the ten-month spending seed (Gate 82); the completion record (Gate 83); the
+retro-fit sweep; G6, G13, G14, G17's prop half, G19–G23, G28–G33, G44 and G48 —
+all still registered, still deferred, and **no MVP-local override was added for
+any**; the G33 workaround class, untouched and still carrying its removal
+condition; UI-2 and UI-3; persistence (NP1); `npm audit fix`; the DS repo; and
+branch deletion.

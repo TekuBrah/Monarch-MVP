@@ -5,6 +5,7 @@ import { TransactionMark } from '../../../components/TransactionMark'
 import { rankedSuggestions } from '../../../data/autoMatch'
 import {
   TRANSACTION_FILTER_ALL,
+  canCarryReceipt,
   filterTransactions,
   groupTransactionsByMonth,
   receiptTotalRead,
@@ -42,11 +43,24 @@ import type { Receipt, Transaction } from '../../../data/types'
  * to recover from — which is the shape `Transaction.hasReceipt` had before
  * Gate 48 deleted it.
  * ─────────────────────────────────────────────────────────────────────────────
- * CREDITS ARE NOT LISTED AT ALL, in either group. A receipt records a payment,
- * which is the same reason auto-match requires `-amount === total`: a link that
- * made the amount follow the receipt only by flipping its sign is not a link.
- * `.filter((t) => t.amount < 0)` is the whole of it, and it is applied ONCE,
- * before the split, so the two groups cannot disagree about it.
+ * ONLY PURCHASES ARE LISTED, IN EITHER GROUP — GATE 79, WHICH CLOSED `MODEL-2`.
+ *
+ * A receipt is an ITEMISATION. A savings transfer, a crypto send and an inbound
+ * payment itemised nothing, so no receipt can belong to any of them — which is a
+ * stronger statement than "no credit is listed" and replaces it.
+ *
+ * THE OLD RULE WAS `.filter((t) => t.amount < 0)`, AND IT WAS TOO WIDE RATHER
+ * THAN WRONG. Credits were excluded for the right reason (auto-match requires
+ * `-amount === total`, so a link that made the amount follow the receipt only by
+ * flipping its sign is not a link), but a savings contribution is an OUTFLOW and
+ * passed. Gate 77 relocated 28 of them into this ledger, so the picker listed 50
+ * rows in 14 month groups where 20 in 3 can carry a receipt — measured both ways.
+ *
+ * `canCarryReceipt` IS APPLIED ONCE, BEFORE THE SPLIT, so the two groups cannot
+ * disagree about it — and it is the SAME predicate `rankedSuggestions` applies,
+ * rather than a second copy of the selection rule. That mattered most for the
+ * ranking, which admits a row on an exact total alone.
+
  * ─────────────────────────────────────────────────────────────────────────────
  * THE ROWS ARE THE LEDGER'S OWN `ListItem` (principle P5) — the same mark,
  * payee, method, amount and timestamp, and the same DERIVED receipt glyph. A
@@ -95,13 +109,14 @@ export function TransactionPicker({
     Transactions tab's box does (`TransactionsLedger.tsx:185`). Writing a payee-
     only predicate here would be a second search behaviour for the same rows.
   */
-  const outflows = useMemo(
+  const purchases = useMemo(
     () =>
       filterTransactions(transactions, TRANSACTION_FILTER_ALL, search).filter(
-        (t) => t.amount < 0,
+        canCarryReceipt,
       ),
     [transactions, search],
   )
+
 
   /*
     SUGGESTIONS ARE RANKED OVER THE SEARCHED SET, NOT OVER THE WHOLE LEDGER, so
@@ -109,8 +124,8 @@ export function TransactionPicker({
     would be a row the user cannot see reappearing above a heading.
   */
   const suggested = useMemo(
-    () => rankedSuggestions(matchFieldsFor(receipt), outflows),
-    [receipt, outflows],
+    () => rankedSuggestions(matchFieldsFor(receipt), purchases),
+    [receipt, purchases],
   )
 
   const suggestedIds = useMemo(
@@ -121,8 +136,8 @@ export function TransactionPicker({
   // "EVERYTHING ELSE" IS THE REMAINDER, DERIVED BY SUBTRACTION rather than by a
   // second predicate — so a row can never appear in both groups or in neither.
   const rest = useMemo(
-    () => groupTransactionsByMonth(outflows.filter((t) => !suggestedIds.has(t.id))),
-    [outflows, suggestedIds],
+    () => groupTransactionsByMonth(purchases.filter((t) => !suggestedIds.has(t.id))),
+    [purchases, suggestedIds],
   )
 
   return (

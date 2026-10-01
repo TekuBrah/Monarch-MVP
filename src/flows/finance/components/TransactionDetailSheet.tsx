@@ -7,12 +7,16 @@ import { receiptImageUrl } from '../../../config/media'
 import { CapturingBlock } from './CapturingBlock'
 import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advisoryCopy'
 import {
+  contributionSourceLabel,
+  goalSavedAfter,
+  movementParties,
   receiptReadFailed,
   receiptSubtotalRead,
   receiptTaxRead,
   receiptTotalRead,
   transactionAccount,
   transactionCategory,
+  transactionDisposition,
 } from '../../../data/derive'
 import {
   formatMyr,
@@ -20,7 +24,12 @@ import {
   formatSignedMyr,
   formatTimestamp,
 } from '../../../data/format'
-import type { Receipt, Transaction } from '../../../data/types'
+import type {
+  Goal,
+  Receipt,
+  Transaction,
+  TransactionDisposition,
+} from '../../../data/types'
 
 /**
  * The transaction detail sheet — Flow 9's core loop, in both its states.
@@ -122,6 +131,29 @@ export interface TransactionDetailSheetProps {
    * which was Gate 60's shape. See `useReceiptRetake`.
    */
   onRetake: (receipt: Receipt) => void
+  /**
+   * The savings goals, for a contribution row — Gate 79.
+   *
+   * THE COLLECTION AND NOT A RESOLVED GOAL, which is a departure from the
+   * `receipt?: Receipt` prop two fields up, and the reason is that a goal's
+   * figures MOVE. `Goal.savedAmount` is provider state as of Gate 76 and
+   * Gate 81 adds the writers, so a goal resolved once by the caller would
+   * describe the pre-Top-Up world behind an open sheet — exactly what Gate 49
+   * avoided by holding the selected row as an ID and re-resolving every
+   * render. A receipt's identity, by contrast, is all this sheet needs of it.
+   */
+  goals: Goal[]
+  /**
+   * The whole ledger, for the progress line — Gate 79.
+   *
+   * `goalSavedAfter` WALKS BACKWARDS FROM THE STORED TOTAL over every later
+   * contribution, so it genuinely needs the series and not just this row. The
+   * alternative was for `TransactionsLedger` to compute the figure and pass a
+   * number, which would put a derivation in a screen rather than in
+   * `derive.ts` — and would make it untestable in Node, which is where the
+   * 28-row series is actually proved.
+   */
+  transactions: Transaction[]
   onClose: () => void
 }
 
@@ -133,8 +165,17 @@ export function TransactionDetailSheet({
   onAddReceipt,
   isCapturing,
   onRetake,
+  goals,
+  transactions,
   onClose,
 }: TransactionDetailSheetProps) {
+  /*
+    WHAT THIS ROW IS, DERIVED — Gate 79. `transactionDisposition` reads `kind`
+    and the sign of `amount`, in that order, and nothing is stored. It is
+    computed once here and passed down rather than re-derived inside the body,
+    so the branch and the block cannot disagree about which one is rendering.
+  */
+  const disposition = transactionDisposition(transaction)
   const category = transactionCategory(transaction.category)
   const account = transactionAccount(HOLDINGS, CRYPTO_WALLETS, transaction.accountId)
 
@@ -188,89 +229,121 @@ export function TransactionDetailSheet({
       </div>
 
       {/*
-        THREE-WAY, AND THE ORDER MATTERS. Capturing is checked FIRST because it
-        is a state either of the other two can be in the middle of: the user can
-        capture from the prompt block, and since Gate 61 they can replace one
-        from the linked block — the retake, which is the later gate this note
-        anticipated. Checking `receipt` first would leave the prompt on screen
-        while a capture from the prompt block ran, and would leave the OLD
-        receipt on screen while its replacement was being read.
+        ── THE BODY IS THREE-WAY ON DISPOSITION — GATE 79 ─────────────────────
+
+        A PURCHASE KEEPS EXACTLY WHAT IT HAD: the receipt loop, then the
+        Transaction info section. Not one line of either moved, which is why the
+        six purchase baselines were predicted not to change and did not.
+
+        A TRANSFER OR AN INCOME ROW GETS `MovementSummary` INSTEAD, AND THAT
+        REPLACES BOTH — the receipt loop AND Transaction info. Replacing only the
+        receipt loop would print Date twice (the summary carries it, and so does
+        Transaction info) and would keep two rows that mean nothing on a movement:
+        Category is `others` on all 33 seeded transfers, a filler that makes the
+        record valid and nothing more, and Payment Method names the INSTITUTION
+        ("Monarch Bank") where From names the ACCOUNT ("Main") — the same fact told
+        worse. Suppressing the section is this gate's own call on undesigned work,
+        and it is stated rather than implied: Figma draws no transfer frame at all.
+
+        `isCapturing` CANNOT BE TRUE FOR A MOVEMENT, by construction rather than
+        by assertion — the only path into a capture is "Add Receipt", which only
+        `PromptBlock` offers, which only a purchase renders.
       */}
-      {isCapturing ? (
-        <CapturingBlock count={1} />
-      ) : receipt ? (
-        <ReceiptBlock
-          receipt={receipt}
-          onUnlink={() => onUnlink(receipt.id)}
-          onView={() => onView(receipt.id)}
-          onRetake={() => onRetake(receipt)}
-        />
-      ) : (
-        <PromptBlock onAddReceipt={onAddReceipt} />
-      )}
-
-      {/*
-        ── TRANSACTION INFO ────────────────────────────────────────────────
-        Three label/value rows under a heading. Figma names each row
-        `list/chart legend`, but they are FRAMES, not instances of the DS
-        `ChartLegendItem` — and the difference is load-bearing rather than
-        pedantic. `ChartLegendItem` wraps its glyph in an `IconObject` badge (a
-        tinted tile, 12px gap) and paints its title `--mapped-text-default-default`;
-        these rows draw a BARE 20px glyph at `icon/subtle/default` beside a
-        `text/subtle/default` label, and the node's bound variables contain no
-        surface token at all. Using the DS component would add a badge the design
-        does not draw, so this is composition: a label/value row is a layout,
-        not a primitive.
-
-        The register already asks the DS-side question as S4 — `list/chart legend`
-        has been repurposed as key-value metadata four times across this file and
-        has never once been an actual chart legend.
-      */}
-      <section className="mvp-txn-detail__info">
-        <h3 className="mvp-txn-detail__info-heading type-body-m-semibold">
-          Transaction info
-        </h3>
-        <dl className="mvp-txn-detail__rows">
-          {/*
-            ── THE THREE GLYPHS ARE ONE GRAMMAR, AND THE GRAMMAR IS "FIELD" ──
-
-            A calendar, a list, a card. Each names the FIELD its row is about,
-            never the VALUE in the row's right-hand column — so the Category row
-            draws a list whatever the category is, and the Payment Method row
-            draws a card whatever the institution is.
-
-            Gates 41-49 shipped the second and third rows drawing the VALUE'S own
-            glyph (`TRANSACTION_CATEGORIES[].icon`, the holding's `icon`) because
-            the DS registry carried neither `list_alt` nor `credit_card` — that
-            was a derivation from data rather than a near-miss substitution, which
-            is what G16's ruling forbids, and it was the right call while the
-            glyphs did not exist. DS v2.3.0 ships both (register G26, G27, both
-            closed) and the rows are now as drawn.
-
-            THE PATTERN THE DATE ROW SET IS WHAT THESE TWO NOW FOLLOW: a literal
-            glyph naming the field, not an expression reading the record. Do not
-            reintroduce value glyphs — a shopping cart beside "Category" breaks
-            the pattern the calendar establishes one row above.
-          */}
-          <InfoRow
-            icon="calendar_today"
-            label="Date"
-            value={formatTimestamp(transaction.occurredAt)}
+      {disposition === 'purchase' ? (
+        <>
+        {/*
+          THREE-WAY, AND THE ORDER MATTERS. Capturing is checked FIRST because it
+          is a state either of the other two can be in the middle of: the user can
+          capture from the prompt block, and since Gate 61 they can replace one
+          from the linked block — the retake, which is the later gate this note
+          anticipated. Checking `receipt` first would leave the prompt on screen
+          while a capture from the prompt block ran, and would leave the OLD
+          receipt on screen while its replacement was being read.
+        */}
+        {isCapturing ? (
+          <CapturingBlock count={1} />
+        ) : receipt ? (
+          <ReceiptBlock
+            receipt={receipt}
+            onUnlink={() => onUnlink(receipt.id)}
+            onView={() => onView(receipt.id)}
+            onRetake={() => onRetake(receipt)}
           />
-          {category && (
-            <InfoRow icon="list_alt" label="Category" value={category.label} />
-          )}
-          {/*
-            PAYMENT METHOD — Figma prints "Monarch Trust", a name that exists
-            nowhere in this app's data; `transactionAccount` derives the real
-            institution instead of transcribing one the rest of the app would
-            contradict. That divergence is unchanged; only the glyph moved.
-          */}
-          {account && (
-            <InfoRow icon="credit_card" label="Payment Method" value={account.label} />
-          )}
-        </dl>
-      </section>
+        ) : (
+          <PromptBlock onAddReceipt={onAddReceipt} />
+        )}
+
+        {/*
+          ── TRANSACTION INFO ────────────────────────────────────────────────
+          Three label/value rows under a heading. Figma names each row
+          `list/chart legend`, but they are FRAMES, not instances of the DS
+          `ChartLegendItem` — and the difference is load-bearing rather than
+          pedantic. `ChartLegendItem` wraps its glyph in an `IconObject` badge (a
+          tinted tile, 12px gap) and paints its title `--mapped-text-default-default`;
+          these rows draw a BARE 20px glyph at `icon/subtle/default` beside a
+          `text/subtle/default` label, and the node's bound variables contain no
+          surface token at all. Using the DS component would add a badge the design
+          does not draw, so this is composition: a label/value row is a layout,
+          not a primitive.
+
+          The register already asks the DS-side question as S4 — `list/chart legend`
+          has been repurposed as key-value metadata four times across this file and
+          has never once been an actual chart legend.
+        */}
+        <section className="mvp-txn-detail__info">
+          <h3 className="mvp-txn-detail__info-heading type-body-m-semibold">
+            Transaction info
+          </h3>
+          <dl className="mvp-txn-detail__rows">
+            {/*
+              ── THE THREE GLYPHS ARE ONE GRAMMAR, AND THE GRAMMAR IS "FIELD" ──
+
+              A calendar, a list, a card. Each names the FIELD its row is about,
+              never the VALUE in the row's right-hand column — so the Category row
+              draws a list whatever the category is, and the Payment Method row
+              draws a card whatever the institution is.
+
+              Gates 41-49 shipped the second and third rows drawing the VALUE'S own
+              glyph (`TRANSACTION_CATEGORIES[].icon`, the holding's `icon`) because
+              the DS registry carried neither `list_alt` nor `credit_card` — that
+              was a derivation from data rather than a near-miss substitution, which
+              is what G16's ruling forbids, and it was the right call while the
+              glyphs did not exist. DS v2.3.0 ships both (register G26, G27, both
+              closed) and the rows are now as drawn.
+
+              THE PATTERN THE DATE ROW SET IS WHAT THESE TWO NOW FOLLOW: a literal
+              glyph naming the field, not an expression reading the record. Do not
+              reintroduce value glyphs — a shopping cart beside "Category" breaks
+              the pattern the calendar establishes one row above.
+            */}
+            <InfoRow
+              icon="calendar_today"
+              label="Date"
+              value={formatTimestamp(transaction.occurredAt)}
+            />
+            {category && (
+              <InfoRow icon="list_alt" label="Category" value={category.label} />
+            )}
+            {/*
+              PAYMENT METHOD — Figma prints "Monarch Trust", a name that exists
+              nowhere in this app's data; `transactionAccount` derives the real
+              institution instead of transcribing one the rest of the app would
+              contradict. That divergence is unchanged; only the glyph moved.
+            */}
+            {account && (
+              <InfoRow icon="credit_card" label="Payment Method" value={account.label} />
+            )}
+          </dl>
+        </section>
+        </>
+      ) : (
+        <MovementSummary
+          transaction={transaction}
+          disposition={disposition}
+          goals={goals}
+          transactions={transactions}
+        />
+      )}
     </Sheet>
   )
 }
@@ -288,14 +361,28 @@ function InfoRow({
   label,
   value,
 }: {
-  icon: IconName
+  /**
+   * OPTIONAL SINCE GATE 79, and absent on every `MovementSummary` row.
+   *
+   * THE PURCHASE ROWS' THREE GLYPHS ARE A GRAMMAR — a calendar, a list, a
+   * card, each naming the FIELD its row is about (see the call sites). A
+   * movement has five rows and the registry offers no comparable set for
+   * From, To, Type and Reference, so extending the grammar would mean
+   * inventing four glyphs with no drawn authority. Giving ONE of the five a
+   * glyph would be worse than giving none.
+   *
+   * THE TWO ROW SETS ARE NEVER ON SCREEN TOGETHER, which is what makes that
+   * safe rather than inconsistent: a purchase renders Transaction info and a
+   * movement renders this summary, and the body is three-way on disposition.
+   */
+  icon?: IconName
   label: string
   value: string
 }) {
   return (
     <div className="mvp-txn-detail__row">
       <dt className="mvp-txn-detail__row-label type-body-m-medium">
-        <Icon name={icon} size="m" />
+        {icon && <Icon name={icon} size="m" />}
         {label}
       </dt>
       <dd className="mvp-txn-detail__row-value type-body-m-medium">{value}</dd>
@@ -335,7 +422,129 @@ function PromptBlock({ onAddReceipt }: { onAddReceipt: () => void }) {
 }
 
 /**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT A MOVEMENT OF MONEY SAYS INSTEAD OF A RECEIPT — Gate 79.
+ *
+ * ⚠ NOTHING IN FIGMA DRAWS THIS. Confirmed by MCP at Gate 79, not asserted:
+ * section `1266:14277` ("Receipt add and link") enumerates eight frames and both
+ * detail frames are the PURCHASE shape, and Flow 8's own section `1266:14327`
+ * holds three frames, none of them a detail. So this is the undesigned-work
+ * ruling (Teku, 21 Sept): what he designed is followed exactly, what he did not
+ * follows Claude's judgement. The row set is grounded in what real transfer-detail
+ * screens consistently show rather than invented from nothing.
+ *
+ * ONE COMPONENT SERVES BOTH A TRANSFER AND INCOME, because they are the same
+ * layout over the same record with a different row set — and the row set is
+ * DERIVED from the row rather than branched on by the caller. Two components
+ * would be two copies of one `<dl>` whose only difference is two conditional
+ * rows.
+ *
+ * THE ROWS REUSE `InfoRow` AND THE `__rows` / `__row` CLASSES the Transaction
+ * info section already owns. A label/value row is a layout, not a primitive, and
+ * this is the same layout — so no CSS was written for the rows themselves.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHY EACH ROW IS HERE, AND WHY THE TWO OPTIONAL ONES ARE OMITTED RATHER THAN
+ * PLACEHOLDERED:
+ *
+ *   From / To    the two sides of the move. `movementParties` decides which side
+ *                is the user's own account FROM THE SIGN, because the sign in
+ *                this ledger is relative to `accountId`.
+ *   Date         the full timestamp, through the one formatter. A purchase prints
+ *                this in Transaction info; a movement prints it here, and the
+ *                section this replaces is why it appears once rather than twice.
+ *   Type         the contribution's own `contributionSource`, through
+ *                `contributionSourceLabel` — the LABEL, never the stored
+ *                `'automatic' | 'manual'` id. OMITTED ENTIRELY when the field is
+ *                absent, which is every transfer that is not a contribution: a
+ *                row reading "Type —" asserts that the field exists and was not
+ *                read, which is false. The em dash is `UNREAD_FIGURE`'s job and
+ *                this is not that case.
+ *   Reference    the transaction id, VERBATIM — see below.
+ *
+ * ⚠ THE REFERENCE IS PRINTED AS STORED, AND THE BRIEF ASKED FOR IT "FORMATTED
+ * FOR READING". It is `txn-bali-c16`, an internal slug, and every transform
+ * available (upper-casing it, stripping the `txn-` prefix, regrouping it) dresses
+ * a slug as a reference number without making it one. This repo's rule is one
+ * formatter per shape and no invented formats — the same call already made on
+ * two-decimal money against Figma's "RM 700" and on the padded day against its
+ * "next on 1 Oct". Flagged for Teku rather than decided silently: if a real
+ * reference format is wanted it belongs on the record, not in a display helper.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE BUDGETS LINE EXISTS BECAUSE ITS ABSENCE LOOKS LIKE A BUG. A user who has
+ * set a budget and then moved RM 250 into a savings goal will look for that 250
+ * in the budget and not find it. `countsToward` rejects this row on its FIRST
+ * clause for a transfer (`kind !== 'payment'`) and on its SECOND for income
+ * (`amount >= 0`) — so the line is true of both dispositions, and that was
+ * verified against that function rather than assumed. It is `text/subtle`, which
+ * is what `__row-label` already uses on this surface, because it is an
+ * explanation rather than a figure.
+ *
+ * THE PROGRESS LINE IS A FIGURE, SO IT IS NOT SUBTLE. It prints at
+ * `text/default/default` to read as data rather than as a second disclaimer, and
+ * it renders only when the goal resolves AND the row is one of its contributions
+ * — `goalSavedAfter` returns undefined otherwise, which is also what happens if a
+ * `goalId` names a goal that is gone.
+ */
+function MovementSummary({
+  transaction,
+  disposition,
+  goals,
+  transactions,
+}: {
+  transaction: Transaction
+  disposition: TransactionDisposition
+  goals: Goal[]
+  transactions: Transaction[]
+}) {
+  const parties = movementParties(transaction, HOLDINGS, CRYPTO_WALLETS, goals)
+  const goal =
+    transaction.goalId === undefined
+      ? undefined
+      : goals.find((g) => g.id === transaction.goalId)
+  const savedAfter =
+    goal === undefined ? undefined : goalSavedAfter(transactions, goal, transaction.id)
+
+  return (
+    <section className="mvp-txn-detail__info">
+      {/*
+        THE HEADING IS "Transaction info" FOR ALL THREE DISPOSITIONS, and that is
+        deliberate rather than lazy. It is accurate of a transfer and of income as
+        much as of a purchase, it is the heading Figma already draws, and inventing
+        "Transfer info" / "Deposit info" would be two new strings for a section
+        whose ROWS already say which kind of row it is.
+      */}
+      <h3 className="mvp-txn-detail__info-heading type-body-m-semibold">
+        Transaction info
+      </h3>
+      <dl className="mvp-txn-detail__rows">
+        <InfoRow label="From" value={parties.from} />
+        <InfoRow label="To" value={parties.to} />
+        <InfoRow label="Date" value={formatTimestamp(transaction.occurredAt)} />
+        {transaction.contributionSource && (
+          <InfoRow
+            label="Type"
+            value={contributionSourceLabel(transaction.contributionSource)}
+          />
+        )}
+        <InfoRow label="Reference" value={transaction.id} />
+      </dl>
+      <p className="mvp-txn-detail__movement-note type-body-sm">
+        {disposition === 'transfer'
+          ? "Transfers aren't counted in budgets."
+          : "Money coming in isn't counted in budgets."}
+      </p>
+      {goal && savedAfter !== undefined && (
+        <p className="mvp-txn-detail__movement-progress type-body-sm">
+          {`${goal.name}: ${formatMyr(savedAfter)} of ${formatMyr(goal.targetAmount)} after this`}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/**
  * THE LINKED STATE'S RECEIPT CARD. Figma Frame 530 (343×392).
+
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * THE SUBTOTAL IS DERIVED, AND ON SIX OF THE TEN RECEIPTS IT DOES NOT CLOSE.

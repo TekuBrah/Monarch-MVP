@@ -18,6 +18,7 @@ import type {
   Transaction,
   TransactionCategory,
   TransactionCategoryId,
+  TransactionDisposition,
   TransactionMethod,
 } from './types'
 
@@ -1706,3 +1707,169 @@ export function commitmentCadenceLabel(commitment: Commitment): string {
 export function commitmentDueLabel(commitment: Commitment): string {
   return `next on ${formatDayMonth(commitment.nextDueOn)}`
 }
+// ─────────────────────────────── transaction dispositions (Gate 79) ──────────
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT KIND OF MONEY MOVEMENT A ROW IS — the discriminator the detail sheet
+ * renders three different bodies from. See `TransactionDisposition`.
+ *
+ * DERIVED FROM FIELDS THAT ALREADY EXIST. No flag was added and nothing is
+ * stored: `kind` is required on every row and the sign of `amount` carries
+ * direction ("Negative for an outflow", `types.ts`). A third stored copy of a
+ * fact the record already states twice is what Gate 48 deleted.
+ *
+ * ⚠ THE ORDER IS LOAD-BEARING AND IT IS NOT MERELY DEFENSIVE — THE SEED
+ * EXERCISES IT. `kind` is tested BEFORE the sign, so a CREDIT that is a transfer
+ * still reads as a transfer rather than as income. Three seeded rows are exactly
+ * that: `txn-rachum-0911` (+350), `txn-maybank-0907` (+1,500) and
+ * `txn-maybank-0828` (+5,200), all ruled transfers at Gate 75 (Decision 1 = A)
+ * because the field measures whether money was SPENT and all three answer no.
+ * Swap the two tests and those three rows change disposition — which is the
+ * mutation `transaction-disposition.spec.ts` proves.
+ *
+ * ZERO IS NOT AN OUTFLOW. `amount >= 0` is income, matching `countsToward`'s own
+ * boundary exactly, so the two cannot disagree about a hypothetical zero row.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export function transactionDisposition(t: Transaction): TransactionDisposition {
+  if (t.kind === 'transfer') return 'transfer'
+  if (t.amount >= 0) return 'income'
+  return 'purchase'
+}
+
+/**
+ * Whether a receipt could belong to this row at all — `'purchase'`, and nothing
+ * else.
+ *
+ * ONE PREDICATE, TWO CALL SITES, WHICH IS THE POINT OF EXPORTING IT. The manual
+ * link picker's row list and `rankedSuggestions`' Suggested block both ask this
+ * question, and before Gate 79 they each answered it with their own
+ * `.filter((t) => t.amount < 0)` — a rule that admits every savings
+ * contribution, which is what `MODEL-2` registered. Two copies of a selection
+ * rule is how the two groups come to disagree.
+ *
+ * IT IS NOT "IS THIS AN OUTFLOW". A savings transfer is an outflow and has no
+ * receipt; the question is whether anything was ITEMISED.
+ */
+export function canCarryReceipt(t: Transaction): boolean {
+  return transactionDisposition(t) === 'purchase'
+}
+
+/**
+ * The account's OWN NAME — "Main", "Joint Account", "Marge's Wallet".
+ *
+ * NOT `transactionAccount`, AND THE DIFFERENCE IS THE WHOLE REASON THIS EXISTS.
+ * That function answers "which INSTITUTION" and returns `bank` ("Monarch Bank")
+ * for both cash accounts, which is what the detail sheet's Payment Method row
+ * prints. A transfer's From/To rows name the ACCOUNT the money moved through, and
+ * "Monarch Bank → Bali Trip" would be true of both cash accounts at once.
+ *
+ * THE WALLET LEG IS NOT DEAD. Two seeded Crypto Transfers carry `accountId:
+ * 'marg'` rather than a bank id (`types.ts` records that widening), so a
+ * bank-only lookup would return undefined on exactly the rows a transfer summary
+ * most needs to name.
+ *
+ * ⚠ NO MASKED ACCOUNT NUMBER IS RETURNED, AND ONE EXISTS. `BankHolding.accountNo`
+ * holds `'•••• 8842'` / `'•••• 3160'`, both AUTHORED and both absent from Figma —
+ * and `CryptoWallet` has no counterpart at all, so including it would give the
+ * same row two shapes depending on which account it names. Name only. If Teku
+ * wants the number, it is one template literal here and four baselines.
+ */
+export function accountDisplayName(
+  holdings: Holding[],
+  wallets: CryptoWallet[],
+  accountId: string,
+): string | undefined {
+  // THE DISCRIMINANT, NOT A DUCK-TYPE CHECK — `transactionAccount`'s own
+  // reasoning, reused rather than restated.
+  const bank = holdings.find(
+    (h): h is BankHolding =>
+      (h.type === 'bank' || h.type === 'joint') && h.accountId === accountId,
+  )
+  if (bank) return bank.name
+  return wallets.find((w) => w.id === accountId)?.name
+}
+
+/**
+ * Where the money came FROM and went TO, for a row that moved money without
+ * buying anything.
+ *
+ * ONE RULE SERVES BOTH A TRANSFER AND INCOME, because the question is the same
+ * one: which side of this row is the user's own account, and which is the
+ * counterparty. THE SIGN DECIDES, and it has to, because the sign in this ledger
+ * is relative to `accountId` — `txn-maybank-0828` is `+5,200` ON `main` and
+ * `txn-granddaughter-0911` is `−350.69` ON `marg`.
+ *
+ *   an OUTFLOW   money leaves the account   from = the account, to = the payee
+ *   a  CREDIT    money arrives              from = the payer,   to = the account
+ *
+ * THE COUNTERPARTY IS `merchant`, WHICH IS A WIDER FIELD THAN ITS NAME. It holds
+ * a shop for a purchase, a person for a send ("Rachum Greene"), a bank for an
+ * inbound transfer ("Maybank") and the goal's own name for a contribution. A
+ * GOAL IS LOOKED UP RATHER THAN TAKEN FROM `merchant` ANYWAY, so that a renamed
+ * goal moves its own transfer rows with it instead of leaving 28 stale strings.
+ *
+ * A `goalId` NAMING NO GOAL FALLS BACK TO `merchant` rather than returning
+ * undefined. A detail sheet is a rendering, not a place to discover a bad join.
+ */
+export function movementParties(
+  t: Transaction,
+  holdings: Holding[],
+  wallets: CryptoWallet[],
+  goals: Goal[],
+): { from: string; to: string } {
+  const account = accountDisplayName(holdings, wallets, t.accountId) ?? t.accountId
+  const goal = t.goalId === undefined ? undefined : goals.find((g) => g.id === t.goalId)
+  const counterparty = goal?.name ?? t.merchant
+  return t.amount < 0
+    ? { from: account, to: counterparty }
+    : { from: counterparty, to: account }
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT THIS GOAL HELD IMMEDIATELY AFTER THIS CONTRIBUTION LANDED.
+ *
+ * `savedAmount − (every later contribution's magnitude)`.
+ *
+ * IT DERIVES A HISTORICAL POSITION FROM A STORED PRESENT VALUE, AND IT DOES NOT
+ * DERIVE `savedAmount`. That distinction is the whole licence for this function:
+ * `Goal.savedAmount` is stored and is never summed from the ledger (its own
+ * contract, restated at Gate 77), so walking BACKWARDS from it is the only way
+ * to place a past row without re-deriving the stored authority. Nothing here
+ * asserts that the contributions sum to `savedAmount`, and nothing may.
+ *
+ * MAGNITUDES, BECAUSE A CONTRIBUTION IS A DEBIT. These rows are negative — they
+ * debit the account the money left — while the goal's own screen is showing money
+ * arriving, which is why `ContributionRow` also takes `Math.abs`. Summing the
+ * signed values would ADD to the stored total instead of walking back from it.
+ *
+ * WHOLE SEN THROUGHOUT, via `toSen`, so a 28-term subtraction cannot drift by a
+ * hundredth and print a figure the ledger it came from does not contain.
+ *
+ * ⚠ IT IS NOT CLAMPED, DELIBERATELY. A negative figure, or one above the goal's
+ * target, would mean the seed and the stored total disagree — and clamping would
+ * bury exactly that. Measured over both seeded goals at Gate 79: 28 rows, zero
+ * misbehaving, and each goal's OLDEST row lands on its own magnitude, i.e. the
+ * opening balance before any contribution is exactly 0.00 for both. If this ever
+ * returns something outside [0, target], it is a seed finding and belongs to the
+ * seed-quality gate, not to a clamp here.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export function goalSavedAfter(
+  transactions: Transaction[],
+  goal: Goal,
+  transactionId: string,
+): Amount | undefined {
+  const rows = goalContributions(transactions, goal.id)
+  const index = rows.findIndex((r) => r.id === transactionId)
+  if (index < 0) return undefined
+  // `goalContributions` sorts NEWEST FIRST, so everything dated after this row
+  // is everything BEFORE it in the array.
+  const later = rows
+    .slice(0, index)
+    .reduce((sen, r) => sen + Math.abs(toSen(r.amount)), 0)
+  return (toSen(goal.savedAmount) - later) / 100
+}
+

@@ -63,7 +63,7 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
-  const { transactions, receipts, unlinkReceipt, addReceipt, linkReceipt } =
+  const { transactions, receipts, goals, unlinkReceipt, addReceipt, linkReceipt } =
     useAccounts()
   const [search, setSearch] = useState('')
 
@@ -480,6 +480,17 @@ export function TransactionsLedger() {
         <TransactionDetailSheet
           transaction={detail}
           receipt={detailReceipt}
+          /*
+            GATE 79 — THE TWO COLLECTIONS A MOVEMENT SUMMARY NEEDS, passed
+            LIVE rather than resolved here. Both come straight off
+            `useAccounts()`, so a Top-Up that moves a goal's `savedAmount`
+            moves the progress line behind an open sheet with it — the P2
+            pattern this screen already follows for the selected row and its
+            receipt. Resolving a goal here instead would hand the sheet a
+            snapshot and reintroduce the stale-object bug Gate 49 removed.
+          */
+          goals={goals}
+          transactions={transactions}
           onUnlink={unlinkReceipt}
           /*
             GATE 51 — "View" SWAPS THE SHEET FOR THE VIEWER, IN ONE UPDATE.

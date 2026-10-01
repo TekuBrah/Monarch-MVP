@@ -162,6 +162,34 @@ export type TransactionMethod = 'Card Payment' | 'Fund Transfer' | 'Crypto Trans
  * data no row carries (Teku's ruling, 30 Sept 2026).
  */
 export type TransactionKind = 'payment' | 'transfer'
+/**
+ * WHAT A TRANSACTION DETAIL SCREEN SHOULD SAY ABOUT A ROW — Gate 79.
+ *
+ * DERIVED, NEVER STORED, AND THAT IS THE WHOLE DESIGN. `transactionDisposition`
+ * in `derive.ts` computes it from `kind` and the sign of `amount`, both of which
+ * every row already carries. A stored field would be a third copy of a fact the
+ * record states twice — the shape `Transaction.hasReceipt` had before Gate 48
+ * deleted it, and the shape `savedAmount`-versus-contributions is explicitly
+ * allowed to keep only because a Top-Up writes both.
+ *
+ * WHY THE DETAIL SHEET NEEDS IT: a receipt is an itemisation of a purchase. A
+ * statement gives one total and no line items, which is the entire reason
+ * receipts exist in Monarch — so a purchase gets the receipt loop, and a
+ * movement of money that itemised nothing cannot have a receipt at all and gets
+ * a summary of where the money went instead. Before Gate 79 every row got the
+ * receipt loop, which is what `MODEL-2` registered.
+ *
+ * `'income'` HAS NO ROW IN THE CURRENT SEED, AND THAT IS NOT A REASON TO DROP
+ * IT. All three of this ledger's credits are `kind: 'transfer'` (Gate 75
+ * Decision 1 = A), so the transfer branch claims them first and income is
+ * unreachable from the seed — measured, 20 purchase / 33 transfer / 0 income.
+ * It is a GUARD rather than a feature: a `payment` with a non-negative amount is
+ * representable, and the day one exists it must not be offered a receipt. A
+ * two-value union would make that row a purchase by default, which is the
+ * `MODEL-2` defect returning through a different door.
+ */
+export type TransactionDisposition = 'purchase' | 'transfer' | 'income'
+
 
 /**
  * Who the row is with — a curated merchant mark, a person, a photograph of the

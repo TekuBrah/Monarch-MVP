@@ -1,5 +1,5 @@
 import type { Amount, Receipt, Transaction } from './types'
-import { transactionHasReceipt } from './derive'
+import { canCarryReceipt, transactionHasReceipt } from './derive'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -288,11 +288,19 @@ export function candidatesFor(
  * (measured, Gate 50-C) and a sen-exact total is the strongest single evidence
  * a receipt carries.
  *
- * CREDITS ARE NEVER SUGGESTED, because `totalMatches` and the outflow test both
- * reject them — a receipt records a payment, which is the same reason the rule
- * above requires `-amount === total`. The picker excludes them from its WHOLE
- * list, not just from this group; that is the caller's filter, stated here so
- * the two cannot disagree.
+ * ONLY PURCHASES ARE SUGGESTED — GATE 79 WIDENED THIS FROM "no credits".
+ *
+ * The test was `amount < 0`, and credits failed it twice over, since
+ * `totalMatches` requires `-amount === total` as well. That was never wrong, but
+ * it admitted every savings TRANSFER, because a contribution is an outflow — the
+ * `MODEL-2` finding. The filter is now `canCarryReceipt`, i.e. the row's
+ * disposition is `'purchase'`, so a receipt is offered only against something
+ * that was itemised.
+ *
+ * THE PICKER APPLIES THE SAME PREDICATE TO ITS WHOLE LIST, not just to this
+ * group, and it is now literally the same exported function rather than a second
+ * copy of the rule — which is what stops the two disagreeing.
+
  *
  * A TRANSACTION THAT ALREADY HAS A RECEIPT IS STILL SUGGESTED. That is the one
  * place this deliberately differs from `candidatesFor`, which excludes them:
@@ -332,8 +340,29 @@ export function rankedSuggestions(
   const receiptDay = capturedAt === null ? null : wallClockDay(capturedAt)
 
   return transactions
-    .filter((t) => t.amount < 0)
+    /*
+      PURCHASES ONLY — GATE 79, AND IT REPLACED `.filter((t) => t.amount < 0)`.
+
+      THE OLD PREDICATE WAS NOT WRONG, IT WAS TOO WIDE. It excluded credits for
+      the right reason (a link that made the amount follow the receipt only by
+      flipping its sign is not a link) and admitted every savings transfer, which
+      are outflows. Gate 77 moved 28 goal contributions into this ledger, so the
+      Suggested block could rank "Bali Trip −RM 250.00" above the real row.
+
+      IT IS A RANKING, SO THE HOLE WAS REAL RATHER THAN THEORETICAL. A row
+      qualifies below on an EXACT TOTAL ALONE, with no merchant and no date
+      agreement — so a contribution whose magnitude equalled a receipt total would
+      enter the group and could outrank the correct row. `MODEL-2` measured that
+      the eight contribution magnitudes miss all ten receipt totals today by
+      coincidence and that a future RM 320.00 contribution would collide.
+
+      `canCarryReceipt` IS THE SHARED PREDICATE, not a second copy. The picker's
+      own row list asks the same question, and before this gate each site answered
+      it with its own inline filter.
+    */
+    .filter(canCarryReceipt)
     .map((transaction) => {
+
       const totalAgrees = total !== null && totalMatches(total, transaction)
       const dateAgrees = capturedAt !== null && withinWindow(capturedAt, transaction)
       const merchantAgrees =
