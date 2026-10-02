@@ -106,6 +106,24 @@ export function formatDayMonth(isoDay: string): string {
   return sept(DAY_MONTH.format(new Date(year, month - 1, day)))
 }
 
+/**
+ * `'2026-10-07'` -> `"07 Oct 2026"`. The ISO-string entry point to the format
+ * `formatDate` already produces for the fixed-deposit screen — NOT a fourth date
+ * format. It takes the typed string and builds a LOCAL date from its three
+ * numbers, exactly as `formatDayMonth` does, so no timezone can move the day.
+ *
+ * IT RESOLVES FIGMA'S OWN DISAGREEMENT WITH ITSELF. The commitment detail
+ * (`1266:14343`) prints "Oct 7, 2025" on one card and "15 Dec 2026" on the card
+ * beside it — two full-date formats in one 2×2 grid, which is inventory A5's
+ * "three date formats in one Section" showing up again. This app has one
+ * formatter per shape, so both cards take this one, and the day-month-year
+ * order is the one that matches the app's existing `formatDayMonth` core.
+ */
+export function formatDayMonthYear(isoDay: string): string {
+  const [year, month, day] = isoDay.split('-').map(Number)
+  return sept(DATE.format(new Date(year, month - 1, day)))
+}
+
 /** `"01"`, `"15"` — zero-padded day, for the chart's x axis. */
 export function formatDayOfMonth(day: number): string {
   return String(day).padStart(2, '0')

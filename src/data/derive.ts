@@ -1,5 +1,13 @@
 import type { IconName, TrendDirection } from '@monarch/design-system'
-import { TODAY, addMonths, addYears, daysInMonth, formatDayMonth, yearsBetween } from './today'
+import {
+  TODAY,
+  addMonths,
+  addYears,
+  daysInMonth,
+  formatDayMonth,
+  formatDayMonthYear,
+  yearsBetween,
+} from './today'
 import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import type {
@@ -12,7 +20,9 @@ import type {
   BankHolding,
   Budget,
   Commitment,
+  CommitmentOffer,
   CryptoWallet,
+  FiatAccount,
   Goal,
   Receipt,
   Transaction,
@@ -1706,6 +1716,99 @@ export function commitmentCadenceLabel(commitment: Commitment): string {
  */
 export function commitmentDueLabel(commitment: Commitment): string {
   return `next on ${formatDayMonth(commitment.nextDueOn)}`
+}
+
+/**
+ * The hero's name on a commitment detail — Figma's "U-Mobile" under the logo,
+ * where the header above it reads "Internet".
+ *
+ * FALLS BACK TO `name`, because Figma draws ONE commitment detail and the other
+ * six heroes are undesigned work. A row with no provider shows what the user
+ * calls it, which is true; inventing a provider for six rows would not be.
+ */
+export function commitmentProviderName(commitment: Commitment): string {
+  return commitment.provider ?? commitment.name
+}
+
+/**
+ * `'2026-10-07'` -> `"07 Oct 2026"`, for the detail's Payment Date and Contract
+ * End Date cards. One formatter for both, so the two cards cannot disagree the
+ * way the frame does — see `formatDayMonthYear`.
+ */
+export function commitmentDateLabel(isoDay: string): string {
+  return formatDayMonthYear(isoDay)
+}
+
+/**
+ * The detail's Payment Method card — Figma's "Bank Acc - Main".
+ *
+ * IT NAMES THE ACCOUNT, NOT THE INSTITUTION, which is why it cannot reuse
+ * `transactionAccount`: that one answers "which bank" and returns "Monarch
+ * Bank" for BOTH cash accounts, so every commitment would read the same.
+ * `accountDisplayName` is the one that distinguishes Main from Joint Account.
+ *
+ * RETURNS `null` WHEN THE ACCOUNT CANNOT BE RESOLVED, and the card is omitted
+ * rather than drawn with a dash — the Gate 79 rule. A commitment pointing at an
+ * account that does not exist is a data defect, and a dash would hide it.
+ */
+export function commitmentPaymentLabel(
+  accounts: FiatAccount[],
+  commitment: Commitment,
+): string | null {
+  const account = accounts.find((a) => a.id === commitment.paymentAccountId)
+  return account ? `Bank Acc - ${account.name}` : null
+}
+
+/**
+ * The offer against a commitment, if Monarch has spotted one.
+ *
+ * THE SEED HOLDS EXACTLY ONE, against Internet, because Figma draws one. Every
+ * other commitment returns `undefined` and its detail draws no banner — which
+ * is what makes that branch reachable from the seed rather than only from a
+ * synthetic fixture.
+ */
+export function commitmentOffer(
+  offers: CommitmentOffer[],
+  commitmentId: string,
+): CommitmentOffer | undefined {
+  return offers.find((o) => o.commitmentId === commitmentId)
+}
+
+/**
+ * What the offer saves each period — the commitment's own `amount` minus the
+ * offer's. RM 120 − RM 70 = RM 50, which is what `1266:14341` and `1266:14343`
+ * both print.
+ *
+ * DERIVED, NEVER STORED, AND FIGMA IS THE ARGUMENT FOR IT. The education
+ * frame's underlying insight layer prints "Save RM 51/month" beside "RM
+ * 600/year" — two stored figures that disagree, since 51 × 12 is 612. A single
+ * stored saving could drift from the two prices the same way.
+ *
+ * SUMMED IN WHOLE SEN, so a float cannot miss a two-decimal figure — the rule
+ * every money derivation in this file follows.
+ */
+export function offerMonthlySaving(
+  commitment: Commitment,
+  offer: CommitmentOffer,
+): Amount {
+  return (toSen(commitment.amount) - toSen(offer.amount)) / 100
+}
+
+/**
+ * What the offer saves in a year — the monthly saving × 12, so RM 600.
+ *
+ * ⚠ IT MULTIPLIES BY 12 WHATEVER THE CADENCE SAYS, and that is correct only
+ * while every seeded commitment is monthly (`goals.spec.ts` holds that
+ * invariant). Figma's panel labels the row "Savings" against "RM 600/year"
+ * with no cadence anywhere, so the frame does not settle a yearly commitment.
+ * The first `cadence: 'yearly'` row is where this needs a rule, not a
+ * speculative one now.
+ */
+export function offerYearlySaving(
+  commitment: Commitment,
+  offer: CommitmentOffer,
+): Amount {
+  return (toSen(offerMonthlySaving(commitment, offer)) * 12) / 100
 }
 // ─────────────────────────────── transaction dispositions (Gate 79) ──────────
 

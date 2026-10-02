@@ -196,28 +196,61 @@ test('goal images are bare filenames, never a URL or a blob', () => {
 })
 
 /**
- * FIVE, NOT SEVEN, AND THE TEST SAYS SO OUT LOUD.
+ * SEVEN, AND EVERY FIGURE IS FIGMA’S (Gate 80).
  *
- * `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` §2 states "2 goal cards + 5
- * commitments" and names exactly these five; `CLAUDE.md`'s Flow 11 plan records
- * that Figma draws seven. Gate 75 had no Figma access to settle it, so this
- * asserts what the inventory says and will FAIL LOUDLY if a later gate adds the
- * missing two without revisiting the record — which is the outcome wanted, not a
- * nuisance.
+ * THIS TEST DID ITS JOB. Gate 75 asserted the inventory’s FIVE and said in as
+ * many words that it "will FAIL LOUDLY if a later gate adds the missing two
+ * without revisiting the record — which is the outcome wanted". Gate 80 read
+ * all seven rows out of `1266:14339` itself and that is exactly what happened,
+ * so the record was revisited and the assertion moved WITH it rather than being
+ * widened to tolerate both.
+ *
+ * THE ORDER IS THE FRAME’S, which is not the order Gate 75 used: Golf Lesson is
+ * fifth and Anytime Fitness sixth.
  */
-test('the five inventory-named commitments are seeded, with Internet at RM 120', () => {
+test('the seven commitments Figma draws are seeded, with Figma’s amounts', () => {
   expect(COMMITMENTS.map((c) => c.name)).toEqual([
     'Mortgage',
     'Car Payment',
     'Internet',
     'Netflix',
+    'Golf Lesson',
     'Anytime Fitness',
+    'Phone Plan',
+  ])
+
+  // TRANSCRIBED from `1266:14339`, row by row. Four of these disagree with the
+  // Gate 75 seed (2450 / 1180 / 54.90 / 128) and two rows did not exist at all.
+  expect(COMMITMENTS.map((c) => c.amount)).toEqual([1200, 500, 120, 20, 20, 160, 35])
+
+  // ALL SEVEN MOVED TO OCTOBER, which is what the frame draws.
+  expect(COMMITMENTS.map((c) => c.nextDueOn)).toEqual([
+    '2026-10-01',
+    '2026-10-01',
+    '2026-10-07',
+    '2026-10-02',
+    '2026-10-02',
+    '2026-10-05',
+    '2026-10-05',
   ])
 
   const internet = COMMITMENTS.find((c) => c.name === 'Internet')
-  // TRANSCRIBED (§A1): the smart-insight panel's "Current (RM 120.00)".
+  // TRANSCRIBED (§A1 and `1266:14341`): the smart-insight panel’s "Current
+  // (RM 120.00)". The ONLY amount the Gate 75 seed already had right.
   expect(internet?.amount).toBe(120)
   expect(internet?.logo).toEqual({ kind: 'brand', name: 'umobile' })
+
+  // THE ONLY ROW FIGMA DRAWS A DETAIL FOR, so the only one carrying these
+  // three — all transcribed from `1266:14343`. Six rows carry none of them,
+  // and their detail screens omit the elements rather than dashing them.
+  expect(internet?.provider).toBe('U-Mobile')
+  expect(internet?.planName).toBe('U120 Plan')
+  expect(internet?.contractEndsOn).toBe('2026-12-15')
+  expect(
+    COMMITMENTS.filter((c) => c.provider || c.planName || c.contractEndsOn).map(
+      (c) => c.name,
+    ),
+  ).toEqual(['Internet'])
 
   // THE LEDGER LINK IS NOT MODELLED, and Internet is where that shows: the plan
   // is RM 120.00 while the U Mobile charge is RM 75.00. Neither is wrong.
@@ -231,10 +264,24 @@ test('the icon-versus-brand split is the one the inventory records', () => {
   // Netflix)". A mortgage has no brand mark to ship, so an icon is correct
   // rather than a substitute for a missing logo — this is not a DS gap.
   const icons = COMMITMENTS.filter((c) => c.logo.kind === 'icon').map((c) => c.name)
-  expect(icons).toEqual(['Mortgage', 'Car Payment'])
+  expect(icons).toEqual(['Mortgage', 'Car Payment', 'Golf Lesson'])
 
   const brands = COMMITMENTS.filter((c) => c.logo.kind === 'brand').map((c) => c.name)
-  expect(brands).toEqual(['Internet', 'Netflix', 'Anytime Fitness'])
+  expect(brands).toEqual(['Internet', 'Netflix', 'Anytime Fitness', 'Phone Plan'])
+
+  // MORTGAGE DRAWS THE MATERIAL `home`, NOT THE CUSTOM `icon_home` the Gate 75
+  // seed carried. Settled by GEOMETRY, not by the Figma layer name — see the
+  // seed’s own header. Both glyphs are in the registry, so only a test keeps
+  // the right one in place.
+  expect(COMMITMENTS.map((c) => (c.logo.kind === 'icon' ? c.logo.name : null))).toEqual([
+    'home',
+    'icon_car',
+    null,
+    null,
+    'golf_course',
+    null,
+    null,
+  ])
 
   expect(new Set(COMMITMENTS.map((c) => c.id)).size).toBe(COMMITMENTS.length)
   expect(COMMITMENTS.every((c) => c.amount > 0)).toBe(true)

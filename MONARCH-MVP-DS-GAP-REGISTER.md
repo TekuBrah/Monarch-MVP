@@ -2859,3 +2859,114 @@ rows and not others. Adding it is one template literal in `accountDisplayName`
 and four re-minted baselines. **Teku's call.**
 
 ### Nothing was removed from this register at this gate.
+
+## 2w. Status at MVP Gate 80 (2026-10-02) — commitment detail, smart insight, education; no DS change
+
+**NO `G` NUMBER WAS OPENED OR CLOSED, AND THE TALLY DOES NOT MOVE.** Three new
+surfaces were built entirely from shipped DS components, and the one thing that
+looked like a gap was ruled by Teku into an MVP composition instead (below).
+The pin is v2.8.0 throughout; no DS file was read outside `node_modules` and the
+sibling checkout, and none was written.
+
+### THE DS WAS BUILT FOR THIS GATE, WHICH IS WHY THERE IS NO GAP
+
+Two v2.7.0 additions turned out to name this flow explicitly, and both were
+found by reading the shipped `.d.ts` rather than by guessing:
+
+- **`CardDataDisplay.orientation` and `.sizing`.** The doc comment names
+  `casestudy_02 886:7320, 311×56` — the exact node Figma draws as a DETACHED
+  copy of the card for the insight panel's Savings row — and lists "Flow 11's
+  147.5, 163.5 and 311px tiles and rows". Measured at render: the detail's
+  cards are **163.5** and the insight's compare tiles **147.5**, both Figma's
+  numbers to the decimal.
+- **`InlineMessage` tone `ai`.** Its own comment says it IS Figma's
+  `❖ System message` `appearance=ai` variant (`1201:16589`) and reproduces its
+  Blue/400 → Blue/500 → Violet/500 gradient. It also supplies the leading
+  `icon_aiinsights` glyph, so the app passes none.
+
+### Ruled, NOT registered — the education panel’s multi-colour hero
+
+**TEKU’S DECISION 1 = B, 1 OCTOBER 2026.** Figma `1266:14342` draws a 43×43
+spot illustration — a yellow bulb with a blue sparkle — as a RAW FRAME, not a
+component instance. The DS ships no multi-colour illustration anywhere, and
+`Icon` renders single-colour `currentColor`, so the drawn treatment is not
+expressible with DS parts.
+
+**IT WAS PUT TO TEKU RATHER THAN WORKED AROUND**, because rule 3 and this
+gate's stop condition both say a DS change is escalated. He ruled it MVP-only:
+the DS already ships this exact MARK (`icon_aiinsights`) and already expresses
+"AI" with a gradient, so the hero is that glyph in an `IconObject color="ai"`
+badge and **no DS release is needed**.
+
+**THE CONDITION HE SET IS THE INTERESTING HALF: the gradient must be the DS’s
+own token sequence, read from the DS and never hand-mixed, or the three AI
+surfaces drift.** Not one line of gradient is written in `src/`. Measured live
+in both places:
+
+```
+banner  .mn-inline-message--ai  linear-gradient(90deg,
+          rgb(54,139,255) 2.404%, rgb(4,110,255) 28.942%, rgb(223,90,246) 100%)
+hero    .mn-icon-object--ai     linear-gradient(132.61deg,
+          rgb(54,139,255) 7.662%, rgb(4,110,255) 27.411%, rgb(223,90,246) 78.849%)
+```
+
+Same three tokens — `--brand-blue-400`, `--brand-blue-500`, `--brand-violet-500`
+— in the same order, from two DS rules. The angles and stops differ because each
+component has its own geometry, which is the DS's business and not a drift.
+`commitment-detail.spec.ts` asserts membership AND order against the resolved
+token values, so a DS change to either rule reddens it.
+
+**THE DIVERGENCE IS RECORDED, NOT HIDDEN:** a 40px gradient badge where Figma
+draws a free-standing 43px yellow bulb. 43 is not a ramp step; `xl` is 40 and
+`xxl` is 56.
+
+### Recorded — the Plans-tab promotion banner is UNCONFIGURED, and out of scope
+
+`I1266:14339;870:6776` has its title set to "Maxis Promotion Available." and
+nothing else: its body is the component’s own literal placeholder **"Short and
+brief"**, its action reads **"Button"**, and both of that action’s icon slots
+carry placeholder glyphs. **No savings figure appears on it at all.**
+
+**THIS CORRECTS A FALSE CLAIM IN THE RECORD.** `CLAUDE.md`’s Gate 76 section
+stated that this banner reads "RM69/month Potential Savings." It does not and
+never has; the figure appears to have been carried across from a sibling frame.
+Corrected in place at Gate 80 on Teku's instruction — a false claim in the
+record is worse than a missing one.
+
+**OUT OF SCOPE, SO THE PLANS TAB DRAWS NO BANNER.** There is nothing to
+transcribe from a placeholder, and configuring the node is a Figma edit and
+Teku's call. The commitment detail carries the configured banner, and it is the
+only entry point to the smart insight this app ships — where the Flow 11 plan
+anticipated two.
+
+### Recorded — three surfaces, one savings figure, and Figma disagrees with itself
+
+Measured across all four places the promotion appears:
+
+| node | prints |
+|---|---|
+| `1266:14341` smart insight | Current **120.00** / Suggested **70.00** / "Save RM **50**/month" / "RM **600**/year" |
+| `1266:14343` detail banner | "RM **50**/month Potential Savings." |
+| `1266:14342` education’s UNDERLYING insight layer | "Save RM **51**/month" — beside "RM 600/year", and 51 × 12 is 612 |
+| `1266:14339` Plans-tab banner | unconfigured (above) |
+
+**TEKU HAD ALREADY CORRECTED THE FRAMES**; earlier handoffs recorded them as
+still printing RM 69 and RM 51, and only the education underlay still does. His
+ruling of 30 September stands: 120 and 70, saving derived, and the 51 is an
+error that must not be reconciled back. The app stores the two prices only.
+
+### Recorded — `golf_course` exists in the DS because Figma draws this row
+
+Independent corroboration that the seven-row frame is the real one: the icon
+shipped in the DS registry at v2.7.0 as a CUSTOM Monarch asset
+(`Assets/icons-custom/golf_course.svg`), and the Golf Lesson commitment is its
+only consumer anywhere.
+
+**A FIGMA COMPONENT DESCRIPTION CARRIES MATERIAL KEYWORD LISTS EVEN FOR ICONS
+THE DS SHIPS AS CUSTOM ASSETS**, so those keywords prove nothing about which
+glyph a node draws. `golf_course`’s description reads like Material’s and the
+asset is custom; Mortgage’s reads the same way and the asset IS Material. Both
+were settled by comparing the rendered path geometry — see the Gate 80 section
+of `CLAUDE.md`.
+
+### Nothing was removed from this register at this gate.

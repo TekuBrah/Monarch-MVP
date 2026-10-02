@@ -303,3 +303,22 @@ const GOAL_IMAGE_DIR = '/media/goals'
 export function goalImageUrl(filename: string): string {
   return `${GOAL_IMAGE_DIR}/${filename}`
 }
+
+const OFFER_IMAGE_DIR = '/media/promotions'
+
+/**
+ * A commitment offer's promo artwork — `CommitmentOffer.image` is a bare
+ * filename and this owns the directory, so no component writes a literal
+ * `/media/...` path. The same shape as `goalImageUrl` and `receiptUrl`.
+ *
+ * NOT A `MediaSlot`, FOR THE REASON RECEIPTS ARE NOT ONE. A slot models ONE
+ * logical name a customisation flow can swap; an offer names its own artwork,
+ * so there is no "the promo image" to point a slot at.
+ *
+ * NO PLACEHOLDER AND NO FALLBACK. An offer whose file is missing is a data
+ * defect, and `settleImages` asserts `naturalWidth > 0` on every rendered
+ * image, so the walk fails loudly rather than photographing an empty box.
+ */
+export function offerImageUrl(filename: string): string {
+  return `${OFFER_IMAGE_DIR}/${filename}`
+}

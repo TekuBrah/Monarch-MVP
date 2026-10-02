@@ -3,6 +3,7 @@ import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, type Page } from '@playwright/test'
 import { BUDGETS } from '../src/data/budgets'
+import { COMMITMENTS } from '../src/data/commitments'
 import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
@@ -239,6 +240,19 @@ export const ROUTES: string[] = ROUTE_TABLE.flatMap(({ path }) => {
   // goal is renamed, and `GoalDetailScreen` redirects any id it cannot find.
   if (path === '/finance/plans/goals/:goalId') {
     return GOALS.map((g) => `/finance/plans/goals/${g.id}`)
+  }
+  // Gate 80 - Flow 11's commitment drilldown, one route per SEEDED commitment.
+  //
+  // TOTAL OVER `COMMITMENTS`, NOT A HAND-PICKED SUBSET, which is what every
+  // other expansion above does and what this function's own error message
+  // argues for. The Flow 11 plan carried "2 commitments (Internet, which
+  // carries the banner, and one without)"; that was written before the count
+  // was known to be seven and before the screen was known to have FOUR shapes
+  // rather than two - a brand-logo hero and a tinted-icon-badge hero, each
+  // with and without an offer. Two states cannot see four shapes, and a
+  // hand-written pair would go quietly green the day a commitment is renamed.
+  if (path === '/finance/plans/commitments/:commitmentId') {
+    return COMMITMENTS.map((c) => `/finance/plans/commitments/${c.id}`)
   }
   throw new Error(
     `harness: parameterised route "${path}" has no expansion. Every :param must be ` +
@@ -1896,6 +1910,56 @@ export const OVERLAY_STATES: WalkState[] = [
       control: '.mvp-goal-detail__contributions .mn-link',
       controlLabel: 'See All',
       title: 'Contributions',
+    },
+  },
+
+  /*
+    Flow 11 (Gate 80) - the smart insight, opened from the promotion banner on
+    the one commitment that carries an offer.
+
+    A `Modal` DESPITE THE LAYER NAME. Figma calls the inner node "Bottom Sheet"
+    and draws it at x=16, 343 wide, all corners rounded - which is a Modal.
+    Flow 9 hit that same name three times; geometry wins.
+  */
+  {
+    route: '/finance/plans/commitments/commitment-internet',
+    tab: null,
+    overlay: {
+      id: 'insight',
+      control: '.mn-inline-message--ai .mn-btn:has-text("View")',
+      controlLabel: 'View',
+      title: 'Smart insights',
+    },
+  },
+
+  /*
+    Flow 11 (Gate 80) - the education panel, STACKED OVER the insight rather
+    than replacing it. `1266:14342` draws TWO `Modal` nodes, the insight still
+    there behind a second `Blanket`, which is why this declares the Gate 50-A
+    split: ONE dialog at the opening settle, TWO at capture.
+  */
+  {
+    route: '/finance/plans/commitments/commitment-internet',
+    tab: null,
+    overlay: {
+      id: 'education',
+      control: '.mn-inline-message--ai .mn-btn:has-text("View")',
+      controlLabel: 'View',
+      title: 'Smart insights',
+      opens: ['Smart insights'],
+      dialogs: ['Smart insights', 'Smart Savings Insights'],
+      prepare: [
+        {
+          control: '.mvp-insight__learn',
+          controlName: 'How Monarch find savings',
+          action: 'click',
+          // THE PANEL'S OWN FOOTNOTE, which proves the education modal opened
+          // AND that its body rendered - a heading alone would prove only that
+          // a second dialog appeared.
+          settlesOn: '.mvp-education__footnote',
+          settlesText: 'Monarch suggests and you decide.',
+        },
+      ],
     },
   },
 ]

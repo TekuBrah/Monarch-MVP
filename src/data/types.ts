@@ -959,6 +959,48 @@ export interface Commitment {
    */
   nextDueOn: string
   category: TransactionCategoryId
+  /**
+   * Who the user actually pays, where that differs from what they call the
+   * commitment. Figma's header reads "Internet" and its hero reads
+   * "U-Mobile" (`1266:14343`).
+   *
+   * OPTIONAL, AND IT FALLS BACK TO `name`. Figma draws exactly ONE commitment
+   * detail, so the other six heroes are undesigned work — inventing a provider
+   * for each would be six fabrications to fill a field. A row without one
+   * shows its own name, which is true rather than invented.
+   */
+  provider?: string
+  /**
+   * The specific product — Figma's "U120 Plan", below the provider name.
+   *
+   * OPTIONAL, AND THE LINE IS OMITTED WHEN ABSENT rather than drawn with an em
+   * dash. `UNREAD_FIGURE` means "this field exists and was not read"; these
+   * rows have no plan name at all, so a dash would assert something false —
+   * the Gate 79 rule for the transfer summary's Type row.
+   */
+  planName?: string
+  /**
+   * Which account pays it — a `FiatAccount` id, so the detail can NAME the
+   * account rather than restate it as a string.
+   *
+   * ATTRIBUTED TO `main` WHOLESALE FOR EVERY SEEDED ROW, which is the Gate 77
+   * precedent for the 28 relocated contributions. Figma states it only for
+   * Internet ("Bank Acc - Main"), Main is the primary cash account, and
+   * attributing all seven is reversible in one edit.
+   *
+   * IT IS NOT DERIVED FROM THE LEDGER. Nothing joins a commitment to a
+   * transaction (Claude, delegated: 4I), and Internet is where that shows: the
+   * plan is RM 120.00 while `txn-umobile-0820` is RM 75.00.
+   */
+  paymentAccountId: string
+  /**
+   * `'YYYY-MM-DD'` — when the contract ends, where one does.
+   *
+   * OPTIONAL, AND THE CARD IS OMITTED WHEN ABSENT. Only the Internet detail
+   * draws it; a mortgage or a gym membership may genuinely have no end date,
+   * so an absent card is the honest render and the grid wraps to three.
+   */
+  contractEndsOn?: string
 }
 
 /**
@@ -973,6 +1015,42 @@ export interface Commitment {
  * and every reader must switch on it exhaustively either way.
  */
 export type CommitmentCadence = 'monthly' | 'yearly'
+
+/**
+ * A cheaper plan Monarch has spotted for a commitment — Flow 11's smart
+ * insight (`1266:14341`) and the promotion banner beneath the Internet row.
+ *
+ * IT STORES THE OFFER PRICE AND NOTHING ELSE ABOUT THE MONEY. The current
+ * price is the COMMITMENT's own `amount`, and both savings figures derive:
+ * `offerMonthlySaving` is current − offer, `offerYearlySaving` is that × 12.
+ * A stored saving would be a third copy of a fact the other two already
+ * state, and FIGMA ITSELF PROVES THE HAZARD — the education frame's
+ * underlying insight layer prints "Save RM 51/month" beside "RM 600/year",
+ * and 51 × 12 is 612, not 600.
+ *
+ * TEKU'S RULING, 30 SEPT 2026: the plan is RM 120 and the offer RM 70, so the
+ * saving is RM 50/month and RM 600/year. `1266:14341` and `1266:14343` both
+ * print exactly that. Where a frame prints RM 69 or RM 51 the FRAME is the
+ * stale party and must not be reconciled back.
+ *
+ * THERE IS NO `title` FIELD. Both surfaces write "<provider> Promotion
+ * Available" from `provider`, so renaming the provider moves both; the
+ * banner's trailing period and the panel's lack of one are transcribed per
+ * surface, because they are two pieces of copy rather than one fact.
+ *
+ * NP1: EVERY FIELD IS PLAIN SERIALISABLE DATA.
+ */
+export interface CommitmentOffer {
+  id: string
+  /** The `Commitment` this offer would replace. */
+  commitmentId: string
+  /** The provider being suggested — Figma's "Suggested / Maxis". */
+  provider: string
+  /** Positive, in MYR: what the suggested plan costs each period. */
+  amount: Amount
+  /** A file under `/media/promotions/`, resolved by `offerImageUrl`. */
+  image: string
+}
 
 /**
  * A commitment's mark — a brand logo, or a generic icon.

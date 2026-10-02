@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { CRYPTO_HOLDINGS, CRYPTO_WALLETS, FIAT_ACCOUNTS } from '../data/accounts'
 import { COMMITMENTS } from '../data/commitments'
+import { COMMITMENT_OFFERS } from '../data/offers'
 import { GOALS } from '../data/goals'
 import { buildHoldings } from '../data/holdings'
 import { RECEIPTS } from '../data/receipts'
@@ -23,6 +24,7 @@ import {
 import type {
   Amount,
   Commitment,
+  CommitmentOffer,
   CryptoHolding,
   CryptoWallet,
   FiatAccount,
@@ -164,6 +166,18 @@ interface AccountsContextValue {
    * and not one consumer moves (B8).
    */
   commitments: Commitment[]
+  /**
+ * The cheaper plans Monarch has spotted, one per commitment at most.
+   *
+   * A PLAIN CONSTANT PASSED THROUGH, for the same reason `commitments` is:
+   * nothing writes an offer in Flow 11. "Remind Me Later" and "View Promotion"
+   * are the two writers the design implies, and both show a "Coming soon."
+   * toast under the MVP scope rule rather than moving data.
+   *
+   * READ THROUGH `commitmentOffer(offers, id)`, never indexed by position —
+   * the seed holds one and the lookup is by `commitmentId`.
+   */
+  commitmentOffers: CommitmentOffer[]
 
   /**
    * Append a transaction to the ledger.
@@ -567,6 +581,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       receipts,
       goals,
       commitments: COMMITMENTS,
+      commitmentOffers: COMMITMENT_OFFERS,
       addTransaction,
       adjustFiatBalance,
       unlinkReceipt,

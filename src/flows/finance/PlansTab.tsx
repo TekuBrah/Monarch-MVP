@@ -1,12 +1,12 @@
-import { CardGoals, IconObject, ListItem, Logo, Icon } from '@monarch/design-system'
+import { CardGoals, ListItem } from '@monarch/design-system'
 import { useNavigate } from 'react-router-dom'
 
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
+import { CommitmentMark } from '../../components/CommitmentMark'
 import { goalImageUrl } from '../../config/media'
 import { commitmentCadenceLabel, commitmentDueLabel, goalPercent } from '../../data/derive'
 import { formatMyr } from '../../data/format'
-import type { Commitment } from '../../data/types'
 
 /**
  * Flow 11 — `Finance_Plan` (`1266:14339`), the Plans tab's body.
@@ -110,7 +110,7 @@ export function PlansTab() {
           {commitments.map((commitment) => (
             <li key={commitment.id}>
               <ListItem
-                leading={<CommitmentMark commitment={commitment} />}
+                leading={<CommitmentMark commitment={commitment} size="row" />}
                 title={commitment.name}
                 titleInfo={commitmentCadenceLabel(commitment)}
                 amount={formatMyr(commitment.amount)}
@@ -124,6 +124,26 @@ export function PlansTab() {
                   commitment is a plan, not a receipt.
                 */
                 hasReceiptIcon={false}
+                /*
+                  TAPPABLE AS OF GATE 80, and a `navigate` rather than a
+                  callback for the reason the goal cards above take one: the
+                  destination is a genuinely different path, so the router is
+                  what should move. (The Overview tab's Savings Goals card
+                  takes a callback instead because /finance -> /finance would
+                  not remount `FinanceScreen`.)
+
+                  PASSING `onClick` FLIPS `ListItem`'s ROOT <div> -> <button>,
+                  which is what makes the row focusable and announced as a
+                  control. Gate 49 measured that it moves no pixel:
+                  `.mn-list-item` already carries the full reset
+                  (background/border/padding/font-family/text-align/width),
+                  and every text node inside carries an explicit `type-*`
+                  class, each of which sets size AND line-height, so the UA
+                  button `font` shorthand is fully overridden.
+                */
+                onClick={() =>
+                  navigate(`/finance/plans/commitments/${commitment.id}`)
+                }
               />
             </li>
           ))}
@@ -131,45 +151,4 @@ export function PlansTab() {
       </section>
     </div>
   )
-}
-
-/**
- * A commitment's leading mark — a brand logo, or a tinted icon badge.
- *
- * A SWITCH ON THE TAG WITH NO `default`, so a third `CommitmentLogo` kind is a
- * compile error rather than a row that renders nothing. `TransactionMark`'s
- * construction, and the same reason it has no `default` either.
- *
- * IT IS LOCAL TO THIS FILE RATHER THAN IN `src/components/`, on the rule that
- * put `TransactionMark` there: a component crosses into the shared bucket when a
- * SECOND call site needs it. This has one. Gate 77's commitment detail screen is
- * the second, and promoting it there — with its stylesheet, if it ever grows one
- * — is a smaller change than un-sharing it would be.
- *
- * THE SIZES ARE FIGMA'S, READ FROM THE FRAME RATHER THAN ASSUMED. The icon badge
- * is `Size=Xl`, which is a 32px glyph inside 4px of padding = 40px, and
- * `IconObject size="xl"` is `--brand-scale-1000` = 40px. The logo is `Size=XXL
- * 40`, and `Logo size="m"` is the same 40px — the DS's `LogoSize` has no `xxl`,
- * and does not need one.
- */
-function CommitmentMark({ commitment }: { commitment: Commitment }) {
-  const { logo } = commitment
-  switch (logo.kind) {
-    case 'brand':
-      return <Logo name={logo.name} size="m" />
-    case 'icon':
-      /*
-        THE TINT IS TRANSCRIBED PER ROW, NOT DERIVED FROM THE CATEGORY, and that
-        was settled by measurement. Deriving it from `TRANSACTION_CATEGORIES`'
-        `hue` was the tidier design and it is wrong: Figma paints Mortgage TEAL
-        and Car Payment GRAY, while their categories (`bills`, `transport`) map
-        to RED and LIME — so the rule contradicts the frame on both of the two
-        rows that exist to check it. See `CommitmentLogo` in `types.ts`.
-      */
-      return (
-        <IconObject color={logo.tint} size="xl" shape="circle">
-          <Icon name={logo.name} size="m" />
-        </IconObject>
-      )
-  }
 }

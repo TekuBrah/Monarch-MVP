@@ -2572,3 +2572,319 @@ button.mvp-receipt-card:focus-visible {
   padding: 0;
   list-style: none;
 }
+
+/*
+  ── Flow 11, the commitment drill-down (Gate 80) ─────────────────────────────
+
+  Figma `Finance_Plan_view commitment` (`1266:14343`). The screen column is the
+  goal drill-down's exactly — same root, same body gap — because they are two
+  drill-downs off the same tab and agreeing with each other is worth more than
+  8px of agreement with one frame.
+
+  FIGMA'S SECTION GAPS ARE 24 AND THE BODY USES 24. `Frame 457` puts 24 above
+  the hero, the hero-to-cards gap is 140 - 116 = 24, and the cards-to-banner gap
+  is 340 - 316 = 24. One `--spacing-600` column reproduces all three.
+*/
+/*
+  THE SAME ROOT THE GOAL DRILL-DOWN USES, and `min-height: 100%` is carried
+  with it for consistency even though it is INERT — measured at Gate 80, a
+  probe `<div>` with `min-height: 100%` inside `.mvp-shell__main` reports a
+  height of ZERO, because that element is `display: block` with a height that
+  comes from flex layout, so a percentage on its child does not resolve. The
+  declaration has never done anything on `.mvp-goal-detail` either; it is
+  simply invisible there because that screen always overflows.
+
+  ⚠ THAT MATTERS HERE BECAUSE THIS IS THE FIRST DRILL-DOWN SHORT ENOUGH TO
+  SHOW IT. `.mvp-finance-detail__actions` is `position: sticky; bottom: 0`,
+  and sticky only reaches the bottom of the screen when the content scrolls.
+  A commitment detail is three or four small cards and fits inside 812, so the
+  bar sits in flow with the shell's 160px bottom reserve blank beneath it,
+  where Figma pins it to the bottom (`Footer` at y=635 in `1266:14343`).
+
+  THE DIVERGENCE IS DELIBERATE, ON GATE 78’s PRECEDENT. That gate shipped this
+  bar's spacing as the app's rather than Figma's and said why: "two drill-down
+  action bars agreeing with each other is worth more than 8px of agreement
+  with one frame". The holding and goal drill-downs both end this way — the
+  bar in flow, the reserve below — and matching them beat matching the frame.
+  A fix was built and reverted at Gate 80: it needed a `:has()` override of
+  `.mvp-shell__main`'s display AND the removal of the bottom reserve, which is
+  a new shell mechanism introduced for one screen.
+*/
+.mvp-commitment-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+.mvp-commitment-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  padding-top: var(--spacing-600);
+}
+
+/*
+  THE HERO IS CENTRED ON THE SCREEN, NOT BOXED AT FIGMA'S 75px. `Frame 294` is
+  a 75-wide hug around its widest child placed at x=150; a centred column of the
+  full width lands the same marks on the same axis and survives a provider name
+  longer than "U-Mobile", which a 75px box would clip.
+
+  GAP 12 BETWEEN THE MARK AND THE NAME: Figma's `Frame 294` puts the 56px mark
+  at y=0 and the text group at y=68, so the gap is 12.
+*/
+.mvp-commitment-detail__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-300);
+}
+
+/* `Frame 292`: a centred column, gap 4. */
+.mvp-commitment-detail__identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-100);
+}
+
+.mvp-commitment-detail__provider {
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-commitment-detail__plan {
+  color: var(--mapped-text-subtle-default);
+}
+
+/*
+  A WRAPPING ROW, WHICH IS WHAT FIGMA DRAWS — `Frame 287` reports
+  `content-start flex flex-wrap` with a 16px gap, not a grid. Two cards fit per
+  row at both viewports and the third and fourth wrap beneath, so a row with no
+  contract end date simply ends after three.
+
+  THE BASIS IS A HALF-ROW MINUS HALF THE GAP, sharing the gap's own token
+  rather than restating 16 — the Gate 33 move on the balance grid, for the same
+  reason: CSS cannot read a value back out of a `gap`, so sharing the token is
+  as close to one source as this can be expressed.
+*/
+.mvp-commitment-detail__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-400);
+}
+
+.mvp-commitment-detail__facts > * {
+  flex: 1 1 calc(50% - (var(--spacing-400) / 2));
+}
+
+/*
+  A LONE TRAILING CARD STAYS ONE COLUMN WIDE — the Gate 33 ruling on the balance
+  grid, applied to the second wrapping row this app has. Without it the three-card
+  rows (every commitment but Internet, which is the only one with a contract end
+  date) stretch their last card to the full 343, and the app would wrap two ways.
+
+  KEYED TO PARITY, NOT TO A COUNT, so it matches only when the final card is
+  unpaired and matches nothing on an even number. Gate 33 records why that
+  distinction matters: a rule keyed to a literal count rots when the card set
+  changes, and this one cannot.
+
+  `flex-grow: 0` IS THE LOAD-BEARING HALF. Left at the `1` above, the item
+  consumes the rest of the row whatever basis is set, and the rule looks applied
+  while doing nothing — Gate 33 measured exactly that.
+*/
+.mvp-commitment-detail__facts > *:last-child:nth-child(odd) {
+  flex: 0 1 calc(50% - (var(--spacing-400) / 2));
+}
+
+/*
+  ── Flow 11, the smart insight (Gate 80) ─────────────────────────────────────
+
+  `1266:14341`. Everything inside the modal is one column at gap 16, which is
+  `Content`'s own: artwork at y=24 within `Frame 442`, headline at y=160,
+  compare at y=220, savings at y=348, link at y=420.
+*/
+.mvp-insight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/*
+  FIGMA CLIPS A 312x175 IMAGE INTO A 311x128 WINDOW (`image 98` at y=-34).
+  `aspect-ratio` plus `object-fit: cover` reproduces that crop without the
+  negative offset, which would not survive the second viewport.
+
+  THE IMAGE IS ABSOLUTELY POSITIONED, and that is load-bearing rather than
+  tidy: a flex item's automatic minimum height is its CONTENT height, so an
+  in-flow <img> would beat the ratio and grow the box to the artwork's own
+  height. The receipt viewer and the goal drill-down both record this.
+*/
+.mvp-insight__artwork {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 311 / 128;
+  border-radius: var(--brand-scale-200);
+}
+
+.mvp-insight__artwork img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* `Frame 292`: centred, gap 4. */
+.mvp-insight__headline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-100);
+  text-align: center;
+}
+
+.mvp-insight__title {
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-insight__subtitle {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* The two price tiles, 147.5 each with a 16px gap inside 311. */
+.mvp-insight__compare {
+  display: flex;
+  gap: var(--spacing-400);
+}
+
+.mvp-insight__compare > * {
+  flex: 1 1 0;
+}
+
+/*
+  "How Monarch find savings >" — a real <button>, because it OPENS A DIALOG
+  rather than going anywhere. The DS `Link` is an anchor, and an anchor with no
+  href that opens a modal is the shape screen readers announce wrongly.
+
+  IT TAKES THE PRIMARY TEXT AND ICON TOKENS Figma binds on the node
+  (`text/primary/default`, `icon/primary/default`), and the app's global
+  `-webkit-tap-highlight-color: transparent` plus an explicit focus ring do the
+  rest — the same reset every other bare button in this flow relies on.
+*/
+.mvp-insight__learn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-100);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mapped-text-primary-default);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.mvp-insight__learn:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+}
+
+/*
+  ── Flow 11, the smart-insight education panel (Gate 80) ─────────────────────
+
+  `1266:14342`. `Content` is a column at gap 16; the hero group is 99 tall with
+  its own 8px gap between the glyph and the text.
+*/
+.mvp-education {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+.mvp-education__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-200);
+  text-align: center;
+}
+
+.mvp-education__title {
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-education__subtitle {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* `Frame 483`: heading over body, gap 4. */
+.mvp-education__why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+.mvp-education__heading {
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-education__body {
+  color: var(--mapped-text-default-default);
+}
+
+/*
+  THE BORDERED CARD IS MVP CSS, NOT A DS COMPONENT, and that is what Figma
+  draws: `Text area` (`I1266:14342;901:8389`) is a plain FRAME whose only
+  bindings are a 1px `border/subtlest/default`, `Border Radius/md` and 12/16
+  padding. There is no component to import and no gap to register.
+*/
+.mvp-education__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  padding: var(--spacing-400) var(--spacing-300);
+  border: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+  border-radius: var(--brand-scale-200);
+}
+
+/* `Frame 486` / `Frame 487`: a label over three rows, gap 8. */
+.mvp-education__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+}
+
+.mvp-education__group-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-education__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+  `Frame 484`: a 16px badge, then the label at x=26 — a 10px gap. The ramp has
+  no 10, and `--brand-scale-250` IS 10, so it is transcribed rather than
+  rounded. Gate 50 made the same call on the source picker's two 10px figures.
+
+  `align-items: start` because the badge sits at the top of a label that can
+  wrap to two lines at 375 — Figma puts the cross badges at y=2 inside a 20px
+  row, which is a centring artifact of a one-line row rather than a padding.
+*/
+.mvp-education__item {
+  display: flex;
+  align-items: start;
+  gap: var(--brand-scale-250);
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-education__footnote {
+  color: var(--mapped-text-subtle-default);
+  text-align: center;
+}

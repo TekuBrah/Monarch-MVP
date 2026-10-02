@@ -113,6 +113,12 @@ const CHROME_BY_PREFIX: [string, ChromeConfig][] = [
   // on exactly that basis: it carries its own bottom action buttons, so the nav
   // pill and the FAB would collide with them.
   ['/finance/plans/goals/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
+  // Flow 11 (Gate 80), `/finance/plans/commitments/<id>` — a drill-down like
+  // the goals beside it, so the same suppressed chrome. Figma hides the navbar
+  // on `1266:14343` and inventory §E classifies it SUPPRESSED on the basis that
+  // it carries its own bottom action buttons, which the nav pill and the FAB
+  // would collide with.
+  ['/finance/plans/commitments/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
 ]
 
 export const DEFAULT_CHROME: ChromeConfig = { nav: 'suppressed', fab: false, statusBar: 'page' }

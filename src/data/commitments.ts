@@ -2,72 +2,72 @@ import type { Commitment } from './types'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * FLOW 11 — THE SEEDED COMMITMENTS (Gate 75). Read-only; nothing writes these.
+ * FLOW 11 — THE SEEDED COMMITMENTS. Read-only; nothing writes these.
  *
- * ⚠ FIVE, NOT SEVEN — AND GATE 76 SETTLED THE COUNT: FIGMA DRAWS SEVEN.
+ * SEVEN ROWS, AND EVERY FIGURE IS FIGMA'S (Gate 80).
  *
- * `MONARCH-MVP-PHASE5-FLOW-INVENTORY.md` §2 states the Plans tab holds "2 goal
- * cards + 5 commitments", and the document names exactly five entities across
- * §2, §A6 and §F: Mortgage, Car Payment, Internet (U-Mobile), Netflix and
- * Anytime Fitness. Gate 75 could not reach Figma — the local MCP refused the
- * connection and the remote was unauthenticated — so it seeded the inventory's
- * five as the choice that invents least, and asked a later gate to re-read.
+ * Gate 75 seeded the inventory's FIVE with no Figma access. Gate 76 re-read
+ * `1266:14339` and found SEVEN but was scoped to rendering, so it recorded the
+ * disagreement and changed nothing. Gate 80 read all seven rows itself, with
+ * both sources named, under the standing ruling that FIGMA IS THE SOURCE OF
+ * TRUTH here — it is the thing Teku drew, and the flow inventory is older.
  *
- * ⚠ GATE 76 RE-READ `1266:14339` AND FIGMA DRAWS SEVEN ROWS. It adds
- * **Golf Lesson** (RM 20.00) and **Phone Plan** (RM 35.00), and FOUR of the five
- * seeded amounts also disagree with the frame:
+ *   row              FIGMA        was seeded   mark (Figma)
+ *   Mortgage         1,200.00     2,450.00     icon `home`, Teal
+ *   Car Payment        500.00     1,180.00     icon `icon_car`, Gray
+ *   Internet           120.00       120.00     logo `umobile`   <- the only agreement
+ *   Netflix             20.00        54.90     logo `netflix`
+ *   Golf Lesson         20.00        ABSENT    icon `golf_course`, Green
+ *   Anytime Fitness    160.00       128.00     logo `anytimefitness`
+ *   Phone Plan          35.00        ABSENT    logo `celcom`
  *
- *   Mortgage        Figma 1,200.00   seeded 2,450.00
- *   Car Payment     Figma   500.00   seeded 1,180.00
- *   Internet        Figma   120.00   seeded   120.00  ← the only agreement
- *   Netflix         Figma    20.00   seeded    54.90
- *   Anytime Fitness Figma   160.00   seeded   128.00
+ * THE DS CORROBORATES THE FRAME INDEPENDENTLY: `golf_course` shipped in the
+ * icon registry at v2.7.0, and it exists only because Figma draws that row.
+ * `celcom` has been in `LogoName` throughout.
  *
- * **NOTHING WAS CHANGED, ON GATE 76's OWN INSTRUCTION**: adding the two rows or
- * moving any amount is a seed change and Teku's call, not a silent fix inside a
- * gate scoped to rendering. The frame also nests a `System message` promotion
- * banner under the Internet row, which is Gate 78's.
+ * ⚠ MORTGAGE'S GLYPH IS THE MATERIAL `home`, NOT THE CUSTOM `icon_home` the
+ * Gate 75 seed carried, and that was settled by GEOMETRY rather than by the
+ * layer name — a Figma component description carries Material keyword lists
+ * even for icons the DS ships as custom assets, so the keywords prove nothing.
+ * Figma's rendered 32x32 path `M13.3304 25.77 V19.1033 H18.6637 V25.77` is the
+ * Material round `home` (`M10 19v-5h4v5`) scaled 4/3 with a +0.437 y-shift; the
+ * custom `icon_home` starts `M3 19.8437V9.71875` and is unrelated. The same 4/3
+ * check confirms `golf_course` IS the DS custom asset.
  *
- * SO THE FIVE BELOW ARE A DELIBERATE SUBSET, NOT AN UNVERIFIED GUESS. That is
- * the one thing that changed: the count is no longer unknown.
+ * ───────────────────────────── THE DUE DATES ────────────────────────────────
  *
- * ───────────────────── WHAT IS TRANSCRIBED, WHAT IS AUTHORED ─────────────────
+ * ALL SEVEN MOVED TO OCTOBER, WHICH IS WHAT FIGMA DRAWS: 1, 1, 7, 2, 2, 5, 5 Oct.
+ * The Gate 75 seed placed them in Aug/Sept because it had no frame to read.
  *
- * TRANSCRIBED: all five names, the two provider brands the inventory names
- * (U-Mobile, Netflix), the icon-versus-logo split (§F: "grayscale icons
- * (Mortgage, Car Payment) and brand logos (U-Mobile, Netflix)"), and Internet's
- * RM 120.00 — the figure §A1 calls the smart-insight panel's "Current".
+ * THE YEAR IS 2026 AND FIGMA SAYS 2025, DELIBERATELY. The detail frame prints
+ * "Oct 7, 2025" while the list row beside it says "next on 7 Oct" — and 2025 is
+ * in the PAST relative to the harness clock (`PINNED_NOW` = 2026-08-15), so the
+ * frame's own year contradicts its own "next on" framing. 2026 is the only year
+ * that keeps every row upcoming, which is the invariant `goals.spec.ts` holds.
  *
- * SOURCED FROM THIS REPO'S OWN LEDGER: Netflix RM 54.90 and Anytime Fitness
- * RM 128.00, taken from `txn-netflix-0905` and `txn-anytimefitness-0903`. Figma's
- * own figures for these two were NOT readable this session, so the ledger is used
- * as the best available source rather than a number being invented. That makes
- * these two AGREE with the ledger where `CLAUDE.md` predicts a disagreement —
- * see the warning below.
+ * DATES ARE TYPED DATA, EXEMPT FROM B5 — the same standing exemption budget and
+ * goal dates carry.
  *
- * AUTHORED, because no source carries them: Mortgage's and Car Payment's
- * amounts, every `nextDueOn`, and every `category`.
+ * ─────────────────── WHAT IS TRANSCRIBED, WHAT IS AUTHORED ──────────────────
  *
- * ⚠ THE LEDGER LINK IS NOT MODELLED, AND THE AGREEMENT ABOVE IS A COINCIDENCE OF
- * SOURCING RATHER THAN A JOIN. Nothing here points at a transaction and nothing
- * derives a commitment from one (Claude, delegated: 4I). Linking a bill to its
- * charges needs merchant rules this app does not have, and inventing the join
- * would put a false relationship on screen. `Internet` is the case that shows the
- * gap plainly: the commitment is RM 120.00 while the ledger's `txn-umobile-0820`
- * row is RM 75.00, and neither figure is wrong — they are a plan and a charge,
- * and nothing reconciles them yet.
+ * TRANSCRIBED from `1266:14339`: all seven names, amounts, cadences and due
+ * dates, every brand logo, every icon name and every badge tint. From
+ * `1266:14343`: Internet's `provider`, `planName` and `contractEndsOn`.
  *
- * ⚠ NO OFFER, NO SMART-INSIGHT DATA, AND NO SAVINGS FIGURE IS SEEDED HERE. Gate
- * 78 owns it, and it needs a ruling first: §A1 records THREE contradictory
- * savings figures for one promotion, and its stated disposition is FIX IN FIGMA
- * at RM 50/month (120 − 70), while `CLAUDE.md`'s later ruling 3H takes RM 51
- * (120 − 69) because RM 69 matches the promo artwork. Whichever wins, the saving
- * must be DERIVED from the two prices and never typed.
+ * AUTHORED, because no source carries them: every `category`, and
+ * `paymentAccountId` — attributed to `main` wholesale, the Gate 77 precedent.
  *
- * DATES ARE TYPED DATA, EXEMPT FROM B5, and `nextDueOn` is placed after the
- * harness clock (`PINNED_NOW` = 2026-08-15) so every commitment reads as
- * upcoming. §A5 records Figma's own commitment date as "Oct 7, 2025", which is in
- * the past relative to that clock and is a format note rather than a spec.
+ * ⚠ SIX OF THE SEVEN HAVE NO `provider`, `planName` OR `contractEndsOn`, AND
+ * THAT IS THE POINT. Figma draws ONE commitment detail. Inventing a plan name
+ * and a contract end date for six undrawn rows would be eighteen fabrications
+ * to fill three fields; each is optional and its row simply omits it.
+ *
+ * ⚠ THE LEDGER LINK IS NOT MODELLED. Nothing here points at a transaction
+ * (Claude, delegated: 4I). Internet shows the gap plainly: the commitment is
+ * RM 120.00 while `txn-umobile-0820` is RM 75.00, and neither is wrong — they
+ * are a plan and a charge. Netflix and Anytime Fitness no longer agree with
+ * their ledger rows either, because Gate 80 took Figma's figures over the
+ * ledger-sourced ones Gate 75 used as the best source then available.
  *
  * NP1: EVERY FIELD IS PLAIN SERIALISABLE DATA.
  * ─────────────────────────────────────────────────────────────────────────────
@@ -76,60 +76,87 @@ export const COMMITMENTS: Commitment[] = [
   {
     id: 'commitment-mortgage',
     name: 'Mortgage',
-    // §F: a grayscale ICON, not a brand mark — a mortgage has no logo to ship.
-    // TRANSCRIBED (Gate 76, `1266:14339`): Figma paints this badge `Color=Teal`.
-    logo: { kind: 'icon', name: 'icon_home', tint: 'teal' },
-    // AUTHORED. No source on disk carries a figure for this row.
-    amount: 2450,
+    // §F calls this a grayscale ICON — a mortgage has no brand mark to ship.
+    // Figma paints the badge `Color=Teal` and draws the MATERIAL `home` glyph.
+    logo: { kind: 'icon', name: 'home', tint: 'teal' },
+    amount: 1200,
     cadence: 'monthly',
-    nextDueOn: '2026-09-01',
+    nextDueOn: '2026-10-01',
     category: 'bills',
+    paymentAccountId: 'main',
   },
   {
     id: 'commitment-car-payment',
     name: 'Car Payment',
-    // §F: a grayscale ICON. `icon_car` is also the `transport` category's glyph.
-    // TRANSCRIBED (Gate 76, `1266:14339`): Figma paints this badge `Color=Gray`,
-    // which is the "grayscale icon" §F describes in as many words.
+    // `Color=Gray`, the "grayscale icon" §F describes in as many words.
     logo: { kind: 'icon', name: 'icon_car', tint: 'gray' },
-    // AUTHORED. No source on disk carries a figure for this row.
-    amount: 1180,
+    amount: 500,
     cadence: 'monthly',
-    nextDueOn: '2026-08-28',
+    nextDueOn: '2026-10-01',
     category: 'transport',
+    paymentAccountId: 'main',
   },
   {
     id: 'commitment-internet',
     name: 'Internet',
-    // §2 names U-Mobile as this commitment's provider.
+    // THE ONLY ROW FIGMA DRAWS A DETAIL FOR (`1266:14343`), so the only one
+    // carrying a provider, a plan name and a contract end date — all three
+    // transcribed from that frame. It is also the only row with an offer.
     logo: { kind: 'brand', name: 'umobile' },
-    // TRANSCRIBED (§A1): the smart-insight panel's "Current (RM 120.00)". This is
-    // the row Gate 78's offer attaches to, and the one that disagrees with the
-    // ledger's RM 75.00 U Mobile charge.
     amount: 120,
     cadence: 'monthly',
-    nextDueOn: '2026-09-07',
+    nextDueOn: '2026-10-07',
     category: 'bills',
+    provider: 'U-Mobile',
+    planName: 'U120 Plan',
+    contractEndsOn: '2026-12-15',
+    paymentAccountId: 'main',
   },
   {
     id: 'commitment-netflix',
     name: 'Netflix',
+    // RM 20.00 is FIGMA'S. Gate 75 seeded RM 54.90 from `txn-netflix-0905`,
+    // which was the best source available with no Figma access; it is not now.
     logo: { kind: 'brand', name: 'netflix' },
-    // SOURCED from this repo's ledger: `txn-netflix-0905` is −54.90.
-    amount: 54.9,
+    amount: 20,
     cadence: 'monthly',
-    nextDueOn: '2026-09-05',
+    nextDueOn: '2026-10-02',
     category: 'bills',
+    paymentAccountId: 'main',
+  },
+  {
+    id: 'commitment-golf-lesson',
+    name: 'Golf Lesson',
+    // NEW AT GATE 80. `golf_course` is a CUSTOM Monarch asset that shipped in
+    // the DS registry at v2.7.0 — it exists only because Figma draws this row.
+    logo: { kind: 'icon', name: 'golf_course', tint: 'green' },
+    amount: 20,
+    cadence: 'monthly',
+    nextDueOn: '2026-10-02',
+    category: 'others',
+    paymentAccountId: 'main',
   },
   {
     id: 'commitment-anytime-fitness',
     name: 'Anytime Fitness',
+    // RM 160.00 is FIGMA'S, over the RM 128.00 Gate 75 took from the ledger.
     logo: { kind: 'brand', name: 'anytimefitness' },
-    // SOURCED from this repo's ledger: `txn-anytimefitness-0903` is −128.00, and
-    // that row's own category is `others`, which this row follows.
-    amount: 128,
+    amount: 160,
     cadence: 'monthly',
-    nextDueOn: '2026-09-03',
+    nextDueOn: '2026-10-05',
     category: 'others',
+    paymentAccountId: 'main',
+  },
+  {
+    id: 'commitment-phone-plan',
+    name: 'Phone Plan',
+    // NEW AT GATE 80. Its provider brand is CELCOM, which no handoff carried
+    // and which has been in the DS `LogoName` registry throughout.
+    logo: { kind: 'brand', name: 'celcom' },
+    amount: 35,
+    cadence: 'monthly',
+    nextDueOn: '2026-10-05',
+    category: 'bills',
+    paymentAccountId: 'main',
   },
 ]

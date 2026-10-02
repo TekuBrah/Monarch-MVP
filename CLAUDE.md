@@ -14245,14 +14245,35 @@ five of the five seeded amounts also disagreeing:
 | **Phone Plan** | 35.00 | **absent** |
 
 Figma's order also nests the Internet row with a `System message` banner
-("Maxis Promotion Available." / "RM69/month Potential Savings.", a `View`
-button) directly beneath it — that banner is Gate 78's.
+directly beneath it.
 
 **REPORTED AND NOT FIXED, per the gate's own ruling: a seeded addition is Gate
 78's, not a silent fix here.** Changing amounts or adding rows is a seed change
-and it is Teku's call. Note Figma's banner copy reads "RM69/month Potential
-Savings", i.e. **69 as the SAVING**, which agrees with neither §A1's RM 50
-(120 − 70) nor `CLAUDE.md`'s ruling 3H RM 51 (120 − 69). Gate 78 owns that too.
+and it is Teku's call. *(It landed at Gate 80, not 78 — the goal drill-down
+took 78 and the commitment work moved down two gates.)*
+
+**⚠ THE CLAIM THAT THIS BANNER READS "RM69/month Potential Savings." WAS
+FALSE, AND IT IS CORRECTED HERE RATHER THAN LEFT STANDING (Gate 80, on
+Teku's instruction — a false claim in the record is worse than a missing
+one).** Re-read at Gate 80 through the remote connector: the Plans-tab banner
+`I1266:14339;870:6776` is **UNCONFIGURED**. Its title is set to "Maxis
+Promotion Available.", and its body is the component's own literal
+placeholder **"Short and brief"** with an action reading **"Button"** and both
+icon slots filled with placeholder glyphs. No savings figure appears on it at
+all. Gate 76 appears to have carried the figure across from a sibling frame.
+
+The two banners that ARE configured both read **RM 50** —
+`1266:14343`'s is "RM 50/month Potential Savings." and `1266:14341`'s subtitle
+is "Save RM 50/month on your Internet bill" — which matches the 120/70 ruling
+exactly. The only surviving **51** is in `1266:14342`'s underlying copy of the
+insight panel, and the only surviving **69** is inside the promo artwork
+raster. Both are stale; see the Gate 80 section.
+
+**THE UNCONFIGURED BANNER IS REGISTERED OUT OF SCOPE.** Gate 80 did not build
+it, and the Plans tab therefore draws no promotion banner. Its body and action
+are placeholders, so there is nothing to transcribe; configuring it is a Figma
+edit and Teku's call. The commitment detail carries the configured one, and
+that is the only entry point to the smart insight this app ships.
 
 ### Two divergences taken deliberately
 
@@ -15635,4 +15656,399 @@ retro-fit sweep; G6, G13, G14, G17's prop half, G19–G23, G28–G33, G44 and G4
 all still registered, still deferred, and **no MVP-local override was added for
 any**; the G33 workaround class, untouched and still carrying its removal
 condition; UI-2 and UI-3; persistence (NP1); `npm audit fix`; the DS repo; and
+branch deletion.
+
+## Flow 11 part 5 — the commitment detail, the smart insight and the education panel (Gate 80)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was written. Three new
+surfaces, plus the seed correction Gates 75 and 76 left open. **|WALK| 56 -> 65,
+`ROUTES` 18 -> 25, `OVERLAY_STATES` 31 -> 33, baselines 224 -> 260 (36 added, 4
+changed, ZERO deleted), tests 738 -> 823, spec files 31 -> 32.** `lint:tokens`
+scans **88** files (83 + exactly the five new `src/` files) with the **same 4**
+exemptions — no new raw value entered the tree.
+
+**FIGMA CAME IN ON THE REMOTE CONNECTOR** (authenticated `whoami` = Teku
+Cheong, pro); `figma-local` refused with `ECONNREFUSED`. That is the same split
+as Gates 78 and 79 — do not predict which path works, and establish an
+authenticated round trip rather than a port check.
+
+### THE SEVEN COMMITMENTS, READ ROW BY ROW, AND EVERY CARRIED FIGURE HELD
+
+Gate 75 seeded the inventory's five with no Figma access; Gate 76 found seven
+and was scoped to rendering, so it recorded the disagreement and changed
+nothing. Gate 80 read all seven out of `1266:14339` itself:
+
+| row | FIGMA | was seeded | mark (Figma) | due |
+|---|---|---|---|---|
+| Mortgage | 1,200.00 | **2,450.00** | icon `home`, Teal | 1 Oct |
+| Car Payment | 500.00 | **1,180.00** | icon `icon_car`, Gray | 1 Oct |
+| Internet | 120.00 | 120.00 | logo `umobile` | 7 Oct |
+| Netflix | 20.00 | **54.90** | logo `netflix` | 2 Oct |
+| **Golf Lesson** | 20.00 | **absent** | icon `golf_course`, Green | 2 Oct |
+| Anytime Fitness | 160.00 | **128.00** | logo `anytimefitness` | 5 Oct |
+| **Phone Plan** | 35.00 | **absent** | logo `celcom` | 5 Oct |
+
+**EVERY CARRIED FIGURE WAS EXACT** — the count, all four disagreeing amounts,
+and both missing rows — so no stop condition fired. Two things no handoff
+carried: the seventh row's provider brand is **CELCOM** (in `LogoName`
+throughout), and **Figma's order puts Golf Lesson fifth and Anytime Fitness
+sixth**, which is not the Gate 75 order.
+
+**THE DS CORROBORATES THE FRAME INDEPENDENTLY**: `golf_course` shipped in the
+icon registry at v2.7.0 as a CUSTOM Monarch asset, and this row is its only
+consumer anywhere.
+
+#### Mortgage draws the MATERIAL `home`, and the layer name could not settle it
+
+**THE SEED CARRIED `icon_home`; FIGMA DRAWS `home`. BOTH ARE IN THE REGISTRY**,
+so only a test keeps the right one in place.
+
+**A FIGMA COMPONENT DESCRIPTION CARRIES MATERIAL KEYWORD LISTS EVEN FOR ICONS
+THE DS SHIPS AS CUSTOM ASSETS, so the keywords prove nothing.** `golf_course`'s
+description reads like Material's and its asset is custom; Mortgage's reads the
+same way and its asset IS Material. Both were settled by GEOMETRY, fetching the
+node's rendered SVG and comparing path data:
+
+| | scale | check |
+|---|---|---|
+| Figma `home` 32×32 `M13.3304 25.77 V19.1033 H18.6637 V25.77` | 4/3, y +0.437 | Material round `home` `M10 19v-5h4v5` — `10→13.333`, `14→18.664`, `19→25.333+0.437=25.77` |
+| custom `icon_home` `M3 19.8437V9.71875` | — | unrelated at any scale |
+| Figma `golf_course` `M25.3333 28 …` | 4/3, y +0.403 | the DS custom asset, x exact throughout |
+
+The constant y-offset across BOTH icons is a frame artifact, which is what
+makes the pair of readings a cross-check rather than two guesses.
+
+#### The dates moved to October, and the YEAR diverges deliberately
+
+Figma draws 1, 1, 7, 2, 2, 5, 5 Oct; the Gate 75 seed had Aug/Sept because it
+had no frame to read. **The year is 2026 where the detail frame prints "Oct 7,
+2025"**, because 2025 is in the PAST relative to the harness clock
+(`PINNED_NOW` = 2026-08-15) — so the frame's own year contradicts its own "next
+on" framing, and 2026 is the only year that keeps every row upcoming.
+
+### The offer: two stored prices, and everything else derived
+
+**TEKU'S RULING, 30 SEPT: RM 120 and RM 70, so RM 50/month and RM 600/year.**
+`CommitmentOffer` stores the offer price and NOTHING else about the money — the
+current price is the commitment's own `amount`, so the two cannot disagree.
+
+**FIGMA ITSELF IS THE ARGUMENT FOR DERIVING THEM**, and that is not rhetorical:
+the education frame's underlying copy of the insight panel prints **"Save RM
+51/month" beside "RM 600/year"**, and 51 × 12 is 612. Two stored figures that
+disagree, in one panel.
+
+**THE PROMPT SAID THE FRAMES "STILL PRINT RM 69 AND RM 51". MOSTLY THEY NO
+LONGER DO** — Teku had already corrected them:
+
+| node | prints |
+|---|---|
+| `1266:14341` smart insight | 120.00 / 70.00 / "Save RM **50**/month" / "RM **600**/year" |
+| `1266:14343` detail banner | "RM **50**/month Potential Savings." |
+| `1266:14342` education UNDERLAY | "Save RM **51**/month" — the one survivor |
+| the promo ARTWORK raster, as Figma holds it | "Now Only RM99 **69**" — **and this one was REPLACED, see below** |
+
+### ⚠ THE PLANS-TAB BANNER IS UNCONFIGURED, AND THE RECORD SAID OTHERWISE
+
+`I1266:14339;870:6776` has its title set and nothing else: its body is the
+component's own literal placeholder **"Short and brief"**, its action reads
+**"Button"**, and both of that action's icon slots carry placeholder glyphs.
+**No savings figure appears on it at all.**
+
+**GATE 76's CLAIM THAT IT READS "RM69/month Potential Savings." WAS FALSE AND IS
+CORRECTED IN PLACE** (Teku's instruction: a false claim in the record is worse
+than a missing one). The figure appears to have been carried across from a
+sibling frame.
+
+**REGISTERED OUT OF SCOPE, so the Plans tab draws no banner.** There is nothing
+to transcribe from a placeholder, and configuring the node is Teku's. The
+commitment detail carries the configured one and is the only entry point to the
+smart insight this app ships, where the Flow 11 plan anticipated two.
+
+### ⚠ THE ARTWORK WAS SHIPPED WRONG, AND TEKU CAUGHT IT
+
+**THE FIRST BUILD OF THIS GATE PUT A PICTURE SAYING "Now Only RM99 ~~69~~"
+DIRECTLY ABOVE A PANEL SAYING "Current RM 120.00 / Suggested RM 70.00".** The
+raster was pulled faithfully from Figma and re-encoded correctly, and it
+contradicted the ruling the entire panel derives from. Every number the app
+computes was right; the only wrong thing on the screen was the one thing the
+app does not compute.
+
+**IT PASSED EVERY INSTRUMENT THIS REPO HAS.** `commitment-detail.spec.ts`
+asserts `naturalWidth > 0` on that `<img>` — true of both files — and no test
+reads a raster's content, because none can. Three clean runs went green over
+it, and the four insight baselines were opened and described without the
+contradiction being noticed: the check was "does the artwork render", not "does
+the artwork AGREE WITH THE COPY BESIDE IT". **A picture is content, and content
+is reviewed by reading it, not by asserting on it.**
+
+Teku supplied a corrected file. What changed:
+
+| | original | corrected |
+|---|---|---|
+| bundle title | "Maxis 5G Home WiFi **99** Bundle" | "5G Home WiFi **120** Bundle" |
+| rebate | "Rebate **RM30** x 24 months" | "Rebate **RM50** x 24 months" |
+| headline | "Now Only **RM99** ~~**69**~~/month" | "Now Only **RM120** ~~**70**~~/month" |
+| period | "31 July - 4 September 2025" | "**1 - 31 October 2026**" |
+| natural | 900 × 506, 46,724 B WebP | **900 × 371, 39,838 B WebP** |
+
+**THE DIMENSIONS CHANGED TOO, AND THAT MOVES MORE PIXELS THAN THE NUMBERS DO.**
+A note with the file said "same 900x506"; it is **900 × 371**, which is very
+nearly the slot's own ratio (2.4259 against 2.4297). So `object-fit: cover` now
+crops **0.2%** where the original cropped **26.8%**, and the captures show the
+whole offer card rather than a zoomed centre band. It was taken as given rather
+than padded to 506, because padding invents pixels.
+
+**THE REPLACEMENT MOVED EXACTLY FOUR BASELINES, PREDICTED IN ADVANCE INCLUDING
+THE HALF THAT COULD HAVE BEEN WRONG.** Eight captures contain the `<img>` —
+four `[overlay:insight]` and four `[overlay:education]` — and the prediction
+said only the insight four would move, because the education panel stacks an
+OPAQUE `.mn-modal__card` over the insight, so the artwork is in the DOM and
+painted over. Measured: **4 failed, 4 passed**, exactly that split. That is
+Gate 54-B's rule — ask what is painted at the coordinates, not what is in the
+DOM — and the complication it also records (a translucent `.mn-blanket` makes a
+dimmed difference still a difference) did not apply, because the thing covering
+the artwork is the opaque card, not the blanket.
+
+**A BOOKKEEPING ERROR WORTH RECORDING.** The first reconciliation of the swap
+reported **8** changed files, not 4 — because the reference manifest predated
+the education-title re-mint earlier in the gate and had never been regenerated.
+File mtimes settled it in one command: the four insight captures carried
+timestamps from the mint seconds earlier, the four education ones from 1h36m
+before. **A stale reference manifest reports a defect that is not there**, and a
+digest alone cannot tell you which — only the per-file comparison plus mtimes
+can. Regenerate the reference after EVERY mint, not once per gate.
+
+### Decision 1 = B — the education hero, and the condition attached to it
+
+Figma draws a 43×43 multi-colour spot illustration (a yellow bulb with a blue
+sparkle) as a RAW FRAME, not a component instance. The DS ships no multi-colour
+illustration anywhere and `Icon` renders single-colour `currentColor`, so the
+drawn treatment is not expressible with DS parts. **It was put to Teku rather
+than worked around**, because rule 3 and this gate's stop condition both say a
+DS change is escalated.
+
+**HE RULED IT MVP-ONLY (B):** the DS already ships this exact MARK
+(`icon_aiinsights`) and already expresses "AI" with a gradient, so the hero is
+that glyph inside an `IconObject color="ai"` badge and **no DS release is
+needed**.
+
+**THE CONDITION IS THE INTERESTING HALF — the gradient must be the DS's own
+token sequence, read from the DS and never hand-mixed, or the three AI surfaces
+drift.** Not one line of gradient is written in `src/`. Measured live:
+
+```
+banner  .mn-inline-message--ai  linear-gradient(90deg,
+          rgb(54,139,255) 2.404%, rgb(4,110,255) 28.942%, rgb(223,90,246) 100%)
+hero    .mn-icon-object--ai     linear-gradient(132.61deg,
+          rgb(54,139,255) 7.662%, rgb(4,110,255) 27.411%, rgb(223,90,246) 78.849%)
+```
+
+Same three tokens — `--brand-blue-400`, `--brand-blue-500`, `--brand-violet-500`
+— in the same order, from two DS rules. The angles and stops differ because each
+component has its own geometry, which is the DS's business. A spec asserts
+membership AND order against the resolved token values, so a DS change to either
+rule reddens it.
+
+**THE DIVERGENCE IS RECORDED:** a 40px gradient badge where Figma draws a
+free-standing 43px yellow bulb. 43 is not a ramp step; `xl` is 40, `xxl` is 56.
+
+### THE DS WAS BUILT FOR THIS GATE
+
+Two v2.7.0 additions name this flow explicitly, found by reading the shipped
+`.d.ts` rather than guessing:
+
+- **`CardDataDisplay.orientation` / `.sizing`** — its doc names
+  `casestudy_02 886:7320, 311×56`, the node Figma draws as a DETACHED copy of
+  the card for the Savings row, and lists "Flow 11's 147.5, 163.5 and 311px
+  tiles and rows". Measured at render: detail cards **163.5**, insight compare
+  tiles **147.5**, both Figma's numbers to the decimal.
+- **`InlineMessage` tone `ai`** — its own comment says it IS Figma's
+  `❖ System message` `appearance=ai` variant and reproduces its gradient. It
+  also supplies the leading `icon_aiinsights` glyph, so the app passes none.
+
+So there is **no DS gap and no `G` number**, which is why the register's tally
+does not move.
+
+### Both modals are `Modal`, and the layer name is the trap for the FOURTH time
+
+Figma names the inner node of both overlay frames **"Bottom Sheet"**. Both sit
+at **x=16, 343 wide** inside a 375 frame, all four corners rounded, no
+home-indicator region — which is a `Modal`. A DS `Sheet` is full-bleed with a
+top-only radius. Flow 9 hit this same name three times (Gates 50, 51, 51-B).
+**Geometry wins, every time.** Measured at render: card `x=16, w=343`.
+
+### All SEVEN routes are in the walk, not a hand-picked two
+
+The Flow 11 plan carried "2 commitments (Internet, which carries the banner, and
+one without)". **That is not what shipped, and the reason is measurable:** the
+screen has FOUR shapes, not two — a brand-logo hero and a tinted-icon-badge hero,
+each with and without an offer — so two states cannot see all four. The plan was
+also written before the count was known to be seven.
+
+**AND EVERY OTHER `:param` EXPANSION IN THE HARNESS IS TOTAL over its
+collection**, with that function's own error message arguing against a
+hand-written list. A subset would go quietly green the day a commitment is
+renamed. 7 routes + 2 overlays = 9 added walk states.
+
+**THE GATE α PER-STATE FIGURE HELD FOR THE TENTH TIME**: 9 × (4 baselines + 8
+tests) = 36 and 72. |WALK| 65 confirmed three independent ways — `visual` 260 =
+65 × 4, `routes` 131 = 65 × 2 + 1, `section-headers` 132 = 65 × 2 + 2.
+
+### Two defects a green suite did not catch
+
+Both were found by LOOKING — the Gate 51 and Gate 76 lesson, collected on twice
+in one gate.
+
+**1 · THE LONE TRAILING CARD STRETCHED TO FULL WIDTH.** Six of the seven
+commitments have three fact cards (only Internet has a contract end date), and
+`flex: 1 1 calc(50% - …)` let the unpaired third take the whole row — so the app
+would have wrapped two different ways. Found by reading the DOM, not by a
+screenshot. Fixed with the **Gate 33 parity rule**,
+`:last-child:nth-child(odd) { flex: 0 1 … }`, keyed to parity so it survives the
+card set changing, with `flex-grow: 0` as the load-bearing half. Measured after:
+all three cards 163.5.
+
+**2 · THE EDUCATION PANEL PUT ITS TITLE IN THE WRONG PLACE.** Figma draws NO
+header title on `1266:14342` — just the ✕ — with the title large and centred
+BELOW the hero glyph at `header/h6`. The first build put it in the `Modal`
+header, and the component comment claimed that was what Figma drew. Found by
+opening the minted PNG. The title now renders in the body and `ariaLabel`
+carries the accessible name, which `readOpenDialogs` resolves identically.
+
+### The action bar sits in flow, and the fix for that was built and REVERTED
+
+**THIS IS THE FIRST DRILL-DOWN WHOSE CONTENT IS SHORTER THAN THE VIEWPORT.**
+`.mvp-finance-detail__actions` is `position: sticky; bottom: 0`, and sticky only
+reaches the bottom when the content scrolls. A commitment detail is three or
+four small cards and fits inside 812, so the bar sits in flow with the shell's
+160px bottom reserve blank beneath it — where Figma pins it to the bottom.
+
+**A FIX WAS BUILT, MEASURED AND REVERTED.** It worked (document exactly 812, bar
+bottom exactly 812) and it needed a `:has()` override of `.mvp-shell__main`'s
+`display` AND removal of the bottom reserve — a new shell mechanism for one
+screen. **Gate 78 already ruled this trade in this flow**: "two drill-down action
+bars agreeing with each other is worth more than 8px of agreement with one
+frame". The holding drill-down ends exactly this way, which was confirmed by
+opening `finance-holding-fd-375-light` rather than assumed.
+
+**⚠ A FINDING THAT OUTLIVES THE REVERT: `min-height: 100%` ON THESE SCREEN ROOTS
+IS INERT.** `.mvp-shell__main` is `display: block` with a height that comes from
+flex layout, so a percentage min-height on its child does not resolve —
+measured, a probe `<div>` with `min-height: 100%` inside it reports a height of
+**ZERO**. The declaration sits on `.mvp-goal-detail` too and has never done
+anything there either; it is invisible because that screen always overflows.
+
+### Baselines — predicted file by file after the sweep, and exact
+
+**THE SWEEP CAME FIRST AND THE PREDICTION WAS WRITTEN AFTER IT**, to a file
+outside the repo before the first edit. That ordering is Gate 77's lesson, and
+it paid: four spec assertions were named in advance as breaking, all four were
+rewritten pre-emptively, and **the pre-mint run had ZERO failures outside
+`visual.spec.ts`**.
+
+| | predicted | actual |
+|---|---|---|
+| changed | 4 — `finance-plans-{375,430}-{light,dark}` | **the same 4** |
+| added | 36 — 7 routes × 4 + 2 overlays × 4 | **the same 36** |
+| deleted | 0 | **0** |
+| visual failures | 40 | **40** |
+| failures elsewhere | 0 | **0** |
+
+Pre-mint: **40 failed / 783 passed (26.5m)**. Reconciled against the external
+manifest: **224 -> 260, 36 added, 4 changed, 0 deleted, 220 byte-identical**,
+added ∩ changed = **0** — so 36 + 4 = 40 reconciles with the failure count
+directly (the Gate 50 case, not the Gate 44 one).
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT**: 224 files,
+digest byte-identical to the start manifest, **zero** "writing actual" lines and
+**zero** untracked files in the snapshot directory. `updateSnapshots: 'none'`
+honoured.
+
+**THE MINT WAS DRY-RUN FIRST** — the `-g` scope selected exactly 40 tests in one
+file — then run with `--update-snapshots=all`. It was re-run twice more as the
+two defects above were fixed; the reconciliation against the START manifest is
+unchanged by that, because both re-mints only rewrote files already in the
+ADDED set.
+
+### Fourteen mutation proofs, and a negative control that fired
+
+Each: mutate, run exactly ONE test by its regex-escaped `$`-anchored title
+through an **argument array with no shell**, require an ASSERTION failure
+checked against a denylist (no-tests-found, module resolution, syntax, TS
+errors, timeouts, navigation failures, strict-mode violations), restore, verify
+SHA-256, re-run green.
+
+**THE NEGATIVE CONTROL RAN FIRST AND PRINTED `NO PROOF — ran null tests`** — a
+deliberate syntax error aimed at a passing test, which is the Gate 63 failure
+reproduced on purpose.
+
+The fourteen: the monthly saving derived (M1) and the yearly as ×12 (M2); the
+provider fallback (M3); the null payment label (M4); one date formatter (M5);
+the offer bound to Internet (M6); no banner without an offer (M7); the lone-card
+parity rule (M8); the education STACKING rather than swapping (M9); the `replace`
+redirect (M10); **the AI gradient being the DS's own (M11)**; the modal closing
+before the toast (M12); Mortgage's Material `home` (M13); and Figma's amounts in
+the seed (M14). **All fourteen held.**
+
+### Verification
+
+| | |
+|---|---|
+| `npx tsc -b --force` | clean |
+| `npm run lint:tokens` | **88 files, 4 exemptions**, PASS |
+| `npm run lint:linkage` | PASS, all four sources on v2.8.0 |
+| tests | **823** in 32 files = 738 + 72 (9 walk states) + 13 (`commitment-detail.spec.ts`) |
+| baselines | **260**; start digest `a4289149…edf81ebc` |
+
+**THREE CLEAN RUNS: 822 passed / 1 failed each**, 24.9 / 24.9 / 24.7 minutes,
+with all 260 baselines byte-identical across all three (digest
+`f11e745b…d4a96fff` after every run, by the standing command).
+
+**AN EARLIER SET OF THREE IS VOID AND IS NOT QUOTED.** They ran green over the
+wrong artwork (digest `933f2c33…0cbd3590`), and a clean run of a tree that no
+longer exists is not evidence about the tree that does. Teku called that; the
+figures above are the replacement set, run after the asset was corrected.
+
+**THE ONE FAILURE IS ARM 1 OF THE BASELINE GUARD, IN EVERY RUN, AND IT IS
+CORRECT.** 36 untracked baselines, so "every baseline on disk is tracked by git"
+fails. Arm 2 stays green because nothing was renamed or deleted (the Gate α
+correction) and arm 3 because every file on disk is a name the walk asks for.
+Staging is Teku's. Do not read it as a regression and do not relax the guard.
+
+### What this gate changed
+
+`src/data/types.ts` (four `Commitment` fields, `CommitmentOffer`);
+`src/data/commitments.ts` (five rows -> seven, every figure Figma's);
+`src/data/offers.ts` (new); `src/data/derive.ts` (six functions, two type
+imports); `src/data/today.ts` (`formatDayMonthYear`); `src/config/media.ts`
+(`offerImageUrl`); `src/accounts/AccountsProvider.tsx` (`commitmentOffers`);
+`src/components/CommitmentMark.tsx` (promoted out of `PlansTab`);
+`src/flows/finance/CommitmentDetailScreen.tsx`,
+`components/SmartInsightModal.tsx`, `components/InsightEducationModal.tsx` (all
+new); `src/flows/finance/PlansTab.tsx` (tappable rows, promoted mark);
+`src/flows/finance/finance.css` (+30 rules); `src/App.tsx`; `src/shell/chrome.ts`;
+`e2e/harness.ts` (the expansion and two overlay states);
+`e2e/commitment-detail.spec.ts` (new, 13 tests, no baseline);
+`e2e/{goals,plans}.spec.ts` (the four swept assertions);
+`public/media/promotions/` (one WebP and a README); the gap register (§2w); and
+40 baselines.
+
+**NO MUTATOR WAS ADDED.** Flow 11's writers are the next gate's and arrive with
+their first callers. `addTransaction` and `adjustFiatBalance` are still the
+zero-caller seams Gates 48 and 75 built, and `AccountsProvider` is still not a
+reducer.
+
+### Deliberately not in scope
+
+Configuring the Plans-tab banner in Figma (out of scope, above); the goal and
+commitment WRITERS — Add a Goal, Edit, Delete, auto-save, Top-Up — and the four
+"Coming soon." controls they will replace; the Flow 11 completion record;
+pinning the action bar to the bottom (built, measured, reverted on Gate 78's
+precedent); removing the dead bottom reserve from suppressed-chrome routes,
+which would move many baselines; `min-height: 100%` on the two screen roots,
+left in place and now recorded as inert; **MODEL-1**, still registered and
+unfixed; the retro-fit sweep; G6, G13, G14, G17's prop half, G19-G23, G28-G33,
+G44 and G48 — all still registered, still deferred, and **no MVP-local override
+was added for any**; the G33 workaround class, untouched and still carrying its
+removal condition; UI-3; persistence (NP1); `npm audit fix`; the DS repo; and
 branch deletion.

@@ -111,8 +111,9 @@ test.describe('the commitment labels', () => {
     expect(mortgage.name).toBe('Mortgage')
     expect(commitmentCadenceLabel(mortgage)).toBe('Monthly')
     // TWO-DIGIT DAY, DELIBERATELY. Figma writes "next on 1 Oct"; this app has
-    // one day formatter and it pads — see `commitmentDueLabel`.
-    expect(commitmentDueLabel(mortgage)).toBe('next on 01 Sept')
+    // one day formatter and it pads — see `commitmentDueLabel`. The MONTH is
+    // Figma’s as of Gate 80, which read all seven due dates off the frame.
+    expect(commitmentDueLabel(mortgage)).toBe('next on 01 Oct')
     expect(commitmentDueLabel({ ...mortgage, nextDueOn: '2026-08-28' })).toBe(
       'next on 28 Aug',
     )
@@ -162,6 +163,12 @@ test.describe('the Plans tab', () => {
         // has hit four times. One glyph per row is the leading mark; a second
         // would be `receipt_long`.
         await expect(row.locator('svg')).toHaveCount(1)
+
+        // TAPPABLE AS OF GATE 80, and the root element IS the assertion:
+        // `ListItem` renders a <button> only when it is given `onClick`, so
+        // this is what says the row is focusable and announced as a control.
+        // The Gate 78 precedent on the goal cards above.
+        await expect(row).toHaveJSProperty('tagName', 'BUTTON')
       }
 
       // Neither heading offers "Add New": both writers belong to later gates,

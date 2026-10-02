@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './shell/AppShell'
 import { ComingSoon } from './components/ComingSoon'
 import { BudgetDetailScreen } from './flows/finance/BudgetDetailScreen'
+import { CommitmentDetailScreen } from './flows/finance/CommitmentDetailScreen'
 import { FinanceScreen } from './flows/finance/FinanceScreen'
 import { GoalDetailScreen } from './flows/finance/GoalDetailScreen'
 import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
@@ -58,6 +59,11 @@ export default function App() {
             B7/B8 reasons otherwise — its own chrome, and data from
             `useAccounts()`. */}
         <Route path="finance/plans/goals/:goalId" element={<GoalDetailScreen />} />
+        {/* Flow 11 (Gate 80) — the sibling the comment above names. */}
+        <Route
+          path="finance/plans/commitments/:commitmentId"
+          element={<CommitmentDetailScreen />}
+        />
         <Route
           path="more"
           element={
