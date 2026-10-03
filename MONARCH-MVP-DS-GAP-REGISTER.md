@@ -2970,3 +2970,124 @@ were settled by comparing the rendered path geometry — see the Gate 80 section
 of `CLAUDE.md`.
 
 ### Nothing was removed from this register at this gate.
+## 2x. Status at MVP Gate 80-B (2026-10-02) — the Receipts filter; no DS change
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. **No G entry was opened or closed,
+so the tally is unmoved.** G33's `.mvp-receipt-viewer-modal` workaround is
+untouched and still carries its removal condition. UI-3 is still deferred to a
+native repackage.
+
+Figma came in on the REMOTE connector, authenticated (`whoami` → Teku Cheong,
+pro); `figma-local` refused with `ECONNREFUSED`. That is the same split as
+Gates 78, 79 and 80.
+
+### The override — Figma draws the chips INLINE and draws no sheet at all
+
+**THE FRAME IS `1266:14283` AND IT WAS READ RATHER THAN ASSUMED.** Its
+`Frame 452` (375×76) holds the search `Field` at y=0 and a hug-width
+`Frame 467` (`I1266:14283;1033:11718`, **167×24**) at **y=52**, directly beneath
+it. There is no filter sheet anywhere on the node, and no sort control anywhere
+on it either — and none in the whole Flow 9 section (`1266:14277`), which is
+eight frames, one annotation and one component frame.
+
+**SO THE SHEET EXISTS ON TEKU'S 2 OCT RULING, NOT ON THE FILE**, and that is
+registered as an override rather than presented as a transcription.
+
+**THE SORT CONTROL'S PROVENANCE IS NOW SETTLED, which Gate 64 could not do.**
+That gate built it from Ruling B alone because the local MCP refused, and said
+so. Read at this gate: Figma draws no sort control on this frame. Gate 64's
+caveat was correct and can stop being provisional.
+
+#### What the frame DOES corroborate — the chip row is an APPLIED-filter row
+
+Both visible chips are `Field` instances each carrying a **close glyph**
+(component `725:3652`, "cancel, close, exit, stop, x"). A dismissible chip is an
+applied-filter chip, not a static label — so the derived row this gate ships is
+what the frame draws, and only the two decorative strings were wrong.
+
+**AND THE TWO HIDDEN SLOTS ARE THE TRANSACTIONS ROW, COPY-PASTED.** Gate 48
+recorded that `Frame 467` carries four slots with two hidden and that "the hidden
+ones are not built", without recording what they say. They read:
+
+| slot | x | label |
+|---|---|---|
+| `…;1033:11719` | 0 | **All** |
+| `…;1033:11720` | 64 | **This Month** |
+| `…;1033:11721` | 179, hidden | **Watson** |
+| `…;1033:11722` | 179, hidden | **RM 0 - 500** |
+
+"Watson" is a merchant this app's data does not contain — the same class of
+Figma-only name as "Monarch Trust" — and "RM 0 - 500" is literally
+`TRANSACTION_FILTER_APPLIED`'s amount chip. **So those two slots are NOT evidence
+for a receipts merchant facet or a receipts amount facet**, and the gate that
+reads them next should not take them as one.
+
+Note the two visible slots sit at x=0 and x=64 — a **12px** step, which is what
+corrected the MVP row's 8px gap at this gate.
+
+### UI-4 — OPENED: the Transactions filter sheet hides chips off-screen
+
+**A DEFERRED ITEM, NOT A G ENTRY**, on the precedent 2r set for UI-1: it is an
+MVP-side layout decision, not something a DS release can close, so it moves no
+tally.
+
+`.mvp-txn-filter__chips` is `display: flex; overflow-x: auto` with no wrapping,
+and `src/index.css` hides every scrollbar globally. Measured in the browser at
+375, DPR 2, with the sheet open:
+
+| group | client | scroll | last chip's right edge | row's right edge |
+|---|---|---|---|---|
+| Date Range | 343 | **425** | **441** | 359 |
+| Transaction Type | 343 | **449** | **465** | 359 |
+
+So **"Last 30 Days" sits 82px past the visible edge and the last Type chip 106px
+past it**, both with no scrollbar to say so. A user who does not discover a
+horizontal drag cannot reach either option.
+
+**THE RECEIPTS SHEET WRAPS INSTEAD, AND THE ASYMMETRY IS DELIBERATE.**
+`.mvp-receipt-filter__chips` is `flex-wrap: wrap`; its Date Range row renders 94px
+tall (two 42px rows plus a 10px gap) and shows all four options at rest.
+Matching the ledger would have propagated a known discoverability defect into a
+brand-new surface for the sake of symmetry, which is the trade this project
+refuses elsewhere.
+
+**FIXING THE LEDGER'S ROW IS TEKU'S CALL AND IT IS NOT FREE**: it moves the 12
+`finance-transactions-{filter,merchant,applied}` baselines. Registered here so
+the decision is a decision rather than a discovery.
+
+### Recorded, NOT registered — the Receipts tab has no empty state, and the filter makes that reachable
+
+`ReceiptsTab.tsx` has said since Gate 48 that "NOTHING IN THE FRAME DRAWS ONE"
+and that an emptied list renders as blank space under the add control, which is
+"the honest placeholder for a state the design has not specified". Until this
+gate the only way to empty it was to type a non-matching search term.
+
+**A FILTER CAN NOW EMPTY IT WITHOUT TYPING**, and the suite photographs exactly
+that: `[overlay:applied]` applies This Month + Unlinked, which matches 0 of 10
+because every seeded receipt is linked. The baseline therefore shows two chips, an
+add button and a large blank area.
+
+**THAT IS THE DESIGNED OUTCOME OF AN HONEST BUTTON** — it reads
+`Apply Filter · No results` before it is pressed — rather than a defect
+introduced here. But a drawn empty state is now worth having, and Figma draws
+none, so it is a design call rather than a build task.
+
+### Recorded, NOT registered — two receipt axes were measured and deliberately not built
+
+`Receipt` carries twelve fields. Four could back a facet; two were built.
+
+| field | disposition |
+|---|---|
+| `capturedAt` | **BUILT** — the card prints it, so a user can see why a row was excluded |
+| `transactionId` | **BUILT** — `null` is real and reachable (the viewer's Unlink writes it) |
+| `merchant` | **NOT BUILT.** `receiptCapture.ts:502` reads `merchant: extracted.merchant ?? displayName`, so an unread capture's merchant IS its display name and the option list would offer `IMG_20261002_143012.jpg` as a merchant. The search box already matches this field |
+| `total` | **NOT BUILT.** The card prints no total, so a range would exclude rows for a reason nothing on screen shows — and an unread total is stored as `0` (Gate 58), so any floor above zero silently drops every unread receipt |
+
+A third axis is serviceable and was left out on purpose: `receiptReadFailed` is
+derived from stored fields alone and the Gate 60 advisory already surfaces it per
+card. It is not built because **0 of the 10 seeded receipts fail**, and the link
+facet is already degenerate on one side there — two degenerate axes make a sheet
+that demonstrates nothing.
+
+### Nothing was removed from this register at this gate.

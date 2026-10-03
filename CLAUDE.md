@@ -16052,3 +16052,390 @@ G44 and G48 — all still registered, still deferred, and **no MVP-local overrid
 was added for any**; the G33 workaround class, untouched and still carrying its
 removal condition; UI-3; persistence (NP1); `npm audit fix`; the DS repo; and
 branch deletion.
+
+## Receipts filter parity — the sheet, and two axes the data serves (Gate 80-B)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. The Receipts tab's filter icon
+stopped being decoration and its filters stopped living on the page.
+**|WALK| 65 -> 67, `OVERLAY_STATES` 33 -> 35, `ROUTES` 25 (unchanged), baselines
+260 -> 268 (48 changed, 8 added, ZERO deleted), tests 823 -> 852, spec files
+32 -> 33.** `lint:tokens` scans **89** files (88 + `ReceiptFilterSheet.tsx`) with
+the same **4** exemptions — no new raw value entered the tree.
+
+### THE DEFECT WAS AN ABSENT HANDLER, NOT A WRONG ONE
+
+The trailing button in the Receipts search field was a real `<button
+type="button">` with `className="mvp-receipts__filter-btn"` and
+`aria-label="Filter receipts"` and **no `onClick` property at all** — not a
+stubbed no-op, no handler. That is why it looked finished and did nothing, and
+it is why wiring it was a one-line change: `ReceiptsTab.tsx`'s own note
+predicted exactly that ("It keeps a real accessible name so a later gate wires a
+handler rather than rebuilding the markup").
+
+The two chips beside it were `const RECEIPT_CHIPS = ['All', 'This Month']`, a
+string literal nothing read, rendered with `onDismiss` deliberately OMITTED so
+the DS would not draw an affordance that lied.
+
+### ⚠ FIGMA DRAWS THE CHIPS INLINE AND DRAWS NO SHEET. THIS OVERRIDES THE FRAME.
+
+**READ THIS BEFORE "RESTORING" THE INLINE BLOCK.** `1266:14283`'s `Frame 452`
+(375x76) holds the search `Field` at y=0 and a hug-width `Frame 467`
+(`I1266:14283;1033:11718`, **167x24**) at **y=52**, directly beneath it. There is
+no filter sheet on that node and no sort control on it either — and none
+anywhere in the Flow 9 section (`1266:14277`), which is eight frames, one
+annotation and one component frame.
+
+**SO THE SHEET EXISTS ON TEKU'S 2 OCT RULING, NOT ON THE FILE**, and it is
+recorded as an override rather than presented as a transcription. Read through
+the REMOTE connector (authenticated `whoami` -> Teku Cheong, pro); `figma-local`
+refused with `ECONNREFUSED`, the same split as Gates 78, 79 and 80.
+
+**IT ALSO SETTLES A PROVENANCE GATE 64 COULD NOT.** That gate built the sort
+control from Ruling B alone because the local MCP refused, and said so rather
+than claiming to have checked. Read at this gate: Figma draws no sort control on
+this frame. Gate 64's caveat was right and can stop being provisional.
+
+#### What the frame DOES corroborate — the chip row is an APPLIED-filter row
+
+Both visible chips are `Field` instances each carrying a **close glyph**
+(component `725:3652`). A dismissible chip is an applied-filter chip, not a
+static label — so the derived row this gate ships is what the frame draws, and
+only the two hard-coded strings were ever wrong.
+
+**AND THE TWO HIDDEN SLOTS ARE THE TRANSACTIONS ROW, COPY-PASTED.** Gate 48
+recorded that `Frame 467` carries four slots with two hidden and that "the hidden
+ones are not built", without recording what they say. Read at this gate:
+
+| slot | x | label |
+|---|---|---|
+| `…;1033:11719` | 0 | **All** |
+| `…;1033:11720` | 64 | **This Month** |
+| `…;1033:11721` | 179, hidden | **Watson** |
+| `…;1033:11722` | 179, hidden | **RM 0 - 500** |
+
+"Watson" is a merchant this app's data does not contain — the same class of
+Figma-only name as "Monarch Trust" — and "RM 0 - 500" is literally
+`TRANSACTION_FILTER_APPLIED`'s amount chip. **So those two slots are NOT evidence
+for a receipts merchant facet or a receipts amount facet**, and a later gate
+reading them must not take them as one.
+
+The two visible slots sit at x=0 and x=64 — a **12px** step, which is what
+corrected the MVP row's gap (below).
+
+### TWO AXES, CHOSEN FROM THE RECORD RATHER THAN FROM SYMMETRY
+
+`Receipt` carries twelve fields. Four could in principle back a facet, and two
+should. The full argument is in `derive.ts`'s model block; in short:
+
+| field | disposition |
+|---|---|
+| `capturedAt` | **DATE RANGE, built.** The card prints it, so a user can see why a row was excluded, and Figma's own inline chips are a date facet |
+| `transactionId` | **LINK STATE, built.** `null` is real and reachable — the viewer's Unlink writes it, and the walk already photographs an unlinked receipt |
+| `merchant` | **not built.** `receiptCapture.ts:502` reads `merchant: extracted.merchant ?? displayName`, so an unread capture's merchant IS its display name and the option list would offer `IMG_20261002_143012.jpg` as a merchant. The search box already matches this field |
+| `total` | **not built.** The card prints no total, so a range would exclude rows for a reason nothing on screen shows — and an unread total is stored as `0` (Gate 58), so any floor above zero silently drops every unread receipt |
+
+**A THIRD AXIS IS SERVICEABLE AND WAS DELIBERATELY LEFT OUT.**
+`receiptReadFailed` is derived from stored fields alone and the Gate 60 advisory
+already surfaces it per card, so a "couldn't read" facet would be honest rather
+than invented. It is not built because **0 of the 10 seeded receipts fail** and
+the link facet is already degenerate on one side there — two degenerate axes make
+a sheet that demonstrates nothing. Add it when a measurement asks for it.
+
+#### The date facet reads `capturedAt`, and the anchor is NOT `TODAY`
+
+**MEASURED, NOT CARRIED ACROSS FROM THE LEDGER.** The harness pins `TODAY` to
+2026-08-15 while every seeded receipt is printed Aug–Sept 2025, so a "This Month"
+measured against `TODAY` matches **0 of 10** — correct, useless and
+indistinguishable from a broken predicate. That is the Gate 41 finding
+re-measured for a second collection. `receiptsNow()` is the newest `capturedAt`
+(2025-09-13), against which the four windows return **10 / 8 / 3 / 10**.
+
+**IT READS `capturedAt` AND NOT `addedAt`, WHICH IS A DECISION THE SORT CONTROL
+DOES NOT GET TO MAKE.** The card prints `capturedAt` on every row whatever the
+sort mode is; `addedAt` is printed nowhere. Membership is filtered on something
+visible, and the sort mode still chooses which date groups and orders the result.
+
+**ONE CONSEQUENCE, STATED RATHER THAN DISCOVERED LATER:** an anchor derived from
+an extremum is only as representative as that extremum, and a capture whose
+printed date could not be read stores the MOMENT OF CAPTURE as `capturedAt`. So
+adding one moves the anchor to today and collapses "This Month" onto it — exactly
+what Gate 53 recorded for `ledgerNow`. The alternative measured 0, so the trade
+is taken knowingly and in the same direction as the ledger's.
+
+**LAST 30 DAYS AND ALL TIME BOTH RETURN 10 over this seed.** They are genuinely
+different predicates; that is a property of a fixture spanning 29 days.
+
+### ONE DEFINITION OF THE FOUR WINDOWS — `TransactionDateRangeId` WAS RENAMED
+
+`TransactionDateRangeId` -> **`DateRangeId`** and `TRANSACTION_DATE_RANGES` ->
+**`DATE_RANGES`**, and the private `withinRange(transaction, …)` became the
+exported `withinDateRange(timestamp, …)`. Two consumers, one definition: a second
+copy under a receipts-specific name would be the duplication this file exists to
+remove, and leaving a transaction-specific name on a shared definition is the
+kind of misleading label that rots.
+
+**PROVABLY INERT.** No user-visible string changes, `tsc` reaches every call
+site, and `filterTransactions` now passes `t.occurredAt` — precisely what the
+predicate used to read for itself. Five code sites moved; the ledger's own
+baselines did not.
+
+### THE SORT MOVED, AND ITS SEMANTICS DID NOT
+
+`SORT_MODES` / `SortMode` left `ReceiptsTab.tsx` for `derive.ts` as
+`RECEIPT_SORT_MODES` / `ReceiptSortMode`, beside the two grouping functions the
+mode selects between. **Same two ids, same two labels, same default.** The Gate
+58 ruling — receipts group and order by the date they were ADDED, newest first,
+with the printed date on the card and still driving auto-match — is untouched.
+
+**⚠ THE ONE BEHAVIOURAL CONSEQUENCE, FLAGGED FOR TEKU: A TAP NOW COMMITS ON
+APPLY.** On the page the control applied immediately. Inside a sheet, "applies on
+tap" and "applies on Apply" are INDISTINGUISHABLE during the interaction, because
+the list is behind an opaque panel and a scrim — the only observable difference is
+on DISMISSAL, where a live control would keep a sort change the user then
+cancelled.
+
+**A SHEET WHERE THREE CONTROLS ARE PENDING AND ONE IS LIVE IS STRICTLY WORSE**,
+because nothing on screen says which is which and it would make Reset ambiguous
+about whether it touches the sort. So the sort is pending with the rest, and
+Reset restores it along with the facets. `e2e/receipt-order.spec.ts` asserts the
+discard directly, so the move is under test rather than merely accommodated.
+
+### The chip row became derived, and the empty row is half the deliverable
+
+`receiptFilterChips(filter)` returns one chip per facet NOT at its default, each
+dismissing its own facet through `clearReceiptFacet`. `isReceiptFacetDefault` is
+derived from `clearReceiptFacet` rather than from restated literals — Gate 44's
+rule, so there is one definition of "cleared".
+
+**THE KEY IS THE FACET, NOT THE LABEL OR THE INDEX.** Two facets can print the
+same string — "All" is the link default and, at a different range, nothing else —
+so a label key would collide and an index key would re-identify every chip after
+one that disappears.
+
+**`.mvp-receipts__chips:empty { display: none }` IS WHAT GIVES "Add new receipt"
+ITS SPACE BACK**, and the two bullets this gate was given are therefore one
+mechanism rather than two changes. The row is already `margin: 0` with zero
+vertical padding, so it collapses to height 0 on its own — but it is still a FLEX
+ITEM and `.mvp-receipts` carries `gap: var(--spacing-200)`, so a zero-height item
+still costs a second 8px gap. `display: none` is the only spelling that takes the
+gap with it (Gate 44's measurement, reaching this screen).
+
+**MEASURED, BEFORE AND AFTER, AT 375 LIGHT:**
+
+| | before | after |
+|---|---|---|
+| document height | 2170 | **2060** |
+| chip row | y=222, h=24, 2 chips | **`display: none`, h=0** |
+| sort fieldset | y=254, h=70 | **absent** |
+| "Add new receipt" | y=348 | **y=238** |
+| first month heading | y=410 | **y=300** |
+| search bottom -> add top | 134 | **24** |
+
+−110px, which is 24+8 (chips plus gap) plus 70+8 (sort plus gap). The 70+8 is
+Gate 64's own +78, collected back.
+
+**THE CHIP ROW'S GAP WAS 8px AND IS NOW 12px.** Figma's `Frame 467` is
+`gap-[var(--scale/300, 12px)]`, confirmed twice — the declaration and the drawn
+offsets (52 @0, 103 @64, a 12px step) — and the ledger's row has read
+`--spacing-300` from that same measurement since Gate 44. This row was the
+outlier. It is corrected in the gate that puts the row under test, and it costs
+no extra baseline because at rest the row is empty.
+
+### The sheet
+
+`src/flows/finance/ReceiptFilterSheet.tsx` — composition, not a primitive
+(rule 4). DS `Sheet`, `ToggleChip`, `Button`, `Icon` and nothing else; its
+stylesheet is five layout rules in `finance.css`.
+
+Measured at 375, DPR 2, through a Playwright-launched Chromium:
+
+| | |
+|---|---|
+| panel | `y=319, 375 x 493`, hug — content `clientHeight` 326 === `scrollHeight` 326, so nothing scrolls |
+| header tracks | **`32px 279px 32px`** — two FIXED, identical side tracks |
+| title centre / header centre | **187.5 / 187.5** |
+| leading side slot | **w=32, 0 children, `aria-hidden="true"`** — the empty placeholder, read from the DOM rather than the props |
+| groups | Date Range 4 chips (row 94 tall, wrapped), Link Status 3 (42), Sort by 2 (42) |
+| a chip | `box-shadow: none` — flat on the sheet surface, no box within a box |
+
+**NO ✕, FOR PARITY WITH THE LEDGER'S SHEET.** That one suppresses it on Figma's
+authority; this one has no frame to defer to, so the deciding argument is that
+two filter sheets differing in the header is the inconsistency this gate removes.
+Escape and the scrim still dismiss, unconditionally.
+
+**NO VIEW STATE AND NO PICKER.** The ledger's sheet pushes to a second view
+because 20 merchant options fit nothing at 375. This sheet's three groups are
+4 + 3 + 2 chips and all of them fit, so `SheetView` has no analogue here and none
+was invented.
+
+#### ⚠ THE CHIP ROWS WRAP HERE AND SCROLL IN THE LEDGER'S SHEET — DELIBERATE
+
+Measured on the Transactions sheet at 375, with it open:
+
+| group | client | scroll | last chip's right edge | row's right edge |
+|---|---|---|---|---|
+| Date Range | 343 | **425** | **441** | 359 |
+| Transaction Type | 343 | **449** | **465** | 359 |
+
+So **"Last 30 Days" sits 82px past the visible edge and the last Type chip 106px
+past it**, both behind a scroller with no scrollbar (`src/index.css` hides them
+globally). A user who does not discover a horizontal drag cannot reach either
+option.
+
+`.mvp-receipt-filter__chips` is `flex-wrap: wrap` instead. Matching the ledger
+would have propagated a known discoverability defect into a brand-new surface for
+the sake of symmetry, which is the trade this project refuses elsewhere.
+**Registered as UI-4; fixing the ledger's row is Teku's call and moves 12
+baselines.**
+
+### The two walk states, and why the second one is empty on purpose
+
+`[overlay:filter]` is the sheet open. `[overlay:applied]` applies **This Month +
+Unlinked** and captures the LIST — `confirm` is declared, so no dialog is open at
+capture.
+
+**REMOVING THE DECORATIVE CHIPS TOOK THE ONLY RENDER OF `.mvp-receipts__chips`
+WITH CONTENT OUT OF THE VISUAL NET IN ONE STROKE**, because the derived row is
+empty at rest. That is exactly the hole Gate 44 opened on the ledger and closed
+with its own `[overlay:applied]`.
+
+**THE DEMONSTRATION FILTER MATCHES ZERO, AND NO TWO-CHIP FILTER OVER THIS SEED
+CAN DO BETTER.** All ten receipts are linked, so "Linked" excludes nothing and
+"Unlinked" excludes everything — there is no pair where both facets exclude
+something. The choice was therefore between a richer baseline with one
+unassertable rung, and an empty list with every rung asserted:
+
+| after | the Apply button reads |
+|---|---|
+| open | `Apply Filter · 10 results` |
+| + This Month | `Apply Filter · 8 results` |
+| + Unlinked | `Apply Filter · No results` |
+
+Every rung changes the text, which is what stops a step that silently did nothing
+from minting a baseline of a filter nobody asked for. The ladder discipline won.
+The settle is the chip row reading `This MonthUnlinked` — simultaneously the
+proof that the filter applied AND that the default-suppression rule fired on
+neither facet.
+
+**⚠ THE RECEIPTS TAB HAS NO EMPTY STATE, AND THE FILTER NOW MAKES THAT REACHABLE
+WITHOUT TYPING.** Figma draws none; `ReceiptsTab.tsx` has said so since Gate 48.
+The baseline shows two chips, an add button and a large blank area. That is the
+designed outcome of an honest button — it reads `No results` before it is
+pressed — rather than a defect introduced here, but a drawn empty state is now
+worth having and is a design call.
+
+### Two selector facts, both measured
+
+- **`:has-text()` IS A SUBSTRING MATCH, so `:has-text("Linked")` resolves to BOTH
+  the "Linked" and the "Unlinked" chip** and fails strict mode. This facet is the
+  first place in the app where one chip's label contains another's. The fix is
+  `getByRole('button', { name: 'Linked', exact: true })`. That is the other half
+  of Gate 44's finding, which recorded that `:text-is` returns ZERO on a
+  `ToggleChip` because the label sits in a child `<span>` — so neither the exact
+  nor the loose text selector is universally right, and which one to reach for
+  depends on whether a sibling label contains this one.
+- `"Unlinked"` and `"This Month"` are unambiguous, which is why the harness
+  ladder uses `:has-text` for both.
+
+### THE WALK ARITHMETIC COMMENT WAS ALREADY STALE BY TWO TERMS
+
+`e2e/harness.ts` read "18 routes … + 31 OVERLAY_STATES = 56" against a real
+25 / 33 / 65: **Gate 80 added seven routes and two overlay states and did not
+touch it.** Corrected to 25 / 35 / **67**, with the earlier readings kept as a
+list — that is **five corrections to one comment**, which is the argument for
+the anchored command beside it rather than for the comment.
+
+|WALK| = 67 confirmed three ways: `visual` 268 / 4, `(routes 135 − 1) / 2`,
+`(section-headers 136 − 2) / 2`.
+
+### Verification
+
+| | |
+|---|---|
+| `npx tsc -b --force` | clean |
+| `npm run lint:tokens` | **89 files, 4 exemptions**, PASS |
+| `npm run lint:linkage` | PASS, all four sources on v2.8.0 |
+| tests | **852** in 33 files = 823 + 16 (2 walk states × 8) + 13 (`receipt-filter.spec.ts`) |
+| baselines | **268**; start digest `f11e745b…d4a96fff`, end digest **`863fa0f3…6e2c69ba`** |
+
+**THE PREDICTION WAS WRITTEN AFTER THE SWEEP AND BEFORE THE FIRST EDIT, AND IT
+HELD EXACTLY.** The sweep came first — counts, premises, the data axes, Figma,
+the CSS rules and every `e2e/` reference to the sort control, the chip row and
+`filterReceipts` — and only then the prediction: 48 changed, 8 added, 0 deleted,
+and ZERO spec failures because the three sort-control tests would be rewritten
+pre-emptively. The pre-mint run reported **796 passed / 56 failed (27.1m)**: 14
+distinct `[tab:receipts]` states × 4, every failure in `visual.spec.ts`, and
+nothing outside it.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT** — 260 files
+byte-identical to the start manifest, **zero** "writing actual" lines, zero
+untracked files in the snapshot directory. `updateSnapshots: 'none'` honoured.
+
+The mint was **dry-run first** (`-g "tab:receipts\]"` selected exactly 56 tests
+in one file), then run with `--update-snapshots=all`. Reconciled against the
+manifest taken outside the repo: **260 -> 268, 8 added, 48 changed, 0 deleted,
+212 byte-identical**, with the added and changed sets NOT overlapping — so
+8 + 48 = 56 reconciles with the pre-mint failure count directly.
+
+**ALL 56 MINTED PNGs WERE DECODED and every one of the 14 states was opened**,
+across all four viewport/theme combinations. Heights are 2060 for the standard
+states (2170 before), 2164 for the two `*-unread` states, 1984 for the three that
+unlink first, and **812 for the four `applied`**, where the empty list clamps the
+document to the viewport. Gate 60's advisory and Gate 79's purchases-only link
+picker both render unchanged.
+
+#### Sixteen mutation proofs, and a driver fault the control caught
+
+Each: mutate, run exactly ONE test by its regex-escaped `$`-anchored title
+through an **argument array with no shell**, require an ASSERTION failure checked
+against a denylist (no-tests-found, timeout, TS error, syntax error, module
+resolution, navigation failure, strict-mode violation), restore, verify SHA-256,
+re-run green. **All 16 held and none passed under mutation.**
+
+**THE NEGATIVE CONTROL RAN FIRST AND PRINTED `NO PROOF — ran null tests`**, which
+is the Gate 63 failure reproduced on purpose.
+
+**⚠ THE DRIVER'S FIRST RUN CERTIFIED ONLY 5 OF 16, AND THE CAUSE WAS LINE
+ENDINGS, NOT THE MUTATIONS.** Its needles are written with `\n` and every source
+file here is CRLF, so all 11 MULTI-LINE needles hit 0x while the 5 single-line
+ones matched. The driver reported each as `NO PROOF` rather than certifying it —
+correct behaviour — but a driver that only checked exit codes would have reported
+11 silent passes. **Normalise line endings inside a mutation helper**, the same
+way `edit.mjs` does.
+
+### What this gate changed
+
+`src/data/derive.ts` (the rename, `withinDateRange`, the whole receipts filter
+model, `RECEIPT_SORT_MODES`); `src/flows/finance/ReceiptFilterSheet.tsx` (new);
+`src/flows/finance/ReceiptsTab.tsx` (the handler, the derived row, the inline
+block removed, the sheet mounted); `src/flows/finance/TransactionFilterSheet.tsx`
+(four call sites of the renamed export); `src/flows/finance/finance.css` (the
+`:empty` rule, the 12px gap, the four sort rules replaced by the sheet's five);
+`e2e/harness.ts` (two overlay states and the stale WALK arithmetic);
+`e2e/capture.ts` (`openReceiptFilter`, `setReceiptSort`);
+`e2e/receipt-order.spec.ts` (three tests rewritten);
+`e2e/receipt-filter.spec.ts` (new, 13 tests, no baseline); the gap register
+(§2x, UI-4); `CLAUDE.md`; and 56 baselines.
+
+**NO MUTATOR WAS ADDED AND NO DS FILE WAS TOUCHED.** `addTransaction` and
+`adjustFiatBalance` are still the zero-caller seams Gates 48 and 75 built.
+
+**ONE SIDE EFFECT, REPORTED BECAUSE IT TOUCHED A LINE THIS GATE DID NOT AUTHOR.**
+`TransactionFilterSheet.tsx` carried a single lone LF at line 5 (Gate 75's survey
+recorded it as MIXED and inert); normalising the file after editing it converted
+that line to CRLF. **It produces no diff** — `git diff --numstat` reports 4/4,
+exactly the four lines changed — because git's clean filter normalises before
+comparing, which is what Gate 76 measured for `finance.css`. The file is now
+wholly CRLF, so the repo has one fewer MIXED file.
+
+### Deliberately not in scope
+
+Fixing the ledger's scrolling chip rows (UI-4 — it moves 12 baselines and is
+Teku's call); an empty state for the Receipts tab; a merchant, amount or
+read-state facet; persisting the filter or the sort (NP1); the ledger's own
+filter model, untouched; **MODEL-1**, still registered and unfixed; the retro-fit
+sweep; G6, G13, G14, G17's prop half, G19-G23, G28-G33, G44 and G48 — all still
+registered, still deferred, and **no MVP-local override was added for any**; the
+G33 workaround class, untouched and still carrying its removal condition; UI-3;
+`npm audit fix`; the DS repo; and branch deletion.

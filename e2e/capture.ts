@@ -1,4 +1,4 @@
-import { expect, type FileChooser, type Page } from '@playwright/test'
+import { expect, type FileChooser, type Locator, type Page } from '@playwright/test'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -159,4 +159,38 @@ export async function openDialogNames(page: Page): Promise<string[]> {
       return labelled ?? el.getAttribute('aria-label') ?? '(no title)'
     }),
   )
+}
+
+/**
+ * Open the Receipts tab's filter sheet through its own control — Gate 80-B.
+ *
+ * THE CONTROL IS THE SEARCH FIELD'S TRAILING BUTTON, which carried an
+ * `aria-label` and NO handler at all from Gate 48 to Gate 80. Located by that
+ * accessible name rather than by its class, so a reader sees what a user presses.
+ */
+export async function openReceiptFilter(page: Page): Promise<Locator> {
+  await page.getByRole('button', { name: 'Filter receipts' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Filter receipts' })
+  await expect(sheet).toBeVisible()
+  return sheet
+}
+
+/**
+ * Choose a sort mode the way a user now has to — Gate 80-B.
+ *
+ * IT OPENS THE SHEET, TAPS AND APPLIES, because the control moved off the page
+ * and into the sheet, where every control commits on Apply. Before Gate 80-B a
+ * caller clicked a chip on the page and the list re-sorted immediately. The
+ * SEMANTICS are unchanged — same two labels, same two groupings, same default —
+ * and only the commit moment moved; see `ReceiptFilterSheet` for why a sheet
+ * where one control is live and three are pending would be worse.
+ *
+ * ONE EXPRESSION OF "SET THE SORT", so the three tests that used to click the
+ * bare chip share it rather than each re-deriving the new path.
+ */
+export async function setReceiptSort(page: Page, label: string): Promise<void> {
+  const sheet = await openReceiptFilter(page)
+  await sheet.locator(`.mn-toggle-chip:has-text("${label}")`).click()
+  await sheet.locator('.mn-sheet__actions .mn-btn').click()
+  await expect(sheet).toBeHidden()
 }

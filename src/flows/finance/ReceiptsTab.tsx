@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Button, Field, FilterChip, Icon, ToggleChip } from '@monarch/design-system'
+import { Button, Field, FilterChip, Icon } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { ReceiptCard } from './components/ReceiptCard'
@@ -7,10 +7,15 @@ import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { ReceiptViewerHost } from './components/ReceiptViewer'
 import { capturedToReceipts, receiptDateWasRead, type CapturedFile } from './receiptCapture'
 import {
+  RECEIPT_FILTER_ALL,
+  clearReceiptFacet,
   filterReceipts,
   groupReceiptsByCapturedDate,
   groupReceiptsByMonth,
+  receiptFilterChips,
 } from '../../data/derive'
+import type { ReceiptFilter, ReceiptSortMode } from '../../data/derive'
+import { ReceiptFilterSheet } from './ReceiptFilterSheet'
 import { autoMatchBatch } from '../../data/autoMatch'
 
 /**
@@ -77,59 +82,57 @@ import { autoMatchBatch } from '../../data/autoMatch'
  *  - NO SECOND CHIP PAIR. Figma draws two chips, "All" and "This Month", with
  *    two further slots hidden. The hidden ones are not built.
  * ─────────────────────────────────────────────────────────────────────────────
- * THE CHIPS ARE DECORATIVE, AND THAT IS STATED RATHER THAN HIDDEN.
+ * THE CHIP ROW IS DERIVED, AND THE FILTER LIVES BEHIND THE ICON — Gate 80-B.
  *
- * Figma draws `All` and `This Month` on this screen. The Transactions tab's
- * chip row is DERIVED from an applied filter and each chip dismisses its own
- * facet (Gate 44); this screen has no filter model behind it yet, so these two
- * are labels. They are rendered because the design draws them and because
- * leaving the row out would change the layout the rest of the gate is measured
- * against — but nothing reads them and dismissing one does nothing.
+ * UNTIL THIS GATE THE CHIPS WERE DECORATIVE AND THE FILTER ICON WAS WIRED TO
+ * NOTHING: the trailing `<button>` in the search field carried an
+ * `aria-label` and NO `onClick` at all — not a stubbed no-op, no handler —
+ * while "All" and "This Month" were a two-string literal that nothing read and
+ * whose dismiss affordance was deliberately omitted. This header said what to do
+ * about it: "WHEN A RECEIPT FILTER ARRIVES, these become derived the way the
+ * ledger's are. Do not grow them a bespoke filter model here."
  *
- * WHEN A RECEIPT FILTER ARRIVES, these become derived the way the ledger's are.
- * Do not grow them a bespoke filter model here; the ledger already owns that
- * pattern and a second one would be the divergence rule 1 exists to stop.
+ * THAT IS WHAT HAPPENED. The model is `ReceiptFilter` in `derive.ts`, built in
+ * the ledger's own shape, and this row is `receiptFilterChips(filter)` with each
+ * chip dismissing its own facet through `clearReceiptFacet`.
+ *
+ * THE ROW IS EMPTY AT REST AND TAKES NO SPACE THERE. A facet at its default
+ * renders no chip (Gate 44), so with nothing applied the `<ul>` has no children
+ * and `.mvp-receipts__chips:empty` removes it from flex layout — which is the
+ * only spelling that takes the parent's 8px gap with it. So the two bullets this
+ * gate was given are one mechanism: the controls moved into the sheet, and
+ * "Add new receipt" reclaims the space.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE SORT CONTROL MOVED INTO THE SHEET AND ITS SEMANTICS DID NOT CHANGE.
+ *
+ * `SORT_MODES` and `SortMode` were declared in this file at Gate 64 and now
+ * live in `derive.ts` as `RECEIPT_SORT_MODES` / `ReceiptSortMode`, beside the
+ * two grouping functions the mode selects between. Same two ids, same two
+ * labels, same default. The ONE behavioural consequence of the move — a tap now
+ * commits on Apply rather than immediately — is argued where it is caused, in
+ * `ReceiptFilterSheet`.
  */
-
-/**
- * The two chips Figma draws. A plain list because they carry no behaviour yet —
- * see the note above. Declared here rather than in `derive.ts` precisely so that
- * they are not mistaken for part of a filter model.
- */
-const RECEIPT_CHIPS = ['All', 'This Month']
-
-/**
- * ─────────────────────────── THE SORT CONTROL (Gate 64) ──────────────────────
- *
- * NO FIGMA NODE DRAWS ONE. The local MCP server (`127.0.0.1:3845/mcp`) refused
- * the connection this gate — `curl` against it returned no response, exit 7 —
- * so this was NOT verified against the file; it is built from Ruling B
- * (review thread) alone, per the standing rule that a gate with no Figma
- * access can still build from a spec someone else read out of it, but must not
- * claim to have checked it.
- *
- * `ToggleChip`, A CONTROL ALREADY IN THIS FLOW'S VOCABULARY — not this
- * screen's own import list (which carried only `FilterChip` until this gate),
- * but `TransactionFilterSheet`'s: the exact shape of a single-select facet
- * pair drawn as two `ToggleChip`s in a `fieldset`/`legend` group, reused
- * rather than invented. `FilterChip` was rejected for this — its root is
- * deliberately NOT interactive (see its own DS doc comment: "the only action
- * the source models is dismissal"), so it cannot serve a control the user
- * clicks to choose a mode.
- *
- * SESSION-ONLY, PER D2/D3. The mode lives in a plain `useState` here and is
- * never written to storage; a reload always reopens on "Date added".
- */
-const SORT_MODES = [
-  { id: 'added', label: 'Date added' },
-  { id: 'date', label: 'Receipt date' },
-] as const
-type SortMode = (typeof SORT_MODES)[number]['id']
 
 export function ReceiptsTab() {
   const { receipts, transactions, addReceipt } = useAccounts()
   const [search, setSearch] = useState('')
-  const [sortMode, setSortMode] = useState<SortMode>('added')
+  const [sortMode, setSortMode] = useState<ReceiptSortMode>('added')
+
+  /*
+    ── THE FILTER (Gate 80-B) ────────────────────────────────────────────────
+
+    ONE APPLIED FILTER FOR THE SCREEN, SEEDED AT EVERYTHING. The sheet holds a
+    pending copy and hands it back exactly once, on Apply — so this is the only
+    filter state and the list behind the scrim never re-filters mid-edit.
+
+    MOUNTED CONDITIONALLY, which is what seeds that copy correctly: a `useState`
+    initialiser runs once per MOUNT, so a sheet kept mounted and merely hidden
+    would hold a draft that went stale the moment a chip was dismissed behind it
+    (Gate 43).
+  */
+  const [filter, setFilter] = useState<ReceiptFilter>(RECEIPT_FILTER_ALL)
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const closeFilter = useCallback(() => setIsFilterOpen(false), [])
 
   /*
     ── THE BULK ADD MODAL (Gate 50) ──────────────────────────────────────────
@@ -201,11 +204,16 @@ export function ReceiptsTab() {
   // shared — so search narrows before grouping in EITHER mode; only which
   // grouping function receives the narrowed list differs.
   const groups = useMemo(() => {
-    const narrowed = filterReceipts(receipts, search)
+    const narrowed = filterReceipts(receipts, search, filter)
     return sortMode === 'added'
       ? groupReceiptsByMonth(narrowed)
       : groupReceiptsByCapturedDate(narrowed, (r) => receiptDateWasRead(r.id))
-  }, [receipts, search, sortMode])
+  }, [receipts, search, filter, sortMode])
+
+  // THE CHIPS ARE AN OUTPUT OF THE FILTER, NEVER A SECOND COPY OF IT. One chip
+  // per facet that is NOT at its default, so the row's emptiness IS the
+  // statement that nothing is filtered.
+  const chips = useMemo(() => receiptFilterChips(filter), [filter])
 
   // THE JOIN, DONE ONCE. `ReceiptCard` takes a transaction rather than looking
   // one up, so the lookup lives here; a Map keeps it O(1) per card instead of a
@@ -225,11 +233,11 @@ export function ReceiptsTab() {
           `sizing="fill"` rather than an MVP width override, and it applies here
           unchanged.
 
-          THE TRAILING BUTTON IS INERT ON THIS TAB. The Transactions tab's opens
-          a filter Sheet; this screen has no filter model (see the header note),
-          so the control is present because the design draws it and does nothing.
-          It keeps a real accessible name so a later gate wires a handler rather
-          than rebuilding the markup.
+          THE TRAILING BUTTON OPENS THE FILTER SHEET — Gate 80-B. It was INERT
+          from Gate 48 to Gate 80: a real control with a real accessible name
+          and no `onClick` whatsoever. Keeping the markup is what made this a
+          one-handler change rather than a rebuild, which is exactly what the
+          note it replaces predicted.
         */}
         <Field
           value={search}
@@ -243,6 +251,7 @@ export function ReceiptsTab() {
               type="button"
               className="mvp-receipts__filter-btn"
               aria-label="Filter receipts"
+              onClick={() => setIsFilterOpen(true)}
             >
               <Icon name="filter_list" size="m" />
             </button>
@@ -250,44 +259,29 @@ export function ReceiptsTab() {
         />
       </div>
 
+      {/*
+        THE APPLIED-FILTER CHIPS — the ledger's row, in the ledger's shape.
+
+        `onDismiss` IS NOW SUPPLIED, where Gate 48 deliberately omitted it. The
+        argument it was omitted under still holds and is what makes supplying it
+        correct now: a dismiss affordance that did nothing was a control that
+        lied, and these chips clear a real facet.
+
+        THE KEY IS THE FACET, NOT THE LABEL OR THE INDEX. Two facets can print
+        the same string — "All" is both the link default and, at a different
+        range, nothing else — so a label key would collide, and an index key
+        would re-identify every chip after one that disappears.
+      */}
       <ul className="mvp-receipts__chips mvp-column--bleed">
-        {RECEIPT_CHIPS.map((label) => (
-          <li key={label}>
-            {/*
-              `onDismiss` IS OMITTED, NOT STUBBED WITH A NO-OP. A dismiss button
-              that is present and does nothing is a control that lies; leaving
-              the prop off lets the DS decide whether to render the affordance
-              at all. Gate 44 made exactly this argument about the ledger's
-              default chips — a drawn, focusable, announced, inert control is
-              worse than an absent one.
-            */}
-            <FilterChip label={label} />
+        {chips.map((chip) => (
+          <li key={chip.facet}>
+            <FilterChip
+              label={chip.label}
+              onDismiss={() => setFilter((f) => clearReceiptFacet(f, chip.facet))}
+            />
           </li>
         ))}
       </ul>
-
-      {/*
-        ── THE SORT CONTROL (Gate 64) ────────────────────────────────────────
-        A `fieldset`/`legend` group, the same shape `TransactionFilterSheet`
-        uses for a single-select facet — `ToggleChip`s are `aria-pressed`
-        buttons, so a `legend` is what gives the pair an accessible group name
-        rather than leaving two unlabelled buttons.
-      */}
-      <fieldset className="mvp-receipts__sort mvp-column">
-        <legend className="mvp-receipts__sort-legend type-body-caption-semibold">
-          Sort by
-        </legend>
-        <div className="mvp-receipts__sort-chips">
-          {SORT_MODES.map((mode) => (
-            <ToggleChip
-              key={mode.id}
-              label={mode.label}
-              isSelected={sortMode === mode.id}
-              onClick={() => setSortMode(mode.id)}
-            />
-          ))}
-        </div>
-      </fieldset>
 
       {/*
         ── THE ONE ADD CONTROL (Gate 51) ─────────────────────────────────────
@@ -345,6 +339,25 @@ export function ReceiptsTab() {
           isOpen
           onClose={() => setIsAddOpen(false)}
           onSave={saveCaptures}
+        />
+      )}
+
+      {/*
+        ── THE FILTER SHEET (Gate 80-B) ──────────────────────────────────────
+        MOUNTED CONDITIONALLY, for the seeding reason argued at the state
+        declaration above and in `ReceiptFilterSheet`.
+      */}
+      {isFilterOpen && (
+        <ReceiptFilterSheet
+          receipts={receipts}
+          filter={filter}
+          sortMode={sortMode}
+          search={search}
+          onApply={(next, nextSort) => {
+            setFilter(next)
+            setSortMode(nextSort)
+          }}
+          onClose={closeFilter}
         />
       )}
 

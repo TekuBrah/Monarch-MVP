@@ -1277,6 +1277,103 @@ export const OVERLAY_STATES: WalkState[] = [
       ],
     },
   },
+  // ─────────────────────────────────────────────────────────────── Gate 80-B ──
+  // THE RECEIPTS FILTER SHEET, IN BOTH ITS STATES.
+  //
+  // UNTIL THIS GATE THE RECEIPTS FILTER HAD NO COVERAGE OF ANY KIND, because it
+  // did not exist: the trailing button in the search field carried an
+  // `aria-label` and no `onClick` at all, and the two chips beneath it were a
+  // string literal nothing read. Both halves are now real and both are walked.
+  //
+  // THE IDS MIRROR THE LEDGER'S — `filter` and `applied` — and they do not
+  // collide, because a baseline name is `finance-receipts-<id>` against the
+  // ledger's `finance-transactions-<id>`, and `routes.spec.ts` keys uniqueness on
+  // `route#tab#overlay`. Naming them anything else would hide the parity this
+  // gate exists to establish.
+  {
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'filter',
+      control: '.mvp-receipts__filter-btn',
+      controlLabel: 'Filter receipts',
+      title: 'Filter receipts',
+    },
+  },
+  {
+    /*
+      THE APPLIED FILTER — THE SUITE'S ONLY PHOTOGRAPH OF A RECEIPTS CHIP ROW.
+
+      Removing the two decorative chips took the only render of
+      `.mvp-receipts__chips` WITH CONTENT out of the visual net in one stroke:
+      at rest the derived row is empty and `:empty { display: none }` removes it.
+      That is exactly the hole Gate 44 opened on the ledger and closed with its
+      own `[overlay:applied]`, so this state is that closure for this screen.
+
+      IT CAPTURES THE LIST, NOT THE SHEET. `confirm` is declared, so no dialog is
+      open at capture — the same shape the ledger's `applied` state and the
+      `toast` state both have.
+
+      EVERY RUNG IS ASSERTED, which is what stops a step that silently did
+      nothing from minting a baseline of a filter nobody asked for. The counts
+      are DERIVED from `filterReceipts` over the ten seeded receipts and were
+      measured before this state was written — re-derive them against that
+      function rather than editing them to make a run go green:
+
+        at open                 Apply Filter · 10 results   nothing filtered
+        + This Month            Apply Filter · 8 results    the two August
+                                                            receipts drop out
+        + Unlinked              Apply Filter · No results   all ten are linked
+
+      THE ZERO IS DELIBERATE AND IS THE REASON THIS PAIR WAS CHOSEN. It is the
+      only filter over this seed that puts TWO chips in the row, and the row is
+      what the state covers; a one-chip row would exercise neither the gap nor
+      the ordering. The empty list underneath is honest — the button says
+      "No results" before it is pressed — and the chip row is the settle target
+      precisely because it, not the list, is the thing under test.
+
+      SCOPED TO `.mn-toggle-chip`, AND `:has-text` RATHER THAN `:text-is`.
+      `ToggleChip` renders its label in a child <span>, so `:text-is` matches an
+      element's own immediate text and returns ZERO (Gate 44's measurement). The
+      class scoping keeps each lookup to the sheet's chip rows rather than the
+      screen behind them.
+    */
+    route: '/finance',
+    tab: { id: 'receipts', label: 'Receipts' },
+    overlay: {
+      id: 'applied',
+      control: '.mvp-receipts__filter-btn',
+      controlLabel: 'Filter receipts',
+      title: 'Filter receipts',
+      prepare: [
+        {
+          control: '.mn-toggle-chip:has-text("This Month")',
+          controlName: 'This Month',
+          action: 'click',
+          settlesOn: '.mn-sheet__actions .mn-btn',
+          settlesText: 'Apply Filter · 8 results',
+        },
+        {
+          control: '.mn-toggle-chip:has-text("Unlinked")',
+          controlName: 'Unlinked',
+          action: 'click',
+          settlesOn: '.mn-sheet__actions .mn-btn',
+          settlesText: 'Apply Filter · No results',
+        },
+      ],
+      confirm: {
+        control: '.mn-sheet__actions .mn-btn',
+        controlLabel: 'Apply Filter · No results',
+        // THE CHIP ROW, FOR THE LEDGER'S REASON: the card count is not directly
+        // assertable as text, the row is — and the row is what this state exists
+        // to cover. Two chips and only two, in facet order (date then link),
+        // which is simultaneously the proof that the filter applied AND that the
+        // default-suppression rule fired on neither.
+        settlesOn: '.mvp-receipts__chips',
+        settlesText: 'This MonthUnlinked',
+      },
+    },
+  },
   // ── 2 · THE BULK MODAL, EMPTY ─────────────────────────────────────────────
   //
   // A DIFFERENT ENTRY PATH FROM THE PICKER'S, and that is the whole reason it is
@@ -1982,12 +2079,18 @@ export const WALK: WalkState[] = [
     ]
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
-  // an enumerated entry rather than an axis. 18 routes (one `tab: null` state
-  // each, from ROUTES — 14, plus the two budget drilldowns since Gate 69 and
-  // the two goal drilldowns since Gate 78) + 7 non-default tab states + 31
-  // OVERLAY_STATES = 56 (Gate 79 added `detail-transfer`; it read 18/30 = 55 at
-  // Gate 78, 16/29 = 52 at Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71,
-  // and 19 = 40 through Gate 69, already stale by then).
+  // an enumerated entry rather than an axis. 25 routes (one `tab: null` state
+  // each, from ROUTES — 14, plus the two budget drilldowns since Gate 69, the
+  // two goal drilldowns since Gate 78 and the seven commitment drilldowns since
+  // Gate 80) + 7 non-default tab states + 35 OVERLAY_STATES = 67.
+  //
+  // ⚠ IT WAS STALE AGAIN WHEN GATE 80-B ARRIVED, AND BY MORE THAN ONE TERM: it
+  // read 18 routes and 31 overlay states, i.e. the pre-Gate-80 tree, so its sum
+  // was 56 against a real 65. Gate 80 added seven routes and two overlay states
+  // and did not touch it. Earlier readings: 18/30 = 55 at Gate 78, 16/29 = 52 at
+  // Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, 19 = 40 through Gate 69.
+  // THAT IS FIVE CORRECTIONS TO ONE COMMENT, which is the argument for the
+  // command below rather than for the comment.
   //
   // ⚠ RE-DERIVE THIS FROM DISK RATHER THAN TRUSTING IT. Nothing reads this
   // comment, which is exactly why it has gone stale twice. The anchored command

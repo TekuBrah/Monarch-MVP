@@ -13,7 +13,9 @@ import {
   TRANSACTIONS_TAB,
   capturedImageName,
   installResolvingExtraction,
+  openReceiptFilter,
   saveOneCapture,
+  setReceiptSort,
 } from './capture'
 
 /**
@@ -210,19 +212,58 @@ function dateUnread(merchant: string, total: number) {
   }
 }
 
+/*
+  ──────────────────────── REWRITTEN AT GATE 80-B ────────────────────────────
+
+  THE SORT CONTROL MOVED INTO THE FILTER SHEET, so these three tests can no
+  longer click a chip on the page. They were REWRITTEN rather than deleted and
+  rather than having a new set added beside them: a suite asserting both the old
+  and the new path at once is how a contradiction survives a green run.
+
+  WHAT THEY ASSERT DID NOT CHANGE. The ruling under test is still Gate 58's —
+  receipts group and order by the date they were ADDED, newest first, with the
+  printed date on the card — and the two labels, the two groupings and the
+  default are byte-identical to what the page declared. What moved is WHERE the
+  control is and WHEN a tap commits, and the first test below asserts both of
+  those directly so the move itself is under test rather than merely accommodated.
+*/
 test.describe('the wiring — the sort control', () => {
-  test('defaults to "Date added" and switching mode moves the pressed state', async ({
+  test('lives in the filter sheet, not on the page, and commits on Apply', async ({
     page,
   }) => {
     await openReceipts(page)
-    const added_ = page.getByRole('button', { name: 'Date added' })
-    const date = page.getByRole('button', { name: 'Receipt date' })
+
+    // THE CONTROL IS NOT ON THE PAGE — the half of this gate that gives "Add new
+    // receipt" its space back. Asserted as an absence, which no screenshot can
+    // express.
+    await expect(page.getByRole('button', { name: 'Date added' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Receipt date' })).toHaveCount(0)
+    await expect(page.locator('.mvp-receipts__sort')).toHaveCount(0)
+
+    const sheet = await openReceiptFilter(page)
+    const added_ = sheet.getByRole('button', { name: 'Date added' })
+    const date = sheet.getByRole('button', { name: 'Receipt date' })
     await expect(added_).toHaveAttribute('aria-pressed', 'true')
     await expect(date).toHaveAttribute('aria-pressed', 'false')
 
     await date.click()
     await expect(date).toHaveAttribute('aria-pressed', 'true')
     await expect(added_).toHaveAttribute('aria-pressed', 'false')
+
+    // IT COMMITS ON APPLY, AND DISMISSING DISCARDS. Escape before pressing
+    // Apply must leave the mode where it was — which is the one behavioural
+    // consequence of the move, so it is asserted rather than described.
+    await page.keyboard.press('Escape')
+    await expect(sheet).toBeHidden()
+    const reopened = await openReceiptFilter(page)
+    await expect(reopened.getByRole('button', { name: 'Date added' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    await reopened.getByRole('button', { name: 'Receipt date' }).click()
+    await reopened.locator('.mn-sheet__actions .mn-btn').click()
+    await expect(reopened).toBeHidden()
     // Nothing was lost by switching modes.
     await expect(page.locator('.mvp-receipt-card')).toHaveCount(RECEIPTS.length)
   })
@@ -240,7 +281,7 @@ test.describe('the wiring — the sort control', () => {
     const firstGroupUnderAdded = page.locator('.mvp-receipts__month').first()
     await expect(firstGroupUnderAdded.locator('.mvp-receipt-card')).toHaveCount(1)
 
-    await page.getByRole('button', { name: 'Receipt date' }).click()
+    await setReceiptSort(page, 'Receipt date')
     const lastGroup = page.locator('.mvp-receipts__month').last()
     await expect(lastGroup.locator('.mvp-section-header')).toHaveText('No receipt date')
     const cards = lastGroup.locator('.mvp-receipt-card')
@@ -263,7 +304,11 @@ test.describe('the wiring — the sort control', () => {
 
     // SWITCHING MODE WITHOUT CLEARING THE SEARCH — if the 'date' branch grouped
     // the UNFILTERED collection, the count below would jump back to all ten.
-    await page.getByRole('button', { name: 'Receipt date' }).click()
+    //
+    // THE SEARCH BOX IS NOT IN THE SHEET AND IS NOT CLEARED BY APPLYING, which
+    // this now also proves: the mode change goes through the sheet and the
+    // needle survives it.
+    await setReceiptSort(page, 'Receipt date')
     await expect(page.locator('.mvp-receipt-card')).toHaveCount(ikeaCount)
     await expect(page.locator('.mvp-receipt-card:has-text("Aeon")')).toHaveCount(0)
   })

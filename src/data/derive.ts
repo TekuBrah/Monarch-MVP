@@ -420,13 +420,26 @@ export interface TransactionFilter {
   payees: string[] | null
   /** Payment kinds to keep. `null` = All. */
   methods: TransactionMethod[] | null
-  dateRange: TransactionDateRangeId
+  dateRange: DateRangeId
   /** Inclusive MAGNITUDE bounds — see `filterTransactions`. */
   amountMin: Amount
   amountMax: Amount
 }
 
-export type TransactionDateRangeId = 'all' | 'this-month' | 'last-7' | 'last-30'
+/**
+ * THE FOUR DATE WINDOWS — ONE DEFINITION, TWO CONSUMERS.
+ *
+ * RENAMED AT GATE 80-B FROM `TransactionDateRangeId`, which is the name it
+ * carried while the ledger was its only consumer. The Receipts tab's filter
+ * sheet now offers the same four windows, and those windows are ONE FACT: a
+ * second copy under a receipts-specific name would be the duplication this file
+ * exists to remove, while leaving a transaction-specific name on a shared
+ * definition is exactly the kind of misleading label that rots.
+ *
+ * THE RENAME IS PROVABLY INERT. No user-visible string changes, and `tsc`
+ * reaches every call site — there is nothing a rename here could silently miss.
+ */
+export type DateRangeId = 'all' | 'this-month' | 'last-7' | 'last-30'
 
 /**
  * The four facets, as an identity a chip can carry.
@@ -459,7 +472,7 @@ export interface TransactionFilterChip {
  * gap register). One casing is applied here; "This Month" is the spelling kept,
  * because it is the one the applied chip on `Finance_Transaction01` renders.
  */
-export const TRANSACTION_DATE_RANGES: { id: TransactionDateRangeId; label: string }[] = [
+export const DATE_RANGES: { id: DateRangeId; label: string }[] = [
   { id: 'all', label: 'All Time' },
   { id: 'this-month', label: 'This Month' },
   { id: 'last-7', label: 'Last 7 Days' },
@@ -665,15 +678,29 @@ export function transactionPayees(transactions: Transaction[]): string[] {
   )
 }
 
-/** Whether one row falls inside a named window, measured back from `ledgerNow`. */
-function withinRange(
-  transaction: Transaction,
-  range: TransactionDateRangeId,
+/**
+ * Whether one TIMESTAMP falls inside a named window, measured back from an
+ * anchor the caller supplies.
+ *
+ * IT TAKES A TIMESTAMP RATHER THAN A ROW — GENERALISED AT GATE 80-B. It read a
+ * `Transaction` while the ledger was its only caller; the Receipts filter needs
+ * the identical predicate over `Receipt.capturedAt`, and the window arithmetic
+ * is one fact. Each caller reads its own field at the call site, so nothing
+ * about the ledger's behaviour moved — `filterTransactions` now passes
+ * `t.occurredAt`, which is precisely what this used to read for itself.
+ *
+ * THE ANCHOR IS THE CALLER'S, AND THAT IS LOAD-BEARING. Neither collection can
+ * measure back from `TODAY`; see `ledgerNow` and `receiptsNow` for the two
+ * separate measurements that say so.
+ */
+export function withinDateRange(
+  timestamp: string,
+  range: DateRangeId,
   now: Date,
 ): boolean {
   if (range === 'all') return true
 
-  const at = new Date(transaction.occurredAt)
+  const at = new Date(timestamp)
 
   if (range === 'this-month') {
     return (
@@ -718,7 +745,7 @@ export function filterTransactions(
     .filter((t) => {
       if (filter.payees && !filter.payees.includes(t.merchant)) return false
       if (filter.methods && !filter.methods.includes(t.method)) return false
-      if (!withinRange(t, filter.dateRange, now)) return false
+      if (!withinDateRange(t.occurredAt, filter.dateRange, now)) return false
 
       const magnitude = Math.abs(t.amount)
       if (magnitude < filter.amountMin || magnitude > filter.amountMax) return false
@@ -850,7 +877,7 @@ export function isFacetDefault(
 }
 
 export function filterChips(filter: TransactionFilter): TransactionFilterChip[] {
-  const range = TRANSACTION_DATE_RANGES.find((r) => r.id === filter.dateRange)
+  const range = DATE_RANGES.find((r) => r.id === filter.dateRange)
   const chips: TransactionFilterChip[] = [
     { facet: 'type', label: filter.methods ? filter.methods.join(', ') : 'All' },
     { facet: 'date', label: range ? range.label : 'All Time' },
@@ -1186,22 +1213,267 @@ export function groupReceiptsByCapturedDate(
   ]
 }
 
+/* ──────────────────────────────────────────────────────────── Gate 80-B ──
+   THE RECEIPTS FILTER MODEL.
+
+   Flow 9 shipped the Receipts tab with a filter ICON wired to nothing and two
+   DECORATIVE chips ("All", "This Month") sitting inline on the page beside a
+   "Sort by" pair. `ReceiptsTab.tsx`'s own header said what to do about it:
+   "WHEN A RECEIPT FILTER ARRIVES, these become derived the way the ledger's
+   are. Do not grow them a bespoke filter model here." This block is that model,
+   and it is the ledger's shape rather than a second one — the same
+   facet/chip/clear triple, the same default-suppression rule, the same
+   read-the-reset-value-out-of-ALL convention.
+
+   TWO AXES, AND BOTH WERE CHOSEN FROM THE RECORD RATHER THAN FROM SYMMETRY WITH
+   THE LEDGER. `Receipt` carries twelve fields; four could in principle back a
+   facet, and only two of them should:
+
+     capturedAt      DATE RANGE — BUILT. The card PRINTS it
+                     (`formatTimestamp(receipt.capturedAt)`), so a user can see
+                     why a row was excluded, and Figma's own inline chips are a
+                     date facet ("All", "This Month").
+     transactionId   LINK STATE — BUILT. `null` is a real, reachable state: the
+                     receipt viewer's Unlink writes it, and the walk already
+                     photographs an unlinked receipt.
+     merchant        NOT BUILT. `receiptCapture.ts` resolves an unread capture's
+                     merchant to its DISPLAY NAME, so the option list would
+                     offer `IMG_20261002_143012.jpg` as a merchant. The search
+                     box already matches this field.
+     total           NOT BUILT. The card prints no total, so a range would
+                     exclude rows for a reason nothing on screen shows — and an
+                     unread total is stored as 0, so any floor above zero
+                     silently drops every unread receipt.
+
+   A THIRD AXIS IS SERVICEABLE AND WAS DELIBERATELY NOT BUILT. `receiptReadFailed`
+   is derived from stored fields alone, and the Gate 60 advisory already surfaces
+   it per card, so a "couldn't read" facet would be honest rather than invented.
+   It is left out because the seed has 0 of 10 failures while the link facet is
+   already degenerate on one side there, and two degenerate axes make a sheet
+   that demonstrates nothing. Add it when a measurement asks for it.
+   ──────────────────────────────────────────────────────────────────────── */
+
+export type ReceiptLinkStateId = 'all' | 'linked' | 'unlinked'
+
 /**
- * Receipts matching a free-text needle — the Receipts tab's search box.
+ * The link facet's options.
+ *
+ * "All" IS THE CLEARED STATE, which is why it is a member of the list rather
+ * than a control beside it — the shape `DATE_RANGES` already has, where
+ * "All Time" is what Reset and a dismissed chip both produce.
+ */
+export const RECEIPT_LINK_STATES: { id: ReceiptLinkStateId; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'linked', label: 'Linked' },
+  { id: 'unlinked', label: 'Unlinked' },
+]
+
+/**
+ * The Receipts tab's applied filter.
+ *
+ * THE SORT MODE IS NOT IN HERE, DELIBERATELY. A filter decides MEMBERSHIP and a
+ * sort decides ORDER; folding them together would give the sort a dismissible
+ * chip in the applied row, and a chip reading "Date added" would claim to be
+ * hiding something. See `RECEIPT_SORT_MODES`.
+ */
+export interface ReceiptFilter {
+  dateRange: DateRangeId
+  linkState: ReceiptLinkStateId
+}
+
+/** The two facets, as an identity a chip can carry. */
+export type ReceiptFacet = 'date' | 'link'
+
+export interface ReceiptFilterChip {
+  facet: ReceiptFacet
+  label: string
+}
+
+/** Everything — what the screen shows once both facets are cleared. */
+export const RECEIPT_FILTER_ALL: ReceiptFilter = {
+  dateRange: 'all',
+  linkState: 'all',
+}
+
+/**
+ * A DEMONSTRATION FILTER — one applied filter the suite can photograph.
+ *
+ * This Month + Unlinked. Over the ten seeded receipts it returns ZERO, and that
+ * is the point rather than a defect: it is the only filter over this seed that
+ * puts TWO chips in the applied row, and the ROW — not the list — is what the
+ * `[overlay:applied]` state exists to cover. That is Gate 44's argument for the
+ * ledger's equivalent state, which is likewise the suite's only non-empty chip
+ * row.
+ *
+ * THE BUTTON SAYS SO RATHER THAN HIDING IT. `Apply Filter · No results` is a
+ * legal act with an honest label, which is the Gate 44 ruling on the zero case.
+ *
+ * BOTH FACETS ARE LOAD-BEARING OVER THIS SEED, MEASURED: This Month alone
+ * returns 8 of 10 and Unlinked alone returns 0, so neither chip is masked by the
+ * other and a facet that silently stopped working changes the count.
+ */
+export const RECEIPT_FILTER_APPLIED: ReceiptFilter = {
+  dateRange: 'this-month',
+  linkState: 'unlinked',
+}
+
+/**
+ * The instant the receipts date facet measures back from.
+ *
+ * IT IS THE NEWEST `capturedAt`, NOT `TODAY`, AND THAT IS THE SAME DELIBERATE
+ * DIVERGENCE FROM B5 THAT `ledgerNow` MAKES — measured here rather than carried
+ * across. The harness pins `TODAY` to 2026-08-15 while every seeded receipt is
+ * printed Aug-Sept 2025, so a "This Month" measured against `TODAY` matches
+ * **0 of 10**: correct, useless, and indistinguishable from a broken predicate.
+ * Against the newest `capturedAt` (2025-09-13) the four windows return
+ * **10 / 8 / 3 / 10**, which discriminates.
+ *
+ * ONE CONSEQUENCE, STATED RATHER THAN DISCOVERED LATER: an anchor derived from
+ * an extremum is only as representative as that extremum. A capture whose
+ * printed date could not be read stores the MOMENT OF CAPTURE as `capturedAt`,
+ * which is newer than every seed, so adding one moves this anchor to today and
+ * collapses "This Month" onto that capture alone. That is precisely what Gate 53
+ * recorded for `ledgerNow`; the alternative measured 0, so the trade is taken
+ * knowingly and in the same direction as the ledger's.
+ *
+ * LAST 30 DAYS AND ALL TIME BOTH RETURN 10 OVER THIS SEED. They are genuinely
+ * different predicates, and that is a property of a fixture whose receipts span
+ * 29 days rather than a degenerate option.
+ */
+export function receiptsNow(receipts: Receipt[]): Date {
+  const newest = receipts.reduce(
+    (latest, r) => (r.capturedAt > latest ? r.capturedAt : latest),
+    receipts[0]?.capturedAt ?? '',
+  )
+  return new Date(newest)
+}
+
+/**
+ * Receipts matching a free-text needle and an applied filter.
  *
  * MATCHES `displayName` AND `merchant`, and deliberately NOT `filename`. The
  * filename is a developer path a user has never seen (`receipt_aeonbig01.jpg`);
  * letting it match would make the box find things for reasons the user cannot
  * see on screen. Same shape as the ledger's search, which matches merchant and
  * method — the two things its rows actually print.
+ *
+ * THE FILTER IS OPTIONAL AND DEFAULTS TO EVERYTHING, so the call that existed
+ * before Gate 80-B still means what it meant. It had exactly one caller in
+ * `src/` and none in `e2e/`, checked before the signature was widened.
+ *
+ * THE DATE FACET READS `capturedAt` AND NOT `addedAt`, WHICH IS A DECISION THE
+ * SORT CONTROL DOES NOT GET TO MAKE. The card prints `capturedAt` on every row
+ * whatever the sort mode is, so filtering on it is filtering on something the
+ * user can see; `addedAt` is printed nowhere. The sort mode still chooses which
+ * date GROUPS and ORDERS the result — membership and arrangement are two
+ * questions, and this function answers only the first.
  */
-export function filterReceipts(receipts: Receipt[], search = ''): Receipt[] {
+export function filterReceipts(
+  receipts: Receipt[],
+  search = '',
+  filter: ReceiptFilter = RECEIPT_FILTER_ALL,
+): Receipt[] {
   const needle = search.trim().toLowerCase()
-  if (!needle) return receipts
-  return receipts.filter((r) =>
-    `${r.displayName} ${r.merchant}`.toLowerCase().includes(needle),
-  )
+  const now = receiptsNow(receipts)
+
+  return receipts.filter((r) => {
+    if (!withinDateRange(r.capturedAt, filter.dateRange, now)) return false
+
+    if (filter.linkState === 'linked' && r.transactionId === null) return false
+    if (filter.linkState === 'unlinked' && r.transactionId !== null) return false
+
+    if (needle) {
+      const haystack = `${r.displayName} ${r.merchant}`.toLowerCase()
+      if (!haystack.includes(needle)) return false
+    }
+    return true
+  })
 }
+
+/**
+ * Clear one facet, returning a NEW filter with that facet at its `ALL` value.
+ *
+ * IT READS ITS RESET VALUES OUT OF `RECEIPT_FILTER_ALL` RATHER THAN RESTATING
+ * THEM — `clearFacet`'s own argument, which is what stops a dismissed chip
+ * drifting from what Reset produces.
+ */
+export function clearReceiptFacet(
+  filter: ReceiptFilter,
+  facet: ReceiptFacet,
+): ReceiptFilter {
+  switch (facet) {
+    case 'date':
+      return { ...filter, dateRange: RECEIPT_FILTER_ALL.dateRange }
+    case 'link':
+      return { ...filter, linkState: RECEIPT_FILTER_ALL.linkState }
+  }
+}
+
+/**
+ * Is this facet at its default?
+ *
+ * DERIVED FROM `clearReceiptFacet`, NOT FROM RESTATED LITERALS — `isFacetDefault`'s
+ * own argument: a facet is at its default exactly when clearing it changes
+ * nothing, so there is ONE definition of "cleared" and both the chip row and the
+ * Reset action read it.
+ *
+ * COMPARED FIELD BY FIELD OVER `Object.keys` RATHER THAN AGAINST A LIST OF
+ * NAMES. A field someone forgets to add to a hand-written list is not a type
+ * error — it is a facet that reports itself defaulted forever.
+ */
+export function isReceiptFacetDefault(
+  filter: ReceiptFilter,
+  facet: ReceiptFacet,
+): boolean {
+  const cleared = clearReceiptFacet(filter, facet)
+  const keys = Object.keys(filter) as (keyof ReceiptFilter)[]
+  return keys.every((k) => filter[k] === cleared[k])
+}
+
+/**
+ * The applied-filter chips, one per facet that is NOT at its default.
+ *
+ * A FACET AT ITS DEFAULT RENDERS NO CHIP (Gate 44), which is why the row is
+ * EMPTY at the screen's opening state and takes no vertical space there. It also
+ * makes the presence of any chip exactly the statement that a filter is in
+ * force.
+ *
+ * THE SUPPRESSION IS THE LAST STEP rather than a guard on each push, so every
+ * facet is judged by one predicate — `filterChips`'s own shape.
+ */
+export function receiptFilterChips(filter: ReceiptFilter): ReceiptFilterChip[] {
+  const range = DATE_RANGES.find((r) => r.id === filter.dateRange)
+  const link = RECEIPT_LINK_STATES.find((s) => s.id === filter.linkState)
+  const chips: ReceiptFilterChip[] = [
+    { facet: 'date', label: range ? range.label : 'All Time' },
+    { facet: 'link', label: link ? link.label : 'All' },
+  ]
+  return chips.filter((chip) => !isReceiptFacetDefault(filter, chip.facet))
+}
+
+/**
+ * ───────────────────────── THE SORT CONTROL (Gate 64) ────────────────────────
+ *
+ * MOVED HERE FROM `ReceiptsTab.tsx` AT GATE 80-B, when the control moved into
+ * the filter sheet and the screen stopped being its only reader. The two ids,
+ * the two labels and the default are byte-identical to what that screen
+ * declared — the ruling they serve (receipts group and sort by the date they
+ * were ADDED, newest first, with the printed date still on the card and still
+ * driving auto-match) is untouched.
+ *
+ * IT LIVES BESIDE THE TWO FUNCTIONS IT SELECTS BETWEEN — `groupReceiptsByMonth`
+ * (`addedAt`) and `groupReceiptsByCapturedDate` (`capturedAt`) — which is why
+ * this is the right home rather than the sheet's own file: the mode is a choice
+ * between two derivations, not a property of one surface.
+ *
+ * IT IS NOT A FACET AND GETS NO CHIP. See `ReceiptFilter`.
+ */
+export const RECEIPT_SORT_MODES = [
+  { id: 'added', label: 'Date added' },
+  { id: 'date', label: 'Receipt date' },
+] as const
+
+export type ReceiptSortMode = (typeof RECEIPT_SORT_MODES)[number]['id']
 
 /* ────────────────────────────────────────────────────────────── Gate 49 ──
    THE TRANSACTION DETAIL SHEET'S DERIVATIONS.

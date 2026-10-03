@@ -812,11 +812,19 @@
 }
 
 /*
-  The chip row. IDENTICAL MECHANICS TO `.mvp-transactions__chips`, deliberately
-  duplicated rather than shared: the two rows differ in what they mean (that one
-  is derived from an applied filter, this one is decorative) and merging them
-  would create a shared rule whose two consumers are expected to diverge the
-  moment a receipt filter model lands.
+  The chip row. IDENTICAL MECHANICS TO `.mvp-transactions__chips` and, SINCE
+  GATE 80-B, identical in meaning too: both rows are now DERIVED from an applied
+  filter and both dismiss a facet per chip. The rules are still stated separately
+  rather than shared, because a shared rule would couple two screens' layouts —
+  but the divergence the Gate 48 note predicted ("expected to diverge the moment
+  a receipt filter model lands") did not happen. It converged.
+
+  THE GAP IS 12px AND WAS 8px UNTIL GATE 80-B. Figma's `Frame 467` is
+  `flex gap-[var(--scale/300, 12px)]`, confirmed twice: the declaration, and the
+  drawn offsets (52 @0, 103 @64 — a 12px step). The ledger's row has read
+  `--spacing-300` from that same measurement since Gate 44; this one was the
+  outlier, and it is corrected in the gate that puts the row under test. It is
+  visible only in `[overlay:applied]`, because at rest the row is empty.
 
   The gutter arrives as padding through `.mvp-column--bleed`, so this rule
   declares no horizontal padding of its own — a `padding` shorthand here would
@@ -825,12 +833,35 @@
 */
 .mvp-receipts__chips {
   display: flex;
-  gap: var(--spacing-200);
+  gap: var(--spacing-300);
   margin: 0;
   padding-top: 0;
   padding-bottom: 0;
   overflow-x: auto;
   list-style: none;
+}
+
+/*
+  AN EMPTY CHIP ROW TAKES NO VERTICAL SPACE — Gate 44's chip model, reaching this
+  screen at Gate 80-B.
+
+  A facet at its default renders no chip, so at this screen's opening state the
+  <ul> has no children at all. It is already `margin: 0` with zero vertical
+  padding, so it collapses to height 0 on its own — BUT IT IS STILL A FLEX ITEM,
+  and `.mvp-receipts` carries `gap: var(--spacing-200)`. A zero-height item
+  between the search field and the add button therefore still costs a SECOND 8px
+  gap: the row would be invisible and would still push the button down.
+
+  `display: none` removes it from flex layout entirely, which is the only
+  spelling that takes the gap with it — and it is half of why "Add new receipt"
+  reclaims the space this gate was asked to give it back.
+
+  `:empty` IS EXACT HERE RATHER THAN APPROXIMATE. The element's children are
+  chips and nothing else, and React renders no whitespace text node between
+  them, so it matches exactly when `receiptFilterChips` returned nothing.
+*/
+.mvp-receipts__chips:empty {
+  display: none;
 }
 
 .mvp-receipts__chips > li {
@@ -842,39 +873,49 @@
 }
 
 /*
-  THE SORT CONTROL (Gate 64) — a `fieldset`, the same shape
-  `.mvp-txn-filter__group` uses for a single-select facet in the filter sheet.
+  ── THE RECEIPTS FILTER SHEET (Gate 80-B) ──────────────────────────────────
 
-  RESET WITHOUT A `padding` SHORTHAND, for the SAME REASON `.mvp-receipts__chips`
-  above states it: this element also carries `.mvp-column`, whose
-  `padding-left`/`padding-right` place it on the content column, and a
-  `padding` shorthand here would land at equal specificity, later in source
-  order, and collapse those longhands — the Gate 14 hazard. Only the
-  fieldset's own vertical padding, margin and border are reset; `min-width: 0`
-  is the same fix `.mvp-txn-filter__group` needed, for the same reason — a
-  fieldset's automatic minimum size ignores `overflow` and would otherwise
-  widen the screen instead of letting the chip row scroll.
+  THE FOUR `.mvp-receipts__sort*` RULES THAT STOOD HERE ARE GONE WITH THE
+  CONTROL. The Gate 64 sort fieldset sat inline on the page; it now sits inside
+  the filter sheet as one of three groups, so its layout is this block's.
+
+  IT IS ITS OWN BLOCK RATHER THAN A SECOND CONSUMER OF `.mvp-txn-filter`.
+  Reusing that one would couple two sheets whose bodies genuinely differ — the
+  ledger's carries a `Select` and a `RangeSlider` and has a legend ROW with a
+  unit, none of which this one has — so a shared block would be a rule whose two
+  consumers are expected to diverge. The three declarations below are the same
+  VALUES, which is the duplication this project accepts: a component owns its
+  stylesheet.
 */
-.mvp-receipts__sort {
+.mvp-receipt-filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+}
+
+/*
+  `min-width: 0` for the reason `.mvp-txn-filter__group` needs it: a fieldset's
+  automatic minimum size ignores `overflow`, so without it a long chip row
+  widens the sheet instead of scrolling. The padding and border resets undo the
+  user-agent fieldset.
+*/
+.mvp-receipt-filter__group {
   min-width: 0;
   margin: 0;
-  padding-top: 0;
-  padding-bottom: 0;
+  padding: 0;
   border: 0;
 }
 
 /*
-  12px from the legend to the chip row — `.mvp-txn-filter__group`'s own
-  measurement, reused rather than re-derived: a `<legend>` renders out of flow
-  against the fieldset's border box, so a flex `gap` on the fieldset would
-  apply to the chips and skip the label. A sibling margin does not have that
-  problem.
+  12px from the legend to the chip row, as a SIBLING MARGIN and not a flex
+  `gap`: a `<legend>` renders out of flow against the fieldset's border box, so
+  a gap on the fieldset would space the chips and skip the label.
 */
-.mvp-receipts__sort > * + * {
+.mvp-receipt-filter__group > * + * {
   margin-top: var(--spacing-300);
 }
 
-.mvp-receipts__sort-legend {
+.mvp-receipt-filter__legend {
   display: block;
   margin: 0;
   padding: 0;
@@ -882,17 +923,19 @@
 }
 
 /*
-  IDENTICAL MECHANICS TO `.mvp-txn-filter__chips` — `--brand-scale-250` because
-  there is no `--spacing-250` (the ramp aliases 25/50/100/200/300/400…,
-  skipping 250), and the row scrolls rather than compressing its two chips.
+  `--brand-scale-250` because there is no `--spacing-250` (the ramp aliases
+  25/50/100/200/300/400…, skipping 250). The rows WRAP rather than scroll — four
+  date chips do not fit 343px on one line, and a sheet body is the one place
+  where vertical room is cheaper than a horizontal scroller the user has to
+  discover.
 */
-.mvp-receipts__sort-chips {
+.mvp-receipt-filter__chips {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--brand-scale-250);
-  overflow-x: auto;
 }
 
-.mvp-receipts__sort-chips > * {
+.mvp-receipt-filter__chips > * {
   flex: 0 0 auto;
 }
 

@@ -11,7 +11,7 @@ import {
 import {
   TRANSACTION_AMOUNT_CEILING,
   TRANSACTION_AMOUNT_FLOOR,
-  TRANSACTION_DATE_RANGES,
+  DATE_RANGES,
   TRANSACTION_FILTER_ALL,
   TRANSACTION_METHODS,
   filterTransactions,
@@ -440,17 +440,17 @@ export function TransactionFilterSheet({
               Date Range
             </legend>
             {/*
-              BUILT FROM `TRANSACTION_DATE_RANGES` (4), NOT FROM FIGMA'S FOUR.
+              BUILT FROM `DATE_RANGES` (4), NOT FROM FIGMA'S FOUR.
               The counts match and the MEMBERS do not — Figma draws "This Month",
               "last 7 days", "Last 30 days" and "Custom Range"; the data offers
               "All Time", "This Month", "Last 7 Days" and "Last 30 Days". Figma's
-              "Custom Range" is not expressible by `TransactionDateRangeId` and
+              "Custom Range" is not expressible by `DateRangeId` and
               would be a dead chip, and Figma omits "All Time", which is the
               cleared state the Reset action and every dismissed chip produce.
               Registered as a mockup/data mismatch; built from the data.
             */}
             <div className="mvp-txn-filter__chips">
-              {TRANSACTION_DATE_RANGES.map((range) => (
+              {DATE_RANGES.map((range) => (
                 <ToggleChip
                   key={range.id}
                   label={range.label}
