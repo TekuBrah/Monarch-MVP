@@ -658,6 +658,35 @@
   list-style: none;
 }
 
+/*
+  THE EMPTY LIST COLLAPSES, SO THE NO-RESULTS BLOCK SITS WHERE THE FIRST ROW
+  WOULD HAVE (Gate 80-C).
+
+  Without this the `<ul>` stays in flow when a filter excludes every row, and
+  its own `margin: var(--spacing-400) 0 0` adds 16px above the block — on top
+  of the 8px `.mvp-transactions` already puts between its children. A
+  zero-height element with a top margin is still 16px of space.
+
+  `display: none` is what takes the margin AND the flex gap with it, which is
+  the same reading `.mvp-transactions__chips:empty` records 60 lines above and
+  `.mvp-receipts__chips:empty` repeats on the other tab. A JSX conditional on
+  the `<ul>` was written first and replaced by this: it produced an identical
+  render while leaving a 50-line element wrapped in `{rows.length > 0 && (`,
+  where every other conditional in this app indents its children — and it
+  invented a second mechanism for a problem this file already had one for.
+
+  `:empty` IS EXACT HERE RATHER THAN APPROXIMATE, for the chip rows’ reason:
+  the element’s only children are `<li>` rows and React renders no whitespace
+  text node between them, so it matches exactly when `rows` is empty.
+
+  EVERY `e2e` SELECTOR AGAINST THIS LIST READS `> li` DESCENDANTS, and all of
+  them run against an UNFILTERED ledger — swept at Gate 80-C, 30 pre-existing
+  references across 11 files — so none can see the element collapse.
+*/
+.mvp-transactions__list:empty {
+  display: none;
+}
+
 /* =========================================================================
    The Transactions filter sheet (Gate 43)
 
@@ -731,11 +760,43 @@
 }
 
 /*
-  THE CHIP ROWS OVERFLOW IN FIGMA AND THEREFORE SCROLL HERE. `Frame 422` is
-  458 wide in the Date Range group and 454 in Transaction Type, both inside a
-  343 column — so the fourth date chip and the fifth type chip are clipped in
-  the mockup. That is the same answer the applied-chip row and the five-tab bar
-  already take on this screen (`overflow-x: auto`, `Tabs isScrollable`).
+  ⚠ THE ROWS WRAP, AND FIGMA DRAWS THEM SCROLLING. THIS OVERRIDES THE FRAME
+  (Gate 80-C, on Teku's 3 Oct ruling). Read at that gate from
+  `v9MI8jxTaXiJA234Hkanlf`: `Frame 422` is a single 40px line, 458 wide in Date
+  Range (`I1266:14329;826:6536`, four chips, last right edge 458) and 454 in
+  Transaction Type (`I1266:14329;826:7135`, FIVE chips, last right edge 454),
+  both inside a 343 column. So the mockup clips the fourth date chip and the
+  fifth type chip, and until this gate so did the app.
+
+  THE RULING: A SCROLLBAR-LESS SCROLLER NEEDS A PEEKING ITEM. `src/index.css`
+  hides every scrollbar on `*`, so a row that overflows offers the user no
+  affordance except a gesture they have to guess at. The Home carousels earn
+  that trade because the next card genuinely peeks; these rows do not — and
+  that measurement is the one that nearly went the other way, so it is written
+  down rather than asserted. MEASURED AT 375 BEFORE THE CHANGE: the fourth
+  date chip sat at 330.61..440.66 against a row edge of 359, so 28.39px of it
+  WAS visible, and the fourth type chip showed 23.28px of 129.41. A sliver
+  that wide is a bordered pill's left radius and no readable text — which is
+  why the argument rests on the chips being UNREADABLE rather than on their
+  being wholly absent. Do not re-derive this as "nothing was visible"; 81.66px
+  and 106.13px past the edge is what overflowed, not the whole chip.
+
+  AND BOTH ROWS WRAP TO EXACTLY TWO LINES, which is the second half of the
+  case: Material 3 reserves horizontal scrolling for chip sets that would
+  exceed two wrapped rows. Measured by injecting this rule before shipping it,
+  at BOTH viewports — each row h 42 -> 94 (one line -> two), `scrollWidth`
+  425/449 -> equal to `clientWidth` (no overflow left), the sheet panel
+  591 -> 695 and its top 221 -> 117, still inside the 764 cap so nothing
+  scrolls internally. Chips are hug-width, so 430 wraps identically to 375.
+
+  THE MERCHANT VIEW CANNOT BE AFFECTED, measured rather than argued: it renders
+  ZERO `.mvp-txn-filter__chips` (the sheet swaps views in place) and its panel
+  already sits at the 764 cap.
+
+  THIS MATCHES `.mvp-receipt-filter__chips`, which Gate 80-B built wrapped from
+  the start. Two filter sheets differing in how their chip rows behave is the
+  inconsistency this gate removes; do not restore `overflow-x: auto` here
+  without restoring it there too, and do not touch the global suppression.
 
   `--brand-scale-250` BECAUSE THERE IS NO `--spacing-250`. Figma binds these
   rows to `Scale/250` (10px) and the DS ramp aliases 25/50/100/200/300/400/...,
@@ -747,11 +808,11 @@
 */
 .mvp-txn-filter__chips {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--brand-scale-250);
-  overflow-x: auto;
 }
 
-/* Chips must not compress to fit; the row scrolls instead — as above. */
+/* Chips must not compress to fit; the row wraps instead — as above. */
 .mvp-txn-filter__chips > * {
   flex: 0 0 auto;
 }

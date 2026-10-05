@@ -3026,7 +3026,7 @@ reads them next should not take them as one.
 Note the two visible slots sit at x=0 and x=64 — a **12px** step, which is what
 corrected the MVP row's 8px gap at this gate.
 
-### UI-4 — OPENED: the Transactions filter sheet hides chips off-screen
+### UI-4 — CLOSED at Gate 80-C: the Transactions filter sheet hides chips off-screen
 
 **A DEFERRED ITEM, NOT A G ENTRY**, on the precedent 2r set for UI-1: it is an
 MVP-side layout decision, not something a DS release can close, so it moves no
@@ -3056,6 +3056,52 @@ refuses elsewhere.
 `finance-transactions-{filter,merchant,applied}` baselines. Registered here so
 the decision is a decision rather than a discovery.
 
+#### CLOSED AT GATE 80-C — the rows wrap, and the 12-baseline estimate was 4
+
+Teku ruled it on 3 Oct: `.mvp-txn-filter__chips` is `flex-wrap: wrap` and the
+`overflow-x: auto` is gone.
+
+**THIS OVERRIDES FIGMA, WHICH DRAWS BOTH ROWS SCROLLING.** Read at Gate 80-C
+from `v9MI8jxTaXiJA234Hkanlf`, node `1266:14329`: `Frame 422` is a single 40px
+line, **458 wide** in Date Range (`I1266:14329;826:6536`, four chips) and **454**
+in Transaction Type (`I1266:14329;826:7135`, FIVE chips), both inside a 343
+column — so the mockup clips the fourth date chip and the fifth type chip. The
+override is recorded in `finance.css` beside the rule. Note Figma draws five
+type chips where this app builds four; that is the third-taxonomy divergence
+Gate 43 already recorded, not a new finding.
+
+**⚠ THE ESTIMATE ABOVE WAS 12 BASELINES AND THE MEASURED COST IS 4** — only
+`finance-transactions-filter-{375,430}-{light,dark}`. The other eight cannot
+move, for two different reasons, and neither was checked when the estimate was
+written:
+
+| state | why it cannot move |
+|---|---|
+| `[overlay:merchant]` | the sheet SWAPS VIEWS IN PLACE, so the merchant view renders **zero** `.mvp-txn-filter__chips` — probed, not argued — and its panel already sits at the 764 cap (top 48) |
+| `[overlay:applied]` | it declares `confirm`, so **no sheet is open at capture** |
+
+Both were established by probe before the prediction was written, and the
+pre-mint run failed exactly the four predicted files. **An estimate of which
+baselines a change moves is not a measurement of it**, and the gap here was a
+factor of three.
+
+**⚠ THE RULING’S STATED PRECONDITION WAS CONTRADICTED BY MEASUREMENT, AND THE
+RULING STILL STANDS.** The case for wrapping is that a scrollbar-less scroller
+needs a peeking item. Measured at 375 before the change, these rows DID peek:
+the fourth date chip sat at **330.61..440.66** against a row edge of **359**, so
+**28.39px of it was visible**, and the fourth type chip showed **23.28px** of
+129.41. What overflowed was 81.66px and 106.13px, not the whole chip — which is
+also what the table above measures.
+
+So the argument rests on the sliver being **UNREADABLE** — 28px of a bordered
+pill is its left radius and no text — rather than on the chip being absent. **Do
+not re-derive this as "nothing was visible."** The independent half of the case
+is untouched and is what carries it: both rows wrap to **exactly two lines** at
+both viewports (measured by injecting the rule before shipping it: each row
+h 42 -> 94, `scrollWidth` 425/449 -> equal to `clientWidth`, the sheet panel
+591 -> 695 and its top 221 -> 117, still inside the 764 cap), which is inside
+the limit Material 3 sets for preferring a wrapped chip set to a scrolling one.
+
 ### Recorded, NOT registered — the Receipts tab has no empty state, and the filter makes that reachable
 
 `ReceiptsTab.tsx` has said since Gate 48 that "NOTHING IN THE FRAME DRAWS ONE"
@@ -3073,6 +3119,25 @@ add button and a large blank area.
 introduced here. But a drawn empty state is now worth having, and Figma draws
 none, so it is a design call rather than a build task.
 
+#### SUPERSEDED AT GATE 80-C — built, as undesigned work
+
+The last sentence above is the half that no longer holds. Figma still draws
+nothing, and that does not make it a design call rather than a build task:
+under the 21 Sept ruling, what Teku did not design follows Claude’s judgement,
+so an undrawn state is undesigned WORK rather than blocked work.
+
+`src/components/NoResults.tsx` now renders on BOTH filtered lists — the
+Receipts tab and the ledger. The blank area this note describes is gone from
+the four `finance-receipts-applied-*` baselines, which were re-minted at that
+gate.
+
+**IT IS A NO-RESULTS STATE AND NOT A FIRST-RUN EMPTY STATE, which are different
+designs.** The first-run case is still unbuilt and still unreachable: nothing
+can take either collection to zero records, because there is no delete-all and
+no persistence to reset. It arrives with persistence, after the Flow 11
+completion record, and the component carries an explicit instruction not to be
+generalised toward it in the meantime.
+
 ### Recorded, NOT registered — two receipt axes were measured and deliberately not built
 
 `Receipt` carries twelve fields. Four could back a facet; two were built.
@@ -3089,5 +3154,59 @@ derived from stored fields alone and the Gate 60 advisory already surfaces it pe
 card. It is not built because **0 of the 10 seeded receipts fail**, and the link
 facet is already degenerate on one side there — two degenerate axes make a sheet
 that demonstrates nothing.
+
+### Nothing was removed from this register at this gate.
+
+## 2y. Status at MVP Gate 80-C (2026-10-03) — filter-surface consistency; no DS change
+
+**NO DS RE-PIN.** v2.8.0 throughout, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. **No G entry moved and the tally is
+unchanged**: nothing in the DS was overridden and no DS geometry was fought.
+
+Two changes, both already recorded above where their items live: **UI-4 is
+CLOSED** (the ledger’s chip rows wrap, overriding Figma on Teku’s 3 Oct ruling),
+and the **Receipts empty-state note is SUPERSEDED** (a no-results state is built,
+on both filtered lists).
+
+### Recorded, NOT registered — `NoResults` is a DS promotion candidate
+
+**NOT A `G` ENTRY, AND NOT A GAP THIS APP IS WORKING AROUND**, which is what
+keeps it out of the tally. It is a composition of three shipped components —
+`IconObject`, `Icon`, `Button` — and nothing had to be overridden to build it.
+
+What makes it worth recording is that the PATTERN is general and the DS ships
+none of it. Searched at this gate against `xhA5ARVgSeD3gA41lYDqST`: a component
+search for an empty state returns `crop_3_2` and `Scrollbar container`, and one
+for an illustration returns `Header` and `img/bg01`. So there is no empty-state
+component — and no illustration primitive either, which is the same absence Gate
+80 recorded when it built the education hero from an `IconObject` badge rather
+than from Figma’s 43px spot illustration.
+
+**THE CONSEQUENCE FOR THE MARK IS WORTH STATING PLAINLY: there IS room for an
+illustration and there is no illustration to put in it.** Measured on the
+Receipts applied state at 375, **403px** between the add button’s bottom edge
+(310) and the nav band’s top (713). Authoring artwork is not a build step — the
+Gate 24 icon census and the Gate 76 goal images are both precedents for stopping
+at that line — so the mark is an `IconObject` badge carrying `filter_list`, which
+names the CAUSE of the state. **It is not an illustration and is not claimed to
+be one.** `search` was the other glyph candidate and is wrong whenever the search
+box is empty, which is the common case; `search_off` is not in the registry
+(counted at **109** under v2.8.0).
+
+For the DS round, beside the illustration gap. Two consumers today in two flows,
+which is the same test that promoted `ComingSoon` out of `flows/homepage/` at
+Flow 7 — so if the DS declines it, it stays in `src/components/` and nothing has
+to move.
+
+### Recorded — the component renders NO DS `Label`, deliberately
+
+`section-headers.spec.ts` fails on any DS `Label` outside a
+`.mvp-section-header`, and **`.mvp-coming-soon` is on its `BYPASS_EXCEPTIONS`
+list for exactly that reason** — its "Coming soon" pill IS a status chip. A
+no-results state is not a status; it is a message plus a way out. So `NoResults`
+renders no `Label`, **adds no exception to that guard**, and the Gate 78 shape is
+unchanged. Gate 78 added `ComingSoon`’s sibling exception the hard way, by
+shipping a `Label` and watching six tests go red; reading the guard first is what
+avoided a repeat.
 
 ### Nothing was removed from this register at this gate.

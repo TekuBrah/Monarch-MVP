@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Button, Field, FilterChip, Icon } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
+import { NoResults } from '../../components/NoResults'
 import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { ReceiptViewerHost } from './components/ReceiptViewer'
@@ -215,6 +216,25 @@ export function ReceiptsTab() {
   // statement that nothing is filtered.
   const chips = useMemo(() => receiptFilterChips(filter), [filter])
 
+  /*
+    THE RECOVERY ACTION RESETS BOTH NARROWING MECHANISMS, not just the facets.
+
+    `filterReceipts(receipts, search, filter)` takes the search term and the
+    facet set as SEPARATE arguments, so either can produce a zero result on its
+    own and either can keep producing one after the other is cleared. An action
+    that cleared only `filter` would therefore be able to leave the user still
+    looking at nothing, which is not a recovery action — see `NoResults`'
+    `actionLabel` for why the button is named after its outcome rather than
+    after "clear filters".
+
+    IT IS GUARANTEED TO RESOLVE THE STATE. With both at their defaults the
+    predicate narrows nothing, so the list is the whole library.
+  */
+  const showAll = useCallback(() => {
+    setSearch('')
+    setFilter(RECEIPT_FILTER_ALL)
+  }, [])
+
   // THE JOIN, DONE ONCE. `ReceiptCard` takes a transaction rather than looking
   // one up, so the lookup lives here; a Map keeps it O(1) per card instead of a
   // scan per card inside the render.
@@ -326,6 +346,29 @@ export function ReceiptsTab() {
           </div>
         </section>
       ))}
+
+      {/*
+        THE NO-RESULTS STATE (Gate 80-C). `groups` is empty exactly when the
+        search term and the facet set between them match nothing — and until
+        this gate the screen rendered NOTHING there: measured on the
+        `[overlay:applied]` walk state at 375, zero `.mvp-receipts__month`
+        sections, the root box ending at y=326 and 403px of blank space down to
+        the nav band.
+
+        THE CHIPS STAY ABOVE IT, which is what makes the zero explainable: the
+        row is derived from the filter, so the user can see which facets caused
+        it and dismiss one without opening the sheet. The sort control and the
+        add button stay for the same reason — nothing about a zero result makes
+        adding a receipt unavailable.
+      */}
+      {groups.length === 0 && (
+        <NoResults
+          title="No receipts match"
+          description="Try a wider date range, or dismiss a filter above."
+          actionLabel="Show all receipts"
+          onReset={showAll}
+        />
+      )}
 
       {/*
         MOUNTED CONDITIONALLY, so nothing of it exists in the DOM while it is

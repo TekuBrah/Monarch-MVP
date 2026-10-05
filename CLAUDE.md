@@ -16439,3 +16439,461 @@ sweep; G6, G13, G14, G17's prop half, G19-G23, G28-G33, G44 and G48 — all stil
 registered, still deferred, and **no MVP-local override was added for any**; the
 G33 workaround class, untouched and still carrying its removal condition; UI-3;
 `npm audit fix`; the DS repo; and branch deletion.
+
+## Filter-surface consistency — wrapped chips, and a no-results state (Gate 80-C)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was read outside
+`node_modules/@monarch/design-system/dist/`. Two changes, both to filter
+surfaces: the ledger's sheet stopped hiding options off-screen, and the two
+filtered lists stopped rendering nothing when a filter excluded every row.
+**|WALK| 67 -> 68, `OVERLAY_STATES` 35 -> 36, `ROUTES` 25 (unchanged),
+baselines 268 -> 272 (4 added, 8 changed, ZERO deleted), tests 852 -> 870, spec
+files 33 -> 34.** `lint:tokens` scans **91** files (89 + the component and its
+stylesheet) with the same **4** exemptions — no new raw value entered the tree.
+
+### Figma was reachable, and it answered both questions against this gate
+
+**THE REMOTE CONNECTOR WORKED AND `figma-local` REFUSED** (`ECONNREFUSED`),
+which is the same split as Gates 78, 79, 80 and 80-B. Established by an
+authenticated round trip (`whoami` -> Teku Cheong, pro), not a port check. Do
+not predict which path works.
+
+**ONE PAGE DUMP OVERFLOWED THE TOOL, AND THAT IS THE SAFE OUTCOME.**
+`get_metadata` on page `0:1` returned a JSON parse error at column 19593
+rather than a truncated tree, so the enumeration was done section by section
+from the ids the record already holds.
+
+#### Question 1 — does Figma draw an empty or no-results state? NO.
+
+| section | contents |
+|---|---|
+| `1266:14327` Flow 8 | three instances — `Finance_Transaction01`, `…01_all rows`, `…02` |
+| `1266:14277` Flow 9 | eight instances, one annotation, one component frame |
+
+Neither draws one, which is what `ReceiptsTab.tsx` has said since Gate 48. **And
+the DS ships nothing for it either**: searched against
+`xhA5ARVgSeD3gA41lYDqST`, a component search for an empty state returns
+`crop_3_2` and `Scrollbar container`, and one for an illustration returns
+`Header` and `img/bg01`. So the no-results state is **UNDESIGNED WORK** under
+the 21 Sept ruling — what Teku designed in Figma is followed exactly, and what he
+did not design follows Claude's judgement.
+
+**A BATCHED `search_design_system` CALL IS CLAMPED TO ONE QUERY** by the
+server, which reports the clamp rather than silently dropping the rest. Four
+queries came back as one; the others were re-run individually.
+
+#### Question 2 — Figma draws the chip rows SCROLLING. This gate overrides it.
+
+Read from `1266:14329`:
+
+| row | `Frame 422` | chips | last chip's right edge |
+|---|---|---|---|
+| Date Range (`I1266:14329;826:6536`) | **458 x 40** in a 343 column | 4 | 458 |
+| Transaction Type (`I1266:14329;826:7135`) | **454 x 40** in a 343 column | **5** | 454 |
+
+A single 40px line in both cases, overflowing its column — so the mockup clips
+the fourth date chip and the fifth type chip. **The override is Teku's 3 Oct
+ruling** and is recorded in `finance.css` beside the rule.
+
+**THE REPO'S OWN CSS COMMENT HAD BOTH FIGMA WIDTHS EXACTLY RIGHT** (458 and
+454), which is worth saying because it is the rarer outcome: it was re-derived
+rather than trusted, and it survived. Note Figma's TYPE row draws FIVE chips
+where this app builds four — that is the third-taxonomy divergence Gate 43
+already recorded, not a new finding.
+
+### 1a — the ledger's chip rows wrap
+
+`.mvp-txn-filter__chips` goes `overflow-x: auto` -> `flex-wrap: wrap`,
+matching `.mvp-receipt-filter__chips` which Gate 80-B built wrapped from the
+start.
+
+**MEASURED BY INJECTING THE RULE BEFORE SHIPPING IT**, at both viewports, so the
+prediction was arithmetic rather than hope:
+
+| | before | after |
+|---|---|---|
+| each row | h **42**, 1 line | h **94**, **2 lines** |
+| `scrollWidth` vs `clientWidth` | 425 / 449 against 343 | **equal — no overflow left** |
+| sheet panel | 591 tall, top 221 | **695 tall, top 117** |
+| the 764 cap | not reached | **not reached** — nothing scrolls internally |
+
+Chips are hug-width, so 430 wraps identically to 375 and both viewports report
+the same panel geometry.
+
+**⚠ THE RULING'S STATED PRECONDITION WAS CONTRADICTED BY MEASUREMENT, AND THE
+RULING STILL STANDS.** The case for wrapping is that a scrollbar-less scroller
+needs a peeking item — `src/index.css` hides every scrollbar on `*` — and that
+these rows had none. **They DID peek.** Measured at 375 before the change: the
+fourth date chip sat at **330.61..440.66** against a row edge of **359**, so
+**28.39px of it was visible**, and the fourth type chip showed **23.28px** of
+129.41. What overflowed was 81.66px and 106.13px, not the whole chip.
+
+So the argument rests on the sliver being **UNREADABLE** — 28px of a bordered
+pill is its left radius and no text — rather than on the chip being absent. **Do
+not re-derive this as "nothing was visible."** The independent half of the case
+is untouched and is what carries it: both rows wrap to exactly two lines, which
+is inside the limit Material 3 sets for preferring a wrapped chip set to a
+scrolling one.
+
+**NOTHING ELSE WAS TOUCHED.** The global suppression at `src/index.css`, the
+Home carousels and every other horizontal scroller are unchanged — those peek by
+design and the rule holds for them.
+
+#### UI-4's 12-baseline estimate was 4, measured
+
+Gate 80-B registered the fix as moving the 12
+`finance-transactions-{filter,merchant,applied}` baselines. **Measured, it moves
+4**, and the other eight cannot move for two different reasons, neither of which
+was checked when the estimate was written:
+
+- **`[overlay:merchant]`** — the sheet SWAPS VIEWS IN PLACE, so the merchant
+  view renders **zero** `.mvp-txn-filter__chips`, and its panel already sits at
+  the 764 cap (top 48). Probed, not argued.
+- **`[overlay:applied]`** — it declares `confirm`, so **no sheet is open at
+  capture**.
+
+An estimate of which baselines a change moves is not a measurement of it, and the
+gap here was a factor of three.
+
+### 1b — one no-results component, two surfaces
+
+`src/components/NoResults.tsx`. Composition, not a primitive (rule 4): three DS
+components — `IconObject`, `Icon`, `Button` — with the layout box as the only
+local element, owning its own stylesheet.
+
+**BEFORE THIS GATE BOTH FILTERED LISTS RENDERED NOTHING AT ZERO.** Measured on
+`[tab:receipts] [overlay:applied]` at 375: zero `.mvp-receipts__month`
+sections, the root box ending at y=326, and **403px of blank space** down to the
+nav band — with the chips and the add button above it and no statement anywhere
+that the filter was the cause. The ledger left an empty `<ul>`.
+
+| | receipts | ledger |
+|---|---|---|
+| title | No receipts match | No transactions match |
+| description | Try a wider date range, or dismiss a filter above. | Try a wider date range or amount, or dismiss a filter above. |
+| action | Show all receipts | Show all transactions |
+
+**THE COPY IS PARAMETERISED AND THE STRUCTURE IS NOT** — same mark, same heading
+level, same spacing, same action placement. Asserted by reading both renders and
+comparing them field by field, rather than by restating the structure twice.
+
+**IT IS A NO-RESULTS STATE AND NOT A FIRST-RUN EMPTY STATE**, and the component
+carries an explicit instruction not to be generalised toward the second. Those
+are different designs: one is error recovery, the other onboarding. The first-run
+case is unreachable today — nothing can take either collection to zero records,
+because there is no delete-all and no persistence to reset — and it arrives with
+persistence, after the Flow 11 completion record. Building for it now would be a
+prop nobody passes.
+
+#### The illustration question was decided by what EXISTS, not by the space
+
+There IS room — 403px, measured above — **and there is no illustration to put in
+it.** The DS ships no illustration primitive, and authoring artwork is not a
+build step (the Gate 24 icon census and the Gate 76 goal images are both
+precedents for stopping at that line).
+
+So the mark is a DS `IconObject` badge, which is this app's own established
+answer to "a mark above a centred message": `ComingSoon` uses
+`color="slate" shape="circle" size="xxl"` around an `Icon size="l"`, and Gate
+80's education hero made the same call for the same reason. **It is not an
+illustration and is not claimed to be one.**
+
+**THE GLYPH IS `filter_list`, WHICH NAMES THE CAUSE.** `search` was the other
+candidate and is wrong whenever the search box is empty, which is the common
+case. `search_off` is **not** in the registry — counted at **109** glyphs under
+v2.8.0 (106 at v2.3.0, plus `photo_camera`, `icon_spend` and `golf_course`).
+
+#### NO DS `Label`, and that is what keeps the Gate 78 guard untouched
+
+`section-headers.spec.ts` fails on any DS `Label` rendered outside a
+`.mvp-section-header`, and **`.mvp-coming-soon` is on its
+`BYPASS_EXCEPTIONS` list for exactly that reason** — its "Coming soon" pill IS a
+status chip. A no-results state is not a status; it is a message plus a way out.
+So this renders no `Label`, adds no exception, and that guard's shape is
+unchanged.
+
+**THAT WAS PREDICTED RATHER THAN DISCOVERED.** Gate 78 added `ComingSoon`'s
+sibling exception the hard way, by shipping a `Label` and watching six tests go
+red. Reading the guard first is what avoided a repeat.
+
+#### The action resets BOTH narrowing mechanisms, which is why it is named after its outcome
+
+Both screens pass `filterX(collection, search, filter)` with the search term and
+the facet set as **separate arguments**, so either can produce a zero result
+alone — and an action that cleared only the facets could leave the user still
+looking at nothing. **A recovery action that does not recover is not one.**
+
+So `showAll` clears both, and the label names its OUTCOME ("Show all
+transactions") rather than a mechanism it exceeds ("Clear filters"). With both at
+their defaults the predicate narrows nothing, so the action always resolves the
+state. A search-only zero is covered too — it is the one case reachable with an
+empty chip row, which is why the description points at a wider date range as well
+as at the chips.
+
+#### The chips stay visible, and so does the add control
+
+The chip row is DERIVED from the filter, so leaving it above the block is what
+makes the zero explainable — a user can see which facets caused it and dismiss
+one without reopening the sheet. The Receipts tab's primary "Add new receipt"
+also stays: nothing about a zero result makes adding a receipt unavailable, and
+Gate 51 put that button outside every month group precisely so it survives an
+emptied list.
+
+**THE BUTTON IS `secondary`, NOT `primary`.** On the Receipts tab a primary
+"Add new receipt" sits directly above the block, and two primaries competing in
+one column is the shape Gate 50 refused for the bulk modal's two source buttons.
+Both surfaces take the same variant, because the structure must not diverge.
+
+#### The empty ledger `<ul>` collapses, through the file's OWN mechanism
+
+`.mvp-transactions__list` carries `margin: var(--spacing-400) 0 0`, so an empty
+`<ul>` left in flow contributes 16px above the block on top of the parent
+column's 8px gap — a zero-height element with a top margin is still 16px of
+space. `.mvp-transactions__list:empty { display: none }` takes the margin AND
+the flex gap with it.
+
+**A JSX CONDITIONAL ON THE `<ul>` WAS WRITTEN FIRST AND REPLACED, AND THE
+REASON IS WORTH KEEPING.** It produced an identical render — verified, all 12
+minted baselines pass unchanged under either form — but it wrapped a 50-line
+element in `{rows.length > 0 && (` without indenting it, where **every other
+conditional in this app indents its children** — measured exhaustively, **47
+of 47** `{cond && (` sites across every `.tsx` in `src/`, zero exceptions. And it invented a second mechanism for a
+problem this file already had one for: `.mvp-transactions__chips:empty` sits 60
+lines above it and `.mvp-receipts__chips:empty` repeats it on the other tab,
+both added by Gate 44 for exactly this flex-gap problem.
+
+**`:empty` IS EXACT RATHER THAN APPROXIMATE**, for the chip rows’ reason: the
+element’s only children are `<li>` rows and React renders no whitespace text
+node between them.
+
+**Every `e2e` selector against that list reads `> li` descendants on an
+UNFILTERED ledger** — swept, 30 pre-existing references across 11 files — so
+none of them can see the element collapse.
+
+#### ⚠ THE LIVE REGION IS ON THE BLOCK, NOT ON THE RESULTS REGION
+
+A live region announces **additions to its subtree**. Putting it on the results
+region — which is the literal instruction this gate was given — would mean that
+going from zero back to everything announces **all 53 ledger rows**: the filter
+change a user makes most often, turned into the longest possible utterance.
+Announcing the transition TO zero is the thing worth having.
+
+**IT FOLLOWS `CapturingBlock`, which is this repo's established pattern:**
+`role="status" aria-live="polite"` on a block that is itself mounted
+conditionally. The honest cost is that an inserted live region is announced less
+reliably than one already in the DOM. The alternative — a region always present —
+costs an **8px flex gap on every state of both tabs** (both parents are
+`flex-direction: column` with `gap: var(--spacing-200)`), which would move
+every baseline of both tabs for a marginal gain; and `:empty { display: none }`
+to avoid that gap puts the region back to being inserted anyway.
+
+**ASSERTED IN BOTH DIRECTIONS**, which is the half that earns its keep: the block
+carries the region, and **no ancestor of the list does**. The second assertion is
+what would catch someone "finishing the job" by moving the attribute onto the
+results region, and it has its own mutation proof.
+
+### The walk state — `/finance [tab:transactions] [overlay:empty]`
+
+**THE SIBLING `applied` STATE MATCHES 14 ROWS, SO IT CANNOT COVER THIS**, and
+only the Receipts half of the no-results state was photographed — by
+`[tab:receipts] [overlay:applied]`, which happens to match zero. So the ledger's
+half would have shipped outside the visual net, which is exactly the hole
+Gate 80-B closed for the merchant picker.
+
+**REACHED THROUGH THE FACETS ALONE, WITH NO TYPING.** Measured over the 53-row
+seed, five date x type pairs return zero — `this-month` and `last-7` with Fund
+Transfer, and `this-month`, `last-7` and `last-30` with Crypto Transfer — as
+does any amount cap at or below RM 10, and 59 payee x date pairs. The ladder
+takes the shortest: **53 -> 2 -> No results**, every rung changing the Apply
+button's own text.
+
+**THE CHIP LOOKUP IS SCOPED TO `.mn-toggle-chip`, AND HERE THAT IS MANDATORY.**
+"Fund Transfer" is also the METHOD CAPTION on **35 of the 53** ledger rows behind
+the sheet, so an unscoped text lookup would be ambiguous 36 times over — the same
+reading the sibling state records for "Card Payment", which collides 16 times.
+`:has-text` and not `:text-is`, because `ToggleChip` renders its label in a
+child `<span>` (Gate 44).
+
+**THE SETTLE IS THE BLOCK'S WHOLE TEXT, NOT THE CHIP ROW.** This state exists to
+photograph the no-results render, so asserting the concatenation means a missing
+title, description or action fails at the settle rather than silently minting a
+baseline of a half-built block. What matters about the chip row here is that it
+SURVIVES, and a settle on the block cannot say anything about a sibling element —
+so the spec asserts that instead.
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE ELEVENTH TIME**: one added walk
+state cost **4 baseline files and 8 tests** (visual +4, routes +2,
+section-headers +2). |WALK| = 68 confirmed three ways — 272/4, (137-1)/2,
+(138-2)/2.
+
+### The WALK comment was ACCURATE on arrival, for the first time in six gates
+
+`e2e/harness.ts` read `25 routes + 7 non-default tab states + 35
+OVERLAY_STATES = 67` and that was exactly right. It has been stale on arrival at
+Gates 71, 71-B, 74-B, 78 and 80-B — five corrections — and Gate 80-B fixed it.
+**This gate moved it by one term because it ADDED a state, not because it found a
+drift**, and the comment now records that distinction so the tally of corrections
+stays honest.
+
+### Verification
+
+**THE SWEEP CAME BEFORE THE PREDICTION, AND THE PREDICTION WAS WRITTEN TO A FILE
+OUTSIDE THE REPO BEFORE THE FIRST EDIT.** That ordering is Gate 77's lesson, and
+it held: the pre-mint run reported **12 failed / 858 passed in 27.8m**, the twelve
+being exactly the predicted files, with **zero failures outside
+`visual.spec.ts`** — no route, no section-header and no behaviour spec.
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT**: 268 files
+byte-identical to the start manifest, **zero** untracked files in the snapshot
+directory and **zero** "writing actual" lines. `updateSnapshots: 'none'`
+honoured.
+
+The mint was **dry-run first** — the `-g` scope selected exactly 12 tests in one
+file — then run with `--update-snapshots=all`, writing **20 lines over 12
+distinct files** (8 modified twice each, 4 new once each). Count distinct names,
+not lines. Reconciled against the start manifest: **268 -> 272, 4 added, 8
+changed, 0 deleted, 260 byte-identical**, with the added and changed sets
+disjoint, so 4 + 8 = 12 reconciles with the pre-mint failure count directly.
+
+**ALL TWELVE MINTED PNGs WERE OPENED AND READ**, not trusted from a green run —
+Gate 80 shipped the wrong artwork past every instrument this repo has, and a
+picture is reviewed by reading it. The four tall `filter` captures (4186px) were
+cropped to the sheet region with a PNG decoder built from Node builtins, the Gate
+53-B instrument. All twelve are correct: both chip rows wrap to two lines with
+every option visible, and the block renders with its chips above it in both
+themes at both widths.
+
+**⚠ THE NEGATIVE CONTROL DEFEATED THE MUTATION DRIVER, AND THAT IS THE MOST
+REUSABLE FINDING HERE.** The first driver reported the control — a deliberate
+syntax error — as **PROVED**. The mechanism is worth keeping: a module Vite
+cannot transform does not surface as a `SyntaxError` in Playwright's output. The
+app simply never renders, so the test dies on an ordinary `expect(...)` inside
+`gotoRoute`, which reads as an ASSERTION failure and passes every pattern in a
+denylist of failure signatures.
+
+**A DENYLIST CANNOT CLOSE THAT, because the signature of a broken build is
+indistinguishable from the signature of a broken feature.** The driver now
+typechecks the mutated tree and refuses any mutation that does not compile — a
+legitimate mutation is type-valid by construction, because it changes behaviour
+rather than syntax. Every proof was re-run under the fixed driver; the first
+batch is void.
+
+**AND THE GATE IMMEDIATELY CAUGHT A SECOND MUTATION, WHICH IS WHY IT IS WORTH
+KEEPING RATHER THAN BEING A ONE-OFF.** M1 neutered the ledger’s method facet by
+prefixing `false &&` to its guard, and that does not compile: with an
+always-false first operand TypeScript stops narrowing the rest of the `&&`
+chain, so `filter.methods.includes(...)` fails **TS18047, "'filter.methods' is
+possibly 'null'"**. Under the old driver that would have been a silent false
+pass. The mutation now drops the `!` instead, which keeps the null guard and
+still inverts the facet.
+
+**THE FINAL TALLY: the negative control correctly DENIED, and 11 of 11 proofs
+PROVED** — each running exactly one test, failing on an assertion, restoring
+SHA-identical and re-running green.
+
+#### Three clean runs, the SECOND set, and they agree
+
+**THE FIRST SET DISAGREED AND IS RECORDED BELOW AS A FIRED STOP CONDITION.** The
+second set, run against the final tree with nothing edited between them:
+
+| run | npm exit | result | wall clock | baselines | "writing actual" | digest |
+|---|---|---|---|---|---|---|
+| 1 | 1 | **1 failed / 869 passed** | 26m28s | 272 | 0 | `3da55c09…2dbb7dc64` |
+| 2 | 1 | **1 failed / 869 passed** | 27m28s | 272 | 0 | `3da55c09…2dbb7dc64` |
+| 3 | 1 | **1 failed / 869 passed** | 27m55s | 272 | 0 | `3da55c09…2dbb7dc64` |
+
+The digest is byte-identical across all three and to the pre-run manifest, by the
+standing command, so all 272 baselines are byte-stable across the set.
+
+**THE ONE FAILURE IS ARM 1 OF THE BASELINE GUARD, IN EVERY RUN, AND IT IS
+CORRECT.** `baselines.spec.ts:216` naming exactly the four untracked
+`finance-transactions-empty-*` PNGs. Arm 2 stays green because nothing was
+renamed or deleted (the Gate α correction), and arm 3 because every file on disk
+is a name the walk asks for. Staging is Teku's. Do not read it as a regression
+and do not relax the guard.
+
+**EXACTLY ONE ENUMERATED FAILURE PER RUN, CHECKED BY THE RIGHT INSTRUMENT.** A
+first pass grepped every `*.spec.ts:N:N` reference in each log and reported five
+spec files, which is an artefact of the grep rather than a result — the log names
+a spec on every line it prints. The authoritative list is Playwright's own `N)`
+enumeration, which is **one entry in all three runs**. That is the Gate A lesson
+again: a filter that cannot distinguish what it is counting reports a defect that
+is not there.
+
+**AND npm's EXIT CODE WAS CAPTURED IN ITS OWN STATEMENT**, which is why the table
+can state it. The task notification for the run script reported "exit code 0" —
+the SCRIPT's code, not npm's, which was **1** in each run. That is the documented
+trap firing a second time at this gate.
+
+### ⚠ THE GATE 31 MOUNT RACE RECURRED, AND THIS IS THE RECURRENCE IT ASKED FOR
+
+**STOP CONDITION HIT AND REPORTED RATHER THAN WORKED AROUND.** The three clean
+runs did not agree: runs 1 and 2 reported **1 failed / 869 passed**, which is
+arm 1 of the baseline guard on the four untracked PNGs and is expected. Run 3
+reported **2 failed / 868 passed** — the same arm 1, plus
+`section-headers.spec.ts` on `/finance/budget/budget-monthly [overlay:edit-delete]
+[dark]`.
+
+**IT FAILED INSIDE `gotoRoute`, NOT INSIDE THE TEST**, at `harness.ts:2640`:
+
+```
+Error: expect(locator).toHaveText(expected) failed
+Locator: locator('.mvp-shell__theme-switch button')
+Expected: "Dark"   Error: element(s) not found
+```
+
+The shell’s theme toggle was not in the DOM 5 seconds after navigation, so the
+dark branch could not even begin. `gotoRoute` navigates with
+`waitUntil: 'networkidle'`, which fires when the network goes quiet for 500ms —
+**React mounting is CPU work, not network**, so `networkidle` can precede the
+first paint. Normally the 5s retry absorbs that; for it to expire the mount has
+to stall for seconds.
+
+**GATE 31 PREDICTED THIS AND ASKED FOR IT.** Its own flake was
+`section-headers.spec.ts` failing in `gotoRoute` on the LIGHT `data-theme`
+assertion, recorded as "A MOUNT-TIMING RACE IN THE HARNESS, EXPOSED BY LOAD" and
+closed with: *"Recorded rather than closed: if it recurs off-load,
+`gotoRoute`’s light-theme assertion is where to look."* Same file, same
+function, same mechanism — one assertion earlier, on the dark branch.
+
+**IT IS NOT THIS GATE’S, AND THAT IS STRUCTURAL RATHER THAN ARGUED.**
+`gotoRoute` begins at line 2628 and this gate’s only `harness.ts` changes are at
+**987-1055, 2153-2154 and 2163-2169** — the new overlay state and two comment
+lines. It touched no budget screen, no `gotoRoute`, and nothing either calls.
+
+**MEASURED, AND THE MEASUREMENT’S LIMIT IS STATED.** The failing test was re-run
+**15 times as a single test (0 failures)** and the whole `section-headers.spec.ts`
+**3 more times, 138 passed each (0 failures)** — 18 further executions of that
+exact test, all green, with every baseline digest unchanged throughout.
+
+**THAT DOES NOT ESTABLISH A RATE, AND MUST NOT BE READ AS ONE.** The reproducing
+condition was a full 870-test suite running THIRD in a back-to-back sequence,
+after roughly 75 minutes of continuous Chromium work. The probe ran one spec
+against a fresh server, which is a materially lighter condition — the Gate 17
+lesson that a probe in the wrong condition measures the wrong thing and reports
+a clean bill of health. **0 of 18 off-load is consistent with the load
+hypothesis, not evidence against it.** Across full-suite runs at this gate the
+figure is **1 occurrence in 7** — the pre-mint run, the first set's runs 1 and 2,
+and all three of the second set were free of it. **Seven runs is not a rate
+either**, and the second set's three clean runs are consistent with both
+readings: a load-dependent race that did not happen to fire, and a one-off. It
+stays recorded rather than closed, on the same terms Gate 31 set.
+
+**NOTHING WAS LOOSENED, AND NOTHING SHOULD BE.** No timeout was widened, no
+assertion softened, no retry added — Gate 17 named a `waitForTimeout` in exactly
+this position "a tolerance wearing a fix’s clothes". The honest fix, if this is
+ever worth closing, is for `gotoRoute` to wait on the shell being MOUNTED rather
+than on the network being quiet, which is a harness change with its own gate and
+its own blast radius across all 68 walk states.
+
+### Deliberately not in scope
+
+A first-run empty state (unreachable until persistence); promoting `NoResults`
+into the DS (registered for the DS round); an illustration primitive, which is
+the same DS absence Gate 80 recorded; the global scrollbar suppression, the Home
+carousels and every other horizontal scroller; the ledger's own filter model;
+**MODEL-1**, still registered and unfixed; the retro-fit sweep; G6, G13, G14,
+G17's prop half, G19-G23, G28-G33, G44 and G48 — all still registered, still
+deferred, and **no MVP-local override was added for any**; the G33 workaround
+class, untouched and still carrying its removal condition; UI-3; persistence
+(NP1); `npm audit fix`; the DS repo; and branch deletion.

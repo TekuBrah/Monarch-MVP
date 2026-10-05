@@ -176,6 +176,47 @@ export async function openReceiptFilter(page: Page): Promise<Locator> {
 }
 
 /**
+ * Open the LEDGER's filter sheet through its own control — Gate 80-C.
+ *
+ * THE SIBLING OF `openReceiptFilter`, AND THE FIRST SPEC-SIDE OPENER FOR THIS
+ * SHEET. Until this gate only `harness.ts` reached it, by the
+ * `.mvp-transactions__filter-btn` class, so no spec had an expression for "open
+ * the transaction filter". Located by accessible name for the reason the
+ * receipts helper gives: a reader sees what a user presses.
+ */
+export async function openTransactionFilter(page: Page): Promise<Locator> {
+  await page.getByRole('button', { name: 'Filter transactions' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Filter transactions' })
+  await expect(sheet).toBeVisible()
+  return sheet
+}
+
+/**
+ * Tap a sheet chip and apply, for either filter sheet — Gate 80-C.
+ *
+ * EVERY CONTROL IN BOTH SHEETS COMMITS ON APPLY, so "narrow the list" is
+ * always tap-then-apply and the three tests that do it share one expression
+ * rather than each re-deriving the path. `setReceiptSort` above is the same
+ * shape for the sort control.
+ *
+ * THE CHIP LOOKUP IS SCOPED TO `.mn-toggle-chip` BECAUSE THE LABELS COLLIDE
+ * WITH THE PAGE BEHIND THE SCRIM: "Fund Transfer" is the method caption on 35
+ * of the 53 ledger rows and "Card Payment" on 16, so an unscoped text lookup is
+ * ambiguous many times over. `:has-text` and NOT `:text-is`, because
+ * `ToggleChip` renders its label in a child span (Gate 44).
+ */
+export async function applySheetChips(
+  sheet: Locator,
+  labels: string[],
+): Promise<void> {
+  for (const label of labels) {
+    await sheet.locator(`.mn-toggle-chip:has-text("${label}")`).click()
+  }
+  await sheet.locator('.mn-sheet__actions .mn-btn').click()
+  await expect(sheet).toBeHidden()
+}
+
+/**
  * Choose a sort mode the way a user now has to — Gate 80-B.
  *
  * IT OPENS THE SHEET, TAPS AND APPLIES, because the control moved off the page

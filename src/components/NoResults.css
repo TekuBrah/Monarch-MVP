@@ -1,0 +1,44 @@
+/*
+  NoResults — its own stylesheet, which is the rule `ComingSoon.css` states: a
+  shared component carrying its CSS is what stops a consumer importing an
+  unrelated flow's layout to render a message block.
+
+  THE SPACING IS `ComingSoon`'S, DELIBERATELY. Both are a centred mark, a
+  heading and a line of copy filling a tab body, so the one difference between
+  them should be the action — not the rhythm. `gap: var(--spacing-300)` and
+  `padding: var(--spacing-1400) var(--spacing-600)` are copied from it rather
+  than re-derived, so the two states read as one pattern.
+
+  NOT ON `.mvp-column`. The gutter is for a content EDGE; this block is a
+  centred message whose own `--spacing-600` inset and `max-width` on the
+  description do the placing — the same reading that keeps `.mvp-coming-soon`
+  off the column (a standing exclusion under "The content column").
+
+  Composition only: spacing, alignment and DS tokens. No raw colour, radius,
+  spacing or font value (rule 2).
+*/
+
+.mvp-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-300);
+  padding: var(--spacing-1400) var(--spacing-600);
+  text-align: center;
+}
+
+.mvp-no-results__title {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+/*
+  `max-width: 75%` is `ComingSoon`'s, for the same reason: a description that
+  runs the full width of a centred block reads as a paragraph rather than as a
+  caption under a mark.
+*/
+.mvp-no-results__description {
+  max-width: 75%;
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}

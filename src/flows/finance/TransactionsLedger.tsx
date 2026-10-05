@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
+import { NoResults } from '../../components/NoResults'
 import { TransactionFilterSheet } from './TransactionFilterSheet'
 import { TransactionDetailSheet } from './components/TransactionDetailSheet'
 import { ReceiptSourcePicker } from './components/ReceiptSourcePicker'
@@ -244,6 +245,21 @@ export function TransactionsLedger() {
   const chips = useMemo(() => filterChips(filter), [filter])
 
   /*
+    THE RECOVERY ACTION RESETS BOTH NARROWING MECHANISMS — see `ReceiptsTab`
+    for the full note; the shape is identical.
+
+    `filterTransactions(transactions, filter, search)` takes the facet set and
+    the search term as SEPARATE arguments, so either can produce a zero result
+    alone and clearing only one can leave the user still at zero. Both go back
+    to their defaults, which narrow nothing, so the action always resolves the
+    state.
+  */
+  const showAll = useCallback(() => {
+    setSearch('')
+    setFilter(TRANSACTION_FILTER_ALL)
+  }, [])
+
+  /*
     THE LIBRARY VIEW'S CONTENT (Gate 52) — every receipt with no transaction.
 
     DERIVED FROM `transactionId`, NEVER FROM A STORED FLAG. It is the same
@@ -435,6 +451,30 @@ export function TransactionsLedger() {
           </li>
         ))}
       </ul>
+
+      {/*
+        THE NO-RESULTS STATE (Gate 80-C). Before this gate a filter that
+        excluded every row left an empty `<ul>` and nothing else on screen.
+
+        IT IS REACHABLE THROUGH THE FACETS ALONE, measured over the 53-row seed:
+        five date×type pairs return zero (`this-month`/`last-7` with Fund
+        Transfer, and `this-month`/`last-7`/`last-30` with Crypto Transfer), as
+        does any amount cap at or below RM 10, and 59 payee×date pairs. So the
+        state does not depend on the search box, and `[overlay:empty]` reaches it
+        in two chip taps.
+
+        THE CHIPS STAY ABOVE IT so the zero is explainable — the row is derived
+        from the filter, so a user can see which facets caused it and dismiss one
+        without reopening the sheet.
+      */}
+      {rows.length === 0 && (
+        <NoResults
+          title="No transactions match"
+          description="Try a wider date range or amount, or dismiss a filter above."
+          actionLabel="Show all transactions"
+          onReset={showAll}
+        />
+      )}
 
       {/*
         MOUNTED ONLY WHILE OPEN, WHICH IS WHAT SEEDS IT.

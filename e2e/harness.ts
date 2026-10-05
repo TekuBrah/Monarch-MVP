@@ -984,6 +984,74 @@ export const OVERLAY_STATES: WalkState[] = [
       },
     },
   },
+
+  // ── THE LEDGER FILTERED TO NOTHING (Gate 80-C) ────────────────────────────
+  //
+  // THE SIBLING `applied` STATE MATCHES 14 ROWS, SO IT CANNOT COVER THIS. Until
+  // this gate a filter that excluded every row rendered an empty `<ul>` and
+  // nothing else, on BOTH filtered lists — and only the Receipts side was
+  // photographed, by `[tab:receipts] [overlay:applied]`, which happens to match
+  // zero. So the ledger’s half of the no-results state was outside the visual
+  // net entirely. This is the state that closes that.
+  //
+  // REACHED THROUGH THE FACETS ALONE, WITH NO SEARCH TERM. Measured over the
+  // 53-row seed: five date×type pairs return zero, and this is the shortest of
+  // them — two taps, no typing, so nothing about the ladder depends on the
+  // search box being exercised.
+  //
+  // EVERY RUNG CHANGES THE APPLY TEXT, which is what stops a step that silently
+  // did nothing from minting a baseline of a filter nobody asked for:
+  // 53 → 2 → No results.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'empty',
+      control: '.mvp-transactions__filter-btn',
+      controlLabel: 'Filter transactions',
+      title: 'Filter transactions',
+      prepare: [
+        {
+          control: '.mn-toggle-chip:has-text("This Month")',
+          controlName: 'This Month',
+          action: 'click',
+          settlesOn: '.mn-sheet__actions .mn-btn',
+          settlesText: 'Apply Filter · 2 results',
+        },
+        {
+          // SCOPED TO `.mn-toggle-chip`, AND HERE THAT IS MANDATORY RATHER THAN
+          // TIDY: "Fund Transfer" is also the METHOD CAPTION on 35 of the 53
+          // ledger rows behind the sheet, so an unscoped text lookup would be
+          // ambiguous 36 times over. Same reading the sibling state records for
+          // "Card Payment", which collides 16 times.
+          //
+          // `:has-text` AND NOT `:text-is` — `ToggleChip` renders its label in a
+          // child <span>, so `:text-is` returns ZERO (Gate 44).
+          control: '.mn-toggle-chip:has-text("Fund Transfer")',
+          controlName: 'Fund Transfer',
+          action: 'click',
+          settlesOn: '.mn-sheet__actions .mn-btn',
+          settlesText: 'Apply Filter · No results',
+        },
+      ],
+      confirm: {
+        control: '.mn-sheet__actions .mn-btn',
+        controlLabel: 'Apply Filter · No results',
+        // THE BLOCK ITSELF, AND ITS WHOLE TEXT. This state exists to photograph
+        // the no-results render, so the settle is that render rather than the
+        // chip row the sibling state uses — and asserting the concatenation
+        // means a missing title, description or action fails here rather than
+        // silently minting a baseline of a half-built block.
+        //
+        // THE CHIP ROW IS ASSERTED IN `no-results.spec.ts` INSTEAD, because what
+        // matters about it here is that it SURVIVES — a settle on the block
+        // cannot say anything about a sibling element.
+        settlesOn: '.mvp-no-results',
+        settlesText:
+          'No transactions matchTry a wider date range or amount, or dismiss a filter above.Show all transactions',
+      },
+    },
+  },
   // ─────────────────────────────────────────────────────────────── Gate 49 ──
   // THE TRANSACTION DETAIL SHEET, IN BOTH ITS STATES.
   //
@@ -2082,7 +2150,7 @@ export const WALK: WalkState[] = [
   // an enumerated entry rather than an axis. 25 routes (one `tab: null` state
   // each, from ROUTES — 14, plus the two budget drilldowns since Gate 69, the
   // two goal drilldowns since Gate 78 and the seven commitment drilldowns since
-  // Gate 80) + 7 non-default tab states + 35 OVERLAY_STATES = 67.
+  // Gate 80) + 7 non-default tab states + 36 OVERLAY_STATES = 68.
   //
   // ⚠ IT WAS STALE AGAIN WHEN GATE 80-B ARRIVED, AND BY MORE THAN ONE TERM: it
   // read 18 routes and 31 overlay states, i.e. the pre-Gate-80 tree, so its sum
@@ -2091,6 +2159,12 @@ export const WALK: WalkState[] = [
   // Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, 19 = 40 through Gate 69.
   // THAT IS FIVE CORRECTIONS TO ONE COMMENT, which is the argument for the
   // command below rather than for the comment.
+  //
+  // GATE 80-B LEFT IT CORRECT AND GATE 80-C MOVED IT BY ONE TERM: 35 -> 36
+  // overlay states, for the ledger-filtered-to-nothing state, so 67 -> 68. That
+  // is the first time in six gates this comment was found ACCURATE on arrival
+  // rather than stale, which is worth recording in its own right — the
+  // correction below is this gate adding a state, not this gate fixing a drift.
   //
   // ⚠ RE-DERIVE THIS FROM DISK RATHER THAN TRUSTING IT. Nothing reads this
   // comment, which is exactly why it has gone stale twice. The anchored command
