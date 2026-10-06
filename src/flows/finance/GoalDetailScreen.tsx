@@ -14,11 +14,18 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { goalImageUrl } from '../../config/media'
-import { goalContributions, goalPercent, goalTargetLabel } from '../../data/derive'
+import {
+  goalContributions,
+  goalPercent,
+  goalTargetLabel,
+  newReference,
+} from '../../data/derive'
 import { formatMyr } from '../../data/format'
-import type { Goal } from '../../data/types'
+import { localWallClock } from '../../data/today'
+import type { Goal, Transaction } from '../../data/types'
 import { ContributionRow } from './components/ContributionRow'
 import { GoalContributionsSheet } from './components/GoalContributionsSheet'
+import { TopUpModal } from './components/TopUpModal'
 import { FINANCE_TAB_STATE_KEY } from './financeTabs'
 import './finance.css'
 
@@ -46,12 +53,15 @@ import './finance.css'
  *
  * ----------------------- WHAT IS DRAWN BUT NOT WIRED ------------------------
  *
- * Top-Up, Edit Goals, the auto-save toggle, the auto-save pencil and the image
- * pencil are ALL GATE 81's. They render as drawn and do nothing, which is the
- * precedent Gate 67 set for the Budget tab's "Details"/"Add New" and Gate 69
- * for this screen's sibling "Edit": a control the design draws is rendered, and
- * the gate that owns its behaviour is named beside it. "See All" is the one
- * control this gate wires, because the sheet is this gate's deliverable.
+ * TOP-UP IS WIRED AS OF GATE 81 — it is the first control in this app that
+ * MOVES MONEY, and `confirmTopUp` below builds the row the provider writes.
+ *
+ * STILL DRAWN AND INERT: "Edit Goals", the auto-save toggle, the auto-save
+ * pencil and the image pencil, all GATE 81-B's. They render as drawn and do
+ * nothing, which is the precedent Gate 67 set for the Budget tab's
+ * "Details"/"Add New" and Gate 69 for this screen's sibling "Edit": a control
+ * the design draws is rendered, and the gate that owns its behaviour is named
+ * beside it.
  * ---------------------------------------------------------------------------
  */
 
@@ -78,7 +88,7 @@ const RECENT_CONTRIBUTIONS = 4
 export function GoalDetailScreen() {
   const navigate = useNavigate()
   const { goalId } = useParams()
-  const { goals, transactions } = useAccounts()
+  const { goals, transactions, fiatAccounts, primaryAccount, topUpGoal } = useAccounts()
 
   const goal = goals.find((g) => g.id === goalId)
 
@@ -90,6 +100,65 @@ export function GoalDetailScreen() {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   // A stable `onClose` - the G31 convention for anything reaching a DS overlay.
   const closeSheet = useCallback(() => setIsSheetOpen(false), [])
+
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false)
+  const closeTopUp = useCallback(() => setIsTopUpOpen(false), [])
+
+  /**
+   * THE SCREEN BUILDS THE ROW AND THE PROVIDER WRITES IT — Gate 81.
+   *
+   * IDENTITY IS THE CALLER'S, which is the contract `addTransaction` has
+   * documented since Gate 48 and `addReceipt` repeats: a mutator appends, and
+   * nothing about the row is decided inside it. `txn-${crypto.randomUUID()}`
+   * follows `BudgetsProvider`'s `budget-${crypto.randomUUID()}` — the app has no
+   * general id generator, and `receipt-capture-N` is a counter private to
+   * `receiptCapture.ts`. `randomUUID` needs a secure context, which localhost
+   * and the https deploy both are.
+   *
+   * ⚠ THE AMOUNT IS NEGATED HERE, AND THAT IS THE LEDGER'S CONVENTION RATHER
+   * THAN A CHOICE. A row's sign is relative to its own `accountId` — a Maybank
+   * credit is +5,200 ON `main`, a crypto send is −350.69 ON `marg` — and the
+   * money is LEAVING the cash account, so the row is an outflow. All 28 seeded
+   * contributions are negative for exactly this reason (Gate 77 ruled it: the
+   * alternative, a positive row on the goal's own id, would read as green
+   * income in the ledger and would leave `transactionAccount` with no
+   * institution to print).
+   *
+   * `merchant` IS THE GOAL'S NAME, matching the 28 seeded contributions, which
+   * is what makes the written row indistinguishable from them on every surface
+   * that renders a merchant — the ledger, the account drill-down and the
+   * Homepage slice. `logo` is the goal's own photograph through the `goal` tag
+   * `TransactionLogo` gained at Gate 77.
+   *
+   * `kind: 'transfer'` IS WHAT KEEPS IT OUT OF EVERY BUDGET, structurally:
+   * `countsToward` tests kind FIRST and rejects on it, so no budget figure can
+   * move however the amount, category or date fall. `category: 'others'` matches
+   * the seeded contributions and is inert for the same reason.
+   */
+  const confirmTopUp = useCallback(
+    (amount: number, sourceId: string) => {
+      if (!goal) return
+      const occurredAt = localWallClock(new Date())
+      const contribution: Transaction = {
+        id: `txn-${crypto.randomUUID()}`,
+        accountId: sourceId,
+        merchant: goal.name,
+        logo: { kind: 'goal', filename: goal.image },
+        method: 'Fund Transfer',
+        kind: 'transfer',
+        amount: -amount,
+        currency: 'MYR',
+        occurredAt,
+        category: 'others',
+        goalId: goal.id,
+        contributionSource: 'manual',
+        reference: newReference(occurredAt),
+      }
+      topUpGoal(contribution)
+      setIsTopUpOpen(false)
+    },
+    [goal, topUpGoal],
+  )
 
   if (!goal) {
     return <Navigate to="/finance" replace state={{ [FINANCE_TAB_STATE_KEY]: 'plans' }} />
@@ -197,8 +266,13 @@ export function GoalDetailScreen() {
         indicator that the shell owns in this app).
       */}
       <div className="mvp-finance-detail__actions">
-        {/* BOTH INERT - Gate 81 wires Top-Up and the goal editor. */}
-        <Button variant="primary" size="l" label="Top-Up" />
+        {/* "Edit Goals" IS STILL INERT - Gate 81-B owns the goal editor. */}
+        <Button
+          variant="primary"
+          size="l"
+          label="Top-Up"
+          onClick={() => setIsTopUpOpen(true)}
+        />
         {/* "Edit Goals", plural, on a single-goal screen. Transcribed, not
             corrected: inventory A4 records it as a Figma source inconsistency
             and files it "recorded, not corrected". */}
@@ -209,6 +283,17 @@ export function GoalDetailScreen() {
           time it opens - `TransactionFilterSheet`'s precedent. */}
       {isSheetOpen && (
         <GoalContributionsSheet isOpen onClose={closeSheet} contributions={contributions} />
+      )}
+
+      {/* Mounted conditionally for the same reason, so the form starts empty. */}
+      {isTopUpOpen && (
+        <TopUpModal
+          goal={goal}
+          accounts={fiatAccounts}
+          defaultSourceId={primaryAccount.id}
+          onClose={closeTopUp}
+          onConfirm={confirmTopUp}
+        />
       )}
     </div>
   )

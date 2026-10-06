@@ -15,6 +15,7 @@ import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
 import {
   backfillAddedAt,
+  backfillReferences,
   cryptoWalletChange,
   cryptoWalletTotal,
   netWorth,
@@ -78,17 +79,25 @@ import type {
  * sheet's "Unlink receipt" writes exactly that field, and it cost one
  * `useCallback` and one line in the value object. Nothing else moved.
  *
- * SO THERE ARE NOW EIGHT MUTATORS, AND TWO OF THEM HAVE NO CALLER. This line
- * said "two" from Gate 49, was stale from Gate 50 when `addReceipt` arrived, and
- * was corrected at Gate 51 for `deleteReceipt`; Gate 51-B adds `linkReceipt` and
- * `updateReceipt`, Gate 61 `replaceReceipt`, and Gate 75 `adjustFiatBalance`.
- * Six have callers; `addTransaction` and `adjustFiatBalance` have none and are
- * both seams. Do not sweep either as dead code.
+ * SO THERE ARE NOW NINE MUTATORS, AND TWO OF THEM STILL HAVE NO CALLER. This
+ * line said "two" from Gate 49, was stale from Gate 50 when `addReceipt`
+ * arrived, and was corrected at Gate 51 for `deleteReceipt`; Gate 51-B adds
+ * `linkReceipt` and `updateReceipt`, Gate 61 `replaceReceipt`, Gate 75
+ * `adjustFiatBalance`, and Gate 81 `topUpGoal`. SEVEN have callers;
+ * `addTransaction` and `adjustFiatBalance` have none and are both seams. Do not
+ * sweep either as dead code — and note that `topUpGoal` arriving does NOT
+ * discharge them: it writes the ledger and a balance itself rather than calling
+ * through either, because a Top-Up is one operation and those two are halves.
  *
- * SIX OF THE EIGHT WRITE `receipts` AND NOTHING ELSE, and the other two are the
- * two with no callers. So no user action in this app can currently change a
- * transaction OR a balance — that is the P6 ruling made structural rather than
- * promised: receipts never rewrite the bank.
+ * ⚠ SIX OF THE NINE WRITE `receipts` AND NOTHING ELSE, AND THE SENTENCE THAT
+ * USED TO FOLLOW IS NOW FALSE. It read: "no user action in this app can
+ * currently change a transaction OR a balance — that is the P6 ruling made
+ * structural rather than promised". GATE 81 ENDED THAT. `topUpGoal` is the
+ * first mutator a user can fire that writes the ledger and moves money, so the
+ * structural guarantee is gone and only the narrower one survives: **receipts
+ * never rewrite the bank**. Every receipt mutator still writes `receipts` alone,
+ * which is the half P6 actually asserts, and `setTransactions` now has exactly
+ * two call sites — `addTransaction`, still caller-less, and `topUpGoal`.
  *
  * `fiatAccounts` IS STATE AS OF GATE 75, AND `holdings` IS DERIVED FROM IT.
  * Those two had to move together: `netWorth`, `netWorthSeries` and the two bank
@@ -208,6 +217,44 @@ interface AccountsContextValue {
    * `budgetSpent` sums in sen.
    */
   adjustFiatBalance: (accountId: string, delta: Amount) => void
+  /**
+   * ─────────────────────────────────────────────────────────────────────────
+   * MOVE MONEY FROM A CASH ACCOUNT INTO A SAVINGS GOAL — Gate 81, and the
+   * FIRST WRITE IN THIS APP THAT MOVES MONEY.
+   *
+   * THREE MUTATIONS, ONE OPERATION, AND IT TAKES THE LEDGER ROW AS ITS ONLY
+   * ARGUMENT. That signature is the whole design. A
+   * `(goalId, accountId, amount)` form would let a caller debit one account
+   * while writing a row that names another, or credit a goal by a figure the
+   * row does not state — three facts, three chances to disagree. Here THE ROW
+   * IS THE INSTRUCTION: the account comes from `accountId`, the goal from
+   * `goalId`, and both balances move by `amount`, so "the ledger, the account
+   * and the goal agree" is true by construction rather than by the caller
+   * being careful.
+   *
+   * WHY IT IS ONE MUTATOR AND NOT THREE CALLS AT THE CALL SITE. The three
+   * pieces of state are three different atoms, so unlike `linkReceipt` they
+   * cannot be collapsed into a single `setX`; what CAN be collapsed is the
+   * contract. One named operation with one documented meaning is what makes
+   * "a Top-Up" a thing the provider does, rather than a sequence a screen
+   * happens to perform in the right order.
+   *
+   * ATOMIC IN THE ONLY SENSE THAT CAN BE OBSERVED HERE. React 18's automatic
+   * batching (`createRoot`, `main.tsx`) applies all three updates before it
+   * renders, so NO RENDER EVER SEES A PARTIAL WRITE — there is no frame in
+   * which the money has left the account and not yet reached the goal. That is
+   * the same guarantee `replaceReceipt` reasons about, reached a different way
+   * because the state is split rather than shared.
+   *
+   * IT THROWS ON A MALFORMED ROW rather than writing half of one. Every clause
+   * is a programmer error, not a user error — the form cannot produce any of
+   * them — and a silent no-op would leave a user looking at an unchanged
+   * screen with no reason. `addedAtOf` takes the same position.
+   *
+   * NOT PERSISTED. Reload restores the seed, like every other write here.
+   * ─────────────────────────────────────────────────────────────────────────
+   */
+  topUpGoal: (contribution: Transaction) => void
   /**
    * Break a receipt’s link to its transaction. Gate 49.
    *
@@ -415,7 +462,12 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   // SEEDED FROM THE IMPORT, NOT COPYING IT. `useState`'s initial value is read
   // once per mount, so `TRANSACTIONS` and `RECEIPTS` remain the single authored
   // source and this holds the live version of each.
-  const [transactions, setTransactions] = useState<Transaction[]>(TRANSACTIONS)
+  // BACKFILLED ONCE, IN THE INITIALISER — Gate 81, `backfillAddedAt`'s shape.
+  // The seed predates `Transaction.reference` and the detail sheet's Reference
+  // row cannot print without one; see `backfillReferences`.
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    backfillReferences(TRANSACTIONS),
+  )
   // BACKFILLED ONCE, IN THE INITIALISER — Gate 58. The seed predates
   // `Receipt.addedAt`, and the Receipts tab orders on it; see `backfillAddedAt`.
   const [receipts, setReceipts] = useState<Receipt[]>(() => backfillAddedAt(RECEIPTS))
@@ -539,10 +591,62 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
 
   /*
     GOALS ARE STATE AND COMMITMENTS ARE NOT — see the two context fields above.
-    No mutator is declared for either at this gate: Flow 11's writers are Gate
-    79's, and they arrive with their first callers.
+
+    THE SETTER ARRIVED AT GATE 81 WITH ITS FIRST CALLER, which is the rule that
+    kept `addTransaction` from being designed in the abstract: `topUpGoal` below
+    credits `savedAmount`. The REST of Flow 11's goal writers — Add, Edit,
+    Delete and the auto-save toggle — are Gate 81-B's and are not declared here.
+    `Commitment` is still a pass-through constant with no writer at all.
   */
-  const [goals] = useState<Goal[]>(GOALS)
+  const [goals, setGoals] = useState<Goal[]>(GOALS)
+
+  /**
+   * See the contract on `AccountsContextValue.topUpGoal`.
+   *
+   * THE GUARDS READ THE ROW AGAINST THE LIVE COLLECTIONS, not against the
+   * arguments, because "this goal exists" is a question about state.
+   */
+  const topUpGoal = useCallback((contribution: Transaction) => {
+    const { goalId, accountId, amount } = contribution
+    if (!goalId) {
+      throw new Error(`topUpGoal: ${contribution.id} carries no goalId`)
+    }
+    if (contribution.kind !== 'transfer') {
+      throw new Error(`topUpGoal: ${contribution.id} is a ${contribution.kind}, not a transfer`)
+    }
+    if (!(amount < 0)) {
+      throw new Error(`topUpGoal: ${contribution.id} must debit its account, got ${amount}`)
+    }
+
+    // THE CREDIT IS THE DEBIT'S MAGNITUDE, IN SEN. The row stores what left the
+    // account; the goal receives what the row says, so the two cannot drift —
+    // and `toSen` is what stops two float additions landing off a two-decimal
+    // figure (`adjustFiatBalance`'s reasoning, applied to the other side).
+    const credit = -toSen(amount)
+
+    setTransactions((current) => [...current, contribution])
+    setFiatAccounts((current) => {
+      if (!current.some((a) => a.id === accountId)) {
+        throw new Error(`topUpGoal: no cash account ${accountId}`)
+      }
+      return current.map((account) =>
+        account.id === accountId
+          ? { ...account, balance: (toSen(account.balance) + toSen(amount)) / 100 }
+          : account,
+      )
+    })
+    setGoals((current) => {
+      if (!current.some((g) => g.id === goalId)) {
+        throw new Error(`topUpGoal: no goal ${goalId}`)
+      }
+      return current.map((goal) =>
+        goal.id === goalId
+          ? { ...goal, savedAmount: (toSen(goal.savedAmount) + credit) / 100 }
+          : goal,
+      )
+    })
+  }, [])
+
 
   const value = useMemo<AccountsContextValue>(() => {
     const primaryAccount = fiatAccounts[0]
@@ -584,6 +688,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       commitmentOffers: COMMITMENT_OFFERS,
       addTransaction,
       adjustFiatBalance,
+      topUpGoal,
       unlinkReceipt,
       addReceipt,
       deleteReceipt,
@@ -598,6 +703,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     goals,
     addTransaction,
     adjustFiatBalance,
+    topUpGoal,
     unlinkReceipt,
     addReceipt,
     deleteReceipt,

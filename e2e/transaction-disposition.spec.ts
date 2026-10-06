@@ -12,6 +12,7 @@ import {
   goalContributions,
   goalSavedAfter,
   movementParties,
+  referenceFor,
   transactionDisposition,
 } from '../src/data/derive'
 import { formatMyr, formatSignedMyr, formatTimestamp } from '../src/data/format'
@@ -314,6 +315,16 @@ for (const theme of THEMES) {
       EVERY EXPECTATION IS DERIVED FROM THE SAME FUNCTION THE SCREEN CALLS. What
       this asserts is that the screen draws the derivation, not what the
       derivation is — the pure tests above are where the figures are pinned.
+
+      ⚠ THE REFERENCE IS THE ONE PLACE THE SPEC AND THE SCREEN CALL DIFFERENT
+      FUNCTIONS, AND THAT IS DELIBERATE. The screen reads the STORED
+      `Transaction.reference` (`transactionReference`); this reads the raw seed
+      row, which has none, so it calls the generator the backfill uses
+      (`referenceFor`). The two agree ONLY BECAUSE `backfillReferences` stamps
+      every seeded row with exactly that function's output — so this assertion
+      is also the check that the backfill is what filled the field. A written
+      row's reference is random (`newReference`) and is asserted by SHAPE in
+      `topup.spec.ts`; no seeded row can reach that path.
     */
     const expected = movementParties(row, HOLDINGS, CRYPTO_WALLETS, GOALS)
     const savedAfter = goalSavedAfter(TRANSACTIONS, BALI, row.id) as number
@@ -323,7 +334,7 @@ for (const theme of THEMES) {
       To: expected.to,
       Date: formatTimestamp(row.occurredAt),
       Type: contributionSourceLabel(row.contributionSource!),
-      Reference: row.id,
+      Reference: referenceFor(row),
     })
 
     await expect(page.locator(`${SHEET} .mvp-txn-detail__movement-note`)).toHaveText(
@@ -359,7 +370,7 @@ for (const theme of THEMES) {
       From: expected.from,
       To: expected.to,
       Date: formatTimestamp(row.occurredAt),
-      Reference: row.id,
+      Reference: referenceFor(row),
     })
 
     await expect(page.locator(`${SHEET} .mvp-txn-detail__movement-note`)).toHaveCount(1)

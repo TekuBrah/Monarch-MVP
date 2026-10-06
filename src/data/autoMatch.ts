@@ -221,6 +221,24 @@ export function merchantMatches(receiptMerchant: string, payee: string): boolean
  * A NULL FIELD ANSWERS AT ONCE WITH NO CANDIDATES — the rule cannot be
  * satisfied by a field extraction did not read. So does an empty merchant, and
  * a date that is not a real date.
+ *
+ * ⚠ ONLY PURCHASES ARE CANDIDATES — GATE 81 ROUTED THIS THROUGH
+ * `canCarryReceipt`, AND IT CLOSES A COINCIDENCE RATHER THAN A DEFECT.
+ *
+ * `MODEL-2` widened `rankedSuggestions` at Gate 79 and recorded this function as
+ * "coincidentally rather than structurally safe", because auto-match also
+ * requires the MERCHANT to agree and no seeded contribution's merchant matches a
+ * receipt's letterhead. That coincidence held only while every row in the ledger
+ * was seeded. **Gate 81 is the first gate that can write one**, and a Top-Up
+ * writes a transfer whose `merchant` is the GOAL'S OWN NAME — so a receipt
+ * printing a merchant that tokenises like a goal name, for the same total within
+ * three days, could be auto-linked to a savings contribution. Nothing would
+ * report it: the link is silent and the row's amount does not move.
+ *
+ * SO THE FILTER IS NOW THE SAME PREDICATE THE PICKER AND THE SUGGESTED BLOCK
+ * USE, and the three cannot disagree about what a receipt may belong to.
+ * `totalMatches` already required `-amount === total`, which excludes credits
+ * twice over; what it never excluded was an OUTFLOW THAT WAS NOT A PURCHASE.
  */
 export function candidatesFor(
   fields: MatchFields,
@@ -235,6 +253,7 @@ export function candidatesFor(
   // receipt" means here exactly what it means to the ledger row's glyph.
   return transactions.filter(
     (t) =>
+      canCarryReceipt(t) &&
       totalMatches(total, t) &&
       withinWindow(capturedAt, t) &&
       !transactionHasReceipt(receipts, t.id) &&

@@ -1,4 +1,5 @@
 import { bindDiagnostic, CAPTURE_DIAGNOSTICS } from '../../data/captureDiagnostics'
+import { localWallClock } from '../../data/today'
 import { extractReceipt, looksLikePdf, type ExtractedReceipt } from '../../data/extract'
 import type { Receipt } from '../../data/types'
 
@@ -43,14 +44,14 @@ let captureSeq = 0
  * BUILT FROM THE DATE'S LOCAL GETTERS, so the string names the same wall-clock
  * moment the device shows. It was the only site in `src/` producing a UTC one:
  * `toISOString` had exactly one occurrence.
+ *
+ * ⚠ IT MOVED TO `data/today.ts` AT GATE 81 AND IS IMPORTED BACK. The Top-Up
+ * writer needs the identical shape for a ledger row's `occurredAt`, and that is
+ * the second consumer — the `monthLabel` precedent (extract when one arrives),
+ * not a speculative refactor. It belongs in `today.ts` rather than here because
+ * that file is "the app's notion of now"; the alternative was a savings-goal
+ * modal importing the RECEIPT CAPTURE module, which pulls in the OCR seam.
  */
-function localWallClock(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-  )
-}
 
 /**
  * `localWallClock` TO THE MILLISECOND — the shape of `Receipt.addedAt` (Gate 58).

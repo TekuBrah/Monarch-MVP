@@ -3210,3 +3210,120 @@ shipping a `Label` and watching six tests go red; reading the guard first is wha
 avoided a repeat.
 
 ### Nothing was removed from this register at this gate.
+
+## 2z. Status at MVP Gate 81 (2026-10-05) — the first money writer; one DS gap opened
+
+**THE TALLY MOVES BY ONE: `G49` IS OPENED AND NOTHING IS CLOSED.** `MODEL-2` was
+closed at Gate 79 and this gate collected on it (see below) without reopening it.
+
+Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop
+half, G19–G23, G28–G33, G44, G48, `MODEL-1`, `UI-3` and `UI-4`. **No MVP-local
+override was added for any of them**, and the `G33` workaround class is
+untouched and still carries its removal condition.
+
+### `G49` — OPENED: `SelectTransfer`'s currency picker cannot be suppressed
+
+**WHERE.** `SelectTransfer`, the DS's transfer-amount control. Figma uses it for
+the "Target Amount" field on `Finance_Plan_add goal` (`1266:14340`), so it is the
+component this flow's only DRAWN form reaches for when it needs a money input.
+
+**THE PROBLEM.** The component renders its currency picker UNCONDITIONALLY —
+read from source at v2.8.0, `SelectTransfer.tsx`, where `currencyPicker` is
+built with no guard and placed in both the `attention` and the standard branch.
+It always emits:
+
+```
+<button type="button" class="mn-select-transfer__chevron"
+        aria-haspopup="listbox" aria-label="Choose currency"
+        onClick={e => { e.stopPropagation(); onCurrencyClick?.() }}>
+```
+
+There is no `showCurrency`, no `currency={false}`, and no variant that omits it.
+So in a SINGLE-CURRENCY app the control ships **a button that is drawn, has an
+accessible name, is announced as opening a listbox, and cannot do anything** —
+`onCurrencyClick` is optional and the optional call is a no-op. That is exactly
+what Gate 44 ruled is worse than no control at all, and the ruling that removed
+the default-value filter chips for the same reason.
+
+**A SECOND, SMALLER HALF.** The amount `<input>` carries `role="combobox"` with
+`aria-expanded`, unconditionally. `showMenu` is correctly guarded (`open &&
+!!menuSlot`), so no empty dropdown renders — but a plain amount field still
+announces as a combobox with nothing to expand.
+
+**WHAT THE MVP DID: NOTHING, AND IT USED A DIFFERENT COMPONENT (rule 3).** The
+Top-Up form takes DS `Field` `type="number"` with the currency in the LABEL,
+which is this app's settled money input — `BudgetFormModal`'s "Amount (RM)" and
+`ReceiptEditor`'s "Total (RM)", both already shipped. **No MVP-local rule hides
+the chevron**, because hiding a DS control from the outside is the
+equal-specificity override on DS internals that Gate 13 removed on measurement
+and that `G15` was deliberately left unfixed rather than commit.
+
+**GATE 81-B WILL USE `Field` FOR ADD-A-GOAL'S AMOUNT TOO, AND THAT IS DECIDED, NOT
+LEFT OPEN.** Figma draws that form's "Target Amount" as `Select / Transfer`, so
+a faithful build would put two different components on the two money inputs of
+one flow. The two inputs matching each other outranks fidelity to one frame —
+the same call already taken on two-decimal money against Figma's "RM 700" and on
+the padded day against its "1 Oct". **It is a recorded divergence from
+`1266:14340`, not a defect**, and it is what makes G49 un-reached by this app at
+all: until the DS adds a way to suppress the currency picker there is no caller
+for `SelectTransfer` here.
+
+**THE FIX IS DS-SIDE AND SMALL:** a `showCurrency?: boolean` (or treating an
+absent `currencyLabel` AND absent `onCurrencyClick` as "no picker"), plus
+dropping `role="combobox"` when no `menuSlot` is supplied. `InlineMessage`'s
+`isFramed` is the precedent for a boolean that removes a whole sub-element.
+
+**`SelectWalletAccount` WAS CHECKED AND IS NOT THE ANSWER EITHER.** It is a
+crypto control — `labelCrypto`, `labelWallet`, `labelAmtCrypto` — and its
+dropdown is an app-provided `menuSlot`, so using it for a fiat source would mean
+supplying the very picker view this gate established is not needed.
+
+### `MODEL-2`'s residual is CLOSED — `candidatesFor` now filters on disposition
+
+Gate 79 closed `MODEL-2` by routing the link PICKER and `rankedSuggestions`
+through `canCarryReceipt`, and recorded `candidatesFor` — auto-match's own
+candidate set — as deliberately untouched and "COINCIDENTALLY rather than
+structurally safe", because that function also requires the MERCHANT to agree
+and no seeded contribution's merchant tokenises like a receipt's letterhead.
+
+**GATE 81 IS THE GATE THAT INVALIDATED THE COINCIDENCE, WHICH IS WHY IT WAS DONE
+FIRST.** A Top-Up writes a row whose `merchant` is the GOAL'S OWN NAME, so the
+set of merchants a contribution can carry is no longer bounded by the seed: a
+receipt whose letterhead tokenises like a goal name, for the same total within
+three days, could have been auto-linked to a savings transfer. Nothing would
+have reported it — an auto-link is silent and moves no amount.
+
+`candidatesFor` now begins its filter with `canCarryReceipt(t)`, so the matcher,
+the picker and the Suggested block are one predicate rather than three. **Zero
+measurable effect on the present data**, which is the point: it had to land
+before a writer could produce the row the coincidence did not cover.
+
+Proved rather than asserted, in `e2e/automatch.spec.ts`: a row built to defeat
+every other clause — same merchant, same total, same day — IS a candidate as a
+`payment` and is NOT one as a `transfer`, and all 28 seeded contributions are
+individually asserted to fail `canCarryReceipt`.
+
+### Recorded, NOT registered — two instrument findings, not defects
+
+**1 · THE BROWSER PANE'S ACCESSIBILITY DUMP REPORTS A RADIO'S `value`, NOT ITS
+COMPUTED NAME.** `read_page` rendered the Top-Up source options as `radio "main"`
+and `radio "joint"` — the ids — which reads as a missing label. It is not: DS
+`Radio` wraps its `<input>` in the `<label>` that carries the text, which is a
+valid implicit association, and the real computed names are
+`Main · RM 27,978.59` and `Joint Account · RM 15,000.00`. Confirmed twice —
+by reading `closest('label').innerText` in the page, and by Playwright's own
+`getByRole('radio', { name })` resolving the element. The same dump reports DS
+`Button`s with NO name at all while their text content is present.
+
+**USE PLAYWRIGHT'S COMPUTATION, NOT THE PANE'S TREE, TO ANSWER AN ACCESSIBLE-NAME
+QUESTION.** The pane is still the right instrument for layout and for looking at
+a render; it is not the authority on names.
+
+**2 · A DS `Radio`'s NATIVE INPUT CANNOT BE `.check()`ed.** The input sits under
+`.mn-radio__icon-wrap`, which intercepts the pointer, so Playwright retries until
+it times out. That is ordinary custom-radio markup rather than a defect — the
+`<label>` is the control a user operates, and clicking it works. Recorded because
+the failure reads like a broken control and costs a test a 30-second timeout to
+diagnose.
+
+### Nothing was removed from this register at this gate.

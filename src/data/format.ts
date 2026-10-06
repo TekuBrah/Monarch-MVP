@@ -124,3 +124,28 @@ export function formatTimestamp(iso: string): string {
   const day = DAY.format(date).replace(/\bSep\b/, 'Sept')
   return `${day}, ${TIME.format(date)}`
 }
+
+/**
+ * WHERE A GOAL STANDS AFTER ONE CONTRIBUTION — "Bali Trip: RM 5,165.50 of
+ * RM 9,000.00 after this".
+ *
+ * EXTRACTED AT GATE 81 WHEN THE SECOND CONSUMER ARRIVED, which is the
+ * `monthLabel` precedent and not a speculative helper. Gate 79 built this
+ * sentence inline in `TransactionDetailSheet`'s movement summary, where it
+ * states what a PAST contribution left behind; the Top-Up form previews the
+ * same fact about the contribution the user is ABOUT to make. One sentence, one
+ * meaning, two tenses that happen to read identically — so two inline copies
+ * would have been two places for the wording to drift.
+ *
+ * IT LIVES HERE RATHER THAN IN `derive.ts` BECAUSE IT FORMATS MONEY. That file
+ * is deliberately free of `formatMyr` — it derives figures and leaves their
+ * rendering to this one — and a sentence with two currency strings in it is a
+ * rendering.
+ */
+export function goalProgressAfter(
+  goalName: string,
+  savedAfter: Amount,
+  targetAmount: Amount,
+): string {
+  return `${goalName}: ${formatMyr(savedAfter)} of ${formatMyr(targetAmount)} after this`
+}

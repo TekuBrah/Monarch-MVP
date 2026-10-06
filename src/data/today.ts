@@ -30,6 +30,34 @@
  */
 export const TODAY = new Date()
 
+/**
+ * `YYYY-MM-DDTHH:mm:ss` IN LOCAL WALL-CLOCK TIME — the zone-less shape every
+ * timestamp in this app is written in. Gate 51 item T; moved here at Gate 81.
+ *
+ * `toISOString()` IS NOT THAT, AND IT WAS USED FOR THIS UNTIL GATE 51. It
+ * returns UTC fields; slicing off the `Z` leaves a zone-less string, and every
+ * reader — `formatTimestamp`, `groupReceiptsByMonth`, `groupTransactionsByMonth`
+ * — reads a zone-less string as LOCAL. So a receipt captured at 18:34 in
+ * Malaysia was recorded, printed and grouped as 10:34, and one captured between
+ * 00:00 and 08:00 local on the 1st landed in the previous month. Found on
+ * Teku's phone, not by a test. `toISOString` still has ZERO occurrences in
+ * `src/` outside comments warning against it.
+ *
+ * IT LIVES HERE RATHER THAN IN `receiptCapture.ts`, WHERE IT WAS WRITTEN,
+ * because it acquired a second consumer at Gate 81: the Top-Up writer stamps a
+ * ledger row's `occurredAt` with it. This file is "the app's notion of now", so
+ * a function that names the current wall-clock moment belongs in it — and the
+ * alternative was a savings-goal modal importing the receipt-capture module,
+ * which statically pulls in the OCR seam.
+ */
+export function localWallClock(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  )
+}
+
 /** Whole-month offset. Clamps the day when the target month is shorter. */
 export function addMonths(date: Date, months: number): Date {
   const out = new Date(date.getTime())

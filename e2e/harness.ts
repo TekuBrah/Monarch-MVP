@@ -2127,6 +2127,85 @@ export const OVERLAY_STATES: WalkState[] = [
       ],
     },
   },
+  //
+  // -- 37-38 . THE TOP-UP MODAL, AND THE WRITE IT MAKES (Gate 81) -----------
+  //
+  // TWO STATES, AND THE SECOND ONE IS THE POINT. The first photographs a new
+  // rendered surface; the second photographs THE GOAL SCREEN AFTER A WRITE,
+  // which is the only instrument in this suite that can see a derived figure
+  // fail to move. A balance that did not change is invisible to every
+  // structural assertion — it is still a well-formed number in the right place
+  // — so it is pinned as pixels, in the one place a user would notice it.
+  //
+  // BALI RATHER THAN EMERGENCY FUNDS, for `contributions`' reason one block up:
+  // it is the goal the other Flow 11 states already use, so the two Top-Up
+  // baselines differ from the existing goal-detail ones by the modal and the
+  // write and by nothing else.
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'topup',
+      // ONE PRIMARY IN THAT BAR: Top-Up is primary, "Edit Goals" is secondary.
+      control: '.mvp-finance-detail__actions .mn-btn--primary',
+      controlLabel: 'Top-Up',
+      title: 'Top-Up',
+    },
+  },
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'topped-up',
+      control: '.mvp-finance-detail__actions .mn-btn--primary',
+      controlLabel: 'Top-Up',
+      title: 'Top-Up',
+      prepare: [
+        {
+          control: '.mvp-topup input[name="amount"]',
+          // THE TRAILING `*` IS PART OF THE NAME. DS `Field` renders the
+          // required marker INSIDE the `<label>`, so the computed accessible
+          // name is "Amount (RM) *" and not "Amount (RM)" — found by this
+          // assertion failing, which is the assertion doing its job.
+          controlName: 'Amount (RM) *',
+          action: 'fill',
+          // RM 125.50 — TWO DECIMALS ON PURPOSE, so the write exercises the
+          // sen path rather than a whole ringgit, and NOT a magnitude the seed
+          // already holds (measured: the 53 seeded rows carry 32 distinct
+          // magnitudes and 125.50 is not among them), so the row this creates
+          // cannot be confused with a seeded one by a figure-based locator.
+          value: '125.50',
+          /*
+            THE SETTLE IS THE FORM'S OWN PREVIEW, AND IT IS NOT VACUOUS. That
+            element does not exist until the amount is VALID — the modal
+            renders it only when `topUpDraftErrors().amount` is false — so
+            `toHaveCount(1)` alone proves the fill landed and passed the rules,
+            and the text proves it landed as the right figure. 5,040.00 +
+            125.50 = 5,165.50, which the confirm step below then re-asserts
+            from the goal screen.
+          */
+          settlesOn: '.mvp-topup__preview',
+          settlesText: 'Bali Trip: RM 5,165.50 of RM 9,000.00 after this',
+        },
+      ],
+      confirm: {
+        control: '.mn-modal__footer .mn-btn--primary',
+        controlLabel: 'Confirm Top-Up',
+        /*
+          THE SETTLE IS A FIGURE THE WRITE MOVED, not merely the modal having
+          closed. `.mn-progress-bar__current` printed RM 5,040.00 a moment ago
+          and prints the stored `savedAmount`, so this assertion fails if the
+          goal half of the three-way write did not land — which is exactly the
+          defect this gate is most likely to ship.
+
+          NO `landsOn`: a Top-Up does not navigate. The user stays on the goal
+          screen and watches it change, which is why there is no toast.
+        */
+        settlesOn: '.mvp-goal-detail .mn-progress-bar__current',
+        settlesText: 'RM 5,165.50',
+      },
+    },
+  },
 ]
 
 /**
@@ -2147,44 +2226,38 @@ export const WALK: WalkState[] = [
     ]
   }),
   // APPENDED, NOT MULTIPLIED IN — see `OverlayState` above for why an overlay is
-  // an enumerated entry rather than an axis. 25 routes (one `tab: null` state
-  // each, from ROUTES — 14, plus the two budget drilldowns since Gate 69, the
-  // two goal drilldowns since Gate 78 and the seven commitment drilldowns since
-  // Gate 80) + 7 non-default tab states + 36 OVERLAY_STATES = 68.
+  // an enumerated entry rather than an axis.
   //
-  // ⚠ IT WAS STALE AGAIN WHEN GATE 80-B ARRIVED, AND BY MORE THAN ONE TERM: it
-  // read 18 routes and 31 overlay states, i.e. the pre-Gate-80 tree, so its sum
-  // was 56 against a real 65. Gate 80 added seven routes and two overlay states
-  // and did not touch it. Earlier readings: 18/30 = 55 at Gate 78, 16/29 = 52 at
-  // Gate 74-B, 28 = 51 at Gate 71-B, 27 = 50 at Gate 71, 19 = 40 through Gate 69.
-  // THAT IS FIVE CORRECTIONS TO ONE COMMENT, which is the argument for the
-  // command below rather than for the comment.
+  // ⚠ THE ARITHMETIC THAT USED TO BE HERE IS GONE — GATE 81 DELETED IT RATHER
+  // THAN CORRECTING IT FOR A SEVENTH TIME. It restated |WALK| as a sum of three
+  // literal terms ("25 routes + 7 non-default tab states + 36 OVERLAY_STATES =
+  // 68"), and NOTHING READ IT, because the three lists below are spread. So it
+  // could only ever be right by someone remembering to retype it — and it was
+  // found stale on arrival at Gates 71, 71-B, 74-B, 78 and 80-B, twice by more
+  // than one term, against ONE gate that found it accurate. A comment that
+  // restates a derived number is a liability: it is indistinguishable from a
+  // checked fact and it rots silently.
   //
-  // GATE 80-B LEFT IT CORRECT AND GATE 80-C MOVED IT BY ONE TERM: 35 -> 36
-  // overlay states, for the ledger-filtered-to-nothing state, so 67 -> 68. That
-  // is the first time in six gates this comment was found ACCURATE on arrival
-  // rather than stale, which is worth recording in its own right — the
-  // correction below is this gate adding a state, not this gate fixing a drift.
+  // THE HARNESS ALREADY PRINTS ITS OWN DERIVATION, EVERY RUN, AND THAT IS THE
+  // AUTHORITY. `section-headers.spec.ts` counts each term on its own predicate
+  // — never one by subtraction, so three independent counts that add to
+  // `WALK.length` are what show the terms do not overlap — and logs:
   //
-  // ⚠ RE-DERIVE THIS FROM DISK RATHER THAN TRUSTING IT. Nothing reads this
-  // comment, which is exactly why it has gone stale twice. The anchored command
-  // is the authority:
-  //   awk '/^export const OVERLAY_STATES/,/^\]/' e2e/harness.ts |
+  //   section-header sweep: N .mvp-section-header instance(s) checked across
+  //   <N> walk state(s) = <N> route state(s) + <N> non-default tab state(s)
+  //   over <N> tabbed screen(s) + <N> overlay state(s) [<N> + <N> + <N> = <N>;
+  //   <N> route(s) in ROUTES] x <N> theme(s)
+  //
+  // `baselines.spec.ts` prints the same `WALK.length` against the viewport and
+  // theme axes. READ EITHER RUN LOG rather than any number written here.
+  //
+  // To count the overlay entries alone without running anything, the anchored
+  // command is the one that cannot over-count — a bare grep for an id also
+  // matches the nested tab id that overlay states on a tab carry:
+  //
+  //   awk '/^export const OVERLAY_STATES/,/^]/' e2e/harness.ts |
   //     grep -c "^    overlay: {"
-  // A bare `grep -c "id: '"` over the same slice OVER-COUNTS, because overlay
-  // states that also carry a tab have a nested `tab: { id: ... }`.
-
-  // (Gate 43 added the fourth, the Transactions filter sheet; Gate 44 the fifth,
-  // the filtered ledger; Gate 49 the sixth and seventh, the transaction detail
-  // sheet in each of its two states; Gate 50 the eighth through eleventh, the
-  // four capture surfaces; Gate 51 the twelfth through fourteenth, the receipt
-  // viewer linked, unlinked, and under its delete confirmation. It was 3 = 24
-  // from Gate α through Gate 41.)
   //
-  // THE CODE HAS BEEN RIGHT SINCE GATE 44 AND THIS COMMENT SAID 4 = 25 UNTIL
-  // GATE 48 — `OVERLAY_STATES` is spread, so the arithmetic was never read by
-  // anything. Re-derive it rather than trusting it:
-  //   awk '/^export const OVERLAY_STATES/,/^]/' e2e/harness.ts | grep -c "^    overlay: {"
   ...OVERLAY_STATES,
 ]
 

@@ -16897,3 +16897,407 @@ G17's prop half, G19-G23, G28-G33, G44 and G48 — all still registered, still
 deferred, and **no MVP-local override was added for any**; the G33 workaround
 class, untouched and still carrying its removal condition; UI-3; persistence
 (NP1); `npm audit fix`; the DS repo; and branch deletion.
+
+## The first money writer — Top-Up, and a real reference (Gate 81)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was written. **THIS IS THE
+FIRST CODE IN THIS APP THAT MOVES MONEY.** Every gate before it built a read
+surface over a fixed seed, so a wrong figure was a wrong RENDER; from here a
+wrong figure is a wrong WRITE, and the two fail differently — a wrong render is
+wrong every time and a screenshot catches it, while a wrong write is right until
+someone performs it. **|WALK| 68 -> 70, `OVERLAY_STATES` 36 -> 38, `ROUTES` 25
+(unchanged), baselines 272 -> 280 (8 added, 4 changed, ZERO deleted), tests
+870 -> 907, spec files 34 -> 35.** `lint:tokens` scans **93** files (91 +
+`topUpDraft.ts` + `TopUpModal.tsx`) with the same **4** exemptions — no new raw
+value entered the tree.
+
+**FIGMA CAME IN ON THE REMOTE CONNECTOR** (authenticated `whoami` -> Teku Cheong,
+pro); `figma-local` refused with `ECONNREFUSED`. That is the same split as Gates
+78, 79, 80, 80-B and 80-C — do not predict which path works, and establish an
+authenticated round trip rather than a port check.
+
+### ⚠ TOP-UP IS UNDESIGNED, ESTABLISHED TWO WAYS
+
+Section `1266:14338` (`Finance_Plan`) holds **six** frames and **none of them is
+a Top-Up**: the Plans tab (`…339`), Add-a-Goal (`…340`), the smart insight
+(`…341`), its education panel (`…342`), view-commitment (`…343`) and the goal
+drill-down (`…344`).
+
+**THE DRILL-DOWN'S HIDDEN `Bottom Sheet` IS NOT A SPEC, AND GATE 78'S READING OF
+IT IS RE-CONFIRMED.** `873:6583` is `hidden="true"`, has **no children** in the
+instance OR the main component, and returns `{}` from `get_variable_defs`. It is
+an unconfigured component dropped on the canvas — the same shape as the bare
+`Field` Gate 49 found on both transaction-detail frames.
+
+**THE ON-DISK INVENTORY AGREES INDEPENDENTLY.** Its §E screen table lists the
+drill-down's footer as "Top-Up / Edit Goals at the bottom" and gives Top-Up no
+screen of its own anywhere; its §D2 describes the WRITER ("would debit the Main
+account balance") without claiming a frame exists.
+
+So the whole surface is built under the 21 Sept ruling, and every decision in
+`TopUpModal.tsx`'s header is justified from this app's own precedents.
+
+### THE §4 STOP CONDITION DID NOT FIRE, AND WHY IS THE GATE'S MAIN JUDGEMENT
+
+Figma draws the ANALOGOUS control on Add-a-Goal — "Funding Source", reading
+"Bank Account - Main" — as a **`Select` with a chevron**, i.e. a dropdown. Under
+the Gate 74-B pattern a dropdown inside an overlay must become a dedicated
+selection view, Figma has drawn no such view, and an undrawn picker view is a
+hard stop rather than something to improvise.
+
+**IT NEVER ENGAGED, BECAUSE THIS FORM NEEDS NO DROPDOWN — AND THE APP HAD
+ALREADY WRITTEN THE RULE DOWN.** `PresetModals.tsx`'s `ReminderModal` is a
+`Radio` group *"because the three options are mutually exclusive and all three
+should be visible at once. **Three items is below the threshold where a dropdown
+earns its extra interaction.**"* There are exactly **two** cash accounts
+(`FIAT_ACCOUNTS`: Main and Joint Account), which is below that threshold, so
+there is no dropdown for the pattern to apply to. The two pickers that DID earn
+a view had **7** and **20** options.
+
+**THE BALANCE IS IN THE RADIO LABEL, and that is the second reason a dropdown is
+the wrong control here rather than merely an unnecessary one.** The amount is
+capped by the chosen account's balance, so the two balances are the decision
+input — and a dropdown shows one at a time, forcing a user to toggle in order to
+compare the two figures the choice is actually between. Rendered:
+`Main · RM 27,978.59` and `Joint Account · RM 15,000.00`.
+
+**THIS IS THE ONE DECISION WORTH OVERTURNING IF TEKU DISAGREES**, which is why
+the reasoning is in the component header in full rather than compressed.
+
+### `topUpGoal` — three mutations, one operation, ONE ARGUMENT
+
+The ninth mutator in `AccountsProvider`, the seventh with a caller.
+`addTransaction` and `adjustFiatBalance` are **still** the zero-caller seams
+Gates 48 and 75 built — and `topUpGoal` arriving does NOT discharge them: it
+writes the ledger and a balance itself rather than calling through either,
+because a Top-Up is one operation and those two are halves of different ones.
+
+```ts
+topUpGoal: (contribution: Transaction) => void
+```
+
+**THE SIGNATURE IS THE WHOLE DESIGN.** A `(goalId, accountId, amount)` form
+would let a caller debit one account while writing a row that names another, or
+credit a goal by a figure the row does not state — three facts, three chances to
+disagree. Here **THE ROW IS THE INSTRUCTION**: the account comes from
+`accountId`, the goal from `goalId`, and both balances move by `amount`, so "the
+ledger, the account and the goal agree" is true BY CONSTRUCTION rather than by
+the caller being careful.
+
+**ATOMIC IN THE ONLY SENSE THAT CAN BE OBSERVED HERE, AND THE MECHANISM IS NOT
+`linkReceipt`'s.** The three pieces of state are three different atoms, so they
+cannot be collapsed into a single `setX` the way `replaceReceipt` collapses two
+receipt writes into one `map`. What makes it atomic is React 18's automatic
+batching (`createRoot` + `StrictMode`, `main.tsx`): all three updates apply
+before the render, so **no render ever sees a partial write** — there is no frame
+in which the money has left the account and not yet reached the goal.
+
+**IT THROWS ON A MALFORMED ROW** — no `goalId`, not a `transfer`, not a debit, an
+unknown account, an unknown goal — rather than writing half of one. Every clause
+is a programmer error the form cannot produce, and a silent no-op would leave a
+user looking at an unchanged screen with no reason. `addedAtOf`'s position.
+
+### WHAT MOVES, MEASURED END TO END — a RM 125.50 top-up into Bali Trip
+
+Driven through the real UI in a browser, then asserted in
+`e2e/topup.spec.ts` against arithmetic derived from the seed:
+
+| figure | before | after | delta |
+|---|---|---|---|
+| `Goal.savedAmount` (Bali) | RM 5,040.00 | **RM 5,165.50** | +125.50 |
+| goal percent | 56% | **57%** | `floor(5165.50 / 9000 × 100)` |
+| Main account | RM 27,978.59 | **RM 27,853.09** | −125.50 |
+| Savings Goals card | RM 16,080.00 | **RM 16,205.50** | +125.50 |
+| ledger rows | 53 | **54** | the written row |
+| **net worth** | RM 481,038.84 | **RM 481,038.84** | **0** |
+| `budget-monthly` | 65% / 2,608.83 spent | **unchanged** | |
+| `budget-entertainment` | 87% / 123.76 spent | **unchanged** | |
+
+**NET WORTH NOT MOVING IS THE ASSERTION, NOT AN OVERSIGHT.** It is
+`sum(holdings) + goalsTotal`, and a Top-Up takes 125.50 out of the first term
+and puts it into the second — exactly what the Flow 11 plan predicted ("a Top-Up
+moves money between two cards and leaves the total unchanged"). **A writer that
+credited the goal without debiting the account passes every other assertion in
+the table and fails this one.**
+
+**NO BUDGET CAN MOVE, STRUCTURALLY.** `countsToward` tests `kind` FIRST and the
+written row is `kind: 'transfer'`, so no amount, category or date can bring a
+contribution into a budget.
+
+#### ⚠ A RELOAD RESETS EVERYTHING, AND IT READ AS "THE FIGURE DID NOT MOVE"
+
+**THE FIRST MANUAL CHECK OF THIS GATE REPORTED THE BALANCE UNCHANGED, AND THE
+WRITER WAS FINE.** Nothing is persisted (NP1), so `page.goto('/finance')` after
+a top-up remounts the app and reseeds every collection — the figures were back
+at RM 27,978.59 and RM 16,080.00 because the write had been thrown away, not
+because it never happened.
+
+**THIS IS NOW STANDING VERIFICATION DISCIPLINE, NOT A GATE 81 DETAIL, AND IT
+BINDS EVERY WRITER THIS APP GAINS UNTIL PERSISTENCE LANDS** — Gate 81-B adds five
+more. **EVERY CROSS-SCREEN ASSERTION ABOUT A WRITE MUST NAVIGATE THROUGH THE APP'S
+OWN CONTROLS**, never by URL. `topup.spec.ts` goes Back via
+`.mn-header-default button` and switches tabs with `getByRole('tab')`, and says
+so where it does it. A spec that navigated by URL would pass against a writer
+that did nothing at all — which is the worst possible failure mode for this
+gate's one new capability, and it is recorded because it nearly reached a
+stop-condition report.
+
+### The reference — a real field, because Gate 79 asked for one in those words
+
+`Transaction.reference`, `MNRC` + `YYYYMMDD` + six characters, 18 in all:
+`MNRC20260815XR2A7S`.
+
+**GATE 79 REFUSED TO TRANSFORM THE SLUG AND SAID WHERE A REAL FORMAT BELONGS.**
+Its note read: upper-casing or regrouping `txn-bali-c16` *"dresses a slug as a
+reference number without making it one"*, and **"if a real reference format is
+wanted it belongs on the record, not in a display helper"**. This gate collected
+on that literally — the format went onto the record, not into a formatter.
+
+**THE SHAPE IS MODELLED ON WHAT MALAYSIAN RETAIL BANKING ACTUALLY PRINTS**, not
+invented: a DuitNow receipt carries `20201210CIBBMYKL01020121007` and
+`20250405HLBBMYKL010ORB39161371` — a `YYYYMMDD` date prefix, an institution tag,
+then a sequence — and the industry norm for a transaction id is an alphanumeric
+string of roughly 12–20 characters with no fixed standard.
+
+**`MNRC` IS DELIBERATELY NOT BIC-SHAPED.** A BIC is 8 or 11 characters ending in
+a country and location pair (`CIBBMYKL` = CIBB + MY + KL); forging one would
+claim a registry entry Monarch does not have. Four letters is a brand tag.
+
+**THE ALPHABET IS CROCKFORD BASE32 — no `I`, `L`, `O` or `U`** — because those
+are the characters a person misreads off a screen, and a reference exists to be
+read back. 32 characters means each carries exactly five bits, so six characters
+hold exactly 30 and the mask needs no rounding.
+
+#### ⚠ THE SEED IS BACKFILLED AND A WRITTEN ROW IS ASSIGNED, AND THE ASYMMETRY IS THE POINT
+
+This is what the gate brief meant by "a format that makes seeded and written rows
+visibly inconsistent is a finding".
+
+- **The 28 seeded contributions — and all 53 seeded rows — are NOT rewritten.**
+  `backfillReferences` stamps every row that lacks one on first load, in
+  `AccountsProvider`'s `useState` initialiser. That is `backfillAddedAt`'s shape
+  exactly, and `Receipt.addedAt`'s own note is the precedent in words: "OPTIONAL
+  ON THE TYPE ONLY BECAUSE THE SEED PREDATES IT".
+- **The backfill is DETERMINISTIC** (FNV-1a over the row's `id`, masked to 30
+  bits). It has to be: four committed baselines print a reference, so a random
+  backfill would redraw them every run, and `transaction-disposition.spec.ts`
+  derives its expectation by calling the same generator on the raw seed row.
+- **A written row's is RANDOM** (`crypto.getRandomValues`). That is what makes
+  the field a RECORD rather than a cache of a pure function — if every reference
+  were derivable from the row, this repo's own rule ("a figure computable from
+  another figure is not stored") would delete it, and anyone holding the id would
+  hold the reference, which is not what a bank reference is.
+
+**BOTH PRODUCE THE SAME 18-CHARACTER SHAPE, WHICH IS THE PROPERTY THAT MATTERS.**
+Measured on screen: a written row prints `MNRC20261005C454B4` and the seeded row
+directly below it prints `MNRC20260815XR2A7S`. **A `t.reference ?? t.id` fallback
+would have printed `txn-bali-c16` on all 53 seeded rows in a column where the new
+one reads `MNRC…`** — which is the inconsistency, and it is why the backfill
+exists rather than a fallback.
+
+**SO NO WALK STATE MAY PHOTOGRAPH A WRITTEN REFERENCE.** `topup.spec.ts` asserts
+its SHAPE by regex, and separately that it does not contain `txn-`.
+`transactionReference` THROWS on a row with no reference rather than falling back
+— `addedAtOf`'s position, for the same reason: a fallback would make the one
+defect the field exists to prevent invisible.
+
+### §2 — both registered findings, answered
+
+**NEITHER IS REACHABLE BY THIS WRITER, AND THE REASON IS THE SAME ONE: EVERY ROW
+IT CREATES IS `kind: 'transfer'` AND NEGATIVE.**
+
+- **`MODEL-1`** (a budget has no account scope — **the Gate 81 brief described it as
+  "`countsToward` rejects a credit payment on its second clause rather than
+  structurally", which is NOT what the register records under that id.** That
+  sentence is a true description of `countsToward` — a transfer fails clause one,
+  a credit clause two — and it appears in prose at Gate 79, but under NO register
+  id at all. The register's MODEL-1 is the account-scope finding and only that.). A Top-Up from the
+  **Joint Account** does write a row carrying `accountId: 'joint'`, which is the
+  shape of MODEL-1's residual — but `countsToward` rejects it on clause ONE
+  (`kind !== 'payment'`) regardless of account, so **the writer cannot widen
+  MODEL-1's residual by a sen**. It stays at `txn-lotus-0905` and
+  `txn-giant-0902`, RM 175.32 of `budget-monthly`'s RM 2,608.83. Registered,
+  unchanged, still out of scope.
+- **The zero-amount row — OPEN, NOT CLOSED, AND OWNED BY GATE 81-B.**
+  `transactionDisposition` classifies a NON-TRANSFER row of exactly 0 as income
+  (`amount >= 0`, `derive.ts:2112`). **THIS GATE DID NOT CLOSE IT; IT PUT A GUARD
+  IN THE FORM.** The Top-Up writer cannot produce such a row — `kind` is tested
+  first — so the misclassification is unreachable from HERE, but the predicate
+  itself is unchanged and a `payment` of exactly 0 still reads as income.
+  Gate 81-B adds five more writers; the first one that can emit a non-transfer
+  zero reopens the question, and the decision whether the predicate or each
+  writer's form carries the guard is 81-B's to make, not to inherit silently.
+
+**THE GUARD WENT IN THE WRITER AND NOT IN THE PREDICATE, AND THE PLACEMENT IS
+ARGUED RATHER THAN PATCHED.** `topUpDraftErrors` requires `sen > 0`. The
+predicate's `amount >= 0` boundary is aligned ON PURPOSE with `countsToward`'s
+identical test — `derive.ts` says so — so that the two can never disagree about
+a zero row; moving it would desynchronise two boundaries the code deliberately
+matched, in order to fix a value that cannot reach them. **A zero top-up is not
+a classification problem: it is a form accepting nonsense**, and the guard
+belongs where the nonsense enters. What a zero would actually produce is a
+ledger row of RM 0.00 that debits nothing and credits nothing while appearing in
+the ledger and in Recent Contributions.
+
+### The form
+
+A DS `Modal` — Figma's Add-a-Goal is a card at x=16, 343 wide, all four corners
+rounded, with a header, a content column and a two-button footer, which is a
+Modal by geometry whatever the layer is named (the trap that has caught this
+project four times).
+
+| | |
+|---|---|
+| Amount (RM) | DS `Field` `type="number"`, the `BudgetFormModal` precedent |
+| From | a `Radio` group, two options, each labelled with its balance |
+| preview | `Bali Trip: RM 5,165.50 of RM 9,000.00 after this` |
+| footer | **"Confirm Top-Up"** primary, "Cancel" secondary |
+
+**"Confirm Top-Up" AND NOT "Top-Up", FOR A PRACTICAL REASON AS WELL AS AN
+EDITORIAL ONE.** The control that OPENS the modal is also labelled "Top-Up" and
+stays in the DOM behind the scrim, so two buttons would share one accessible
+name and every `getByRole` lookup for either would be ambiguous.
+
+**VALIDATION IS GATE 71-B'S, UNCHANGED.** `useTouchedValidation` with a single
+error record (`topUpDraftErrors`) read both by the fields' red and by the Save
+attempt; a pristine form shows no red; Save is never disabled and a failed
+attempt reveals every invalid field and focuses the first.
+
+**THE PREVIEW LINE EARNS ITS PLACE TWICE.** It renders only when the amount is
+VALID — so it never prints a figure derived from a half-typed one — and it is
+the sentence the transfer detail sheet ALREADY prints about a contribution that
+has happened. That sentence was extracted into `format.ts` as
+`goalProgressAfter` when this second consumer arrived (the `monthLabel`
+precedent), so the form previews the fact in the same words the ledger states it
+in afterwards, from one definition.
+
+**NO TOAST.** Gate 51's rule is "toast only when the surface the user acted on
+disappears", and the goal screen does not: the progress bar, the saved figure and
+Recent Contributions all move under the closing modal. That is the Gate 71 Create
+precedent ("the new card is the feedback. Figma draws no toast").
+
+### The two walk states, and why the second one is the point
+
+| state | captures |
+|---|---|
+| `/finance/plans/goals/goal-bali-trip [overlay:topup]` | the modal, pristine |
+| `…[overlay:topped-up]` | **the goal screen AFTER a write** |
+
+**A BASELINE IS THE ONLY INSTRUMENT THAT CAN SEE A DERIVED FIGURE FAIL TO
+MOVE.** A balance that did not change is still a well-formed number in the right
+place and the right font; it is wrong only relative to a figure that is not in
+the picture. So the second state exists to pin the moved figures as pixels.
+
+**THE PREPARE STEP'S SETTLE IS NOT VACUOUS**, which mattered because this form
+has no count that changes as you type. `.mvp-topup__preview` **does not exist**
+until the amount is valid, so `toHaveCount(1)` alone proves the fill landed and
+passed the rules, and its text proves it landed as the right figure. The confirm
+step then settles on `.mn-progress-bar__current` reading `RM 5,165.50` — a figure
+the write moved, not merely the modal having closed.
+
+**NO `landsOn`:** a Top-Up does not navigate, which is also why there is no toast.
+
+**RM 125.50 IS CHOSEN, NOT ARBITRARY.** Two decimals, so the write exercises the
+sen path rather than a whole ringgit; and it is **not** one of the 32 distinct
+magnitudes the 53 seeded rows carry (measured), so a figure-based locator cannot
+confuse the written row with a seeded one.
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE TWELFTH TIME**: two added walk
+states cost **8 baseline files and 16 tests** (visual +8, routes +4,
+section-headers +4). |WALK| = 70 confirmed three ways — 280/4, (141−1)/2,
+(142−2)/2.
+
+### §1d — the WALK arithmetic comment is DELETED, not corrected
+
+It restated |WALK| as a sum of three literal terms, and **nothing read it**,
+because the three lists are spread. So it could only ever be right by someone
+remembering to retype it — and it was found stale on arrival at Gates 71, 71-B,
+74-B, 78 and 80-B, twice by more than one term, against ONE gate that found it
+accurate. **A comment that restates a derived number is indistinguishable from a
+checked fact and rots silently.**
+
+It now points at the derivation the harness already prints every run —
+`section-headers.spec.ts` counts each term on its own predicate, never one by
+subtraction — and keeps the anchored command for counting the overlay entries
+without running anything.
+
+### `localWallClock` moved to `today.ts`
+
+It was private to `receiptCapture.ts` and acquired a second consumer: the Top-Up
+writer stamps a ledger row's `occurredAt` with it. Extracted on arrival of that
+consumer (the `monthLabel` precedent), and it belongs in `today.ts` because that
+file is "the app's notion of now" — the alternative was a savings-goal modal
+importing the RECEIPT CAPTURE module, which statically pulls in the OCR seam.
+`toISOString` still has **zero** occurrences in `src/` outside comments warning
+against it.
+
+### Verification
+
+| | |
+|---|---|
+| `npx tsc -b --force` | clean |
+| `npm run build` | exit 0 |
+| `npm run lint:tokens` | **93 files, 4 exemptions**, PASS |
+| `npm run lint:linkage` | PASS, all four sources on v2.8.0 |
+| tests | **907** in 35 files; baselines **280**, start/end digest `cdb43d91bac05d503f35b39093ac8e9c38b211697e0e15d9a72258ead5f9b90e` |
+
+**THE DIGEST IS THE FILESYSTEM FORM, NOT THE GIT-BLOB FORM**, because 8 of the 280
+files are untracked until Teku stages them. Taken with the standing command, whose
+`sha256sum` emits `<hash> *<filename>` in binary mode on this machine.
+
+**THREE CLEAN RUNS OF THE FINAL TREE, NOTHING ELSE ON THE MACHINE: 906 passed / 1
+failed each**, 27.0 / 26.9 / 26.9 minutes, npm's own exit code **1** captured
+apart from the script's, and the baseline digest byte-identical after every run
+and to the start manifest (so all 280 PNGs are byte-stable), **zero** "writing
+actual" lines. The one failure is `baselines.spec.ts:216` — arm 1, "every baseline
+on disk is tracked by git" — naming the 8 untracked `…-topup-*` and
+`…-topped-up-*` PNGs. It is correct and predicted; staging is Teku's.
+
+**THE KNOWN MOUNT-TIMING FLAKE (`section-headers.spec.ts` inside `gotoRoute`, Gate
+31 / Gate 80-C) DID NOT APPEAR IN THESE THREE RUNS.** Its running tally is
+therefore unchanged by this gate.
+
+#### All 12 minted PNGs were opened and READ, figures included
+
+The post-write goal screen shows money that MOVED: Bali Trip **56% / RM 5,040.00
+-> 57% / RM 5,165.50**, a new "Manual Top-Up, 15 Aug, RM 125.50" row on top of
+Recent Contributions, in both themes at both widths. The modal shows
+`Main · RM 27,978.59` and `Joint Account · RM 15,000.00`. The four transfer-detail
+baselines print the reference `MNRC20260815XR2A7S` on the Reference row, identical
+in all four. **THE PICTURES CARRY THE GOAL SIDE ONLY.** No walk state shows the
+source account's balance, the Savings Goals card or the new ledger row, so those
+three are held by `topup.spec.ts`'s assertions and by nothing visual.
+
+**THE "Dark"/"Light" THEME-SWITCH OVERLAPS THE LAST CONTRIBUTION ROW** in all
+the goal-detail captures. That is pre-existing: the committed
+`finance-plans-goals-goal-bali-trip-375-light` baseline has it too (a fixed
+control over a `fullPage` capture taller than the viewport), and it is not this
+gate's.
+
+#### Sixteen mutation proofs, and a driver that refused five of them
+
+The negative control ran first — a deliberate syntax error aimed at a passing
+test — and **printed NO PROOF**, because the driver typechecks the mutated tree.
+Each proof runs exactly ONE test by its regex-escaped `$`-anchored title through
+an argument array with no shell, restores SHA-identical and re-runs green.
+
+**ELEVEN PROVED AT FIRST ATTEMPT AND FIVE WERE REFUSED, AND THE REFUSAL IS THE
+DRIVER WORKING.** M2, M7, M8, M12 and M16 each deleted the only use of an
+identifier, so `tsc` reported TS6133 and the driver declined to certify a mutation
+that is not type-valid. They were rewritten to keep the identifier alive while
+removing the behaviour (`+ 0 * credit`, `X && \`txn-…\``, a never-true branch,
+`* 1000000`, a discarded call) and all five then PROVED. **A mutation must change
+behaviour and not leave dead code, or the typecheck gate cannot tell it from a
+syntax error.** No proof passed under mutation, so no test was strengthened.
+
+### Deliberately not in scope
+
+The goal lifecycle writers — Add a Goal, Edit, Delete, the auto-save toggle and
+its pencil, the image pencil — all **Gate 81-B**, and the "Funding Source" field
+`Goal` does not yet carry arrives with Add-a-Goal; `G49`'s fix, which is DS-side;
+rewriting the 28 seeded contributions to carry stored references; persistence
+(NP1); `MODEL-1`; the retro-fit sweep; G6, G13, G14, G17's prop half, G19–G23,
+G28–G33, G44, G48, UI-3 and UI-4 — all still registered, still deferred, and
+**no MVP-local override was added for any**; the `G33` workaround class,
+untouched and still carrying its removal condition; `npm audit fix`; the DS repo;
+and branch deletion.

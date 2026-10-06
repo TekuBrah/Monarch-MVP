@@ -348,6 +348,49 @@ export interface Transaction {
    */
   contributionSource?: ContributionSource
   /**
+   * THE BANK'S OWN REFERENCE FOR THIS MOVEMENT — Gate 81. What the detail
+   * sheet's "Reference" row prints.
+   *
+   * ⚠ IT EXISTS BECAUSE GATE 79 ASKED FOR IT IN THESE WORDS: the Reference row
+   * printed `transaction.id` verbatim, and that gate's own note refused to
+   * dress the slug up in a display helper — "if a real reference format is
+   * wanted it BELONGS ON THE RECORD, not in a display helper". This is that
+   * record. A derived-from-the-id reference would have been the same objection
+   * in a new costume: anyone holding the id would hold the reference, which is
+   * not what a bank reference is.
+   *
+   * THE SHAPE IS `MNRC` + `YYYYMMDD` + SIX CHARACTERS — 18 in all, e.g.
+   * `MNRC20260815K4Q7XZ`. It is modelled on what Malaysian retail banking
+   * actually prints: a DuitNow receipt carries `20201210CIBBMYKL01020121007`
+   * and `20250405HLBBMYKL010ORB39161371` — a `YYYYMMDD` date prefix, an
+   * institution tag, then a sequence — and the industry norm for a transaction
+   * id is an alphanumeric string of roughly 12–20 characters with no fixed
+   * standard. `MNRC` is a four-letter brand tag, DELIBERATELY NOT BIC-SHAPED:
+   * a BIC is 8 or 11 characters ending in a country and location pair
+   * (`CIBBMYKL`), and forging one would claim a registry entry Monarch does not
+   * have. See `referenceFor` for the alphabet.
+   *
+   * OPTIONAL ON THE TYPE ONLY BECAUSE THE SEED PREDATES IT — exactly
+   * `Receipt.addedAt`'s situation and resolved exactly the same way.
+   * `backfillReferences` (`derive.ts`) fills every seeded row on first load, and
+   * the Top-Up writer assigns one to every row it creates, so every transaction
+   * the APP holds carries one. A row that reaches the Reference row without one
+   * is a defect, and `transactionReference` throws rather than guessing.
+   *
+   * ⚠ THE SEED'S REFERENCES ARE MANUFACTURED AND A WRITTEN ROW'S IS ASSIGNED,
+   * AND THAT ASYMMETRY IS THE POINT RATHER THAN AN INCONSISTENCY. The seeded
+   * rows never had a reference assigned to them — there was no bank — so the
+   * backfill manufactures a STABLE stand-in, deterministic in the row's own id,
+   * which is what keeps the committed baselines byte-stable and reproducible
+   * across reloads. A row the user actually creates gets a genuinely NEW
+   * reference with a random suffix, because that is what makes this a record
+   * rather than a rendering. Both produce the same 18-character shape, so a
+   * seeded row and a written one are indistinguishable on screen — which is the
+   * property that matters, and the one a bare `t.reference ?? t.id` fallback
+   * would have broken on every one of the 53 seeded rows.
+   */
+  reference?: string
+  /**
    * Which account the row moved through.
    *
    * Joins to `BankHolding.accountId` for the two cash accounts. Flow 8 widened

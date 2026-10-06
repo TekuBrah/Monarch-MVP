@@ -9,6 +9,7 @@ import {
   withinWindow,
   type MatchFields,
 } from '../src/data/autoMatch'
+import { canCarryReceipt } from '../src/data/derive'
 import { RECEIPTS } from '../src/data/receipts'
 import { TRANSACTIONS } from '../src/data/transactions'
 import type { Receipt, Transaction } from '../src/data/types'
@@ -291,6 +292,55 @@ test.describe('auto-match — the rule', () => {
     ).toBe(false)
   })
 
+  /*
+    GATE 81, AND IT IS THE TEST `MODEL-2` ASKED FOR. That finding closed the
+    link PICKER and the Suggested block against savings transfers and recorded
+    this function as "coincidentally rather than structurally safe": a
+    contribution is an OUTFLOW, so `totalMatches` admits it, and only the
+    merchant check kept it out — a coincidence of the seed, where no
+    contribution's merchant tokenises like a receipt's letterhead.
+
+    GATE 81 IS THE FIRST GATE THAT CAN WRITE A CONTRIBUTION, and a Top-Up names
+    its row after the GOAL, so a receipt whose letterhead reads like a goal name
+    could have been auto-linked to savings. The row below is built to defeat the
+    merchant check ON PURPOSE — same merchant, same total, same day — so the
+    ONLY thing that can exclude it is its disposition.
+  */
+  test('a TRANSFER cannot enter the candidate set, however well it matches', () => {
+    const fields = { merchant: 'Bali Trip', capturedAt: '2025-09-06T12:00:00', total: 99.9 }
+    const asPayment = row('t-payment', 'Bali Trip', -99.9, '2025-09-06T10:00:00')
+    const asTransfer: Transaction = {
+      ...asPayment,
+      id: 't-transfer',
+      kind: 'transfer',
+      goalId: 'goal-bali-trip',
+      contributionSource: 'manual',
+    }
+
+    // THE CONTROL FIRST: as a payment the identical row IS a candidate, so the
+    // fixture is proven to satisfy every other clause of the rule.
+    expect(
+      candidatesFor(fields, [asPayment], []).map((t) => t.id),
+      'the fixture must match on total, window and merchant',
+    ).toEqual(['t-payment'])
+
+    // AND `kind` ALONE TAKES IT OUT.
+    expect(candidatesFor(fields, [asTransfer], [])).toEqual([])
+    expect(autoMatchBatch([fields], [asTransfer], [])).toEqual([null])
+
+    // The predicate the filter is built on, stated directly.
+    expect(canCarryReceipt(asPayment)).toBe(true)
+    expect(canCarryReceipt(asTransfer)).toBe(false)
+  })
+
+  test('EVERY seeded contribution is excluded from every candidate set', () => {
+    const contributions = TRANSACTIONS.filter((t) => t.goalId !== undefined)
+    expect(contributions.length, 'the seed must hold contributions to exclude').toBe(28)
+    for (const t of contributions) {
+      expect(canCarryReceipt(t), `${t.id} must not be able to carry a receipt`).toBe(false)
+    }
+  })
+
   test('a credit whose magnitude equals the total is not a candidate', () => {
     // The seed's convention is that a linked row's amount is the receipt total
     // NEGATED. Linking a credit would break that — the amount could only follow
@@ -299,7 +349,24 @@ test.describe('auto-match — the rule', () => {
     const credit = seededRow('txn-maybank-0907')
     expect(credit.amount).toBe(1500)
     expect(candidatesFor(fields, TRANSACTIONS, RECEIPTS)).toEqual([])
-    expect(autoMatchBatch([fields], [{ ...credit, amount: -1500 }], [])).toEqual([credit.id])
+
+    /*
+      ⚠ THE CONTROL HAS TO FLIP `kind` AS WELL AS THE SIGN, AS OF GATE 81, AND
+      IT IS NOT A LOOSENING — IT IS WHAT KEEPS THE TEST ABOUT THE SIGN.
+
+      This row is one of the five seeded TRANSFERS, so once `candidatesFor`
+      started filtering on `canCarryReceipt` it was excluded twice over: by its
+      sign AND by its kind. Negating the amount alone therefore no longer
+      produced a link, and the control stopped isolating anything — it would
+      have passed for the new reason while claiming the old one.
+
+      Flipping both makes it a PURCHASE of the same magnitude on the same day,
+      which is the only row shape that can carry a receipt at all, so the link
+      below is again attributable to the sign and to nothing else.
+    */
+    const asPurchase: Transaction = { ...credit, amount: -1500, kind: 'payment' }
+    expect(canCarryReceipt(asPurchase)).toBe(true)
+    expect(autoMatchBatch([fields], [asPurchase], [])).toEqual([credit.id])
   })
 
   test('leave-one-out: each seeded receipt links to its own row, and moves no amount', () => {

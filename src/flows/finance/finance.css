@@ -2992,3 +2992,54 @@ button.mvp-receipt-card:focus-visible {
   color: var(--mapped-text-subtle-default);
   text-align: center;
 }
+
+/* ======================================================================
+   Flow 11 — the Top-Up modal (Gate 81). UNDESIGNED: Figma draws no Top-Up
+   surface, so the column follows `.mvp-budget-form`'s 16px rhythm, which is
+   the only form geometry in this app with a frame behind it.
+   ====================================================================== */
+.mvp-topup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/* The destination line. `text/subtle/default` because it states context rather
+   than a figure — the same call `.mvp-txn-detail__movement-note` makes. The
+   goal's own name inside it is NOT subtle: it is the thing being named. */
+.mvp-topup__destination {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-topup__destination strong {
+  color: var(--mapped-text-default-default);
+}
+
+/* "From" plus the radio group. The caption takes the same treatment as the
+   budget form's toggle label, which is the nearest thing in the app to a
+   standalone field caption outside a DS `Field`. */
+.mvp-topup__source {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+}
+
+.mvp-topup__source-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* `.mvp-finance__presets` is the preset modal's radio column and this is its
+   twin; both are a DS `Radio` per row with nothing between them but the gap. */
+.mvp-topup__source [role='radiogroup'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+}
+
+/* The "where this lands" preview. A FIGURE, so it is not subtle — the call
+   `.mvp-txn-detail__movement-progress` makes about the same sentence. */
+.mvp-topup__preview {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}

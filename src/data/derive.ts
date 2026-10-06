@@ -2113,6 +2113,122 @@ export function transactionDisposition(t: Transaction): TransactionDisposition {
   return 'purchase'
 }
 
+// ───────────────────────────── transaction references (Gate 81) ─────────────
+
+/**
+ * The reference alphabet — Crockford base32, which excludes `I`, `L`, `O` and
+ * `U`.
+ *
+ * `I/1`, `L/1` and `O/0` are the pairs a person misreads off a screen or a
+ * printed receipt, and a reference exists to be read back. `U` goes with them
+ * in Crockford's own alphabet. 32 characters, so each one carries exactly five
+ * bits and the arithmetic below needs no rounding.
+ */
+const REFERENCE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+
+/** `MNRC` + `YYYYMMDD` + six — see `Transaction.reference` for the derivation. */
+const REFERENCE_PREFIX = 'MNRC'
+const REFERENCE_SUFFIX_LENGTH = 6
+
+/** Six alphabet characters from the low 30 bits of `seed`. */
+function referenceSuffix(seed: number): string {
+  let out = ''
+  let n = seed >>> 0
+  for (let i = 0; i < REFERENCE_SUFFIX_LENGTH; i += 1) {
+    out = REFERENCE_ALPHABET[n % 32] + out
+    n = Math.floor(n / 32)
+  }
+  return out
+}
+
+/** The `YYYYMMDD` half, read off the row's own local timestamp. */
+function referenceDate(occurredAt: string): string {
+  return occurredAt.slice(0, 10).replace(/-/g, '')
+}
+
+/**
+ * A STABLE reference for a row that was never assigned one — the backfill's
+ * generator, and nothing else's.
+ *
+ * DETERMINISTIC IN THE ROW'S OWN `id`, AND THAT IS NOT A STYLE CHOICE. Four
+ * committed baselines print a reference, so a random backfill would redraw them
+ * on every run; and `transaction-disposition.spec.ts` derives its expectation by
+ * calling this function on the RAW seed row, which only agrees with what the
+ * screen renders because the backfill is a pure function of fields the seed
+ * already carries.
+ *
+ * FNV-1a, 32-bit, MASKED TO 30 — six base32 characters hold exactly 30 bits, so
+ * masking first is what makes the mapping total rather than silently dropping
+ * the top two bits. It is a spreading function and not a cryptographic one;
+ * nothing here needs to resist anything, it needs to look unlike its neighbour.
+ */
+export function referenceFor(transaction: Transaction): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < transaction.id.length; i += 1) {
+    hash ^= transaction.id.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (
+    REFERENCE_PREFIX +
+    referenceDate(transaction.occurredAt) +
+    referenceSuffix((hash >>> 0) & 0x3fffffff)
+  )
+}
+
+/**
+ * A genuinely NEW reference, for a row the user has just created.
+ *
+ * RANDOM, NOT DERIVED, AND THAT IS WHAT MAKES `Transaction.reference` A RECORD.
+ * If every reference were a function of the row, the field would be a cache of
+ * `referenceFor` and this repo's own rule — a figure computable from another
+ * figure is not stored — would delete it. A bank assigns a reference; it does
+ * not compute one from the payment.
+ *
+ * ⚠ SO A WRITTEN ROW'S REFERENCE IS NOT REPRODUCIBLE, AND NO WALK STATE MAY
+ * PHOTOGRAPH ONE. `e2e/topup.spec.ts` asserts its SHAPE with a regex instead.
+ * The two Top-Up walk states photograph the modal and the goal screen, neither
+ * of which renders a reference.
+ *
+ * `crypto.getRandomValues` RATHER THAN `Math.random`: the app already requires a
+ * secure context for `crypto.randomUUID` (the goal and receipt id generators),
+ * so this adds no requirement, and a reference that can collide is not one.
+ */
+export function newReference(occurredAt: string): string {
+  const bytes = new Uint32Array(1)
+  crypto.getRandomValues(bytes)
+  return REFERENCE_PREFIX + referenceDate(occurredAt) + referenceSuffix(bytes[0] & 0x3fffffff)
+}
+
+/**
+ * Fill `reference` on every transaction that lacks one — run ONCE, on first
+ * load, over the seed. `backfillAddedAt`'s shape exactly.
+ *
+ * A ROW THAT ALREADY CARRIES ONE IS RETURNED UNCHANGED, so this is idempotent
+ * and a written row keeps the reference it was assigned.
+ */
+export function backfillReferences(transactions: Transaction[]): Transaction[] {
+  return transactions.map((t) => (t.reference ? t : { ...t, reference: referenceFor(t) }))
+}
+
+/**
+ * A row's reference, which the detail sheet cannot print without.
+ *
+ * IT THROWS RATHER THAN FALLING BACK TO THE ID. A fallback would make the one
+ * defect this field exists to prevent invisible: a row with no reference would
+ * quietly print `txn-bali-c16` again, in a column where every other row prints
+ * `MNRC…`, and nothing would say so. `addedAtOf` takes the same position for
+ * the same reason.
+ */
+export function transactionReference(transaction: Transaction): string {
+  if (!transaction.reference) {
+    throw new Error(
+      `transaction ${transaction.id} has no reference — the seed is backfilled on ` +
+        'load (backfillReferences) and every written row is assigned one',
+    )
+  }
+  return transaction.reference
+}
+
 /**
  * Whether a receipt could belong to this row at all — `'purchase'`, and nothing
  * else.

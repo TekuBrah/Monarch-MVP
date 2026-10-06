@@ -9,6 +9,7 @@ import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advis
 import {
   contributionSourceLabel,
   goalSavedAfter,
+  transactionReference,
   movementParties,
   receiptReadFailed,
   receiptSubtotalRead,
@@ -21,6 +22,7 @@ import {
 import {
   formatMyr,
   formatMyrOrUnread,
+  goalProgressAfter,
   formatSignedMyr,
   formatTimestamp,
 } from '../../../data/format'
@@ -459,16 +461,23 @@ function PromptBlock({ onAddReceipt }: { onAddReceipt: () => void }) {
  *                row reading "Type —" asserts that the field exists and was not
  *                read, which is false. The em dash is `UNREAD_FIGURE`'s job and
  *                this is not that case.
- *   Reference    the transaction id, VERBATIM — see below.
+ *   Reference    `Transaction.reference`, through `transactionReference` —
+ *                `MNRC20260815K4Q7XZ`, 18 characters. See below.
  *
- * ⚠ THE REFERENCE IS PRINTED AS STORED, AND THE BRIEF ASKED FOR IT "FORMATTED
- * FOR READING". It is `txn-bali-c16`, an internal slug, and every transform
- * available (upper-casing it, stripping the `txn-` prefix, regrouping it) dresses
- * a slug as a reference number without making it one. This repo's rule is one
- * formatter per shape and no invented formats — the same call already made on
- * two-decimal money against Figma's "RM 700" and on the padded day against its
- * "next on 1 Oct". Flagged for Teku rather than decided silently: if a real
- * reference format is wanted it belongs on the record, not in a display helper.
+ * ✅ THE REFERENCE IS A REAL FIELD AS OF GATE 81, AND THIS PARAGRAPH USED TO
+ * SAY THE OPPOSITE. Until then the row printed `transaction.id` verbatim —
+ * `txn-bali-c16`, an internal slug — and the note here refused to transform it,
+ * on the grounds that upper-casing or regrouping a slug "dresses it as a
+ * reference number without making it one" and that **if a real reference format
+ * is wanted it belongs on the record, not in a display helper**. That was the
+ * right call and Gate 81 collected on it literally: the format went onto the
+ * record as `Transaction.reference`, not into a formatter here. This row now
+ * reads a stored value and transforms nothing.
+ *
+ * THE SEED WAS NOT REWRITTEN. All 53 seeded rows are stamped once on first load
+ * by `backfillReferences`, so a seeded row and a written one print the same
+ * shape — see `Transaction.reference` for why that symmetry mattered more than
+ * the two halves being generated the same way.
  * ─────────────────────────────────────────────────────────────────────────────
  * THE BUDGETS LINE EXISTS BECAUSE ITS ABSENCE LOOKS LIKE A BUG. A user who has
  * set a budget and then moved RM 250 into a savings goal will look for that 250
@@ -526,7 +535,7 @@ function MovementSummary({
             value={contributionSourceLabel(transaction.contributionSource)}
           />
         )}
-        <InfoRow label="Reference" value={transaction.id} />
+        <InfoRow label="Reference" value={transactionReference(transaction)} />
       </dl>
       <p className="mvp-txn-detail__movement-note type-body-sm">
         {disposition === 'transfer'
@@ -535,7 +544,7 @@ function MovementSummary({
       </p>
       {goal && savedAfter !== undefined && (
         <p className="mvp-txn-detail__movement-progress type-body-sm">
-          {`${goal.name}: ${formatMyr(savedAfter)} of ${formatMyr(goal.targetAmount)} after this`}
+          {goalProgressAfter(goal.name, savedAfter, goal.targetAmount)}
         </p>
       )}
     </section>
