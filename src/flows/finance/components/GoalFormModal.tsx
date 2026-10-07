@@ -180,6 +180,35 @@ export function GoalFormModal(props: GoalFormModalProps) {
 
   const isSourceView = view === 'source'
 
+  /*
+    ⚠ THE FORM IS NEVER UNMOUNTED, AND THAT IS THE MECHANISM — Gate 81-C.
+
+    Before this gate the picker view REPLACED the form (`isSourceView ? picker :
+    form`) and the footer was dropped, so the card shrank from the form's 572
+    (Edit: 638) to the picker's own 162 and its top edge jumped by 205-238px: the
+    two views read as two unrelated dialogs. Teku's ruling: the picker is a VIEW
+    inside one modal, so the card keeps the FORM view's height and the items sit
+    at the top with the remaining space left empty.
+
+    THE HEIGHT IS A FLOOR TAKEN FROM THE FORM, NEVER A FIXED VALUE. Both views
+    live in ONE CSS grid cell (`.mvp-goal-views`), so the cell is as tall as the
+    taller of the two with no pixel height and no measuring — and a list longer
+    than the form would still grow the card. The inactive form stays mounted
+    (draft, touched state and DOM state all survive) but `visibility: hidden`,
+    which keeps its box in layout, and `inert` + `aria-hidden`, which take its
+    controls out of the tab order and the accessibility tree.
+
+    THE FOOTER IS PART OF THE FLOOR. It is a `Modal` slot, not part of the
+    content region, so holding only the content would leave the card short by
+    the footer's whole height. It is passed in BOTH views and is the hidden
+    ghost in the picker view; in Edit that ghost includes "Delete goal", which
+    is why the held height is per mode (572 Add, 638 Edit).
+
+    THE PICKER IS MOUNTED ONLY WHILE ACTIVE. Only the FORM needs to be held —
+    the picker is never the taller view with two accounts — so there is no
+    hidden list to confuse the DS focus trap with.
+  */
+
   return (
     <Modal
       isOpen
@@ -206,134 +235,152 @@ export function GoalFormModal(props: GoalFormModalProps) {
       /* Full-bleed rows — UI-1's rule, the call `BudgetFormModal` already makes. */
       contentPadding={isSourceView ? 'none' : 'default'}
       footer={
-        isSourceView ? undefined : (
-          <>
+        /*
+          ALWAYS RENDERED — see the note above. The wrapper replicates the DS
+          footer's own documented layout ("a full-width vertical stack") so the
+          buttons sit exactly where they did when they were its direct children.
+        */
+        <div
+          className="mvp-goal-form__actions"
+          data-held={isSourceView}
+          inert={isSourceView}
+          aria-hidden={isSourceView || undefined}
+        >
+          <Button
+            variant="primary"
+            size="l"
+            label={mode === 'create' ? 'Save Goal' : 'Save Changes'}
+            onClick={save}
+          />
+          <Button variant="secondary" size="l" label="Cancel" onClick={onClose} />
+          {props.mode === 'edit' && (
+            /*
+              RED, BORDERLESS, WITH A BIN — the Budget form's own treatment,
+              extended here by the red-delete ruling. `tone="error"` is
+              honoured on `variant="tertiary"` ONLY, so "a red Delete" is red
+              text and a red bin on no fill. The dark-mode contrast shortfall
+              of `--mapped-text-error-default` is accepted and deferred to the
+              DS round, as it is on the budget form.
+            */
             <Button
-              variant="primary"
+              variant="tertiary"
+              tone="error"
               size="l"
-              label={mode === 'create' ? 'Save Goal' : 'Save Changes'}
-              onClick={save}
+              label="Delete goal"
+              leadingIcon={<Icon name="delete" size="l" />}
+              onClick={props.onDelete}
             />
-            <Button variant="secondary" size="l" label="Cancel" onClick={onClose} />
-            {props.mode === 'edit' && (
-              /*
-                RED, BORDERLESS, WITH A BIN — the Budget form's own treatment,
-                extended here by the red-delete ruling. `tone="error"` is
-                honoured on `variant="tertiary"` ONLY, so "a red Delete" is red
-                text and a red bin on no fill. The dark-mode contrast shortfall
-                of `--mapped-text-error-default` is accepted and deferred to the
-                DS round, as it is on the budget form.
-              */
-              <Button
-                variant="tertiary"
-                tone="error"
-                size="l"
-                label="Delete goal"
-                leadingIcon={<Icon name="delete" size="l" />}
-                onClick={props.onDelete}
-              />
-            )}
-          </>
-        )
+          )}
+        </div>
       }
     >
-      {isSourceView ? (
-        <OptionList
-          selectionMode="single"
-          ariaLabel="Funding source"
-          options={sourceOptions(accounts)}
-          value={[draft.fundingAccountId]}
-          onChange={(value) => {
-            const picked = value[0]
-            if (picked) set('fundingAccountId')(picked)
-          }}
-          onDismiss={() => setView('form')}
-        />
-      ) : (
-        <div ref={validation.formRef} className="mvp-goal-form" onBlur={validation.onBlur}>
-          <Field
-            label="Goal Name"
-            name="name"
-            value={draft.name}
-            onChange={set('name')}
-            ariaLabel="Goal name"
-            sizing="fill"
-            isRequired
-            isInvalid={validation.isShown('name')}
-          />
-          <Field
-            label="Target Amount (RM)"
-            type="number"
-            name="targetAmount"
-            value={draft.targetAmount}
-            onChange={set('targetAmount')}
-            ariaLabel="Target amount in ringgit"
-            sizing="fill"
-            isRequired
-            isInvalid={validation.isShown('targetAmount')}
-          />
-          <Field
-            label="Target date"
-            type="date"
-            name="targetDate"
-            value={draft.targetDate}
-            onChange={set('targetDate')}
-            ariaLabel="Target date"
-            sizing="fill"
-            isRequired
-            isInvalid={validation.isShown('targetDate')}
-          />
-          {/*
-            FIGMA'S `Frame 475`: the amount and the switch on one row, the field
-            249 wide and the toggle at x=265. The switch is drawn OFF beside a
-            filled amount, which is `GoalAutoSave`'s contract visible in the
-            mockup — the figure survives the switch going off.
-          */}
-          <div className="mvp-goal-form__autosave">
+      <div className="mvp-goal-views">
+        <div
+          className="mvp-goal-views__pane"
+          data-held={isSourceView}
+          inert={isSourceView}
+          aria-hidden={isSourceView || undefined}
+        >
+          <div ref={validation.formRef} className="mvp-goal-form" onBlur={validation.onBlur}>
             <Field
-              label="Auto-Save Amount / Month (RM)"
+              label="Goal Name"
+              name="name"
+              value={draft.name}
+              onChange={set('name')}
+              ariaLabel="Goal name"
+              sizing="fill"
+              isRequired
+              isInvalid={validation.isShown('name')}
+            />
+            <Field
+              label="Target Amount (RM)"
               type="number"
-              name="autoSaveAmount"
-              value={draft.autoSaveAmount}
-              onChange={set('autoSaveAmount')}
-              ariaLabel="Auto-save amount per month in ringgit"
+              name="targetAmount"
+              value={draft.targetAmount}
+              onChange={set('targetAmount')}
+              ariaLabel="Target amount in ringgit"
               sizing="fill"
-              isInvalid={validation.isShown('autoSaveAmount')}
+              isRequired
+              isInvalid={validation.isShown('targetAmount')}
             />
-            <Toggle
-              size="l"
-              isChecked={draft.autoSaveEnabled}
-              onChange={set('autoSaveEnabled')}
-              ariaLabel="Auto-save"
+            <Field
+              label="Target date"
+              type="date"
+              name="targetDate"
+              value={draft.targetDate}
+              onChange={set('targetDate')}
+              ariaLabel="Target date"
+              sizing="fill"
+              isRequired
+              isInvalid={validation.isShown('targetDate')}
             />
-          </div>
-          <div className="mvp-goal-form__source" data-field="fundingAccountId">
             {/*
-              A TRIGGER THAT NAVIGATES — pinned closed, its open request
-              intercepted, exactly as the budget form's category trigger and the
-              merchant trigger are. There is no `menuSlot` at all.
-
-              G21 APPLIES HERE TOO: `Select` renders `aria-expanded`
-              unconditionally, so this permanently announces a collapsed popup
-              that does not exist. Registered, not worked around — `SelectProps`
-              exposes no role or aria passthrough.
+              FIGMA'S `Frame 475`: the amount and the switch on one row, the field
+              249 wide and the toggle at x=265. The switch is drawn OFF beside a
+              filled amount, which is `GoalAutoSave`'s contract visible in the
+              mockup — the figure survives the switch going off.
             */}
-            <Select
-              label="Funding Source"
-              ariaLabel="Funding source"
-              sizing="fill"
-              searchable={false}
-              value={accountLabel(accounts, draft.fundingAccountId)}
-              isSelected={draft.fundingAccountId.length > 0}
-              isInvalid={validation.isShown('fundingAccountId')}
-              isOpen={false}
-              onOpenChange={(open) => {
-                if (open) setView('source')
-              }}
-            />
+            <div className="mvp-goal-form__autosave">
+              <Field
+                label="Auto-Save Amount / Month (RM)"
+                type="number"
+                name="autoSaveAmount"
+                value={draft.autoSaveAmount}
+                onChange={set('autoSaveAmount')}
+                ariaLabel="Auto-save amount per month in ringgit"
+                sizing="fill"
+                isInvalid={validation.isShown('autoSaveAmount')}
+              />
+              <Toggle
+                size="l"
+                isChecked={draft.autoSaveEnabled}
+                onChange={set('autoSaveEnabled')}
+                ariaLabel="Auto-save"
+              />
+            </div>
+            <div className="mvp-goal-form__source" data-field="fundingAccountId">
+              {/*
+                A TRIGGER THAT NAVIGATES — pinned closed, its open request
+                intercepted, exactly as the budget form's category trigger and the
+                merchant trigger are. There is no `menuSlot` at all.
+
+                G21 APPLIES HERE TOO: `Select` renders `aria-expanded`
+                unconditionally, so this permanently announces a collapsed popup
+                that does not exist. Registered, not worked around — `SelectProps`
+                exposes no role or aria passthrough.
+              */}
+              <Select
+                label="Funding Source"
+                ariaLabel="Funding source"
+                sizing="fill"
+                searchable={false}
+                value={accountLabel(accounts, draft.fundingAccountId)}
+                isSelected={draft.fundingAccountId.length > 0}
+                isInvalid={validation.isShown('fundingAccountId')}
+                isOpen={false}
+                onOpenChange={(open) => {
+                  if (open) setView('source')
+                }}
+              />
+            </div>
           </div>
         </div>
-      )}
+        {isSourceView && (
+          <div className="mvp-goal-views__pane">
+            <OptionList
+              selectionMode="single"
+              ariaLabel="Funding source"
+              options={sourceOptions(accounts)}
+              value={[draft.fundingAccountId]}
+              onChange={(value) => {
+                const picked = value[0]
+                if (picked) set('fundingAccountId')(picked)
+              }}
+              onDismiss={() => setView('form')}
+            />
+          </div>
+        )}
+      </div>
     </Modal>
   )
 }

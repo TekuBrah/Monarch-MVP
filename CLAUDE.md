@@ -17935,3 +17935,225 @@ G49, UI-3 and UI-4 — all still registered, still deferred, and **no MVP-local
 override was added for any**; the `G33` workaround class, untouched and still
 carrying its removal condition; `npm audit fix`; the DS repo; and branch
 deletion.
+
+## The Funding Source picker view holds the form view's height (Gate 81-C)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was written. One subject: when the Add/Edit
+Goal modal turns into its Funding Source picker view, the card must not shrink. **|WALK| stays 76,
+`OVERLAY_STATES` 44, baselines 304 -> 304 (4 changed, ZERO added, ZERO deleted), tests 976 -> 982,
+spec files 36 -> 37.** `lint:tokens` scans **95** files (no file entered `src/`) with the same **4**
+exemptions — no new raw value entered the tree.
+
+### The observation, verbatim, and the ruling
+
+Teku, on device, 7 Oct 2026: *"When changing funding source the whole modal become squeezed and
+relatively smaller size in height than the original edit or create goal modal. I'm not sure if this
+is the best UI/UX, perhaps the modal should stay the same height? just that it contains the two
+menu items? You may do your research to figure the best way to do this."*
+
+**THE PICKER VIEW IS UNDESIGNED WORK** — Figma's case-study section `1266:14338` has six frames and
+none is a Funding Source picker view (Gate 81-B Phase B read this live) — so under the 21 Sept
+ruling it follows Claude's judgement, and this is that judgement. **Teku may overturn it.**
+
+**THE RULING (review thread, 7 Oct): the picker view keeps the card at the FORM view's height.** The
+items sit at the top, directly under the header; the remaining space stays empty. The card's top
+edge, header row, title position, back arrow and close button do not move between the two views.
+
+**WHY.** The picker is a VIEW inside one modal, not a second dialog. When the container resizes on a
+view change the header row jumps, the form vanishes from behind the card, and the two views read as
+two unrelated dialogs.
+
+**ENGINEERING-PRACTICE EVIDENCE — for the principle only, NOT measurements of any first-party
+product.** Blueprint's `MultiStepDialog` fix (#6721) set a stable width and height because the
+dialog jumped between steps; Ethyca's integration modal (fides #7491) holds one fixed height across
+a list view and a form view. One counter-lesson shapes the MECHANISM: openSUSE Agama's Popup PR #620
+dropped a fixed `height` prop because it forced avoidable scrolling when content grew. So the height
+is a **FLOOR taken from the form view, never a fixed pixel value**, and a longer list still grows
+the card.
+
+### Measured BEFORE and AFTER — Playwright at the harness DPR 2, identical at 375 and 430
+
+| mode | form card | picker card BEFORE | picker card AFTER | card top, form -> picker, BEFORE | AFTER |
+|---|---|---|---|---|---|
+| Add  | 572 = 64 header + 368 content + 140 footer | **162** (64 + 98, no footer) | **572** | 120 -> 325 | **120 -> 120** |
+| Edit | 638 = 64 + 368 + **206** footer | **162** | **638** | 87 -> 325 | **87 -> 87** |
+
+**THE HELD HEIGHT IS PER MODE, NOT ONE NUMBER**, because Edit's footer carries "Delete goal". The
+picker's first row now sits at the header's bottom edge (y=184 in Add, 151 in Edit), 48 tall and
+unstretched.
+
+### The mechanism
+
+**BOTH VIEWS LIVE IN ONE CSS GRID CELL** (`.mvp-goal-views`, `grid-area: 1 / 1` on each pane), so
+the cell is as tall as the TALLER of the two — a floor with no pixel height and no measuring, no
+`ResizeObserver`. The form pane is **never unmounted**: in the picker view it is `visibility:
+hidden` (which keeps its box in layout and paints nothing), `inert` and `aria-hidden`. The picker
+pane is mounted **only while active** — only the form needs holding, because with two accounts the
+picker is never the taller view.
+
+**⚠ THE FOOTER IS PART OF THE FLOOR, AND THAT WAS THE SECOND HALF THE PROMPT DID NOT STATE.** The
+footer is a `Modal` slot, not part of the content region, and the old picker view dropped it. Holding
+only the content would have left the card short by the footer's whole height (140 in Add, 206 in
+Edit). The slot is therefore passed in BOTH views, wrapped in `.mvp-goal-form__actions`, and in the
+picker view that wrapper is the hidden ghost.
+
+**THE WRAPPER RESTATES THE DS FOOTER'S OWN DOCUMENTED LAYOUT** ("a full-width vertical stack"):
+`display: flex; flex-direction: column; gap: var(--brand-scale-400)` with `> * { width: 100% }`,
+because the buttons are no longer direct children of `.mn-modal__footer`. It uses the same token as
+the DS slot's gap. The alternative — a rule targeting `.mn-modal__footer` through the Modal's
+`className` — would have been a second MVP rule on DS internals after the `G33` workaround; the
+wrapper touches only documented seams.
+
+**`contentPadding` STILL SWITCHES PER VIEW**, as before. Padding is sides only and cannot change the
+height (the DS prop doc says so), and keeping it per-view means the form view's render path is
+byte-identical. The one theoretical cost — the held form is laid out 32px wider in the picker view —
+cannot make it taller, and the height assertions measure both widths.
+
+**NO `isDisabled` WAS ADDED TO THE HELD CONTROLS**, and the reason is measured. The DS focus trap's
+candidate list (`Modal.tsx` `getFocusable`) filters only on `offsetParent !== null`, which
+`visibility: hidden` and `inert` do not change — so the held controls DO appear in that list
+(measured: 14 candidates in the picker view, 9 of them held). But the trap only acts when focus is on
+its first or last candidate, and the Tab walk is **identical to the pre-gate walk**: option row, then
+out of the card. Native sequential focus skips an inert pane, so no held control is ever reachable.
+Disabling every control to shrink the list would have changed no observable behaviour. **BOTH facts
+are DS-side** — see the register entry.
+
+### Two findings that contradict the prompt, and are pinned as they ARE
+
+- **Focus does NOT return to the Funding Source trigger on Back.** Measured on the UNCHANGED tree:
+  after Back, and after a pick, `document.activeElement` is `body` — the trigger was unmounted with
+  the form. It is now only hidden, and the result is the same. The prompt asked this to be pinned as
+  "returns to the trigger"; that is not the current behaviour, and changing it is a behaviour change
+  the retrofit session owns. **It is pinned as `body`**, with the shortfall stated in the register.
+- **The DS focus trap already leaks in the picker view.** On the unchanged tree, Tab from the option
+  row leaves the card for the page behind (`body`, then the Notifications button, the tab bar…).
+  Not caused and not worsened by this gate: the walk is the same before and after.
+
+### The sweep — every dropdown-in-form picker site (the RETROFIT LIST)
+
+| site | host | does the host's height change between form and picker views? | shares code with the Funding Source swap? |
+|---|---|---|---|
+| `GoalFormModal.tsx` (Funding Source) | `Modal` | **yes — FIXED here** (572 / 638 -> held) | — |
+| `BudgetFormModal.tsx:179` (Category) | `Modal` | yes — same shape (form + footer vs list, no footer) | no — inline, own state |
+| `TransactionFilterSheet.tsx:372` (Merchant) | `Sheet` | **different case** — the sheet is `hug`, and the merchant view already sits at the 764 cap (Gate 80-C measured it at top 48), so it GROWS rather than shrinks | no |
+
+Other `onBack` sites (`HeaderDefault` on the drill-down screens) are screen headers, not pickers.
+**THE NEW BEHAVIOUR IS LOCAL TO `GoalFormModal`** — a stylesheet block keyed to the two new class
+names, and no shared component — so no other picker's baseline could move, and none did. **Earlier
+pickers are NOT changed in this gate** and are updated in the designated retrofit session after the
+priority flows, not opportunistically.
+
+### The cap — argued, not invented
+
+`Modal` declares no `max-height` (register `G33`), so nothing in this modal is capped: the form is
+exactly as capped as the DS lets it be, which is not at all. The picker's floor is the form's own
+height, so **at a short viewport both views overflow identically** — asserted at 375 x 560. A list
+longer than the form WOULD grow the card (the floor is a minimum), but there are only two cash
+accounts and no long-list fixture was invented; when `G33` closes in the DS the cap will apply to
+both views by the same rule.
+
+### Baselines — predicted in writing, and exact
+
+**PREDICTED BEFORE THE FIRST EDIT: 4 changed, 0 added, 0 deleted, 300 byte-identical.** The four are
+`finance-plans-add-goal-source-{375,430}-{light,dark}`. Every FORM-view baseline —
+`add-goal`, `edit-goal`, `goal-delete`, `goal-deleted`, `autosave-edit`, 20 files — is byte-identical.
+The pre-mint run of those six states failed exactly the 4 and passed the other 20, wrote nothing
+(manifest byte-identical), and the mint reconciled **304 -> 304, 4 changed, 0 added, 0 deleted, 300
+byte-identical**. **ONLY THE ADD PICKER IS PHOTOGRAPHED.** Edit's picker has no walk state, so its held
+height (638) is ASSERTED, not photographed — the same call Gate 81-B made for the goal screen's money.
+
+**ALL FOUR CHANGED PNGs WERE OPENED AND READ.** Each shows the card at the form's own box (y 120..692),
+"Select funding source" centred with the back arrow left and ✕ right, the two rows flush under the
+header — Main selected, `Joint Account · RM 15,000.00` below — and an empty card body beneath. In dark
+the second row paints near-black on the elevated card; **that is in the OLD baseline too** (the DS
+`OptionList`'s unselected row takes the page surface), so it is not caused by this change.
+
+### The tests
+
+`e2e/goal-form-views.spec.ts`, 6 tests, no baseline: height and header position per width x Add/Edit
+(2), the rows' position and the empty space (1), the held form being unreachable plus the markup that
+does it (1), the draft and the pinned focus (1), the short viewport (1).
+
+**`getByLabel` IS THE WRONG INSTRUMENT FOR "UNREACHABLE", AND THE FIRST DRAFT USED IT.** It matches
+label text and ignores the accessibility tree, so it still found an `aria-hidden` control and the
+test failed against a correct implementation. Role queries (`getByRole('textbox' | 'spinbutton' |
+'button', { name })`) are what honour `aria-hidden` and `inert`.
+
+### The mutation proofs
+
+Each: mutate, run exactly ONE test by its regex-escaped `$`-anchored title through an argument array
+with no shell, require the mutated tree to TYPECHECK (otherwise NO PROOF), require an ASSERTION
+failure with its expected signature, restore SHA-identical, re-run green. Driver copied from
+`gate81b-phaseA` into `D:\Claude\_handoffs\gate81c\` and worked on there.
+
+**THE NEGATIVE CONTROL RAN FIRST AND PRINTED `NO PROOF`** — a deliberate syntax error
+(`type View = 'form' | 'source' ((`), refused because the mutated tree does not typecheck. **12 of 12
+proved. Three Gate 81-B proofs (M7, M13, M18) whose needles sit in `GoalFormModal.tsx` were re-run
+against the edited file and proved too.**
+
+| id | mutation | the test that went red, and where |
+|---|---|---|
+| W1a | the held form leaves layout (`display: none`) — the old conditional render's layout | height [375] — `card height` |
+| W1b | the same revert through the `hidden` attribute | height [375] — `card height` |
+| W1c | the same revert on a short viewport | short viewport — `card height on a short viewport` |
+| W2 | the footer ghost leaves layout, so the footer's height is not held | height [375] — `card height` |
+| W3 | a leading icon in the picker header's title group shifts the title | height [375] — `title centre` |
+| W4 | the held form is no longer `inert` / `aria-hidden` | unreachable — the `inert` attribute |
+| W5 | the held footer is no longer `inert` / `aria-hidden` | unreachable — the `inert` attribute |
+| W6 | the held form hidden with `opacity: 0` instead of `visibility: hidden` | unreachable — `visibility` |
+| W7 | the picker rows vertically centred in the held space | rows — `first row top vs header bottom` |
+| W8 | the picker rows stretched to fill the held space | rows — `a row is not stretched` |
+| W9 | Back discards the draft | draft — `Draft survives` |
+| W10 | focus is moved into the form on return | draft — the `body` pin (`Received: false`) |
+| M7 / M13 / M18 | Gate 81-B's three, re-run | all proved |
+
+**M7'S NEEDLE STILL MATCHED BY ACCIDENT, AND THAT IS STATED.** Its needle was written with ten spaces
+of indentation (`          selectionMode="single"`) and the picker now sits four spaces deeper, so
+it matches as a SUBSTRING of the longer line. It proves the same thing; the replacement leaves four
+stray spaces in the mutated file only. No needle failed to match.
+
+**NO PROOF PASSED UNDER MUTATION**, so no test was strengthened. **Two limits are stated rather than
+hidden:** (1) W4 and W5 prove the markup assertion, not the keyboard — `visibility: hidden` alone
+already makes native Tab skip the held controls and removes them from the role tree, so the Tab-walk
+half of that test would stay green without `inert`; the attribute assertion is what carries it.
+(2) The "revert to a conditional render" the brief named is proved through its LAYOUT equivalent
+(`display: none` / `hidden`), not by literally unmounting the form, because unmounting would also
+unmount state this implementation deliberately keeps.
+
+### Correction to Gate 81-B's record — who ruled the two Figma deviations
+
+Gate 81-B's documentation says the Funding Source trigger reading `Main` and the Commitments "Add New"
+link not being rendered were **"ruled by Teku on 7 Oct"**. **THAT OVERSTATES IT.** Claude proposed
+both; Teku saw both on device in the 7 Oct walk and did not object. The committed text is not edited
+(it is history); this is the accurate account. Both remain deviations from Figma — neither is
+drawn — and both stand until Teku says otherwise.
+
+### Verification
+
+- **Static gates:** `npx tsc -b --force` clean; `npm run lint:tokens` PASS (95 files, 4 exemptions);
+  `npm run lint:linkage` PASS, all four sources on v2.8.0.
+- **Baselines:** 304 PNGs; start digest `c244c221288639693cf8e5d37aa46b55b98111b2e643771e6e2385dbc3691aa7`
+  (filesystem and git-blob forms agree). 4 changed, 0 added, 0 deleted.
+- **Mutations:** NC refused; W1a to W10 proved (12 of 12); Gate 81-B's M7, M13 and M18 re-run and
+  proved. Test count by `--list`: **982** in **37** files = 976 + 6 (`goal-form-views.spec.ts`).
+- **THREE CLEAN RUNS OF THE FINAL TREE, SEQUENTIAL, NOTHING ELSE ON THE MACHINE: 982 tests, 982
+  passed and 0 failed in every one.** 30.9, 32.3 and 33.1 minutes (1855, 1941 and 1992 seconds by wall
+  clock), with npm's own exit code **0** captured apart from the script's, **zero** "writing actual"
+  lines in all three, and the baseline digest byte-identical after every run and to the post-mint
+  digest (`8e0d601605ee15ab58cd25608a00ed6240d426a803033d4642f264e6fde5150b`), so all 304 PNGs are
+  byte-stable. **ARM 1 OF THE BASELINE GUARD IS GREEN, and that is the expected consequence of the
+  gate adding no PNG** — the four changed files are modifications to already-tracked paths. (Gates
+  that mint new files close at `1 failed` until Teku stages them; this one does not.)
+- **Working tree at close, by `git status --short -uall`:** 8 modified (`CLAUDE.md`, the gap
+  register, `GoalFormModal.tsx`, `finance.css`, 4 PNGs) and 1 untracked (`e2e/goal-form-views.spec.ts`)
+  = **9 files**. `git diff --numstat`: `CLAUDE.md` +222/-0, the register +91/-0, `GoalFormModal.tsx`
+  +159/-112, `finance.css` +52/-0.
+
+### Deliberately not in scope
+
+Retrofitting `BudgetFormModal` or `TransactionFilterSheet` (the designated retrofit session); a focus
+return to the trigger on Back; fixing the DS focus trap or the dark `OptionList` row surface (DS-side);
+`G33`'s cap; every writer; persistence (NP1); the Plans heading link's label; G6, G13, G14, G17's prop
+half, G19–G23, G28–G33, G44, G48, G49, `MODEL-1`, UI-3 and UI-4 — all still registered, all still
+deferred, and **no MVP-local override was added for any**; `npm audit fix`; the DS repo; and branch
+deletion.

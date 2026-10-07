@@ -2437,6 +2437,58 @@ button.mvp-receipt-card:focus-visible {
   display: contents;
 }
 
+/* THE GOAL MODAL'S TWO VIEWS SHARE ONE GRID CELL (Gate 81-C).
+
+   `grid-area: 1 / 1` stacks the form pane and the picker pane in the same cell,
+   so the cell is as tall as the TALLER of the two — a floor taken from the form,
+   never a fixed pixel height, which also means a list longer than the form would
+   still grow the card up to the viewport (a fixed height would force scrolling
+   whenever content outgrew it).
+
+   `visibility: hidden` AND NOT `display: none` IS WHAT HOLDS THE HEIGHT: a
+   hidden box keeps its place in layout and paints nothing. The pane is also
+   `inert` and `aria-hidden` in markup, which is what takes its controls out of
+   the tab order and the accessibility tree — `visibility` alone does neither
+   for the DS focus trap.
+
+   `min-width: 0` lets a grid item shrink below its content, the same reason
+   `.mvp-goal-form__autosave > :first-child` carries it.                        */
+.mvp-goal-views {
+  display: grid;
+}
+
+.mvp-goal-views__pane {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.mvp-goal-views__pane[data-held='true'] {
+  visibility: hidden;
+}
+
+/* THE FOOTER'S BUTTONS, as the `Modal` footer slot documents it — "a full-width
+   vertical stack". The slot's own rule is `.mn-modal__footer { display: flex;
+   flex-direction: column; gap: var(--brand-scale-400) }` with `> * { width: 100% }`
+   on its DIRECT children, and the buttons are no longer direct children, so this
+   restates the same stack one level in. The same token as the slot's gap, so a
+   change to either is a visible disagreement rather than a silent one.
+
+   HELD, NOT REMOVED, IN THE PICKER VIEW — see `GoalFormModal.tsx`: the footer's
+   height is part of the card's height.                                         */
+.mvp-goal-form__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+}
+
+.mvp-goal-form__actions > * {
+  width: 100%;
+}
+
+.mvp-goal-form__actions[data-held='true'] {
+  visibility: hidden;
+}
+
 .mvp-goal-delete__body {
   margin: 0;
   color: var(--mapped-text-default-default);

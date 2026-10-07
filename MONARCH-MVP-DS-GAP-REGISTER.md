@@ -3506,3 +3506,94 @@ suite under load produces: it fails with `Received: 0`.
   `settleImages` is the pattern to copy for a page-wide check.
 
 **NO `G` NUMBER**: nothing in a DS release can close it.
+
+## 2ac. Status at MVP Gate 81-C (2026-10-07) — the picker-view height standard; no DS change
+
+**THE TALLY DOES NOT MOVE. NOTHING IS OPENED AND NOTHING IS CLOSED.** This registers a STANDARD for
+the MVP's own composition and records two DS-side observations without numbering them. No DS release
+is required by the fix, and none was proposed.
+
+### THE STANDARD — a dropdown-in-form picker view holds the form view's height
+
+**A picker view that replaces a form inside one overlay keeps the card at the FORM view's height, as
+a FLOOR and never a fixed value. The items sit at the top, directly under the header, and the
+remaining space stays empty.** The header row, title position, back control and close control do not
+move between the two views.
+
+*Why:* the picker is a view inside one modal, not a second dialog. A container that resizes on a
+view change makes the header jump and the form vanish from behind the card, so the two views read as
+two unrelated dialogs. (Engineering-practice evidence for the principle only — Blueprint's
+`MultiStepDialog` #6721 and Ethyca's integration modal fides #7491 hold a stable height across steps;
+openSUSE Agama's Popup #620 dropped a fixed `height` prop for forcing avoidable scrolling. These are
+NOT measurements of any first-party product.)
+
+*How, in this app (`GoalFormModal.tsx`, Gate 81-C):*
+
+- both views in ONE CSS grid cell (`grid-area: 1 / 1`), so the cell is as tall as the taller view —
+  no pixel height, no measuring;
+- the form pane stays mounted and is `visibility: hidden` + `inert` + `aria-hidden` while the picker
+  shows (`visibility`, not `display: none`, is what keeps the box in layout);
+- the picker pane is mounted only while active;
+- **the Modal footer slot is part of the floor** — it is passed in both views and is the hidden ghost
+  in the picker view, because it is a slot outside the content region and holding only the content
+  leaves the card short by the footer's height;
+- `contentPadding` may still switch per view: it is sides only and cannot change the height.
+
+*Measured:* Add 162 -> 572 and Edit 162 -> 638, card top 120 / 87 unchanged between views, at 375 and
+430. The held height is per mode.
+
+### THE RETROFIT LIST — the pickers NOT changed in this gate
+
+**Earlier pickers are NOT changed by this gate. They are updated in the designated retrofit session
+after the priority flows, not opportunistically.** The sweep found every dropdown-in-form view swap
+in `src/`:
+
+| site | host | height changes between views? | note |
+|---|---|---|---|
+| `BudgetFormModal.tsx:179` — Category | `Modal` | **yes, same shape** — form + footer collapses to a list with no footer | retrofit with the same standard; the footer slot must be held |
+| `TransactionFilterSheet.tsx:372` — Merchant | `Sheet` | **different case** — hug-sized sheet; the merchant view already sits at the 764 cap (Gate 80-C) so it grows rather than shrinks | needs its own ruling: hold the filters view's height, or the cap |
+| `GoalFormModal.tsx` — Funding Source | `Modal` | **fixed in Gate 81-C** | the reference implementation |
+
+No code is shared between the three (each swap is inline), so the standard is applied by copying the
+shape, and a shared component would be a retrofit-session decision.
+
+### Recorded, NOT registered — the DS focus trap's candidate list ignores `inert` and `visibility`
+
+`Modal.tsx`'s `getFocusable` filters candidates on `offsetParent !== null` only. `visibility: hidden`
+and `inert` do not change `offsetParent`, so an inert pane still appears in the trap's list (measured:
+14 candidates in the Add picker view, 9 of them in the held form and footer). The trap acts only when
+focus sits on its first or last candidate, and no observable behaviour changed here, so the MVP did
+not work around it (no `isDisabled` plumbing). **It will bite the first overlay that holds a hidden
+view whose LAST focusable is hidden and whose visible last control needs the trap to wrap.**
+
+### Recorded, NOT registered — the DS focus trap already leaks in the picker view
+
+On the UNCHANGED tree, in the Funding Source picker view, Tab from the option row leaves the dialog for
+the page behind it. The trap only intervenes when `document.activeElement` is its first or last
+candidate; after the opening trigger unmounts, focus is on `body`, and the trap's last candidate
+(an `input` in the list) is never the element the Tab walk lands on, so the wrap never
+fires. The exact reason the last candidate is skipped was not isolated. Same walk before and
+after Gate 81-C. A DS fix belongs
+with the focus trap, not with the picker.
+
+### Recorded — focus is NOT returned to the trigger on Back (the brief assumed it was)
+
+After Back and after a pick, `document.activeElement` is `body` — the Funding Source trigger was
+unmounted with the form before this gate and is hidden now. Pinned as `body` in
+`goal-form-views.spec.ts`. A focus return is a behaviour change and belongs to the retrofit session
+together with the same shortfall on the budget and merchant pickers.
+
+### Recorded — the dark `OptionList` unselected row paints the page surface
+
+In dark mode the unselected row inside a `Modal` paints near-black on the elevated card (visible in
+the old and new `finance-plans-add-goal-source-*-dark` baselines alike). Not caused by this gate and
+not worked around. DS-side.
+
+### The cap
+
+`Modal` still declares no `max-height` (`G33`), so the picker cannot be "at the cap" while the form
+is not: the two views are equally uncapped, asserted at 375 x 560. A list longer than the form would
+grow the card (the floor is a minimum); with two cash accounts no such fixture exists and none was
+invented.
+
+### Nothing was removed from this register at this gate.
