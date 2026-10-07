@@ -8,7 +8,7 @@ import {
   Tag,
   Toggle,
 } from '@monarch/design-system'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
 import { useAccounts } from '../../accounts/AccountsProvider'
@@ -25,8 +25,14 @@ import { localWallClock } from '../../data/today'
 import type { Goal, Transaction } from '../../data/types'
 import { ContributionRow } from './components/ContributionRow'
 import { GoalContributionsSheet } from './components/GoalContributionsSheet'
+import {
+  AutoSaveAmountModal,
+  GoalDeleteConfirm,
+  GoalFormModal,
+} from './components/GoalFormModal'
 import { TopUpModal } from './components/TopUpModal'
-import { FINANCE_TAB_STATE_KEY } from './financeTabs'
+import { FINANCE_TAB_STATE_KEY, GOAL_DELETED_STATE_KEY } from './financeTabs'
+import { goalSettingsOf, type GoalSettings } from './goalDraft'
 import './finance.css'
 
 /**
@@ -88,7 +94,8 @@ const RECENT_CONTRIBUTIONS = 4
 export function GoalDetailScreen() {
   const navigate = useNavigate()
   const { goalId } = useParams()
-  const { goals, transactions, fiatAccounts, primaryAccount, topUpGoal } = useAccounts()
+  const { goals, transactions, fiatAccounts, topUpGoal, updateGoal, deleteGoal } =
+    useAccounts()
 
   const goal = goals.find((g) => g.id === goalId)
 
@@ -103,6 +110,17 @@ export function GoalDetailScreen() {
 
   const [isTopUpOpen, setIsTopUpOpen] = useState(false)
   const closeTopUp = useCallback(() => setIsTopUpOpen(false), [])
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
+  const [isEditingAutoSave, setIsEditingAutoSave] = useState(false)
+  const closeEdit = useCallback(() => {
+    setIsConfirmingDelete(false)
+    setIsEditing(false)
+  }, [])
+  const cancelDelete = useCallback(() => setIsConfirmingDelete(false), [])
+  const closeAutoSave = useCallback(() => setIsEditingAutoSave(false), [])
+  const isDeleting = useRef(false)
 
   /**
    * THE SCREEN BUILDS THE ROW AND THE PROVIDER WRITES IT — Gate 81.
@@ -143,7 +161,7 @@ export function GoalDetailScreen() {
         id: `txn-${crypto.randomUUID()}`,
         accountId: sourceId,
         merchant: goal.name,
-        logo: { kind: 'goal', filename: goal.image },
+        logo: { kind: 'goal', filename: goal.image, origin: goal.imageOrigin },
         method: 'Fund Transfer',
         kind: 'transfer',
         amount: -amount,
@@ -160,7 +178,152 @@ export function GoalDetailScreen() {
     [goal, topUpGoal],
   )
 
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════
+   * DELETING A GOAL RETURNS WHAT IT HELD TO ITS FUNDING ACCOUNT — Teku's
+   * ruling, and the row that does it is built here for `confirmTopUp`'s reason:
+   * THE SCREEN BUILDS THE ROW AND THE PROVIDER WRITES IT.
+   *
+   * WHY A RETURN AND NOT A DESTRUCTION. The two alternatives are worse in
+   * opposite directions: silently destroying saved money is the single most
+   * damaging thing this app could do, and refusing to delete until the goal is
+   * emptied leaves a user with no way to close a goal at all. Monzo and Revolut
+   * both return a pot's or a vault's balance to the main account on closing,
+   * and a funding account on the record means this needs no picker to ask
+   * where.
+   *
+   * ⚠ THE SIGN IS POSITIVE AND THE `accountId` IS THE CASH ACCOUNT — the exact
+   * mirror of a contribution, and for the same reason. A row's sign is relative
+   * to its own `accountId`, and the money is ARRIVING at the funding account,
+   * so this is a credit on that account. `movementParties` then reads it as
+   * from = the goal, to = the account, which is what happened.
+   *
+   * ⚠ IT IS STILL `kind: 'transfer'`, SO IT NEVER READS AS INCOME.
+   * `transactionDisposition` tests kind FIRST, so a positive transfer is a
+   * transfer — and `countsToward` rejects it on that same first clause, so no
+   * budget moves. That ordering is load-bearing and is why the refund cannot be
+   * mistaken for money the user earned.
+   *
+   * ⚠ `merchant` CARRIES THE GOAL'S NAME, WHICH IS WHAT SURVIVES THE DELETE.
+   * `movementParties` looks a goal up by id and falls back to `merchant` when
+   * the lookup misses — its own documented behaviour since Gate 79, "A `goalId`
+   * NAMING NO GOAL FALLS BACK TO `merchant` rather than returning undefined. A
+   * detail sheet is a rendering, not a place to discover a bad join." So the
+   * history of a deleted goal keeps reading correctly with no snapshot field,
+   * no stored label written at delete time and no tombstone: the label has been
+   * on every one of these rows since Gate 77, and the fallback has been waiting
+   * for the first writer that could reach it. This is that writer.
+   *
+   * NO `contributionSource`. That field says whether a CONTRIBUTION was
+   * automatic or manual; a refund is neither, and the detail sheet omits the
+   * "Type" row rather than printing a third value the enum does not have.
+   * ═══════════════════════════════════════════════════════════════════════════
+   */
+  const confirmDelete = useCallback(() => {
+    if (!goal) return
+    const held = goal.savedAmount
+    let refund: Transaction | null = null
+    if (held > 0) {
+      const occurredAt = localWallClock(new Date())
+      refund = {
+        id: `txn-${crypto.randomUUID()}`,
+        accountId: goal.fundingAccountId,
+        merchant: goal.name,
+        logo: { kind: 'goal', filename: goal.image, origin: goal.imageOrigin },
+        method: 'Fund Transfer',
+        kind: 'transfer',
+        amount: held,
+        currency: 'MYR',
+        occurredAt,
+        category: 'others',
+        goalId: goal.id,
+        reference: newReference(occurredAt),
+      }
+    }
+
+    /*
+      THE NAVIGATION GOES FIRST AND THE UNKNOWN-ID BACKSTOP MUST NOT BEAT IT —
+      `BudgetDetailScreen`'s measured race, in the same shape. React Router runs
+      `navigate` as a transition while the provider write is an ordinary update,
+      so the write commits FIRST and this screen renders once with no goal;
+      without the guard its `<Navigate>`, which carries no flag, wins and the
+      toast never shows. `replace` so Back never lands on the dead route.
+    */
+    isDeleting.current = true
+    navigate('/finance', {
+      replace: true,
+      state: { [FINANCE_TAB_STATE_KEY]: 'plans', [GOAL_DELETED_STATE_KEY]: true },
+    })
+    deleteGoal(goal.id, refund)
+  }, [deleteGoal, goal, navigate])
+
+  /** Settings only — `GoalSettings` cannot name `savedAmount`. */
+  const saveEdits = useCallback(
+    (settings: GoalSettings) => {
+      if (!goal) return
+      updateGoal(goal.id, settings)
+      setIsEditing(false)
+    },
+    [goal, updateGoal],
+  )
+
+  /**
+   * THE SWITCH WRITES IMMEDIATELY, with no confirmation and no toast.
+   *
+   * IT IS REVERSIBLE IN ONE TAP AND IT MOVES NO MONEY — nothing in this app
+   * runs on a timer, so turning auto-save on schedules nothing and turning it
+   * off cancels nothing. Gate 51's rule is confirm only what cannot be undone,
+   * and toast only when the surface the user acted on disappears; this is
+   * neither. The switch itself is the feedback.
+   *
+   * THE AMOUNT IS CARRIED THROUGH UNCHANGED, which is `GoalAutoSave`'s stated
+   * contract: switching off and on again must not forget the figure.
+   */
+  const toggleAutoSave = useCallback(
+    (isEnabled: boolean) => {
+      if (!goal) return
+      updateGoal(goal.id, { ...goalSettingsOf(goal), autoSave: { ...goal.autoSave, isEnabled } })
+    },
+    [goal, updateGoal],
+  )
+
+  const saveAutoSaveAmount = useCallback(
+    (amount: number) => {
+      if (!goal) return
+      updateGoal(goal.id, { ...goalSettingsOf(goal), autoSave: { ...goal.autoSave, amount } })
+      setIsEditingAutoSave(false)
+    },
+    [goal, updateGoal],
+  )
+
+  /**
+   * THE IMAGE PICKER — Flow 9's own shape, reused rather than re-invented.
+   *
+   * ⚠ IT GATES THE "Ai Image" BADGE, which is the user-visible half of this
+   * change and the thing Gate 78 asked for in writing: "The badge must become
+   * conditional on a stored provenance flag at that point." `imageOrigin` goes
+   * to `'upload'`, so the badge stops rendering on that goal.
+   *
+   * IN MEMORY, NO NETWORK, NOTHING LEAVES THE DEVICE — the `URL.createObjectURL`
+   * path `receiptCapture.ts` already uses. The url does not survive a reload,
+   * which is correct rather than a defect: nothing here is persisted (NP1) and
+   * a reload restores the seeded artwork along with everything else.
+   */
+  const chooseImage = useCallback(
+    (file: File) => {
+      if (!goal) return
+      updateGoal(goal.id, {
+        ...goalSettingsOf(goal),
+        image: URL.createObjectURL(file),
+        imageOrigin: 'upload',
+      })
+    },
+    [goal, updateGoal],
+  )
+
   if (!goal) {
+    // The delete owns this frame while it navigates — see `confirmDelete`.
+    if (isDeleting.current) return null
     return <Navigate to="/finance" replace state={{ [FINANCE_TAB_STATE_KEY]: 'plans' }} />
   }
 
@@ -178,7 +341,7 @@ export function GoalDetailScreen() {
 
       <div className="mvp-goal-detail__body">
         <section className="mvp-column">
-          <GoalImage goal={goal} />
+          <GoalImage goal={goal} onChoose={chooseImage} />
         </section>
 
         {/*
@@ -221,7 +384,11 @@ export function GoalDetailScreen() {
             total={formatMyr(goal.targetAmount)}
             ariaLabel={`${goal.name} progress`}
           />
-          <AutoSaveCard goal={goal} />
+          <AutoSaveCard
+            goal={goal}
+            onToggle={toggleAutoSave}
+            onEditAmount={() => setIsEditingAutoSave(true)}
+          />
         </section>
 
         <section className="mvp-goal-detail__contributions mvp-column">
@@ -266,7 +433,6 @@ export function GoalDetailScreen() {
         indicator that the shell owns in this app).
       */}
       <div className="mvp-finance-detail__actions">
-        {/* "Edit Goals" IS STILL INERT - Gate 81-B owns the goal editor. */}
         <Button
           variant="primary"
           size="l"
@@ -276,7 +442,12 @@ export function GoalDetailScreen() {
         {/* "Edit Goals", plural, on a single-goal screen. Transcribed, not
             corrected: inventory A4 records it as a Figma source inconsistency
             and files it "recorded, not corrected". */}
-        <Button variant="secondary" size="l" label="Edit Goals" />
+        <Button
+          variant="secondary"
+          size="l"
+          label="Edit Goals"
+          onClick={() => setIsEditing(true)}
+        />
       </div>
 
       {/* MOUNTED CONDITIONALLY, so the sheet starts from the live list every
@@ -290,9 +461,36 @@ export function GoalDetailScreen() {
         <TopUpModal
           goal={goal}
           accounts={fiatAccounts}
-          defaultSourceId={primaryAccount.id}
+          defaultSourceId={goal.fundingAccountId}
           onClose={closeTopUp}
           onConfirm={confirmTopUp}
+        />
+      )}
+
+      {/* Mounted conditionally so each open seeds from the stored goal. */}
+      {isEditing && (
+        <GoalFormModal
+          mode="edit"
+          goal={goal}
+          accounts={fiatAccounts}
+          onClose={closeEdit}
+          onSave={saveEdits}
+          onDelete={() => setIsConfirmingDelete(true)}
+        />
+      )}
+      {isEditing && isConfirmingDelete && (
+        <GoalDeleteConfirm
+          goal={goal}
+          accounts={fiatAccounts}
+          onCancel={cancelDelete}
+          onConfirm={confirmDelete}
+        />
+      )}
+      {isEditingAutoSave && (
+        <AutoSaveAmountModal
+          goal={goal}
+          onClose={closeAutoSave}
+          onSave={saveAutoSaveAmount}
         />
       )}
     </div>
@@ -306,13 +504,15 @@ export function GoalDetailScreen() {
  * variant Figma names (`Size=S, Appearance=Overla...`) and which paints
  * `--mapped-surface-overlay-default` - the token Figma binds on that node.
  *
- * IT IS RENDERED UNCONDITIONALLY AND THAT IS A CLAIM THE DATA CANNOT YET CHECK.
- * Both seeded images genuinely are the AI artwork Figma ships, so the badge is
- * true today. `Goal` carries no provenance field, so the day the image picker
- * lands (deferred to persistence) a user-uploaded photograph would wear an
- * "Ai Image" badge that is false. The badge must become conditional on a stored
- * provenance flag at that point; widening `Goal` for it now would be a model
- * change with no consumer.
+ * ⚠ IT IS NOW CONDITIONAL, AND THIS IS THE POINT GATE 78 NAMED IN WRITING.
+ * That gate shipped the badge unconditionally and recorded why: "`Goal` carries
+ * no provenance field, so the day the image picker lands a user-uploaded
+ * photograph would wear an 'Ai Image' badge that is false. The badge must
+ * become conditional on a stored provenance flag at that point." The picker is
+ * here, the flag is `Goal.imageOrigin`, and the badge draws for `'ai'` alone.
+ *
+ * IT MOVES NO PIXEL ON EITHER SEEDED GOAL, because both are `'ai'` — the claim
+ * Gate 78 made is now checked rather than assumed, and it holds.
  *
  * THE PENCIL'S FILL IS AN MVP-LOCAL CORRECTION, NOT A TRANSCRIPTION. Figma
  * paints it a raw `rgba(0,0,0,0.4)` with no variable binding, while the Tag two
@@ -321,23 +521,53 @@ export function GoalDetailScreen() {
  * surface - exactly the reading Gate 50 took for the staged-tile remove button,
  * which had the identical raw-literal-beside-a-bound-sibling shape.
  */
-function GoalImage({ goal }: { goal: Goal }) {
+function GoalImage({ goal, onChoose }: { goal: Goal; onChoose: (file: File) => void }) {
+  const input = useRef<HTMLInputElement>(null)
   return (
     <div className="mvp-goal-detail__image">
-      <img src={goalImageUrl(goal.image)} alt="" />
+      <img src={goalImageUrl(goal.image, goal.imageOrigin)} alt="" />
       <div className="mvp-goal-detail__image-chrome">
-        <Tag
-          label="Ai Image"
-          appearance="overlay"
-          size="s"
-          iconBefore={<Icon name="icon_aimage" size="s" />}
-        />
-        {/* INERT - the image picker is deferred to persistence. A real
-            <button> rather than a styled div so the affordance keeps its
-            focus ring and its role for the gate that wires it. */}
-        <button type="button" className="mvp-goal-detail__image-edit" aria-label="Edit image">
+        {goal.imageOrigin === 'ai' && (
+          <Tag
+            label="Ai Image"
+            appearance="overlay"
+            size="s"
+            iconBefore={<Icon name="icon_aimage" size="s" />}
+          />
+        )}
+        {/*
+          WIRED AT GATE 81-B. It was already a real <button> rather than a
+          styled div precisely so this gate replaced a handler rather than the
+          markup — the shape Gate 41 left the transactions filter control in,
+          and the same saving here.
+
+          THE INPUT IS HIDDEN AND THE BUTTON FIRES IT, which is Flow 9's
+          pattern (`ReceiptFileInput`): a visible control with an accessible
+          name, and an input the user never sees. `accept="image/*"` keeps the
+          wildcard so a device's own formats (HEIC, WebP) are admitted without
+          being enumerated.
+        */}
+        <button
+          type="button"
+          className="mvp-goal-detail__image-edit"
+          aria-label="Edit image"
+          onClick={() => input.current?.click()}
+        >
           <Icon name="edit" size="s" />
         </button>
+        <input
+          ref={input}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            /* The input keeps its value, so re-choosing the same file fires
+               `change` again — `ReceiptFileInput`'s reset, for its reason. */
+            e.target.value = ''
+            if (file) onChoose(file)
+          }}
+        />
       </div>
     </div>
   )
@@ -351,15 +581,31 @@ function GoalImage({ goal }: { goal: Goal }) {
  * text nodes, a 16px glyph and a DS `Toggle`. Nothing about it is a component
  * the DS ships, and every value it uses is a token.
  *
- * BOTH CONTROLS ARE INERT - Gate 81 owns the auto-save writer. `Toggle` is
- * given `isChecked` and no `onChange`, so it renders the seeded state and does
- * not move; the amount's pencil is the editor's entry point.
+ * BOTH CONTROLS ARE WIRED AT GATE 81-B, and they write DIFFERENT THINGS. The
+ * switch flips `isEnabled` in place — no confirmation and no toast, because it
+ * is reversible in one tap and it moves no money (nothing here runs on a
+ * timer). The pencil opens a one-field editor for the AMOUNT and deliberately
+ * does not touch the switch: a pencil that silently enabled a monthly
+ * transfer would be the most surprising write in this app.
+ *
+ * ⚠ NEITHER MOVES A PIXEL BY BEING WIRED. DS `Toggle` emits
+ * `onChange={e => onChange?.(e.target.checked)}` unconditionally in its JSX
+ * (read from source at v2.8.0), so an absent handler and a present one render
+ * the identical DOM; the pencil was already a real <button>.
  *
  * THE AMOUNT SURVIVES THE TOGGLE BEING OFF, which is `GoalAutoSave`'s stated
  * contract, so this prints `amount` whatever `isEnabled` says - Emergency Funds
  * is the seeded goal that exercises it.
  */
-function AutoSaveCard({ goal }: { goal: Goal }) {
+function AutoSaveCard({
+  goal,
+  onToggle,
+  onEditAmount,
+}: {
+  goal: Goal
+  onToggle: (isEnabled: boolean) => void
+  onEditAmount: () => void
+}) {
   return (
     <div className="mvp-goal-detail__autosave">
       <div className="mvp-goal-detail__autosave-text">
@@ -368,11 +614,11 @@ function AutoSaveCard({ goal }: { goal: Goal }) {
         </span>
         <span className="mvp-goal-detail__autosave-amount">
           <span className="type-body-m-medium">{formatMyr(goal.autoSave.amount)}/mth</span>
-          {/* INERT - Gate 81. */}
           <button
             type="button"
             className="mvp-goal-detail__autosave-edit"
             aria-label="Edit auto-save amount"
+            onClick={onEditAmount}
           >
             <Icon name="edit" size="s" />
           </button>
@@ -381,6 +627,7 @@ function AutoSaveCard({ goal }: { goal: Goal }) {
       <Toggle
         size="l"
         isChecked={goal.autoSave.isEnabled}
+        onChange={onToggle}
         ariaLabel={`Auto-save for ${goal.name}`}
       />
     </div>

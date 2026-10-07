@@ -2206,6 +2206,177 @@ export const OVERLAY_STATES: WalkState[] = [
       },
     },
   },
+  //
+  // -- 39 . THE GOAL LIFECYCLE (Gate 81-B) -----------------------------------
+  //
+  // SIX STATES FOR FIVE WRITERS, and the sixth is the one that matters most:
+  // `goal-deleted` photographs the Plans tab AFTER a goal has been closed, and
+  // a card that failed to disappear is invisible to every other instrument
+  // here. Gate 81's lesson, in the opposite direction.
+  //
+  // THE IMAGE PICKER GETS NO STATE. Its OS dialog cannot be photographed
+  // (Flow 9's permanent, stated gap) and the user-visible consequence of the
+  // write is the ABSENCE of the "Ai Image" badge, which `toHaveCount(0)`
+  // asserts more precisely than a picture — Gate 79's ruling on exactly this
+  // trade, taken again here rather than re-argued.
+  //
+  {
+    route: '/finance',
+    tab: { id: 'plans', label: 'Plans' },
+    overlay: {
+      id: 'add-goal',
+      // The Goals heading's own link. Scoped to the first section so the
+      // Commitments heading — which deliberately offers none — cannot be hit.
+      control: '.mvp-plans__section:first-of-type .mn-link',
+      controlLabel: 'Add New',
+      title: 'Add a Goal',
+    },
+  },
+  {
+    route: '/finance',
+    tab: { id: 'plans', label: 'Plans' },
+    overlay: {
+      id: 'add-goal-source',
+      control: '.mvp-plans__section:first-of-type .mn-link',
+      controlLabel: 'Add New',
+      /*
+        ⚠ `opens` AND `dialogs` DIVERGE, WHICH IS WHAT THAT PAIR EXISTS FOR.
+        The Modal is named by its `title`, and the title BECOMES THE TASK when
+        the picker view opens — so the dialog that opened as "Add a Goal" is
+        named "Select funding source" at capture. One stack that RENAMES,
+        rather than a second stack that appears; Gate 74-B's finding, and the
+        reason a `getByRole('dialog', { name })` locator breaks here.
+      */
+      title: 'Add a Goal',
+      dialogs: ['Select funding source'],
+      prepare: [
+        {
+          /*
+            THE INPUT, NOT THE `.mn-select` WRAPPER — `Select` puts its name on
+            the inner <input>, so the wrapping <div> has none. The budget form's
+            category trigger names the same element for the same reason.
+
+            AND THE NAME IS THE VISIBLE LABEL, CAPITAL S. Both `Field` and
+            `Select` render a real <label>, which WINS over the `ariaLabel`
+            prop — that prop is documented as the name to use when there is no
+            visible label, and this control has one. Found by this assertion
+            reporting "Funding Source" where the prop says "Funding source".
+          */
+          control: '.mvp-goal-form__source .mn-select__input',
+          controlName: 'Funding Source',
+          action: 'click',
+          /*
+            THE SETTLE IS A ROW OF THE LIST, NOT THE LISTBOX, because the
+            listbox's own text is every label concatenated — Gate 80-B spent a
+            failing assertion discovering that. One row names one thing.
+          */
+          settlesOn: '.mn-option-list [role="option"]:has-text("Main")',
+          settlesText: 'Main · RM 27,978.59',
+        },
+      ],
+    },
+  },
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'edit-goal',
+      // ONE SECONDARY IN THAT BAR: Top-Up is primary, "Edit Goals" is secondary.
+      control: '.mvp-finance-detail__actions .mn-btn--secondary',
+      // "Edit Goals", PLURAL, ON A SINGLE-GOAL SCREEN — transcribed, not
+      // corrected: inventory A4 records it as a Figma source inconsistency and
+      // files it "recorded, not corrected".
+      controlLabel: 'Edit Goals',
+      title: 'Edit Goal',
+    },
+  },
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'goal-delete',
+      control: '.mvp-finance-detail__actions .mn-btn--secondary',
+      controlLabel: 'Edit Goals',
+      title: 'Edit Goal',
+      /*
+        TWO STACKS AT CAPTURE, in DOM order: the Edit form underneath and the
+        confirmation over it. Both portal to `document.body`, so the one that
+        mounts second is appended second and paints on top — the list reads
+        bottom-of-stack first.
+      */
+      dialogs: ['Edit Goal', 'Delete goal?'],
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn--error',
+          controlName: 'Delete goal',
+          action: 'click',
+          /*
+            THE SETTLE IS THE CONFIRMATION'S OWN BODY, AND IT NAMES THE MONEY.
+            That sentence is derived — the goal's stored balance and its funding
+            account's name — so this assertion fails if the confirmation is
+            built from the wrong goal, and it is the one place a reader can see
+            that closing a goal MOVES money rather than destroying it.
+          */
+          settlesOn: '.mvp-goal-delete__body',
+          settlesText:
+            "This closes 'Bali Trip' and returns RM 5,040.00 to Main. Its past contributions stay in your transactions. This can't be undone.",
+        },
+      ],
+    },
+  },
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'goal-deleted',
+      control: '.mvp-finance-detail__actions .mn-btn--secondary',
+      controlLabel: 'Edit Goals',
+      title: 'Edit Goal',
+      prepare: [
+        {
+          control: '.mn-modal__footer .mn-btn--error',
+          controlName: 'Delete goal',
+          action: 'click',
+          settlesOn: '.mvp-goal-delete__body',
+          settlesText:
+            "This closes 'Bali Trip' and returns RM 5,040.00 to Main. Its past contributions stay in your transactions. This can't be undone.",
+        },
+      ],
+      confirm: {
+        // THE CONFIRMATION'S OWN Delete, NAMED BY ITS LABEL. The Edit form's
+        // "Delete goal" is still mounted behind it and carries the same class,
+        // so a bare `.mn-btn--error` is ambiguous by two — the budget delete
+        // state solves it the same way and this reuses that selector exactly.
+        control: '.mn-modal__footer .mn-btn--error:has(span:text-is("Delete"))',
+        controlLabel: 'Delete',
+        /*
+          ⚠ WHAT THIS PHOTOGRAPHS AND WHAT IT CANNOT. The capture shows the
+          Plans tab with ONE goal card where there were two, and the toast. It
+          does NOT show the money: the funding account's balance and the Savings
+          Goals total both live on the OVERVIEW tab, and navigating somewhere
+          else purely to photograph them would invent a destination. Gate 81
+          made the identical call for the Top-Up's source balance. The money is
+          asserted in `goal-writers.spec.ts`, through the app's own controls.
+        */
+        settlesOn: '.mvp-finance-detail__toast .mn-toast-mobile',
+        settlesText: 'Goal deleted.',
+        landsOn: { route: '/finance', tab: { id: 'plans', label: 'Plans' } },
+      },
+    },
+  },
+  {
+    route: '/finance/plans/goals/goal-bali-trip',
+    tab: null,
+    overlay: {
+      id: 'autosave-edit',
+      control: '.mvp-goal-detail__autosave-edit',
+      // AN ICON-ONLY BUTTON, so its accessible name is its `aria-label` and its
+      // text content is "". `toHaveAccessibleName` is what `openOverlay` asserts
+      // — the Gate 43 correction, and this is the control that needs it.
+      controlLabel: 'Edit auto-save amount',
+      title: 'Auto-Save amount',
+    },
+  },
 ]
 
 /**

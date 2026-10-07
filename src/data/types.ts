@@ -268,7 +268,7 @@ export type TransactionLogo =
   | { kind: 'merchant'; name: LogoName }
   | { kind: 'person'; initials: string }
   | { kind: 'image'; filename: string }
-  | { kind: 'goal'; filename: string }
+  | { kind: 'goal'; filename: string; origin: GoalImageOrigin }
 
 export interface Transaction {
   id: string
@@ -884,6 +884,24 @@ export interface Receipt {
  * persistence that arrives after Flow 11 is a storage adapter, not a rewrite.
  * ─────────────────────────────────────────────────────────────────────────────
  */
+/**
+ * WHERE A GOAL'S IMAGE CAME FROM. See `Goal.imageOrigin`.
+ *
+ * THREE MEMBERS, AND EACH ONE RENDERS DIFFERENTLY:
+ *
+ *   'ai'           a bare filename under /media/goals. CARRIES THE BADGE.
+ *   'placeholder'  a bare filename under /media/goals — the shipped default a
+ *                  created goal takes, because Figma's Add-a-Goal form draws no
+ *                  image field at all. No badge: it is a surface, not artwork,
+ *                  so claiming it was AI-made would be the same false claim the
+ *                  badge gating exists to stop.
+ *   'upload'       an object URL from a file the user chose. No badge.
+ *
+ * A GENERATED IMAGE IS `'ai'`, not a fourth member: it is machine-made artwork
+ * and it carries the badge, which is the whole of what 'ai' distinguishes.
+ */
+export type GoalImageOrigin = 'ai' | 'placeholder' | 'upload'
+
 export interface Goal {
   id: string
   /** The card's title — "Bali Trip", "Emergency Funds". */
@@ -917,6 +935,45 @@ export interface Goal {
    * which is why a photo picker waits for persistence's image storage.
    */
   image: string
+  /**
+   * WHERE `image` CAME FROM, and the discriminant that says how to read it.
+   *
+   * ONE IMAGE SOURCE PLUS A PROVENANCE FIELD — Teku's standing requirement for
+   * this path, and the provenance is what makes one source sufficient rather
+   * than needing a second field beside it. `'ai'` means `image` is a bare
+   * filename under `/media/goals`; `'upload'` means it is an object URL the
+   * picker made from a file the user chose. `goalImageUrl` takes BOTH and
+   * cannot guess, which is the point — a resolver that sniffed the string for
+   * `blob:` would be duck-typing a fact the record already states.
+   *
+   * IT GATES THE "Ai Image" BADGE. Gate 78 shipped that badge unconditional and
+   * recorded why that was a claim the data could not check: "a user-uploaded
+   * photograph would wear an 'Ai Image' badge that is false. The badge must
+   * become conditional on a stored provenance flag at that point." This is that
+   * point and this is that flag.
+   *
+   * AN UPLOAD DOES NOT SURVIVE A RELOAD, and that is correct rather than a
+   * defect: an object URL dies with the document that made it, and nothing here
+   * is persisted (NP1). The reload restores the seed, origin included.
+   */
+  imageOrigin: GoalImageOrigin
+  /**
+   * WHICH CASH ACCOUNT FUNDS THIS GOAL.
+   *
+   * ARRIVED WITH THE FORM THAT CAPTURES IT — Figma's Add-a-Goal draws a
+   * "Funding Source" `Select` reading "Bank Account - Main", so the field lands
+   * with the writer that fills it rather than ahead of it. `topUpDraft.ts`
+   * predicted exactly this ("the field arrives with THAT form").
+   *
+   * IT DOES TWO JOBS, AND THE SECOND IS WHY DELETE NEEDS NO ACCOUNT PICKER. It
+   * pre-selects the Top-Up source, and it is where a deleted goal's remaining
+   * balance is RETURNED — so closing a goal has somewhere to put the money
+   * without asking.
+   *
+   * BOTH SEEDED GOALS ARE `'main'`, backfilled rather than invented: all 28
+   * seeded contributions debit Main (measured).
+   */
+  fundingAccountId: string
   /**
    * The auto-save setting, STORED WITH NO SCHEDULED BEHAVIOUR.
    *

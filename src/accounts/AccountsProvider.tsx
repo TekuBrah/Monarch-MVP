@@ -30,6 +30,8 @@ import type {
   CryptoWallet,
   FiatAccount,
   Goal,
+  GoalAutoSave,
+  GoalImageOrigin,
   Holding,
   Receipt,
   Transaction,
@@ -112,6 +114,31 @@ import type {
  * user action — that is the day this becomes a reducer, and every screen still
  * reads `useAccounts()` so no screen moves.
  */
+
+/**
+ * THE EDITABLE FACE OF A GOAL — everything `updateGoal` may write.
+ *
+ * `id` and `savedAmount` ARE ABSENT ON PURPOSE. The first is identity and the
+ * second is money, and neither belongs to a settings form. Spreading this over
+ * a record therefore cannot touch either, so the rule is structural rather than
+ * a line of validation somebody could delete. Same shape as `ReceiptEdit`,
+ * which keeps `id`, `filename` and `transactionId` out of reach.
+ *
+ * THE IMAGE PAIR IS OPTIONAL AND MOVES TOGETHER. The settings form does not
+ * touch the image and the image picker touches nothing else, so each writer
+ * supplies the half it owns — but `image` without `imageOrigin` would leave
+ * the resolver reading an object URL as a filename, which is why they are
+ * written in one call or not at all.
+ */
+export interface GoalEdit {
+  name: string
+  targetAmount: Amount
+  targetDate: string
+  fundingAccountId: string
+  autoSave: GoalAutoSave
+  image?: string
+  imageOrigin?: GoalImageOrigin
+}
 
 interface AccountsContextValue {
   fiatAccounts: FiatAccount[]
@@ -255,6 +282,59 @@ interface AccountsContextValue {
    * ─────────────────────────────────────────────────────────────────────────
    */
   topUpGoal: (contribution: Transaction) => void
+  /**
+   * CREATE A GOAL. It starts at `savedAmount: 0` and there is no second path.
+   *
+   * FIGMA'S ADD-A-GOAL FORM CAPTURES NO INITIAL DEPOSIT — measured off
+   * `1266:14340`: Goal Name, Target Amount, Target date, Auto-Save Amount /
+   * Month plus its toggle, Funding Source. So nothing here moves money, and
+   * nothing needs to: if a deposit is ever drawn it routes through
+   * `topUpGoal`, which is the one way money enters a goal.
+   *
+   * THE CALLER SUPPLIES THE WHOLE RECORD, id included, for `addReceipt`'s
+   * reason: a provider that minted ids would have to know what a goal id looks
+   * like, and the screen that built the record already does.
+   */
+  createGoal: (goal: Goal) => void
+  /**
+   * CHANGE A GOAL'S SETTINGS. Name, target, date, funding account, auto-save
+   * and image — never `savedAmount`.
+   *
+   * `GoalEdit` CANNOT EXPRESS A BALANCE CHANGE, which is how that is enforced
+   * rather than promised: the field is not in the type, so `updateGoal` could
+   * not write it if a caller asked. Money enters a goal only through
+   * `topUpGoal` and leaves it only through `deleteGoal`. Same shape as
+   * `ReceiptEdit`, which keeps `id`, `filename` and `transactionId` out of
+   * reach for the same reason.
+   */
+  updateGoal: (goalId: string, changes: GoalEdit) => void
+  /**
+   * CLOSE A GOAL AND RETURN WHAT IT HELD.
+   *
+   * ⚠ THE REFUND IS THE SECOND ARGUMENT AND IT IS NOT OPTIONAL-BY-TASTE. A goal
+   * holding money MUST be closed with a row that returns it, and a goal holding
+   * nothing MUST be closed without one — both are checked here against the LIVE
+   * goal, so neither a silently destroyed balance nor a phantom RM 0.00 row can
+   * get through. `null` is the explicit "there was nothing to return", not an
+   * omission.
+   *
+   * WHY NOT `topUpGoal`'S ONE-ARGUMENT SHAPE. "The row is the instruction"
+   * works there because every top-up has a row. A zero-balance goal has none,
+   * so a row alone cannot name what to delete. The goal id is therefore the
+   * instruction and the row is the money, and the provider checks that they
+   * agree — the row must carry this `goalId`, credit this goal's OWN funding
+   * account, and return exactly `savedAmount`.
+   *
+   * ATOMIC ACROSS THREE ATOMS, `topUpGoal`'s mechanism: React 18 batches all
+   * three updates before the render, so no render sees a goal that has been
+   * emptied but not removed, or money that has left without arriving.
+   *
+   * NET WORTH DOES NOT MOVE. The refund takes the balance out of
+   * `goalsTotal(goals)` and puts it into a cash account inside
+   * `sum(holdings)`, which are the two terms `netWorth` adds — the same
+   * identity a Top-Up satisfies in the other direction.
+   */
+  deleteGoal: (goalId: string, refund: Transaction | null) => void
   /**
    * Break a receipt’s link to its transaction. Gate 49.
    *
@@ -647,6 +727,118 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  /** See `createGoal`. The record arrives whole; this only appends it. */
+  const createGoal = useCallback((goal: Goal) => {
+    if (goal.savedAmount !== 0) {
+      throw new Error(`createGoal: ${goal.id} must start empty, got ${goal.savedAmount}`)
+    }
+    setFiatAccounts((current) => {
+      if (!current.some((a) => a.id === goal.fundingAccountId)) {
+        throw new Error(`createGoal: no cash account ${goal.fundingAccountId}`)
+      }
+      return current
+    })
+    setGoals((current) => {
+      if (current.some((g) => g.id === goal.id)) {
+        throw new Error(`createGoal: ${goal.id} already exists`)
+      }
+      return [...current, goal]
+    })
+  }, [])
+
+  /** See `updateGoal`. `GoalEdit` cannot name `savedAmount`, so this cannot move money. */
+  const updateGoal = useCallback((goalId: string, changes: GoalEdit) => {
+    if ((changes.image === undefined) !== (changes.imageOrigin === undefined)) {
+      throw new Error(`updateGoal: ${goalId} — image and imageOrigin move together`)
+    }
+    setGoals((current) => {
+      if (!current.some((g) => g.id === goalId)) {
+        throw new Error(`updateGoal: no goal ${goalId}`)
+      }
+      return current.map((goal) => (goal.id === goalId ? { ...goal, ...changes } : goal))
+    })
+  }, [])
+
+  /**
+   * See `deleteGoal`.
+   *
+   * THE REFUND IS CHECKED AGAINST THE LIVE GOAL, not against its own fields —
+   * `topUpGoal`'s rule, and here it is what makes the three-way agreement
+   * (goal, account, amount) impossible to get wrong from the outside.
+   */
+  const deleteGoal = useCallback((goalId: string, refund: Transaction | null) => {
+    /*
+      ⚠ THE THREE SETTERS ARE SIBLINGS AND NOT NESTED, AND THIS COST A REAL
+      DEFECT BEFORE IT WAS WRITTEN DOWN.
+
+      A first version put `setTransactions` and `setFiatAccounts` INSIDE the
+      `setGoals` updater, so that all three would land in one batch after the
+      guards had passed. A state updater must be PURE, and React 18's
+      StrictMode double-invokes it precisely to surface that: the two nested
+      setters fired TWICE, the funding account was credited 2 x RM 5,040.00
+      against a goals total that fell once, and net worth rose by RM 5,040.00
+      on a delete that must not move it at all.
+
+      MEASURED, NOT REASONED: `goal-writers.spec.ts` reported the hero going
+      RM 481,038 -> RM 486,078. That assertion exists for exactly this, and it
+      is the only one in the suite that could have caught it — every other
+      figure on every other screen was correct.
+
+      `topUpGoal` HAS THE RIGHT SHAPE AND IT WAS NOT COPIED CLOSELY ENOUGH:
+      three top-level `setX` calls, each updater pure, each validating its own
+      atom. React batches them because they are in one event handler, which is
+      what makes the write atomic — nesting buys nothing and breaks purity.
+    */
+    const moves = refund !== null
+
+    setGoals((current) => {
+      const goal = current.find((g) => g.id === goalId)
+      if (!goal) throw new Error(`deleteGoal: no goal ${goalId}`)
+      const held = toSen(goal.savedAmount)
+
+      if (held === 0) {
+        if (refund) {
+          throw new Error(`deleteGoal: ${goalId} holds nothing, so ${refund.id} returns nothing`)
+        }
+      } else {
+        if (!refund) {
+          throw new Error(`deleteGoal: ${goalId} holds ${goal.savedAmount} and must return it`)
+        }
+        if (refund.goalId !== goalId) {
+          throw new Error(`deleteGoal: ${refund.id} carries goalId ${refund.goalId}, not ${goalId}`)
+        }
+        if (refund.kind !== 'transfer') {
+          throw new Error(`deleteGoal: ${refund.id} is a ${refund.kind}, not a transfer`)
+        }
+        if (refund.accountId !== goal.fundingAccountId) {
+          throw new Error(
+            `deleteGoal: ${refund.id} credits ${refund.accountId}, not the funding account ${goal.fundingAccountId}`,
+          )
+        }
+        if (toSen(refund.amount) !== held) {
+          throw new Error(
+            `deleteGoal: ${refund.id} returns ${refund.amount}, not the held ${goal.savedAmount}`,
+          )
+        }
+      }
+
+      return current.filter((g) => g.id !== goalId)
+    })
+
+    if (!moves) return
+
+    setTransactions((current) => [...current, refund])
+    setFiatAccounts((current) => {
+      if (!current.some((a) => a.id === refund.accountId)) {
+        throw new Error(`deleteGoal: no cash account ${refund.accountId}`)
+      }
+      return current.map((account) =>
+        account.id === refund.accountId
+          ? { ...account, balance: (toSen(account.balance) + toSen(refund.amount)) / 100 }
+          : account,
+      )
+    })
+  }, [])
 
   const value = useMemo<AccountsContextValue>(() => {
     const primaryAccount = fiatAccounts[0]
@@ -689,6 +881,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       addTransaction,
       adjustFiatBalance,
       topUpGoal,
+      createGoal,
+      updateGoal,
+      deleteGoal,
       unlinkReceipt,
       addReceipt,
       deleteReceipt,
@@ -704,6 +899,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     addTransaction,
     adjustFiatBalance,
     topUpGoal,
+    createGoal,
+    updateGoal,
+    deleteGoal,
     unlinkReceipt,
     addReceipt,
     deleteReceipt,

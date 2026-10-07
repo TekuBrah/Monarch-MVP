@@ -14994,6 +14994,13 @@ wear an "Ai Image" badge that is false. **It must become conditional on a stored
 provenance flag at that point**, and widening `Goal` for it now would be a model
 change with no consumer. Flagged for Teku.
 
+**BOTH HALVES OF THAT PARAGRAPH WERE COLLECTED ON AT GATE 81-B.** The image
+picker shipped there rather than waiting for persistence, `Goal.imageOrigin`
+is the stored provenance flag it asked for, and the badge is now conditional
+on it. It moves no pixel on either seeded goal, because both are `ai` — so
+the claim Gate 78 made unconditionally is now checked rather than assumed,
+and it holds. The wording above is that gate’s record, left as written.
+
 **THE IMAGE PENCIL'S FILL IS AN MVP-LOCAL CORRECTION.** Figma paints it a raw
 `rgba(0,0,0,0.4)` with no binding while the `Tag` two corners away binds
 `surface/Overlay/default`; both take `--mapped-surface-overlay-default` here, so
@@ -17301,3 +17308,630 @@ G28–G33, G44, G48, UI-3 and UI-4 — all still registered, still deferred, and
 **no MVP-local override was added for any**; the `G33` workaround class,
 untouched and still carrying its removal condition; `npm audit fix`; the DS repo;
 and branch deletion.
+
+## The goal lifecycle (Gate 81-B)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was written. Gate 81 made
+goal state mutable; this gate adds the four writers that create, change and
+remove the goal itself, plus the image picker. **|WALK| 70 -> 76,
+`OVERLAY_STATES` 38 -> 44, `ROUTES` 25 (unchanged), baselines 280 -> 304
+(24 added, 4 changed, ZERO deleted), tests 907 -> 976, spec files 35 -> 36.**
+`lint:tokens` scans **95** files (93 + `goalDraft.ts` + `GoalFormModal.tsx`)
+with the same **4** exemptions — no new raw value entered the tree.
+
+**FIGMA CAME IN ON THE REMOTE CONNECTOR** (authenticated `whoami` -> Teku
+Cheong, pro); `figma-local` refused with `ECONNREFUSED`. That is the same split
+as Gates 78 to 81 — do not predict which path works, and establish an
+authenticated round trip rather than a port check.
+
+### ⚠ ONE SURFACE IS DRAWN. FOUR ARE NOT.
+
+Section `1266:14338` holds **six** frames, re-enumerated here rather than
+carried: the Plans tab, Add a Goal, the smart insight, its education panel,
+view-commitment and the goal drill-down. `1266:14340` `Finance_Plan_add goal`
+is the only one this gate implements.
+
+**THERE IS NO EDIT FRAME, NO DELETE CONFIRMATION, NO AUTO-SAVE-OFF STATE, NO
+MONTHLY-AMOUNT EDITOR AND NO FUNDING-SOURCE PICKER VIEW ANYWHERE IN THE FILE.**
+All four are UNDESIGNED WORK under Teku's 21 Sept ruling, and each is built
+from parts this app already ships rather than invented. The drill-down's hidden
+`Bottom Sheet` (`873:6583`) is still an unconfigured instance with no children
+in the instance OR the main component — Gate 78's reading, re-confirmed, and
+still not a spec.
+
+**ITS INNER NODE IS NAMED "Bottom Sheet" AND IT IS A `Modal`** — x=16, 343
+wide, all four corners rounded, no home-indicator region. The outer frame is
+even named "Modal", wrapping the inner one that is not. **That layer name has
+now pointed the wrong way FIVE times in this file** (Flow 9 three times, Gate 80
+once).
+
+#### The five drawn fields, read off the frame and off its render
+
+| Figma | 311 x | value drawn | shipped as |
+|---|---|---|---|
+| Goal Name | 58 | "New Phone" | `Field` |
+| Target Amount | 58 | "RM 5000.00" | **`Field type="number"`** — G49 |
+| Target date | 56 | "30/05/2026" | `Field type="date"` |
+| Auto-Save Amount / Month | 58 | "RM250" + a `Toggle` | `Field` + `Toggle`, one row |
+| Funding Source | 54 | "Bank Account - Main" | `Select` -> a picker VIEW |
+
+Footer `Frame 445`, 343 x 152: "Save Goal" over "Cancel".
+
+**⚠ THERE IS NO INITIAL-DEPOSIT FIELD, AND THAT SETTLES A QUESTION THE GATE
+BRIEF LEFT OPEN.** The amount is the TARGET. So a created goal starts at
+`savedAmount: 0`, nothing in the create path moves money, and `topUpGoal`
+remains the ONE way money enters a goal.
+
+**⚠ THERE IS NO IMAGE FIELD EITHER**, which is why a created goal takes a
+placeholder and why the drill-down's pencil is the only place an image is
+chosen.
+
+### THE DELETE RETURNS THE MONEY, AND THE HISTORY NEEDED NOTHING NEW
+
+Teku's ruling: closing a goal returns its remaining `savedAmount` to its
+funding account as one ledger row, then removes the goal. A zero-balance goal
+writes no row.
+
+**NET WORTH DOES NOT MOVE, AND THAT IS THE ASSERTION RATHER THAN A REMARK.**
+`netWorth` is `sum(holdings) + goalsTotal(goals)`; the refund takes the balance
+out of the second term and puts it into the first. A writer that credited the
+goal's money nowhere passes every other check on every other screen and fails
+only this one.
+
+**WHY A RETURN.** The two alternatives are worse in opposite directions:
+silently destroying saved money is the most damaging thing this app could do,
+and refusing to delete until a goal is emptied leaves no way to close one at
+all. Monzo and Revolut both return a pot's or a vault's balance to the main
+account on closing, and a funding account on the record means the confirmation
+needs no picker to ask where.
+
+#### ⚠ THE OPEN DESIGN QUESTION WAS ALREADY ANSWERED, IN 2026, BY GATE 77
+
+The gate brief asked this gate to choose between a name-and-image snapshot
+taken at delete time, a stored label written at creation, and a tombstoned goal
+filtered from every list. **The second option has been shipped since Gate 77 and
+nothing had to be added.**
+
+Every contribution row already carries `merchant: 'Bali Trip'` and
+`logo: { kind: 'goal', filename: 'goal_bali_trip.jpg' }` — the goal's name and
+its photograph, ON THE ROW. And `movementParties` already falls back to it, in
+its own words since Gate 79:
+
+> A `goalId` NAMING NO GOAL FALLS BACK TO `merchant` rather than returning
+> undefined. A detail sheet is a rendering, not a place to discover a bad join.
+
+So the fallback has been waiting for the first writer that could reach it, and
+this is that writer. **No snapshot field, no tombstone and no stored label were
+added**, the detail sheet's progress line is already guarded by `goal &&`, and
+the drill-down's unknown-id backstop already redirects. **NO SEEDED, UNDELETED
+ROW CHANGES HOW IT RENDERS**, which was the constraint that decided it.
+
+#### The mutator takes TWO arguments, and that is a departure with a reason
+
+`topUpGoal(contribution)` is one argument because THE ROW IS THE INSTRUCTION.
+That cannot work here: **a zero-balance goal has no row**, so a row alone
+cannot name what to delete. `deleteGoal(goalId, refund: Transaction | null)` —
+the id is the instruction, the row is the money, and the provider checks that
+they agree against the LIVE goal: the row must carry this `goalId`, be a
+transfer, credit this goal's OWN funding account, and return exactly
+`savedAmount`. `null` is the explicit "there was nothing to return".
+
+#### ⚠ A STATE UPDATER MUST BE PURE, AND GETTING THAT WRONG COST RM 5,040.00
+
+**READ THIS BEFORE NESTING ONE SETTER INSIDE ANOTHER.**
+
+A first version of `deleteGoal` put `setTransactions` and `setFiatAccounts`
+INSIDE the `setGoals` updater, so that all three would land after the guards
+had passed. React 18's StrictMode double-invokes an updater precisely to
+surface impurity: **the two nested setters fired TWICE**, the funding account
+was credited 2 x RM 5,040.00 against a goals total that fell once, and net
+worth rose by RM 5,040.00 on a delete that must not move it at all.
+
+**MEASURED, NOT REASONED: `goal-writers.spec.ts` reported the hero going
+RM 481,038 -> RM 486,078** — exactly one extra Bali balance. Every other figure
+on every other screen was correct, and no baseline could have caught it,
+because no walk state photographs the net-worth hero after a delete.
+
+**`topUpGoal` HAS THE RIGHT SHAPE AND IT WAS NOT COPIED CLOSELY ENOUGH:** three
+top-level `setX` calls, each updater pure, each validating its own atom. React
+batches them because they share one event handler, which is what makes the
+write atomic. **Nesting buys nothing and breaks purity.**
+
+### The funding source is a DROPDOWN, and the picker view has NO footer
+
+Teku's 6 Oct ruling, taken knowing Figma draws no picker view — it REPLACES an
+earlier Radio-group ruling for this field. **The Top-Up modal's Radio group is
+untouched and stays**, because its two balances are the decision input and a
+dropdown shows one at a time.
+
+So the form's own content becomes the picker — the Gate 74-B pattern, which
+`BudgetFormModal` and `TransactionFilterSheet` already implement.
+
+**⚠ AND IT TAKES NO FOOTER, WHICH IS THE DS'S OWN RULE RATHER THAN A CHOICE
+HERE.** `OptionList` at `selectionMode="single"` fires `onChange` and
+`onDismiss` in ONE action — its prop doc says so verbatim: "the user returns to
+the form on one tap, and there is no confirm button". A multiple picker needs a
+footer because it has no natural done moment; a single one is committed by the
+tap. That also means no pending draft: the tap IS the commit, exactly as the
+merchant picker has worked since Gate 74-B.
+
+**THE ROWS CARRY THE BALANCE AND THE COLLAPSED TRIGGER DOES NOT** —
+`Main · RM 27,978.59` in the list, `Main` in the field. The balance is the
+decision input (the Top-Up reading); in the trigger the question is only which
+account, and it is already answered.
+
+**THE TRIGGER'S VALUE DIVERGES FROM FIGMA'S "Bank Account - Main".** Both cash
+accounts are `group: 'Account'`, so there is no field to derive "Bank Account"
+from, and spelling it as a literal would print "Bank Account - Joint Account"
+on the other one. **RULED BY TEKU, 7 Oct 2026: the trigger reads `Main`**, and
+that is recorded as a deviation from Figma rather than an open question.
+
+### ⚠ A TARGET BELOW THE SAVED AMOUNT IS PERMITTED — a ruling on measurement
+
+**MEASURED FIRST: TOP-UP ALREADY PRODUCES THAT STATE.** `topUpDraftErrors` caps
+the amount at the SOURCE ACCOUNT'S BALANCE and does NOT cap it at the goal's
+remaining need, so a user may already put RM 5,000 into a goal that needed
+RM 100 — and `goalPercent` clamps the display to 100 for exactly that reason.
+Overshoot is a representable, reachable, already-shipped state.
+
+So refusing it in the form would make the form **stricter than the writer that
+makes the same state**, and would trap the one user who most needs the control:
+someone whose goal is nearly full and who wants to lower their ambition. Monzo
+Pots, Revolut Vaults and Wise Jars all accept it and simply show the goal as
+reached.
+
+**`goalDraft.ts` THEREFORE NEVER READS `savedAmount`.** The draft rules are
+about figures the user typed; the relationship between a target and a balance
+belongs to the progress bar.
+
+### One image source plus a provenance field — Teku's requirement, literally
+
+`Goal.image` holds a bare filename OR an object URL, and
+**`Goal.imageOrigin: 'ai' | 'placeholder' | 'upload'`** says which.
+`goalImageUrl(image, origin)` takes BOTH, with no default: sniffing the string
+for `blob:` would be duck-typing a fact the record already states.
+
+**THREE MEMBERS, BECAUSE EACH RENDERS DIFFERENTLY.** `'ai'` is a filename and
+CARRIES THE BADGE; `'placeholder'` is a filename and does not, because a flat
+surface is not artwork and claiming a model made it would be the same false
+claim the gating exists to stop; `'upload'` is an object URL and does not. A
+GENERATED image is `'ai'`, not a fourth member — it is machine-made artwork and
+it carries the badge, which is all `'ai'` distinguishes.
+
+**THE BADGE GATING IS WHAT GATE 78 ASKED FOR IN WRITING** — "The badge must
+become conditional on a stored provenance flag at that point" — and it moves no
+pixel, because both seeded goals are `'ai'`. The claim that gate made
+unconditionally is now checked rather than assumed, and it holds.
+
+**`TransactionLogo`'s GOAL CASE GAINED A REQUIRED `origin`**, and the 28 seeded
+contributions were backfilled to `'ai'`. Required rather than optional for
+`Transaction.kind`'s reason: a refund row from an uploaded-image goal would
+otherwise be resolved as a filename and paint `/media/goals/blob:…` — a broken
+image on a real user's screen, and one `settleImages` could not catch because
+no walk state uploads and then deletes.
+
+**THE PLACEHOLDER IS A SURFACE, NOT ARTWORK.** `goal_placeholder.jpg`, 600 x
+204 (the slot at DPR 3, Gate 76's sizing), 1,501 bytes, one flat `#cfd5dc` —
+which is `--brand-slate-200` resolved from the DS ramp rather than picked.
+
+### Two things this gate deliberately did NOT do
+
+- **"Add New" IS RENDERED ON THE GOALS HEADING ONLY.** Figma draws it on both,
+  and the asymmetry is the behaviour rather than an omission: the goal writers
+  ship here, commitments are seeded and read-only by ruling 4I, and Gate 44's
+  rule is that a control which is drawn, focusable and announced while unable
+  to act is worse than one that is not there. **RULED BY TEKU, 7 Oct 2026: the link is NOT rendered on Commitments, and the
+  gap closes when a commitments writer exists.** Phase A had priced the
+  alternative — a "Coming soon." toast under the MVP scope rule — at ~15 lines and
+  no extra baseline, and it was declined.
+- **THE AUTO-SAVE PENCIL DOES NOT TOUCH THE SWITCH.** It edits the amount and
+  nothing else; a pencil beside a figure that silently enabled a monthly
+  transfer would be the most surprising write in this app. The switch is its
+  own control, one row away, and it writes immediately with no confirmation and
+  no toast — reversible in one tap, and it moves no money, because nothing here
+  runs on a timer.
+
+### What the six walk states photograph, and what they cannot
+
+| state | captures |
+|---|---|
+| `/finance [tab:plans] [overlay:add-goal]` | the drawn form |
+| `… [overlay:add-goal-source]` | the picker view (UNDESIGNED) |
+| `/finance/plans/goals/goal-bali-trip [overlay:edit-goal]` | prefilled, plus the red "Delete goal" |
+| `… [overlay:goal-delete]` | the stacked confirmation, naming the money |
+| `… [overlay:goal-deleted]` | the Plans tab with ONE card, and the toast |
+| `… [overlay:autosave-edit]` | the amount editor (UNDESIGNED) |
+
+**⚠ THE MONEY IS ASSERTED, NOT PHOTOGRAPHED.** The delete lands on the Plans
+tab, which shows neither the funding account's balance nor the Savings Goals
+total — both live on the Overview tab, and navigating elsewhere purely to
+photograph them would invent a destination. Gate 81 made the identical call for
+the Top-Up's source balance. `goal-writers.spec.ts` reaches them THROUGH THE
+APP'S OWN CONTROLS, because `page.goto` discards the write (NP1) and a spec
+that navigated by URL would pass against a writer that did nothing.
+
+**THE IMAGE PICKER GETS NO WALK STATE.** Its OS dialog cannot be photographed
+(Flow 9's permanent, stated gap) and the user-visible consequence is the
+ABSENCE of the badge, which `toHaveCount(0)` asserts more precisely than a
+picture — Gate 79's ruling on exactly this trade.
+
+### Three locator facts, each found by an assertion failing
+
+- **`Field` AND `Select` TAKE THE VISIBLE LABEL AS THEIR ACCESSIBLE NAME.** The
+  `ariaLabel` prop is documented as the name to use when there is no visible
+  label, so with one supplied it is inert. A locator built on it resolves
+  nothing; `getByLabel('Target Amount (RM)')` is the convention that works. The
+  harness's `controlName` must likewise name what RENDERS: **`Funding Source`**,
+  capital S. See the register for the ~10 dead `ariaLabel` strings this leaves.
+- **A `Select`'S VALUE IS AN `<input value>`, NOT TEXT CONTENT.**
+  `toContainText` over `.mn-select` reads only the floating caption label —
+  found by that assertion receiving "Funding Source" where it expected "Main".
+- **A `Toggle` IS OPERATED BY ITS `<label>`.** It paints a `.mn-toggle__track`
+  over a visually-hidden checkbox, so a click aimed at `[role="switch"]` is
+  intercepted by the track and retries until it times out.
+
+### ⚠ A ROW WRITTEN NOW IS NOT THE NEWEST ROW
+
+The ledger sorts date-descending and the seed runs to **2026-09-12**, while the
+harness clock is pinned to **2026-08-15**. So a refund written during a test
+sorts BELOW two seeded rows, and `.first()` is the wrong locator — it resolves
+to iFruits Market. Locate a written row by its figure instead; no seeded row
+carries +RM 5,040.00. The same trap applies to any future writer's spec.
+
+### The Gate 81 commit message, and what the records actually say
+
+**THE COMMIT MESSAGE ON `main` MISSTATES TWO THINGS AND HISTORY IS NOT
+REWRITTEN.** It says "Baselines 280 -> 280" where the truth is **272 -> 280**
+(8 added, 4 changed, 0 deleted), and it describes the reference as a YYMMDD
+date plus 8 random characters where the truth is **`MNRC` + `YYYYMMDD` + six
+characters, 18 in all**.
+
+**NEITHER ERROR IS REPEATED IN `CLAUDE.md` OR IN THE REGISTER, AND THAT WAS
+CHECKED RATHER THAN ASSUMED.** Grepped at Gate 81-B: `"280 -> 280"` has ZERO
+hits in either file; the Gate 81 section states `272 -> 280 (8 added, 4
+changed, ZERO deleted)` correctly; and the reference format is recorded
+correctly with the worked example `MNRC20261005C454B4`. **No in-place
+correction was needed, and none was invented to look thorough.**
+
+### What it cost, measured
+
+| | before | after |
+|---|---|---|
+| `ROUTES` | 25 | 25 |
+| `OVERLAY_STATES` | 38 | **44** |
+| |WALK| | 70 | **76** |
+| `visual.spec.ts` | 280 | **304** |
+| `routes.spec.ts` | 141 | **153** |
+| `section-headers.spec.ts` | 142 | **154** |
+| `goal-writers.spec.ts` | — | **21**, no baseline |
+| suite | 907 | **976** in 36 files |
+
+**THE GATE alpha PER-STATE FIGURE HELD FOR THE THIRTEENTH TIME**: six added walk
+states cost 24 baseline files and 48 tests (visual +24, routes +12,
+section-headers +12), and 907 + 48 + 21 = 976.
+
+**THE PREDICTION WAS WRITTEN BEFORE THE FIRST EDIT AND HELD EXACTLY: 24 added,
+4 changed, 0 deleted.** The pre-mint run reported **28 failed / 947 passed**
+(33.8 min) — 24 "snapshot doesn't exist" and 4 pixel diffs, every one of them in
+`visual.spec.ts`, with nothing failing outside it. Reconciled against a SHA-256
+manifest taken outside the repo before the first change: **280 -> 304, 24 added,
+4 changed, 0 deleted, 276 byte-identical**, and the added and changed sets do
+not overlap — so 24 + 4 = 28 reconciles with the failure count directly (the
+Gate 50 case, not the Gate 44 one).
+
+**THE FAILED RUN WROTE NOTHING, RE-HASHED AT THE FAILURE POINT**: 280 files
+byte-identical to the start manifest, zero "writing actual" lines, zero
+untracked files in the snapshot directory.
+
+**ALL 28 MINTED PNGs WERE OPENED AND READ.** The Modal card fits inside the
+padded viewport on every one, so **G33's height cap is not needed for these
+forms and no workaround class was added** — the Edit form is the tallest at five
+fields plus a three-button footer, and it clears.
+
+**THE ONE BREAKING ASSERTION WAS FOUND BY THE SWEEP, BEFORE THE PREDICTION.**
+`plans.spec.ts` asserted `.mvp-plans .mn-link` count 0 ("Neither heading offers
+Add New"). It was REWRITTEN rather than deleted: the Goals heading must offer it
+and the Commitments heading must not — which pins both halves where the old
+assertion pinned one. That is Gate 77's lesson applied in the right order, and
+it is why no behaviour spec failed in the pre-mint run.
+
+### What Phase B established from disk, and what it could not
+
+Written at Phase B, after re-deriving each claim from code, specs and the
+file rather than from the Phase A hand-over. Where a claim has a pin it names
+the spec; where it has none it says so, because a claim nobody pins is a claim
+the next refactor can break silently.
+
+**FIGMA, THIS SESSION: THE REMOTE CONNECTOR WORKS AND `figma-local` DOES NOT.**
+`figma-local` returned `ECONNREFUSED`; the authenticated remote answered
+`whoami` (Teku Cheong, pro) and served `get_metadata` for section `1266:14338`.
+**WHICH PATH PHASE A USED IN ITS OWN SESSION IS UNESTABLISHED** — nothing on
+disk records it, and the opening paragraph above is the same sentence Gates 78
+to 81 carry. What can be said is that the file reads the same way today.
+
+**THE FILE, RE-READ LIVE: SIX FRAMES AND NO PICKER VIEW.** Section
+`1266:14338` holds exactly the six frames listed above. `1266:14340` draws the
+Funding Source as a `Select` (54 tall, a collapsed trigger) and Target Amount as
+a `Select / Transfer`; nothing draws the view a tap on that trigger opens. The
+funding-source picker view is therefore **UNDESIGNED WORK**, built to the
+standing dropdown-in-form composition (the title changes, back sits left, close
+sits right, flat full-bleed `OptionList` rows, no footer), and **it is the first
+thing Teku should draw** so the app can follow a frame instead of a precedent.
+
+**THE FRAME ALSO DRAWS "Add New" ON BOTH HEADINGS**, in the Plans-tab content
+behind its modal — which is the deviation recorded above, confirmed at source.
+
+#### Top-Up now defaults to the goal's funding account, and that moves no pixel
+
+`defaultSourceId` was `primaryAccount.id`, which is `fiatAccounts[0]`, i.e.
+Main. It is now `goal.fundingAccountId`, and both seeded goals fund from Main,
+so the two derivations return the same value. **Pinned by**
+`goal-writers.spec.ts` "the seeded goals carry a funding account and an AI image
+origin" (asserts `fundingAccountId === FIAT_ACCOUNTS[0].id` for every goal), and
+**measured**: the eight `finance-plans-goals-goal-bali-trip-{topup,topped-up}`
+baselines are byte-identical between the start and end manifests. A goal funded
+from Joint would change the pre-selected radio; no seeded goal does.
+
+#### The delete-return row, field by field, and which spec pins which
+
+Built in `GoalDetailScreen.confirmDelete`:
+
+| field | value | pinned by |
+|---|---|---|
+| `kind` | `'transfer'` | "the returned money is ONE ledger row…" — the sheet prints "Transfers aren't counted in budgets." and offers no receipt control |
+| sign | positive, a **credit** on the funding account | the same test locates the row by `+RM 5,040.00` |
+| `accountId` | the goal's `fundingAccountId` | **PINNED in Phase B (R2d).** The same test reads the movement summary's **To** row and asserts `Main`; mutation **M23** (`to: counterparty`) fails it with `Expected "Main"`. `deleteGoal`'s own guard also throws on a mismatch |
+| `goalId` | the goal's id | `deleteGoal`'s guard (throws otherwise). **STILL NOT PINNED DISTINCTLY**: after the delete the UI cannot tell the id from the `merchant` fallback |
+| `reference` | `newReference(occurredAt)`, i.e. `MNRC` + `YYYYMMDD` + 6 characters | **PINNED in Phase B (R2a).** The same test matches `^MNRC\d{8}[0-9A-HJKMNP-TV-Z]{6}$`, a class derived from `REFERENCE_ALPHABET` in `derive.ts`, and asserts `not.toContain('txn-')`; mutation **M20** (`reference: goal.id`) fails it |
+| receipt section | none | the same test: no "Add Receipt" button |
+| `contributionSource` | absent, so the sheet omits the Type row | the same test: no "Auto Save", no "Manual Top-Up" |
+| zero-balance goal | **writes NO row** (`held > 0` gates the build; `deleteGoal` throws if a row arrives for an empty goal) | **PINNED in Phase B (R2b).** A NEW test, "a goal that holds nothing closes without writing a row", creates a goal through the Add New control, deletes it through the app's own controls, and asserts the ledger row count and the hero and Savings Goals card are unchanged; mutation **M21** writes a phantom RM 0.00 row and fails its `toHaveCount` |
+| net worth | unchanged | "DELETING A GOAL RETURNS ITS BALANCE…" (hero before = after) and the Node identity test |
+| both budgets | unchanged | **PINNED in Phase B (R2c).** "DELETING A GOAL RETURNS ITS BALANCE…" reads the rendered Budget tab before and after and asserts the text is identical; mutation **M22** writes the refund as an in-window dining purchase and fails it |
+
+**FOUR ROWS THAT WERE HELD BY CODE GUARDS ALONE ARE NOW PINNED**, under a
+review-thread ruling (R2) that authorised assertion-only edits to this one spec.
+The edits changed no render and no baseline: the digest `c244c221…` is identical
+before and after, by the standing command. **ONE ROW REMAINS GUARD-ONLY:
+`goalId`.**
+
+#### M11 first passed under mutation, and what that was
+
+**THE MUTATION PROOF FOUND A TEST THAT COULD NOT SEE WHAT IT WAS WRITTEN TO
+PROTECT.** M11 breaks the one line that lets a deleted goal's history keep its
+name (`goal?.name ?? t.merchant`). On the first Phase B run the test "the
+returned money is ONE ledger row…" stayed **green** — because it asserted the
+goal's name with `sheet.toContainText(name)`, and the sheet's own title carries
+the same name. The assertion was true for a reason that had nothing to do with
+the From/To fallback.
+
+**IT WAS STRENGTHENED UNDER A REVIEW-THREAD RULING (R1)**, which authorised
+assertion-only edits to `e2e/goal-writers.spec.ts` and nothing else (a later ruling
+extended WAIT-ONLY authority to `commitment-detail.spec.ts`; see the `naturalWidth` race below). The test now
+reads the movement summary's **From** and **To** rows by their own labels
+(`summaryValue`) and asserts `Bali Trip` and `Main` inside them. M11 now fails it
+at the From row with `Expected "Bali Trip"`, `Received "—"`. **M11's signature
+was changed to match** (`toContainText` -> `toHaveText`), because it had been
+authored for the old assertion. The change touched no app source, no render and
+no baseline — the digest is unchanged.
+
+**M11 NOW PROVES IN THE FULL-SET RUN.** The first full-set run reported it
+refused on the stale signature; with the signature corrected it proves in the
+driver, in the final full-set run on the final spec bytes. No single-run caveat
+remains.
+
+#### The mutation proofs
+
+**THE SET IS NC PLUS M1 TO M26 — 27 ENTRIES.** An earlier draft said "20", which
+was NC plus 19. **NC refused, as it must** (the mutated tree does not typecheck),
+and **M1 to M26 all PROVED IN THE DRIVER** in one full-set run on the final spec
+bytes, one at a time, each running exactly one test, failing on an assertion with
+its expected signature, restoring SHA-identical and re-passing. That includes
+M11, which proves in-driver now that its signature is corrected.
+
+| ids | what they pin |
+|---|---|
+| M1–M10, M12–M16, M18 | Phase A's set: the draft rules, the seeds, the three setters, the toast, the switch, the badge, the confirmation |
+| M11 | a deleted goal's history reads from the row's own `merchant` (now proves at the From row) |
+| M17, M19 | repaired (below) |
+| M20 | the delete-return row carries a real reference, not a slug |
+| M21 | a goal holding nothing closes without writing a row |
+| M22 | a delete moves no budget |
+| M23 | the movement summary's To row names the funding account |
+| M24, M25, M26 | the three `naturalWidth` waits (below) |
+
+- **M17 and M19 were drafted wrongly and were repaired** (a hand-over fix, not a
+  test change). M19's title matched no test. M17 broke the seeded goal's own
+  image URL, so the test died at its first `src` assertion instead of reaching
+  the upload arm; it now breaks ONLY the upload branch and fails at
+  `expect(src).toMatch(/^blob:/)`.
+- **M20 to M23 are new**, one per new or changed assertion: M20 the real
+  reference, M21 the zero-balance path (a phantom RM 0.00 row, chosen because the
+  crash alternative would have proved only that a guard throws), M22 the budgets,
+  M23 the To row.
+- **M24 to M26 are new**, one per fixed `naturalWidth` site. Each stops ONLY the
+  image under test from loading while leaving the `src` attribute the test checks
+  first, so it can only fail at the polled read. M24 and M26 add
+  `srcSet="data:,"` (an empty data URL: a `srcset` candidate wins over `src` for
+  loading, so the image breaks while the attribute still reads as expected). M25
+  appends `-broken` to the object URL, which still starts with `blob:` but
+  resolves to nothing. Changing the URL itself was rejected: it fails the
+  earlier `src` assertion and proves nothing about the wait.
+- **ONE INTERPRETATION TO STATE:** the ruling says "no other test may fail". The
+  driver runs exactly one test per mutation, so what it proves is that the
+  mutation fails the TARGETED assertion and nothing earlier in that test. It does
+  not run the rest of the suite under each mutation. M26 in particular WOULD fail
+  the `[overlay:insight]` walk states, because `settleImages` asserts every
+  `<img>` decoded — which is that guard working, not a defect.
+
+#### Test totals after Phase B
+
+The spec went 20 -> **21** tests (one new), so the suite is **976** in 36 files.
+`907 + 48 + 21 = 976`. No walk state was added and no baseline moved.
+
+#### The `naturalWidth` race — found by the three clean runs, fixed in this gate
+
+**READING `naturalWidth` THE MOMENT AN IMAGE'S CONTAINER APPEARS RACES THE LOAD.**
+`naturalWidth` is 0 until the image has loaded, and a modal or a drill-down
+mounts its `<img>` before the bytes arrive. An unwaited read passes when the
+cache is warm and fails when it is cold, so it passes in every focused run and
+fails only under full-suite load. It fired twice in this gate:
+
+- **`goal-writers.spec.ts`, "choosing an image replaces it…"** — this gate's own
+  new test — failed once with `Received: 0` in the first full-file run, straight
+  after `setFiles`.
+- **`commitment-detail.spec.ts:175`, "the insight opens from the banner…"** — an
+  untouched Gate 80 test — failed in run 1 of the first set of three clean runs
+  (974 passed, 2 failed) and passed in runs 2 and 3. That run was a STOP, not
+  re-run for a green, and is why this fix exists.
+
+**THE SWEEP, read-only before anything was edited:** every `naturalWidth` and
+`.complete` in `e2e/`.
+
+| site | wait before it? | racy? | |
+|---|---|---|---|
+| `commitment-detail.spec.ts` (insight artwork) | no | **yes** | fixed |
+| `goal-writers.spec.ts` (placeholder, created goal) | no — only a `src` attribute check | **yes** | fixed |
+| `goal-writers.spec.ts` (upload, chosen image) | no | **yes** | fixed |
+| `harness.ts` `settleImages` | **yes** — `waitForFunction` on `complete` first | no | untouched |
+
+Three racy sites, under the limit of six that would have meant a shared helper.
+
+**THE FIX IS TIMING ONLY.** Each read became
+`expect.poll(() => el.evaluate((el) => el.naturalWidth)).toBeGreaterThan(0)`.
+Same assertion, same comparison, same threshold, same default timeout — no sleep,
+no `waitForTimeout`, no retry. **An artwork that never loads still fails there**,
+which is what M24 to M26 prove. A `--repeat-each=10` over the three fixed tests
+passed 30 of 30, as a sanity check only: the flake appears under full-suite load,
+so the proof is the three clean runs.
+
+**THE AUTHORITY WAS NARROW AND IS RECORDED AS SUCH.** A review-thread ruling
+allowed WAIT-ONLY edits to `e2e/goal-writers.spec.ts`, `e2e/commitment-detail.spec.ts`
+and any other spec where the sweep found the same pattern — it found none.
+`commitment-detail.spec.ts` is tracked, so the tracked-diff hash moved
+`9853fd94…` -> `648bf5e7…`. No app source, no baseline and no other spec was
+touched.
+
+#### Edit never writes `savedAmount`; a target below it is permitted
+
+`GoalEdit` has no `savedAmount` member, so `updateGoal` cannot write one, and
+`goalDraft.ts` never reads it. **Pinned by** "editing a goal re-derives every
+figure, and never touches savedAmount" (mutation `M8`) and by "a target BELOW
+the saved amount is permitted — the overshoot ruling" (mutation `M1`), with
+"a target below the balance saves, and the ring clamps rather than refusing"
+for the browser half. Top-Up already permits overshoot, and Monzo, Revolut and
+Wise accept a target below the balance.
+
+#### Auto-save writes no ledger row, and the off state has no treatment
+
+`toggleAutoSave` and `saveAutoSaveAmount` call `updateGoal` only, and
+`updateGoal` calls `setGoals` only — **so no ledger row can be written, by
+construction**; there is no scheduler and no persistence to write one later.
+**No spec asserts it**: the two tests check the dialog and toast are absent and
+that the amount survives, not that the ledger is untouched. The off state is
+drawn by nothing: `AutoSaveCard` renders the same markup on and off, the toggle
+position being the only difference, and **Figma draws no off state at all**
+(undesigned).
+
+#### The image picker, as it actually is
+
+One image source plus a provenance field. The badge draws when
+`goal.imageOrigin === 'ai'`: both seeded goals, and — by the type's own contract
+— any generated image. **NO GENERATION PATH EXISTS IN THE CODE** (a search of
+`src/` for image generation finds only the comment in `types.ts`); "generated" is
+a contract for a future writer, not behaviour, and the badge for it is
+UNEXERCISED. An uploaded image takes `'upload'` and no badge. The determinism of
+the test comes from the committed fixture `e2e/fixtures/receipt-capture.jpg`, a
+receipt photograph reused as a goal image (there is no goal-specific fixture).
+The object URL does not survive a reload by design (NP1).
+
+#### The defect class this gate hit
+
+A mutator that nests one `set…` call inside another's updater is double-invoked
+under React 18 StrictMode. `deleteGoal` did exactly this and credited the funding
+account twice (net worth RM 481,038 -> RM 486,078). Only the net-worth assertion
+in `goal-writers.spec.ts` could catch it; no baseline can. The fixed shape is
+three sibling pure updaters, as `topUpGoal` has. Mutation `M10` re-nests the
+setter to prove the test still catches it. Written up as a register entry.
+
+#### What the Phase A prompt had wrong
+
+- **There were no live controls to "wire".** `Add a Goal` did not exist (both
+  headings drew no `linkLabel`), there was no Delete control anywhere, and the
+  four that did exist were dead: "Edit Goals" (a `Button` with no `onClick`),
+  the image pencil and the auto-save pencil (real `<button>`s with no handler),
+  and the `Toggle` (given `isChecked` and no `onChange`).
+- **Figma draws no initial deposit**, so a created goal starts at 0.
+- **The picker has no footer** because `OptionList` at `selectionMode="single"`
+  commits and dismisses in one action.
+- **`Field` and `Select` take the visible label as their accessible name**, and
+  a `Select`'s value is an `<input value>`, not text content.
+- **`ariaLabel` is passed at 20 sites across the four form components**
+  (`GoalFormModal` 8, `BudgetFormModal` 7, `ReceiptEditor` 4, `TopUpModal` 1).
+  Phase A called roughly ten of them dead. **That count is UNESTABLISHED**: which
+  are dead depends on whether each component renders a visible label, and some
+  (the `Toggle`'s, which has none) are live.
+
+#### Corrections to Gate 81's record (not edits to it)
+
+- **The two digest forms now agree.** Gate 81 says "THE DIGEST IS THE FILESYSTEM
+  FORM, NOT THE GIT-BLOB FORM, because 8 of the 280 files are untracked." They are
+  tracked now: the git-blob digest at `mvp-gate81` is
+  `cdb43d91bac05d503f35b39093ac8e9c38b211697e0e15d9a72258ead5f9b90e`, identical
+  to the filesystem form, with 280 files at the tag.
+- **`mvp-gate82` WAS A STRAY TAG AND IS GONE.** At Phase B's first pass there were
+  74 local tags and TWO annotated tags on the Gate 81 commit `31237cca…`:
+  `mvp-gate81` (`a2d0b2cc…`, 22:30) and `mvp-gate82` (`8c129bbf…`, 23:03, same
+  message), both on the remote. The Flow 11 plan reserves Gate 82 for the
+  ten-month spending seed, so the real Gate 82 would have collided with it. Teku
+  deleted it. **Re-checked at the resume:** `git tag -l mvp-gate82` and
+  `git ls-remote --tags origin mvp-gate82` both return nothing, and there are
+  **73** tags locally and **73** on the remote. Nothing here touched it. Gate 81's
+  record carries no tag count, so there is nothing to correct there beyond this.
+- **`e2e/harness.ts` is wholly CRLF**, by byte scan: 3,558 CRLF, 0 lone LF. The
+  records at Gates 75, 76 and 78 call it a wholly-LF file. **Whatever it was
+  when they wrote that, it is not now**, and the "left LF deliberately" advice
+  there should not be followed. By contrast `src/flows/finance/financeTabs.ts`,
+  modified here, is wholly LF (51 lone LF) where the repo is CRLF — inert under
+  git's clean filter, and it produces the "LF will be replaced by CRLF" warning.
+
+#### Verification
+
+- **Static gates, after the final edits:** `npx tsc -b --force` clean;
+  `npm run lint:tokens` PASS (95 files, 4 exemptions); `npm run lint:linkage`
+  PASS, all four sources on v2.8.0.
+- **Baselines:** 304 PNGs, digest
+  `c244c221288639693cf8e5d37aa46b55b98111b2e643771e6e2385dbc3691aa7`, identical
+  at the start of Phase B, after every spec edit, after both full mutation runs
+  and after each clean run. 0 changed, 0 added, 0 deleted by Phase B.
+- **Mutations:** NC refused; M1 to M26 proved in the driver, in one run on the
+  final spec bytes (above).
+- **THREE CLEAN RUNS OF THE FINAL TREE, run sequentially with nothing else on the
+  machine: 976 tests, 975 passed and 1 failed in every one.** 29.2, 29.1 and 29.1
+  minutes (1754, 1752 and 1751 seconds), with npm's own exit code **1** captured
+  apart from the script's, and the baseline digest byte-identical after every run
+  and to the start (`c244c221…1aa7`), so all 304 PNGs are byte-stable. **Zero**
+  "writing actual" lines in all three.
+- **THE ONE FAILURE IS ARM 1 OF THE BASELINE GUARD, IN EVERY RUN, AND IT IS
+  CORRECT:** `baselines.spec.ts:216`, "every baseline on disk is tracked by git",
+  naming exactly the 24 untracked PNGs (the set was compared file by file against
+  `git status`). Arm 2 stays green because nothing was renamed or deleted, and arm
+  3 because every file on disk is a name the walk asks for. Staging is Teku's.
+  Do not read it as a regression and do not relax the guard.
+- **AN EARLIER SET OF THREE IS VOID AND IS RECORDED RATHER THAN QUOTED AS
+  EVIDENCE.** It ran on the tree before the `naturalWidth` fix: runs 2 and 3 gave
+  975 passed / 1 failed, but run 1 gave 974 passed / 2 failed, the second failure
+  being `commitment-detail.spec.ts:175` at its unwaited `naturalWidth` read. It was
+  a STOP and was not re-run for a green; the fix above is what followed. A clean run
+  of a tree that no longer exists is not evidence about the tree that does.
+
+### Deliberately not in scope
+
+Persistence (NP1, still scheduled straight after Flow 11); a commitment writer
+and the Commitments "Add New"; an initial deposit on the create form, which
+Figma does not draw; stripping the ~10 dead `ariaLabel` strings; `MODEL-1`; the
+retro-fit sweep; G6, G13, G14, G17's prop half, G19-G23, G28-G33, G44, G48,
+G49, UI-3 and UI-4 — all still registered, still deferred, and **no MVP-local
+override was added for any**; the `G33` workaround class, untouched and still
+carrying its removal condition; `npm audit fix`; the DS repo; and branch
+deletion.

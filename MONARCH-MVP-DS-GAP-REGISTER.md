@@ -3327,3 +3327,182 @@ the failure reads like a broken control and costs a test a 30-second timeout to
 diagnose.
 
 ### Nothing was removed from this register at this gate.
+
+## 2aa. Status at MVP Gate 81-B (2026-10-07) — the goal lifecycle
+
+**THE TALLY DOES NOT MOVE. NOTHING IS OPENED AND NOTHING IS CLOSED.** Five
+writers shipped over DS components this app already uses, every one of them
+through a seam the DS documents, and the one new composition — a single-select
+picker view — is the DS's own `OptionList` behaving exactly as its prop doc
+describes. There was no point at which a DS change was needed, and the gate's
+stop condition on that never engaged.
+
+Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop
+half, G19–G23, G28–G33, G44, G48, G49, `MODEL-1`, `UI-3` and `UI-4`. **No
+MVP-local override was added for any of them**, and the `G33` workaround class
+is untouched and still carries its removal condition.
+
+### `G21` now has a SECOND adopter, and that is recorded rather than re-opened
+
+`Select` renders `aria-expanded` unconditionally, so a trigger that NAVIGATES
+rather than opening a popup permanently announces a collapsed popup that does
+not exist. The budget form's category trigger has had it since Gate 74-B; the
+goal form's **Funding Source** trigger is the second, built the same way and for
+the same reason (`isOpen={false}`, the open request intercepted, no `menuSlot`).
+
+`SelectProps` still exposes no role or aria passthrough, so there is still
+nothing an app-side override could reach. The entry is unchanged; only its
+adopter count is.
+
+### `G49` is unchanged, and this gate is the second caller that routes around it
+
+`SelectTransfer`'s currency picker cannot be suppressed, which is why Figma's
+**Target Amount** field — drawn as a `Select / Transfer` on `1266:14340` — ships
+here as a `Field type="number"`. That is the disposition G49 already records
+("until the DS adds a way to suppress the currency picker there is no caller"),
+collected on rather than revisited.
+
+### ⚠ NOT A GAP — `Field` and `Select` take the VISIBLE LABEL as their name
+
+**RECORDED BECAUSE IT COST TWO FAILED ASSERTIONS AND IT WILL COST MORE.** Both
+components render a real `<label>`, and that label — plus the required marker —
+IS the control's accessible name. The `ariaLabel` prop is documented as the name
+to use *when there is no visible label*, so with one supplied it is inert.
+
+Two consequences, both measured during this gate:
+
+- **A LOCATOR BUILT ON `ariaLabel` RESOLVES NOTHING.**
+  `getByRole('spinbutton', { name: 'Target amount in ringgit' })` timed out;
+  `getByLabel('Target Amount (RM)')` is the convention that works, and the one
+  `budget-writers.spec.ts` already uses. A harness `controlName` must likewise
+  name what RENDERS: `'Funding Source'`, capital S, not the prop's
+  `'Funding source'`.
+- **THE APP PASSES A DIFFERENT STRING IN `ariaLabel` AT ROUGHLY TEN SITES** —
+  "Amount in ringgit" beside a label reading "Amount (RM)", and so on — in
+  `BudgetFormModal`, `ReceiptEditor`, `TopUpModal` and now `GoalFormModal`. Every
+  one of those strings is dead. It is not a defect and it is not a gap: passing
+  both is the documented fallback shape. It is a reading hazard, because the
+  source says one name and the accessibility tree says another.
+
+**NO `G` NUMBER AND NO FIX HERE.** The DS behaves as documented, so there is
+nothing for a DS release to close, and stripping ten redundant props is churn
+in four files for no behavioural change. Flagged for Teku as a tidy-up.
+
+### ⚠ NOT A GAP — a `Toggle` is operated by its label, not by its input
+
+`Toggle` paints a `.mn-toggle__track` over a visually-hidden checkbox, so a
+click aimed at `[role="switch"]` is intercepted by the track and retries until
+it times out. **Click `.mn-toggle`**, the `<label>`, which is what a user taps
+and what forwards the event. Standard markup, correct behaviour, and worth
+writing down only because the obvious locator is the wrong one.
+
+### ⚠ NOT A GAP — a state updater must be pure; nesting one setter in another cost RM 5,040.00
+
+**RECORDED BECAUSE IT HAPPENED, WAS CAUGHT BY ONE ASSERTION, AND NO BASELINE
+COULD HAVE CAUGHT IT.** A first `deleteGoal` put `setTransactions` and
+`setFiatAccounts` inside the `setGoals` updater, so all three writes would land
+after the guards had passed. React 18's StrictMode double-invokes an updater to
+surface impurity, so both nested setters fired twice: the funding account was
+credited 2 x RM 5,040.00 against a goals total that fell once, and net worth
+went RM 481,038 -> RM 486,078 on an operation that must not move it.
+
+- **The net-worth assertion in `goal-writers.spec.ts` was the only thing that
+  caught it.** Every other figure on every other screen was correct, and no walk
+  state photographs the net-worth hero after a delete.
+- **The fixed shape is three sibling, pure updaters,** each validating its own
+  atom, as `topUpGoal` has. React batches them because they share one event
+  handler, which is what makes the write atomic. Nesting buys nothing and breaks
+  purity.
+- **It is a DS-independent defect class.** It belongs to any mutator that writes
+  more than one atom, which is every writer Flow 11 adds from here on.
+- **Mutation `M10` re-nests the setter** and proves the net-worth test still
+  fails when it is reintroduced.
+
+**NO `G` NUMBER**: nothing in a DS release can close it.
+
+### ⚠ NOT A GAP — a name check the surrounding chrome also satisfies cannot see a fallback
+
+**RECORDED BECAUSE THE MUTATION PROOF FOUND IT, AND IT IS A TEST-DESIGN CLASS
+RATHER THAN A ONE-OFF.** Mutation M11 broke the line that lets a deleted goal's
+history row read its name from the row's own `merchant`. The test written to
+protect that — `sheet.toContainText('Bali Trip')` — stayed green, because the
+sheet's title prints the same string. The assertion was true, and true for a
+reason that had nothing to do with the thing it named.
+
+- **The class:** an assertion on a value that appears in more than one place on
+  the page is only as strong as the weakest place. If a fallback and its
+  surrounding chrome produce the same text, a broken fallback is invisible.
+- **The fix is scoping, not stronger wording.** The assertion now reads the
+  movement-summary `<dd>` beside the `<dt>` that says "From", via a helper that
+  finds a row by its own label, so no other element can satisfy it. The same
+  helper pins the To and Reference rows.
+- **How it was found:** only by running the mutation. Reading the test, the
+  assertion looked correct and the fallback looked covered.
+- **Where else to look:** any test asserting a merchant, goal or account name with
+  `toContainText` on a whole dialog, sheet or screen. A mutation that blanks the
+  field the test claims to protect is the quickest check.
+
+**NO `G` NUMBER**: nothing in a DS release can close it.
+
+### The DS was adequate for every undesigned surface in this gate
+
+Stated because the gate's stop condition was "anything that needs a DS change",
+and it is worth recording that nothing did. Four surfaces have no Figma frame
+anywhere in the file and all four were built from shipped parts:
+
+| undesigned surface | built from |
+|---|---|
+| the Edit form | the Create form, prefilled — one component, a `mode` prop |
+| the delete confirmation | `Modal` + one body line + `secondary` Cancel / `tertiary tone="error"` Delete, the shape `BudgetDeleteConfirm` and the receipt viewer's `ConfirmModal` already share |
+| the Funding Source picker view | `Modal`'s `onBack` / `contentPadding="none"` plus `OptionList selectionMode="single"` — the Gate 74-B composition |
+| the auto-save amount editor | `Modal` + one `Field`, with its rule derived from the form's own |
+
+**AND THE SINGLE-SELECT PICKER NEEDED NO FOOTER, WHICH IS THE DS'S RULING AND
+NOT THIS APP'S.** `OptionList`'s own prop doc says `'single'` "fires `onChange`
+and `onDismiss` in ONE action, so the user returns to the form on one tap, and
+there is no confirm button". The multiple-select pickers need a footer because
+they have no natural done moment; this one is committed by the tap. So the
+pattern's "verb plus count, disabled at zero" footer is absent here by the
+component's design, not by an exception — the same place `§2s` records the
+merchant picker's absent footer, reached by a different argument.
+
+## 2ab. Status at MVP Gate 81-B, resumed (2026-10-07) — the `naturalWidth` race
+
+**THE TALLY DOES NOT MOVE. NOTHING IS OPENED AND NOTHING IS CLOSED.** This is a
+test-timing class, not a DS gap and not an app defect: no DS release can close it
+and no app source changed.
+
+### ⚠ NOT A GAP — reading `naturalWidth` the moment an image's container appears races the image load
+
+**RECORDED BECAUSE IT FIRED TWICE IN ONE GATE AND PASSED EVERY FOCUSED RUN.**
+`HTMLImageElement.naturalWidth` is 0 until the image has loaded. A modal or a
+drill-down mounts its `<img>` before the bytes arrive, so a single read straight
+after the container appears measures whether the cache was warm, not whether the
+artwork works. Warm cache: the read passes. Cold cache, which is what a full
+suite under load produces: it fails with `Received: 0`.
+
+- **Site 1 — this gate's own test.** `goal-writers.spec.ts`, "choosing an image
+  replaces it and REMOVES the "Ai Image" badge": failed once in a first full-file
+  run, straight after `setFiles`.
+- **Site 2 — an untouched Gate 80 test.** `commitment-detail.spec.ts`, "the insight
+  opens from the banner and every figure on it is derived": failed in run 1 of the
+  first three clean runs (974 passed, 2 failed) and passed in runs 2 and 3.
+- **The sweep:** every `naturalWidth` and `.complete` in `e2e/`. Three racy sites —
+  the two above and `goal-writers.spec.ts`'s placeholder-image read, which had a
+  `src` attribute check before it but no load wait. `harness.ts`'s `settleImages`
+  waits on `complete` first and is not racy. No other spec had the pattern.
+- **The fix is a polled read, not a looser one.**
+  `expect.poll(() => el.evaluate((el) => el.naturalWidth)).toBeGreaterThan(0)`:
+  same assertion, same threshold, same default timeout, no sleep and no retry. An
+  artwork that never loads still fails at the poll — mutations M24 to M26 each
+  stop only the image under test from loading (`srcset="data:,"`, or a corrupted
+  blob URL) and prove it.
+- **Why it hid:** every focused run of these tests, including a
+  ten-repetition sanity run of the fixed versions (30 of 30), passes either way. Only the full suite, with
+  a cold cache, exposes it — so the proof of a fix is clean full runs, not
+  repetition.
+- **Where else to look:** any assertion on `naturalWidth`, `naturalHeight`,
+  `complete` or a rendered image size that is not preceded by a wait for the load.
+  `settleImages` is the pattern to copy for a page-wide check.
+
+**NO `G` NUMBER**: nothing in a DS release can close it.

@@ -1,7 +1,12 @@
 /**
  * Media slots — the single source of truth for user-supplied imagery.
  *
- * Plain data plus pure resolvers. No React, no imports, no work at module load.
+ * Plain data plus pure resolvers. No React, no VALUE imports, no work at module
+ * load. `import type` is erased at compile time and costs nothing at runtime,
+ * which is the same licence `derive.ts` takes for its one DS import; the claim
+ * that this file has "no imports" was literally true until Gate 81-B needed
+ * `GoalImageOrigin` to resolve a goal's image, and it is corrected rather than
+ * left to contradict the line below it.
  *
  * WHY `public/` AND NOT `src/assets/`. Decided, not up for re-litigation. Vite
  * copies `public/` verbatim, so dropping a file into `public/media/<slot>/`
@@ -24,6 +29,8 @@
  * second argument for exactly that reason, so the pure path already exists and
  * the mutable default can simply stop being used.
  */
+
+import type { GoalImageOrigin } from '../data/types'
 
 /** Logical slot names. The map below is exhaustive over this union by type. */
 export type MediaSlot = 'profile' | 'banner' | 'academy'
@@ -296,13 +303,30 @@ const GOAL_IMAGE_DIR = '/media/goals'
  * asserts `naturalWidth > 0` on every rendered image, so the walk fails loudly
  * rather than photographing an empty box.
  *
- * A PHOTO PICKER IS NOT THIS FUNCTION'S BUSINESS. `Goal.image` is a bare
- * filename precisely so a future picker stores a reference rather than a `blob:`
- * that cannot survive the document that made it — see `Goal.image`.
+ * ⚠ THE PICKER LANDED AT GATE 81-B, AND THIS FUNCTION NOW TAKES THE ORIGIN.
+ * The paragraph that used to sit here said a picker "is not this function's
+ * business" because `Goal.image` is always a bare filename. It is not always
+ * one any more: an upload puts an object URL there and `Goal.imageOrigin` says
+ * so. That field is the discriminant and it is REQUIRED here on purpose —
+ * sniffing the string for `blob:` would be duck-typing a fact the record
+ * already states, and it would quietly prefix `/media/goals` onto an object
+ * URL the day the sniff was wrong.
+ *
+ * AN UPLOAD'S URL IS RETURNED UNCHANGED. It is already a complete source, it is
+ * not under this directory, and it does not survive a reload (NP1) — which is
+ * correct rather than a defect, because nothing here is persisted.
  */
-export function goalImageUrl(filename: string): string {
-  return `${GOAL_IMAGE_DIR}/${filename}`
+export function goalImageUrl(image: string, origin: GoalImageOrigin): string {
+  return origin === 'upload' ? image : `${GOAL_IMAGE_DIR}/${image}`
 }
+
+/**
+ * THE IMAGE A CREATED GOAL TAKES, because Figma's Add-a-Goal form draws no
+ * image field. It is a flat token-coloured surface rather than artwork — see
+ * `public/media/goals/README.md` — and it carries `imageOrigin: 'placeholder'`,
+ * so it draws no "Ai Image" badge.
+ */
+export const GOAL_PLACEHOLDER_IMAGE = 'goal_placeholder.jpg'
 
 const OFFER_IMAGE_DIR = '/media/promotions'
 

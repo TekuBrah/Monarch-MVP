@@ -171,9 +171,22 @@ test.describe('the Plans tab', () => {
         await expect(row).toHaveJSProperty('tagName', 'BUTTON')
       }
 
-      // Neither heading offers "Add New": both writers belong to later gates,
-      // and a control that cannot act is worse than none (Gate 44).
-      await expect(page.locator('.mvp-plans .mn-link')).toHaveCount(0)
+      /*
+        "ADD NEW" IS OFFERED ON THE GOALS HEADING AND NOT ON COMMITMENTS, and
+        BOTH halves are pinned here — which is what makes this stronger than
+        the assertion it replaces rather than a loosening of it.
+
+        Until Gate 81-B this read `toHaveCount(0)` over the whole tab, because
+        neither writer existed. The goal writers ship now and the commitment
+        ones are not planned: commitments are seeded and read-only by ruling
+        4I, and Gate 44's rule is that a control which is drawn, focusable and
+        announced while unable to act is worse than one that is not there. So
+        the asymmetry is the behaviour, and a single count over the tab could
+        not tell "the right one appeared" from "the wrong one did".
+      */
+      const sections = page.locator('.mvp-plans__section')
+      await expect(sections.nth(0).locator('.mn-link')).toHaveText('Add New')
+      await expect(sections.nth(1).locator('.mn-link')).toHaveCount(0)
     })
   }
 })

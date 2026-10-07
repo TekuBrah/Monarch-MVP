@@ -59,6 +59,19 @@ export const GOALS: Goal[] = [
     savedAmount: 5040,
     targetDate: '2026-12-20',
     image: 'goal_bali_trip.jpg',
+    /*
+      BOTH SEEDED IMAGES ARE THE AI ARTWORK FIGMA SHIPS, which is what Gate 78
+      asserted when it drew the badge unconditionally. Now that the origin is
+      stored, that claim is checked rather than assumed — and the badge still
+      renders on both, so the gating moves no pixel.
+    */
+    imageOrigin: 'ai',
+    /*
+      BACKFILLED, NOT INVENTED. All 16 of this goal's seeded contributions debit
+      `main` — measured — so Main is the account that has in fact been funding
+      it. Teku's 1 Oct ruling on the same question.
+    */
+    fundingAccountId: 'main',
     // TRANSCRIBED: RM 250/mth, the figure the drill-down draws beside the toggle.
     autoSave: { isEnabled: true, amount: 250 },
   },
@@ -70,6 +83,9 @@ export const GOALS: Goal[] = [
     savedAmount: 11040,
     targetDate: '2027-06-30',
     image: 'goal_emergency_funds.jpg',
+    imageOrigin: 'ai',
+    /* Backfilled for Bali's reason: all 12 of its contributions debit `main`. */
+    fundingAccountId: 'main',
     /**
      * AUTO-SAVE IS OFF HERE AND ON FOR BALI, SO BOTH STATES ARE SEEDED. Gate 78's
      * Academy task reads whether it is enabled, and a seed in which every goal

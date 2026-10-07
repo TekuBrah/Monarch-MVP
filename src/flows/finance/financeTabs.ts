@@ -25,6 +25,19 @@ export const FINANCE_TAB_STATE_KEY = 'financeTab'
  */
 export const BUDGET_DELETED_STATE_KEY = 'budgetDeleted'
 
+/**
+ * THE SAME ONE-SHOT FLAG FOR A DELETED GOAL. The goal drill-down unmounts as
+ * it navigates, so the Plans tab is what raises the toast — exactly the split
+ * the budget pair already makes, and for the same reason.
+ */
+export const GOAL_DELETED_STATE_KEY = 'goalDeleted'
+
+export function goalDeletedNotice(state: unknown): boolean {
+  return typeof state === 'object' && state !== null
+    ? (state as Record<string, unknown>)[GOAL_DELETED_STATE_KEY] === true
+    : false
+}
+
 export function budgetDeletedNotice(state: unknown): boolean {
   return typeof state === 'object' && state !== null
     ? (state as Record<string, unknown>)[BUDGET_DELETED_STATE_KEY] === true

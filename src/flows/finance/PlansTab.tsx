@@ -1,12 +1,16 @@
-import { CardGoals, ListItem } from '@monarch/design-system'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { CardGoals, ListItem, ToastMobile } from '@monarch/design-system'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { CommitmentMark } from '../../components/CommitmentMark'
-import { goalImageUrl } from '../../config/media'
+import { GOAL_PLACEHOLDER_IMAGE, goalImageUrl } from '../../config/media'
 import { commitmentCadenceLabel, commitmentDueLabel, goalPercent } from '../../data/derive'
 import { formatMyr } from '../../data/format'
+import { GoalFormModal } from './components/GoalFormModal'
+import { FINANCE_TAB_STATE_KEY, goalDeletedNotice } from './financeTabs'
+import type { GoalSettings } from './goalDraft'
 
 /**
  * Flow 11 — `Finance_Plan` (`1266:14339`), the Plans tab's body.
@@ -38,15 +42,89 @@ import { formatMyr } from '../../data/format'
  * not focusable, not announced as a control and carries no pointer cursor. A tap
  * target that leads nowhere is worse than an untapped card.
  */
+/** Full stop, matching "Receipt deleted." and "Budget deleted." (Gate 71-B, 3D). */
+const DELETED_TOAST = 'Goal deleted.'
+
 export function PlansTab() {
   const navigate = useNavigate()
-  const { goals, commitments } = useAccounts()
+  const location = useLocation()
+  const { goals, commitments, fiatAccounts, createGoal } = useAccounts()
+
+  const [isCreating, setIsCreating] = useState(false)
+  const closeCreate = useCallback(() => setIsCreating(false), [])
+
+  /*
+    "GOAL DELETED" IS SHOWN HERE, NOT ON THE DRILL-DOWN, for the reason the
+    budget pair already records: delete lives in the drill-down's Edit modal and
+    that screen unmounts as it navigates here, so the surface the user acted on
+    is gone before a toast could appear on it. The flag is read ONCE into state
+    and then cleared from the location, so a reload or a Back/Forward onto this
+    entry cannot raise it again.
+  */
+  const [showDeleted, setShowDeleted] = useState(() => goalDeletedNotice(location.state))
+  useEffect(() => {
+    if (goalDeletedNotice(location.state)) {
+      navigate(location.pathname, {
+        replace: true,
+        state: { [FINANCE_TAB_STATE_KEY]: 'plans' },
+      })
+    }
+  }, [location.state, location.pathname, navigate])
+
+  /**
+   * CREATE WRITES THE WHOLE RECORD, because identity is the caller's — the
+   * contract `addTransaction` has documented since Gate 48 and `createGoal`
+   * repeats. `goal-${crypto.randomUUID()}` follows `BudgetsProvider`'s
+   * `budget-${crypto.randomUUID()}`; the app has no general id generator.
+   *
+   * IT STARTS EMPTY. Figma's form captures no initial deposit (measured off
+   * `1266:14340`), so `savedAmount: 0` and nothing here moves money —
+   * `topUpGoal` stays the one way money enters a goal.
+   *
+   * IT TAKES THE PLACEHOLDER IMAGE, because the form draws no image field
+   * either. `imageOrigin: 'placeholder'` is what keeps the "Ai Image" badge off
+   * a surface no model made.
+   */
+  const confirmCreate = useCallback(
+    (settings: GoalSettings) => {
+      createGoal({
+        id: `goal-${crypto.randomUUID()}`,
+        ...settings,
+        savedAmount: 0,
+        image: GOAL_PLACEHOLDER_IMAGE,
+        imageOrigin: 'placeholder',
+      })
+      setIsCreating(false)
+    },
+    [createGoal],
+  )
 
   return (
     <div className="mvp-plans">
       <section className="mvp-plans__section">
         <div className="mvp-column">
-          <SectionHeader label="Goals" />
+          {/*
+            "ADD NEW" IS RENDERED ON THE GOALS HEADING ONLY, and the asymmetry
+            with Commitments is deliberate rather than unfinished.
+
+            Figma draws the link on BOTH headings. The goal writers ship in this
+            gate, so this one acts. Commitments are seeded and read-only by
+            Claude's delegated ruling 4I — there is no commitment writer, in
+            this gate or planned — and Gate 44's rule is that a control which is
+            drawn, focusable and announced while unable to act is worse than one
+            that is not there. `SectionHeader` draws its `Link` only when given
+            `linkLabel`, so omitting it is the whole of the suppression.
+
+            FLAGGED FOR TEKU rather than decided silently: if Commitments should
+            offer one that raises a "Coming soon." toast under the MVP scope
+            rule, it is ~15 lines and moves no extra baseline (the same walk
+            state is already changing).
+          */}
+          <SectionHeader
+            label="Goals"
+            linkLabel="Add New"
+            onLinkClick={() => setIsCreating(true)}
+          />
         </div>
 
         {/*
@@ -68,7 +146,7 @@ export function PlansTab() {
           {goals.map((goal) => (
             <li key={goal.id}>
               <CardGoals
-                image={<img src={goalImageUrl(goal.image)} alt="" />}
+                image={<img src={goalImageUrl(goal.image, goal.imageOrigin)} alt="" />}
                 title={goal.name}
                 /*
                   DERIVED, FLOORED. Both seeded goals land on the exact integers
@@ -149,6 +227,33 @@ export function PlansTab() {
           ))}
         </ul>
       </section>
+
+      {/* Mounted conditionally so each open starts from an empty draft. */}
+      {isCreating && (
+        <GoalFormModal
+          mode="create"
+          accounts={fiatAccounts}
+          onClose={closeCreate}
+          onSave={confirmCreate}
+        />
+      )}
+
+      {/*
+        THE RECEIPTS TOAST'S OWN FIXED ELEMENT AND MODIFIER, not a sixth fixed
+        element — `--above-chrome` moves only `bottom` and `z-index`, and its
+        `bottom` is already derived from the FAB so the toast lands 8px clear of
+        it with no new number. Gate 71's call, reused.
+      */}
+      {showDeleted && (
+        <div className="mvp-finance-detail__toast mvp-finance-detail__toast--above-chrome">
+          <ToastMobile
+            appearance="success"
+            title={DELETED_TOAST}
+            role="status"
+            onDismiss={() => setShowDeleted(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

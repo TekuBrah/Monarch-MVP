@@ -2396,6 +2396,52 @@ button.mvp-receipt-card:focus-visible {
   color: var(--mapped-text-default-default);
 }
 
+/* ──────────────────────────────────────── the goal forms (Gate 81-B, Flow 11)
+
+   THE SAME COLUMN THE BUDGET FORM USES, and deliberately the same gap: both are
+   a stack of DS `Field`s inside a `Modal`'s content region, and two goal/budget
+   forms disagreeing about their field spacing would be the divergence, not this.
+   Figma's `Frame 449` puts 16px between the five rows, which is `--spacing-400`
+   exactly, so the shared value is also the drawn one.                         */
+.mvp-goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/* Figma's `Frame 475` — the auto-save amount and its switch on one row, the
+   field hugging the remaining width and the toggle at the end. A flex row
+   rather than a grid: the switch is a fixed 46x24 and the field takes what is
+   left, which is one `flex: 1` rather than two tracks to keep in step.
+
+   `align-items: center` IS WHAT PUTS THE SWITCH ON THE FIELD'S AXIS. Figma
+   centres it at y=17 in a 58-tall row, which is the switch's own 24 centred —
+   a transcribed 17 would be a literal for a number the layout derives.        */
+.mvp-goal-form__autosave {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-400);
+}
+
+.mvp-goal-form__autosave > :first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* The funding-source trigger is a block in the column like any other field;
+   the wrapper exists to carry `data-field`, which is how `useTouchedValidation`
+   names a control whose focus moves between a trigger and its own internals
+   without that counting as leaving the field. The budget form's category
+   wrapper, for its reason.                                                    */
+.mvp-goal-form__source {
+  display: contents;
+}
+
+.mvp-goal-delete__body {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
 /* ──────────────────────────────────────────────── Plans tab (Gate 76, Flow 11)
 
   Figma `Finance_Plan` (`1266:14339`). `Frame 449` holds two sections; each

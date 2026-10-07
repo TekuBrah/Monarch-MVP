@@ -77,7 +77,7 @@ export function TransactionMark({
       this mark beside the goal's name as text, so a describing `alt` would make
       a screen reader announce that name twice. Passed rather than omitted.
     */
-    return <Avatar size={size} src={goalImageUrl(mark.filename)} alt="" />
+    return <Avatar size={size} src={goalImageUrl(mark.filename, mark.origin)} alt="" />
   }
   return <Logo name={mark.name} size={size} />
 }

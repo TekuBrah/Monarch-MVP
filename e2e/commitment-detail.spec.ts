@@ -191,10 +191,19 @@ test('the insight opens from the banner and every figure on it is derived', asyn
 
   // THE ARTWORK ACTUALLY DECODED. `settleImages` asserts this across the walk;
   // here it also proves `offerImageUrl` resolved the right directory.
-  const natural = await page
-    .locator('.mvp-insight__artwork img')
-    .evaluate((img: HTMLImageElement) => img.naturalWidth)
-  expect(natural).toBeGreaterThan(0)
+  //
+  // POLLED, NOT READ ONCE. `naturalWidth` is 0 until the image has loaded, and
+  // the modal's own container appears first — so a single read races the load.
+  // It passes with a warm cache and failed in a cold full-suite run (Gate 81-B,
+  // run 1). The poll keeps the same assertion and the same default timeout: an
+  // artwork that never loads still fails here.
+  await expect
+    .poll(() =>
+      page
+        .locator('.mvp-insight__artwork img')
+        .evaluate((img: HTMLImageElement) => img.naturalWidth),
+    )
+    .toBeGreaterThan(0)
 })
 
 test('the education panel STACKS over the insight, and Got it closes only it', async ({
