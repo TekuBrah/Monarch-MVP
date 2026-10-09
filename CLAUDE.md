@@ -18506,3 +18506,32 @@ gap; `npm audit fix`; the DS repo; and branch deletion.
   four untracked `finance-transactions-detail-income-{375,430}-{light,dark}` PNGs.
   Staging is Teku's. The known `section-headers.spec.ts` mount-timing flake did not
   appear.
+
+## Flow 11 completion record (Gate 83)
+
+**FLOW 11 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-11-COMPLETION.md` AT THE REPO ROOT.** Read
+that file first, before any Flow 11 work, before persistence, and before a later flow touches goals,
+commitments, a transaction's `kind` or the money model. It covers the screens and writers by gate,
+the money model and write path with their reasons, the seed and Gate 82's invariants, the rulings
+split into Teku's and Claude's (overturnable), the standards with the retrofit list, the deviations
+from Figma, every deferred item in where / problem / decision form, the open decisions, the
+corrections to the record, and the gate list 75–82. The per-gate sections above (Gates 75 to 82)
+remain the evidence behind it. **Do not restate its content here.** If the two disagree, re-derive
+from disk, correct whichever is wrong, and say so.
+
+Gate 83 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every
+baseline is byte-identical (308, digest `735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`,
+the same in its filesystem and git-blob forms). No DS re-pin: v2.8.0 applies throughout. Register
+§2ae records the flow's close; the tally does not move.
+
+**THREE THINGS GATE 83 FOUND THAT A SUCCESSOR WOULD OTHERWISE GET WRONG:**
+
+- **The zero-amount predicate is OPEN AND UNOWNED.** Gate 81 handed it to Gate 81-B ("will be
+  re-examined in 81-B"); Gate 81-B's record never mentions it. `transactionDisposition`
+  (`src/data/derive.ts:2112`) still classifies a non-transfer row of exactly 0 as income.
+- **Two Teku quotes from 8 Oct 2026 were not on disk before this gate** — on receipts and on the seed
+  window. The record carries both verbatim, labelled as supplied by the review thread, with what the
+  window research did and did not cover.
+- **Two decisions are Teku's and OPEN:** the dark Funding Source picker's black second row (a DS
+  `OptionList` behaviour), and the Transactions list's year-less date labels (`formatTimestamp`,
+  `src/data/format.ts:121`, rendered at `src/flows/finance/TransactionsLedger.tsx:429`).

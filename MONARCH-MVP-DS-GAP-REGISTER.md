@@ -3670,3 +3670,40 @@ total wins (Gate 48). The full list is
 `D:\Claude\_handoffs\gate82-phaseA\RECEIPT-ELIGIBLE.md`.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ae. Status at MVP Gate 83 (2026-10-09) — Flow 11 closed; no DS change
+
+Additions only. The DS pin is unchanged at **v2.8.0**. Gate 83 wrote Flow 11's completion record
+(`FLOW-11-COMPLETION.md`) and changed no code. **No `G` entry is opened or closed.**
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**48 entries, 29 closed, 19 open; the highest number is G49.** Derived from §2r's 46 / 29 / 17:
+
+- two opened during Flow 11: G48 (§2u) and G49 (§2z) — so 46 + 2 = **48**;
+- none moved to closed in §2s–§2ad (UI-1, UI-4, `MODEL-2` and its residual carry no `G` number) —
+  so **29**;
+- therefore 48 − 29 = **19** remain open.
+
+The per-tag column is not restated, for §2r's reason. 24 is still a permanent hole.
+
+### Still open from Flow 11, and where the record carries them
+
+- **G48**, **G49**, **G21** (two adopters), **G22** (against `Menu` only), **G32**, **G33** — record §8.1.
+- **`MODEL-1`** — unowned; residual RM 175.32 of the Monthly Budget from the Joint Account.
+- **The zero-amount predicate** (`derive.ts:2112`) — OPEN. Gate 81 handed it to 81-B and 81-B did not
+  address it. No `G` number: it is MVP logic.
+- **The dark `OptionList` unselected row** (§2ac) — **OPEN, Teku's decision**: log it as a DS-round
+  defect, or accept it as intended.
+- **The DS focus trap** (§2ac, both notes) — DS round.
+
+### Two small findings recorded here, not registered
+
+- **`public/media/goals/README.md` says "Two images" and does not list `goal_placeholder.jpg`**
+  (added at Gate 81-B: 600×204, 1,501 bytes, flat `#cfd5dc`). Its provenance lives only in
+  `CLAUDE.md`'s Gate 81-B section.
+- **Two stale comments:** `e2e/harness.ts:1164` (income gets no walk state — false since Gate 82) and
+  the `src/flows/finance/PlansTab.tsx:30` header ("Add New" on neither heading — false since 81-B).
+  Comment-only fixes at the next gate that edits either file.
+
+### Nothing was removed from this register at this gate.
