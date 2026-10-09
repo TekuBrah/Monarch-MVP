@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { PINNED_NOW, THEMES, activateTab, gotoRoute } from './harness'
 import { RECEIPTS_TAB, TRANSACTIONS_TAB, capturedImageName, installResolvingExtraction, openDialogNames, saveOneCapture } from './capture'
 import { UNREAD_FIGURE } from '../src/data/format'
+import { TRANSACTIONS } from '../src/data/transactions'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -141,8 +142,14 @@ for (const theme of THEMES) {
     */
     await page.locator('.mvp-link-picker__search input').fill('Netflix')
     const headings = page.locator('.mvp-link-picker .mvp-section-header')
-    await expect(headings).toHaveCount(1)
-    await expect(headings).not.toHaveText('Suggested')
+    // GATE 82: Netflix now bills monthly, so the searched set spans one month
+    // group per Netflix month (was 1). The count is derived; the claim is the
+    // absence of a 'Suggested' group.
+    const netflixMonths = new Set(
+      TRANSACTIONS.filter((t) => t.merchant === 'Netflix').map((t) => t.occurredAt.slice(0, 7)),
+    ).size
+    await expect(headings).toHaveCount(netflixMonths)
+    await expect(headings.filter({ hasText: 'Suggested' })).toHaveCount(0)
     // AND NO EMPTY-STATE COPY IN ITS PLACE, which is the other half of the rule.
     await expect(page.locator('.mvp-link-picker__empty')).toHaveCount(0)
   })

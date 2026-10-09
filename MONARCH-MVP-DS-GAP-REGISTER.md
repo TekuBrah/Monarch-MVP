@@ -3597,3 +3597,76 @@ grow the card (the floor is a minimum); with two cash accounts no such fixture e
 invented.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ad. Status at MVP Gate 82 (2026-10-09) — the spending history; no DS change
+
+No DS re-pin (v2.8.0), no DS gap opened and none closed; the `G` tally does not move.
+The seed gained 201 rows — 200 purchases and one refund, 21 Sept 2025 – 11 Sept 2026 —
+and the ledger went 53 -> 254. See the Gate 82 section of `CLAUDE.md`.
+
+### THE STANDARD — a change to the seed's shape is checked against seven things
+
+Gate 82 is the second time a seed change reddened an assertion nobody swept for (Gate
+54 was the first; Gate 77 the near-miss). So, for any change to the seed's shape — rows
+added, removed, re-dated or re-amounted:
+
+1. **the budgets' date ranges** — `countsToward` compares the date part, inclusive at
+   both ends (`derive.ts:1725-1726`); a row inside a range moves a photographed ring;
+2. **the `ledgerNow` anchor** (`derive.ts:666`, read at `:741`) — a newer row moves
+   every Transactions date chip and the Homepage's two-row strip;
+3. **the `receiptsNow` anchor** (`derive.ts:1343`, read at `:1377`);
+4. **`candidatesFor` and `rankedSuggestions`** — an exact receipt total makes a row a
+   suggestion, or an auto-match candidate;
+5. **the date-chip counts and the filter ladders** — the harness's `applied` and
+   `empty` prepare steps assert the Apply button's text at every rung;
+6. **screenshot height** — a full-page capture of a seed-backed list grows with it;
+7. **every assertion that COUNTS something on a seed-backed screen, re-read** — not
+   only the visual walk. Gate 82's pre-mint run failed `link-editor.spec.ts:128` in
+   both themes because it counted month headings under a Netflix search; the walk
+   prediction was exact and this one was missed. Grep the suite for the old figures
+   before predicting.
+
+### Deferred items
+
+**1 · Full-page captures of long lists grow with the ledger.**
+- **Where:** every `/finance [tab:transactions]` walk state, `/finance/holding/main`,
+  and the two link-picker states.
+- **Problem:** the snapshot folder went 48 MB (at HEAD) -> 126 MB; each Transactions
+  capture is 18,658 px tall and about 2 MB.
+- **Decision: SOLUTION CONCLUDED, FIX PUT OFF.** Cap the capture height, or capture the
+  viewport plus one scroll per state. The fix waits for the hygiene or retrofit session,
+  because it moves the same 56 baselines again and is a different subject from the seed.
+
+**2 · The harness clock precedes the newest ledger row.**
+- **Where:** `PINNED_NOW` in `e2e/harness.ts` (15 Aug 2026) against `txn-ifruits-0912`
+  (12 Sept 2026).
+- **Problem:** pre-existing since Gate 53; a reader can mistake the harness date for the
+  app's "today".
+- **Decision: PAUSED.** Nothing reads the harness clock for ledger dates — the date chips
+  anchor on `ledgerNow`.
+
+**3 · No payment-method variety in the new rows.**
+- **Where:** all 201 Gate 82 rows are `Card Payment` on `main`.
+- **Problem:** the history shows one method and one account.
+- **Decision: SHIPPED.** Revisit when a flow introduces other methods.
+
+**4 · Merchants without a logo are absent.**
+- **Where:** the seed — no electricity (TNB) or water bills.
+- **Problem:** a utility-bill history is missing.
+- **Decision: DEFERRED.** Logos are Teku's outstanding work and no fallback rendering
+  exists for a merchant without one.
+
+**5 · AIA is absent from the history.**
+- **Where:** the seed.
+- **Problem:** an annual premium would be realistic.
+- **Decision: OMITTED.** Its RM 320 premium already carries a receipt, and a repeat would
+  make the receipt-glyph test's amount key ambiguous.
+
+### The receipt-eligible rows
+
+129 of the 200 purchases are eligible for a receipt, and 89 are proposed (45% of all
+purchases). **Amounts on that list are PROVISIONAL**: when a receipt arrives its printed
+total wins (Gate 48). The full list is
+`D:\Claude\_handoffs\gate82-phaseA\RECEIPT-ELIGIBLE.md`.
+
+### Nothing was removed from this register at this gate.

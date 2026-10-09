@@ -894,7 +894,8 @@ export const OVERLAY_STATES: WalkState[] = [
   //
   // IT LANDS EXACTLY ON `TRANSACTION_FILTER_APPLIED`, WHICH IS THE POINT
   // rather than a coincidence: this walks the sheet to that constant — Type
-  // Card Payment, RM 0-500 — over the 53-row ledger, and the prepare steps'
+  // Card Payment, RM 0-500 — over the 254-row ledger (53 rows until Gate 82),
+  // and the prepare steps'
   // own assertions prove it arrived.
   //
   // IT WAS FIGMA'S OWN FOUR CHIPS UNTIL GATE 53, AND THE DATE FACET IS WHAT
@@ -907,14 +908,16 @@ export const OVERLAY_STATES: WalkState[] = [
   // demonstrate filtering. The full derivation, including every candidate that
   // was measured and rejected, is on `TRANSACTION_FILTER_APPLIED` itself.
   //
-  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 53 rows at open, 16
-  // after Type = Card Payment (the 7 Fund Transfers and 2 Crypto Transfers drop
-  // out), 14 after the RM 500 cap (`txn-ikea-0908` at -830.83 and
-  // `txn-ikea-0815` at -2647.67 drop out). A step that silently failed would
+  // THE COUNTS ARE A LADDER AND EACH RUNG IS ASSERTED: 254 rows at open, 217
+  // after Type = Card Payment (the 35 Fund Transfers and 2 Crypto Transfers drop
+  // out), 213 after the RM 500 cap (`txn-ikea-0815` at -2647.67,
+  // `txn-ikea-251129` at -1249.30, `txn-ikea-0908` at -830.83 and
+  // `txn-aeon-260430` at -501.35 drop out). A step that silently failed would
   // land on the wrong rung and fail there rather than minting a baseline of a
   // filter nobody asked for.
   //
-  // THE LADDER READ 23 -> 18 -> 16 UNTIL GATE 53, AND 23 -> 18 -> 15 BEFORE
+  // THE LADDER READ 53 -> 16 -> 14 UNTIL GATE 82 (Gate 77's figures; the type
+  // and cap rungs since Gate 53), 23 -> 18 -> 16 UNTIL GATE 53, AND 23 -> 18 -> 15 BEFORE
   // GATE 48. THESE NUMBERS ARE DERIVED, NOT DECORATIVE — re-derive them against
   // `filterTransactions` rather than editing them to make a run go green.
   //
@@ -950,7 +953,7 @@ export const OVERLAY_STATES: WalkState[] = [
           controlName: 'Card Payment',
           action: 'click',
           settlesOn: '.mn-sheet__actions .mn-btn',
-          settlesText: 'Apply Filter · 16 results',
+          settlesText: 'Apply Filter · 217 results', // Gate 82: 16 -> 217
         },
         {
           // THE INPUT, NOT THE THUMB. `RangeSlider` puts the SAME
@@ -962,12 +965,12 @@ export const OVERLAY_STATES: WalkState[] = [
           action: 'fill',
           value: '500',
           settlesOn: '.mn-sheet__actions .mn-btn',
-          settlesText: 'Apply Filter · 14 results',
+          settlesText: 'Apply Filter · 213 results', // Gate 82: 14 -> 213
         },
       ],
       confirm: {
         control: '.mn-sheet__actions .mn-btn',
-        controlLabel: 'Apply Filter · 14 results',
+        controlLabel: 'Apply Filter · 213 results',
         // THE CHIP ROW IS THE SETTLE TARGET, DELIBERATELY. The ledger's row
         // count is not directly assertable as text, but the chip row is — and
         // it is also the thing this state exists to cover. Two chips and only
@@ -995,13 +998,14 @@ export const OVERLAY_STATES: WalkState[] = [
   // net entirely. This is the state that closes that.
   //
   // REACHED THROUGH THE FACETS ALONE, WITH NO SEARCH TERM. Measured over the
-  // 53-row seed: five date×type pairs return zero, and this is the shortest of
+  // 254-row seed (re-measured at Gate 82; 53 rows before it): five date×type
+  // pairs return zero, and this is the shortest of
   // them — two taps, no typing, so nothing about the ladder depends on the
   // search box being exercised.
   //
   // EVERY RUNG CHANGES THE APPLY TEXT, which is what stops a step that silently
   // did nothing from minting a baseline of a filter nobody asked for:
-  // 53 → 2 → No results.
+  // 254 → 9 → No results (53 → 2 until Gate 82).
   {
     route: '/finance',
     tab: { id: 'transactions', label: 'Transactions' },
@@ -1016,12 +1020,12 @@ export const OVERLAY_STATES: WalkState[] = [
           controlName: 'This Month',
           action: 'click',
           settlesOn: '.mn-sheet__actions .mn-btn',
-          settlesText: 'Apply Filter · 2 results',
+          settlesText: 'Apply Filter · 9 results', // Gate 82: 2 -> 9
         },
         {
           // SCOPED TO `.mn-toggle-chip`, AND HERE THAT IS MANDATORY RATHER THAN
-          // TIDY: "Fund Transfer" is also the METHOD CAPTION on 35 of the 53
-          // ledger rows behind the sheet, so an unscoped text lookup would be
+          // TIDY: "Fund Transfer" is also the METHOD CAPTION on 35 of the 254
+          // ledger rows behind the sheet (53 until Gate 82), so an unscoped text lookup would be
           // ambiguous 36 times over. Same reading the sibling state records for
           // "Card Payment", which collides 16 times.
           //
@@ -1145,8 +1149,9 @@ export const OVERLAY_STATES: WalkState[] = [
   // select by amount because all 23 ledger magnitudes were then distinct; Gate 77
   // relocated 28 contributions into the ledger and TWELVE of them are -250.00, so
   // `:has-text("RM 250.00")` names twelve rows and would fail Playwright's strict
-  // mode. `occurredAt` is distinct across all 53 rows (measured), and only two
-  // render "15 Aug" at all — this one at 09:00 and `txn-ikea-0815` at 16:40.
+  // mode. `occurredAt` is distinct across all 254 rows (re-measured at Gate 82;
+  // 53 before it), and only three render "15 Aug" at all — this one at 09:00,
+  // `txn-giant-260815` at 14:13 (Gate 82) and `txn-ikea-0815` at 16:40.
   //
   // ONE STATE AND NOT TWO, AND THE SECOND ONE IS DELIBERATELY DECLINED. A
   // non-goal transfer (`txn-granddaughter-0911`) differs from this only by TWO
@@ -1169,6 +1174,22 @@ export const OVERLAY_STATES: WalkState[] = [
       id: 'detail-transfer',
       control: '.mvp-transactions__list > li:has-text("15 Aug, 09:00") .mn-list-item',
       controlLabel: 'Bali Trip Fund Transfer -RM 250.00 15 Aug, 09:00',
+      title: 'Transaction details',
+    },
+  },
+  // ─────────────────────────────────────────────────────────────── Gate 82 ──
+  // THE INCOME BRANCH, PHOTOGRAPHED FOR THE FIRST TIME. Until Gate 82 every
+  // seeded credit was a transfer, so the detail sheet's income body had no walk
+  // state. `txn-ikea-refund-260117` is a partial IKEA refund: `kind: 'payment'`
+  // with a positive amount, which `transactionDisposition` classifies as income.
+  // Selected by its signed amount — '+RM 129.00' names exactly one row.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'detail-income',
+      control: '.mvp-transactions__list > li:has-text("+RM 129.00") .mn-list-item',
+      controlLabel: 'IKEA Card Payment +RM 129.00 17 Jan, 11:05',
       title: 'Transaction details',
     },
   },
@@ -2171,8 +2192,9 @@ export const OVERLAY_STATES: WalkState[] = [
           action: 'fill',
           // RM 125.50 — TWO DECIMALS ON PURPOSE, so the write exercises the
           // sen path rather than a whole ringgit, and NOT a magnitude the seed
-          // already holds (measured: the 53 seeded rows carry 32 distinct
-          // magnitudes and 125.50 is not among them), so the row this creates
+          // already holds (measured: the 254 seeded rows carry 162 distinct
+          // magnitudes and 125.50 is not among them — re-measured at Gate 82;
+          // at 53 rows it was 32), so the row this creates
           // cannot be confused with a seeded one by a figure-based locator.
           value: '125.50',
           /*

@@ -59,7 +59,7 @@ function row(id: string, occurredAt: string, amount: number, category: Transacti
 }
 
 test('the seeded ledger is the shape the budgets are derived over', () => {
-  expect(TRANSACTIONS).toHaveLength(53)
+  expect(TRANSACTIONS).toHaveLength(254)
   const byMonth = new Map<string, number>()
   for (const t of TRANSACTIONS) {
     const month = t.occurredAt.slice(0, 7)
@@ -77,20 +77,21 @@ test('the seeded ledger is the shape the budgets are derived over', () => {
     SPENDING seed, not of the contributions, and adjusting it is a product
     call nobody has made - recorded here rather than fixed.
   */
+  // GATE 82 FILLED THE GAP: 201 rows dated 21 Sept 2025 – 11 Sept 2026.
   expect(Object.fromEntries(byMonth)).toEqual({
-    '2026-09': 2,
-    '2026-08': 2,
-    '2026-07': 4,
-    '2026-06': 2,
-    '2026-05': 3,
-    '2026-04': 3,
-    '2026-03': 3,
-    '2026-02': 2,
-    '2026-01': 2,
-    '2025-12': 2,
-    '2025-11': 2,
-    '2025-10': 2,
-    '2025-09': 19,
+    '2026-09': 9,
+    '2026-08': 19,
+    '2026-07': 22,
+    '2026-06': 18,
+    '2026-05': 20,
+    '2026-04': 20,
+    '2026-03': 21,
+    '2026-02': 18,
+    '2026-01': 21,
+    '2025-12': 20,
+    '2025-11': 19,
+    '2025-10': 18,
+    '2025-09': 24,
     '2025-08': 5,
   })
 
@@ -298,7 +299,7 @@ test('every seeded row carries an explicit kind, and the transfers are classifie
     'txn-maybank-0828',
   ])
   expect(TRANSACTIONS.filter((t) => t.goalId !== undefined)).toHaveLength(28)
-  expect(TRANSACTIONS.filter((t) => t.kind === 'payment')).toHaveLength(20)
+  expect(TRANSACTIONS.filter((t) => t.kind === 'payment')).toHaveLength(221) // Gate 82: 20 + 201
 
   // BOTH CRYPTO TRANSFERS ARE TRANSFERS (Teku, 30 Sept 2026): crypto in Monarch
   // is an investment move or money sent to a person, never a purchase.
@@ -308,13 +309,18 @@ test('every seeded row carries an explicit kind, and the transfers are classifie
 
   // THE THREE INBOUND CREDITS ARE TRANSFERS TOO, and there is deliberately no
   // 'income' kind: direction is carried by the sign, which countsToward reads.
-  const credits = TRANSACTIONS.filter((t) => t.amount > 0)
+  // GATE 82: the refund txn-ikea-refund-260117 is the one credit that is a
+  // PAYMENT (income), so the three transfer credits are now filtered by kind.
+  const allCredits = TRANSACTIONS.filter((t) => t.amount > 0)
+  expect(allCredits.filter((t) => t.kind === 'payment').map((t) => t.id)).toEqual([
+    'txn-ikea-refund-260117',
+  ])
+  const credits = allCredits.filter((t) => t.kind === 'transfer')
   expect(credits.map((t) => t.id).sort()).toEqual([
     'txn-maybank-0828',
     'txn-maybank-0907',
     'txn-rachum-0911',
   ])
-  expect(credits.every((t) => t.kind === 'transfer')).toBe(true)
 
   // AND FOUR OF THE SEVEN NON-CONTRIBUTION FUND TRANSFERS ARE PAYMENTS —
   // 'Fund Transfer' is a payment rail, not a movement type. Gate 77's 28

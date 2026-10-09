@@ -89,7 +89,7 @@ test.describe('the premises the two walk states rest on', () => {
       { ...TRANSACTION_FILTER_ALL, dateRange: 'this-month', methods: ['Fund Transfer'] },
       '',
     )
-    expect([unfiltered.length, afterDate.length, afterType.length]).toEqual([53, 2, 0])
+    expect([unfiltered.length, afterDate.length, afterType.length]).toEqual([254, 9, 0]) // Gate 82: was [53, 2, 0]
   })
 
   test('the receipts applied filter matches nothing, which is what makes its state a zero result', () => {
@@ -155,7 +155,7 @@ test.describe('the wiring', () => {
     await gotoRoute(page, '/finance', 'light')
     await activateTab(page, TRANSACTIONS_TAB)
 
-    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(53)
+    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(254)
     await expect(page.locator(BLOCK)).toHaveCount(0)
 
     await applySheetChips(await openTransactionFilter(page), [
@@ -263,7 +263,7 @@ test.describe('the wiring', () => {
     await page.getByRole('button', { name: 'Show all transactions' }).click()
 
     await expect(page.locator(BLOCK)).toHaveCount(0)
-    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(53)
+    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(254)
     await expect(page.locator('.mvp-transactions__chips').locator('li')).toHaveCount(0)
   })
 
@@ -296,7 +296,7 @@ test.describe('the wiring', () => {
     await expect(page.locator(BLOCK)).toHaveCount(0)
     await expect(search).toHaveValue('')
     await expect(page.locator('.mvp-transactions__chips').locator('li')).toHaveCount(0)
-    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(53)
+    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(254)
   })
 
   test('a SEARCH-ONLY zero renders the block too, with no facet in force', async ({
@@ -318,7 +318,7 @@ test.describe('the wiring', () => {
     await expect(page.locator('.mvp-transactions__chips').locator('li')).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Show all transactions' }).click()
-    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(53)
+    await expect(page.locator('.mvp-transactions__list > li')).toHaveCount(254)
   })
 
   test('THE LIVE REGION IS ON THE BLOCK AND NOT ON THE LIST', async ({ page }) => {

@@ -76,7 +76,7 @@ test.describe('the disposition rule', () => {
     const counts = { purchase: 0, transfer: 0, income: 0 }
     for (const t of TRANSACTIONS) counts[transactionDisposition(t)] += 1
 
-    expect(counts.purchase).toBe(20)
+    expect(counts.purchase).toBe(220) // Gate 82: 20 + 200
     expect(counts.transfer).toBe(33)
     /*
       ZERO, AND IT IS A MEASUREMENT RATHER THAN AN OVERSIGHT. All three of this
@@ -86,7 +86,8 @@ test.describe('the disposition rule', () => {
       fails and whoever added it has to come and look at the render that has no
       walk state.
     */
-    expect(counts.income).toBe(0)
+    // GATE 82 ADDED THE FIRST INCOME ROW: txn-ikea-refund-260117, a refund.
+    expect(counts.income).toBe(1)
     expect(counts.purchase + counts.transfer + counts.income).toBe(TRANSACTIONS.length)
   })
 
@@ -97,12 +98,18 @@ test.describe('the disposition rule', () => {
       still be right, which is exactly why this is asserted on the rows and not
       on the totals.
     */
-    const credits = TRANSACTIONS.filter((t) => t.amount >= 0)
-    expect(credits.map((t) => t.id).sort()).toEqual([
+    // GATE 82: the refund is the one credit that is NOT a transfer; it is
+    // asserted as income here and excluded from the loop below.
+    const allCredits = TRANSACTIONS.filter((t) => t.amount >= 0)
+    expect(allCredits.map((t) => t.id).sort()).toEqual([
+      'txn-ikea-refund-260117',
       'txn-maybank-0828',
       'txn-maybank-0907',
       'txn-rachum-0911',
     ])
+    expect(transactionDisposition(byId('txn-ikea-refund-260117'))).toBe('income')
+    const credits = allCredits.filter((t) => t.kind === 'transfer')
+    expect(credits).toHaveLength(3)
     for (const t of credits) {
       expect(transactionDisposition(t), `${t.id} is a credit AND a transfer`).toBe('transfer')
     }
@@ -118,7 +125,7 @@ test.describe('the disposition rule', () => {
 
   test('canCarryReceipt admits exactly the purchases', () => {
     const admitted = TRANSACTIONS.filter(canCarryReceipt)
-    expect(admitted).toHaveLength(20)
+    expect(admitted).toHaveLength(220) // Gate 82: 20 + 200
     for (const t of admitted) expect(transactionDisposition(t)).toBe('purchase')
     // AND NO CONTRIBUTION IS AMONG THEM — the `MODEL-2` finding, inverted.
     expect(admitted.filter((t) => t.goalId !== undefined)).toEqual([])
