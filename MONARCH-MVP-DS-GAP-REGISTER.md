@@ -3707,3 +3707,39 @@ The per-tag column is not restated, for §2r's reason. 24 is still a permanent h
   Comment-only fixes at the next gate that edits either file.
 
 ### Nothing was removed from this register at this gate.
+
+## 2af. Status at MVP Gate 84 (2026-10-09) — the data lineage map; no DS change
+
+Additions only. The DS pin is unchanged at **v2.8.0**. Gate 84 wrote `MONARCH-MVP-DATA-LINEAGE.md`
+and changed no code. **No `G` entry is opened or closed.**
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**48 entries, 29 closed, 19 open; the highest number is G49** — unchanged from §2ae, because nothing
+was opened or closed.
+
+### One DS-side finding, recorded and not registered
+
+- **`HeaderBg` has no avatar click handler.** Its props are `variant, background, greeting, title,
+  avatarSrc, avatarName, statusBarTime, searchValue, onSearchChange, hasNotification,
+  onNotificationsClick, className` (`dist/components/Header/HeaderBg.d.ts:20` at v2.8.0). The
+  persistence gate's Reset-data control is to open from the Marge profile picture, which `HeaderBg`
+  renders (`HomepageScreen.tsx:68`, `FinanceScreen.tsx:91`). Under rule 3 that needs either a DS prop
+  or a different entry point. **Not opened as a `G` number**: no surface has been designed against it
+  and the entry point is Teku's decision. Map §8.4 and §10 R8.
+
+### MVP-side findings, recorded here for the persistence gate (no `G` number — MVP logic)
+
+- **Captured receipt ids restart at 1 on every load** (`receiptCapture.ts:31`, `:461`) and would
+  collide with stored ids. Map §8.2, R5.
+- **Object URLs in stored records** — `Receipt.sourceUrl`, `Goal.image` (upload), and the goal image
+  URL copied onto ledger rows (`GoalDetailScreen.tsx:164`, `:232`). Map §8.2, R4.
+- **A replaced or deleted uploaded goal image is never revoked** (page-lifetime leak). Map §9 D15.
+- **Budgets, goals and receipts can already be emptied through the UI.** The Receipts tab at zero shows
+  the no-results copy, whose "Show all receipts" action cannot help. Contradicts `NoResults.tsx:12-13`.
+  Map §8.5, §9 D4.
+- **Stale comments** in `AccountsProvider.tsx` (mutator, call-site and atom counts), `derive.ts:2193`
+  (receipt ids) and `FinanceScreen.tsx:142-143`. Map §9 D5–D11. Comment-only fixes at the next gate
+  that edits each file.
+
+### Nothing was removed from this register at this gate.

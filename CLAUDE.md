@@ -18535,3 +18535,35 @@ the same in its filesystem and git-blob forms). No DS re-pin: v2.8.0 applies thr
 - **Two decisions are Teku's and OPEN:** the dark Funding Source picker's black second row (a DS
   `OptionList` behaviour), and the Transactions list's year-less date labels (`formatTimestamp`,
   `src/data/format.ts:121`, rendered at `src/flows/finance/TransactionsLedger.tsx:429`).
+
+## The data lineage map (Gate 84)
+
+**THE MVP'S DATA ARCHITECTURE IS MAPPED IN `MONARCH-MVP-DATA-LINEAGE.md` AT THE REPO ROOT.** Read it
+before the persistence gate and before any gate that adds a writer, a stored field, an id generator
+or a date anchor. It covers the seed modules and what is stored versus derived, every state atom and
+writer, every derivation, the four date anchors, screen-to-data lineage with end-to-end traces, the
+receipt and OCR path, the test-side data, and the persistence hazards; recommendations are kept to
+its §10. **Do not restate its content here.** If the two disagree, re-derive from disk, correct
+whichever is wrong, and say so.
+
+Gate 84 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every
+baseline is byte-identical (308, digest `735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`,
+the same in its filesystem and git-blob forms). No DS re-pin: v2.8.0 applies throughout. Register
+§2af records the gate; the tally does not move.
+
+**THE FILE NAME FOLLOWS DISK, NOT THE GATE BRIEF.** The brief expected `DATA-LINEAGE-MAP.md`; the Flow
+11 plan in this file and `FLOW-11-COMPLETION.md` §12 both name it `MONARCH-MVP-DATA-LINEAGE.md`, which
+also matches the `MONARCH-MVP-*` naming of the repo's other standing documents.
+
+**THREE THINGS THE MAP FOUND THAT THE PERSISTENCE GATE WOULD OTHERWISE GET WRONG:**
+
+- **Captured receipt ids restart on every load.** They are `receipt-capture-${captureSeq}` from a
+  module counter (`src/flows/finance/receiptCapture.ts:31`, `:461`), so the first capture after a
+  reload would collide with a stored id. Every other id generator is a UUID.
+- **Three kinds of record hold object URLs that die on reload:** a captured receipt's `sourceUrl`, an
+  uploaded goal image in `Goal.image`, and — easy to miss — every ledger row written after such an
+  upload, which copies the goal's image URL into `Transaction.logo`.
+- **The app already has persistent browser storage, and it is not the app's.** tesseract.js caches
+  the language model in IndexedDB through `idb-keyval`'s default store. `src/` itself touches no
+  `localStorage`, `sessionStorage` or `indexedDB`. A Reset control must not clear that cache by
+  accident.
