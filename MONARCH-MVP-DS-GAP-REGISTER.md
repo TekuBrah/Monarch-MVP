@@ -3743,3 +3743,80 @@ was opened or closed.
   that edits each file.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ag. Status at MVP Gate 85 (2026-10-10) — persistence; no DS change
+
+Additions only. The DS pin is unchanged at **v2.8.0**. Gate 85 added `src/persistence/` (seven modules,
+IndexedDB through `idb` 8.0.4) and changed no DS file. **No `G` entry is opened or closed.**
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**48 entries, 29 closed, 19 open; the highest number is G49** — unchanged from §2af, because nothing was
+opened or closed. The full account, rulings and measurements are in `CLAUDE.md`'s "Persistence — the
+first storage layer (Gate 85)".
+
+### THE STANDARDS this gate leaves (MVP logic — no `G` number)
+
+- **An edit to the seed resets every tester's saved data.** The seed fingerprint is a hash of the five
+  seeds as authored, before the load-time backfills; a mismatch discards stored data on load and logs
+  `seed-changed` (not a quarantine). **A seed gate must now also check this consequence** — Gate 82-style
+  work on `src/data/*.ts` wipes every tester who has data.
+- **The reload rule, restated.** Cross-screen assertions still navigate through the app's own controls
+  (they prove the in-memory state); a persistence test reloads on purpose and asserts the data KEPT,
+  after waiting for the write to commit.
+- **Persist from committed state, never from inside an updater.** A state updater must be pure.
+- **A stored shape and a runtime shape meet only at the storage boundary** (`boundary.ts`); the database
+  never holds an object URL, and nothing here opens, clears or deletes another database
+  (`keyval-store` is tesseract.js's).
+
+### MVP-side findings from Phase B — reported, not fixed
+
+- **Mutation `P5` passes: the image registry's `seen` guard has no test that can fail.** It protects an
+  image adopted a moment before the record naming it commits, against a write already in flight. No test
+  overlaps two writes.
+- **Mutation `P10` exposed a weak assertion** (a hang, not an assertion failure, when `keyval-store` was
+  deleted); strengthened in `e2e/persistence.spec.ts` and the whole set re-run.
+- **A newer-schema store has four independent guards** (database closed; `flush`'s mode check; the
+  schema check inside the write transaction; the revision guard). The test pins the outcome only;
+  mutation `P8` removes all four.
+- **"Change one seed value and the fingerprint test must fail" cannot be literal**: the test compares two
+  values from the same seed. Proved instead by `P14` (forged stored fingerprint) and `P14c` (a
+  value-blind fingerprint). A real seed edit was run as a control; the test stays green, as it must.
+- **Coverage gaps against Phase A's design outline** — no test for the persistence of receipt link,
+  unlink, edit, delete or replace; goal edit, delete, auto-save switch and amount; budget create and
+  edit; a deleted receipt's bytes leaving the store; a deleted goal keeping an image its rows still name.
+- **`AccountsProvider.tsx`'s header still says "a provider holding two arrays"** (it holds five atoms).
+  Outside this gate's edit list; comment-only fix at the next gate that edits the file.
+
+### Closed by this gate, from §2af's list
+
+- **Captured receipt ids restart at 1 on every load** — closed: ids are `receipt-capture-<uuid>`.
+- **Object URLs in stored records** — closed: the storage boundary swaps them for image ids.
+- **An uploaded goal image was never revoked** — closed: an image is released when no committed record
+  names it, in the same transaction that drops its bytes.
+- The "no persistence" clause in `AccountsProvider.tsx` near line 114 — corrected.
+
+### Deferred items, with where / what / decision
+
+- **No `navigator.storage.persist()` request** (`store.ts`) — Firefox prompts, an undesigned UI. Solution
+  concluded; fix put off.
+- **No user notice on a save failure or a reset** (`diagnostics.ts`) — solution concluded; fix put off to
+  the settings-modal gate.
+- **Safari's seven-day cap** — a known platform limit; testers add the app to the home screen.
+- **The theme is not persisted** (`ThemeProvider`) — solution concluded; fix put off to the
+  settings-modal gate, read synchronously before first paint.
+- **Date chips after a persisted write** — ruled 4A: a write dated after 12 Sept 2026 becomes the newest
+  ledger row and "This Month" means its month until a reset. Revisit at the next seed re-dating.
+- **`TransactionDetailSheet.tsx` reads seed `HOLDINGS`** — correct today (names only); a defect only if
+  accounts can be renamed. Unowned.
+- **An emptied collection persists** (map D4; the receipt library at zero shows a "Show all receipts"
+  action that does nothing useful) — handed to the first-run empty-state gate.
+- **Two `npm audit` high findings** (`js-yaml`; `source-map-js` via `vite` -> `postcss`) predate this gate
+  and do not come from `idb` — paused to the hygiene round.
+- **Whole-collection rewrites** stop being acceptable around 10,000 ledger rows (about 252 bytes a row) —
+  solution concluded (a versioned migration to per-row records); fix put off until needed.
+- **The one screen edit** (`GoalDetailScreen.tsx`: `registerImage` for `URL.createObjectURL`) was outside
+  Phase A's closed list; accepted retroactively by Claude, 10 Oct; overturnable by Teku. Pinned by
+  mutation `SC1`.
+
+### Nothing was removed from this register at this gate.

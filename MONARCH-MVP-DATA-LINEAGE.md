@@ -883,3 +883,41 @@ dated after the seed's newest row moves the Transactions date chips to the devic
 makes such writes accumulate. Options include leaving it (it is correct behaviour for a live app),
 or shifting the seed's dates relative to the first run. *Why it matters now:* testers will reopen
 the app on later dates and see "This Month" change meaning.
+
+## Status note after Gate 85 (2026-10-10) — persistence now exists
+
+**This map was written at Gate 84, for the persistence gate that followed. Gate 85 built that layer
+(`src/persistence/`, IndexedDB through `idb`; see `CLAUDE.md`'s "Persistence — the first storage layer
+(Gate 85)"). The text above is left exactly as written. Where it describes the app before Gate 85, it
+is history, and the sections below are superseded or partly superseded.**
+
+**Still accurate, as written:** §1 (sources of truth), §3 (derivations), §5 (screen-to-data lineage,
+except the sentences that say a reload reseeds), and §6.1–§6.2 (the OCR seam and what leaves the device).
+
+**Superseded — they describe the pre-persistence app:**
+
+- **§2 (the store), above all §2.2, §2.4 and §2.5.** The five atoms are now persisted behind
+  `AccountsProvider` and `BudgetsProvider`; "what a persistence layer would store" is what is stored.
+  The module-level state in §2.5 is no longer all lost on reload: the two capture facts now live on the
+  stored receipt (`captureFacts.ts`), and only genuinely UI state still resets.
+- **§4.2 (the device clock also creates data).** A write dated after the seed's newest row now lasts
+  across reopens and moves the Transactions chips' meaning until a reset (ruled 4A at Gate 85).
+- **§6.3 (where images and parsed results live) and the object-URL statements elsewhere.** Images are now
+  Blobs in the database, keyed by image id; the runtime still renders object URLs, mapped at the storage
+  boundary.
+- **§7.1 and §7.2 (test-side data).** "A reload reseeds" is no longer true, and the "navigate once because
+  a reload reseeds" rule is replaced: a persistence test reloads on purpose and asserts the data KEPT.
+  Of the "three specs" §7.2 expected to invert, **one assertion did** (`budget-writers.spec.ts`).
+- **§8 (persistence attachment points and hazards) — the whole section.** It describes what would have to
+  be done; it has been done. The hazards it lists (object URLs, restarting ids, the capture side stores,
+  seed-versus-user data, reset) are each handled; §8.4 (Reset data) exists as `resetToSeed()`, with no
+  UI entry point yet.
+- **§9 (discrepancies).** D15 (an uploaded goal image never revoked) is closed. D4 (an emptied collection)
+  is now durable and is handed to the first-run empty-state gate. The comment items (D5–D11) are
+  unchanged except the "no persistence" clause in `AccountsProvider.tsx`.
+- **§10 (recommendations for the persistence gate).** Carried out, with these differences: the store is
+  IndexedDB (R2's `localStorage` option cannot hold images, 5 MiB of strings), and receipt ids became
+  `receipt-capture-<uuid>`.
+
+**Two statements in this document were wrong when written:** the Gate 84 commit message says 883 lines
+and the file is 885; and §7.2's "three specs" was one assertion. Neither is edited.

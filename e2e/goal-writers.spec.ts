@@ -24,10 +24,12 @@ import { gotoRoute } from './harness'
  * NO BASELINE. Everything here is a FIGURE or a STRUCTURE, and the six walk
  * states carry the pixels.
  *
- * ⚠ THE RELOAD RULE GOVERNS EVERY BROWSER TEST IN THIS FILE. Nothing is
- * persisted (NP1), so `page.goto` discards the write and a spec that navigated
- * by URL would pass against a writer that did nothing at all — Gate 81 reported
- * exactly that near-miss. EVERY cross-screen assertion below therefore moves
+ * ⚠ THE RELOAD RULE GOVERNS EVERY BROWSER TEST IN THIS FILE. Until Gate 85
+ * nothing was persisted, so `page.goto` discarded the write and a spec that
+ * navigated by URL would have passed against a writer that did nothing at all —
+ * Gate 81 reported exactly that near-miss. Since Gate 85 a reload keeps the
+ * write (`persistence.spec.ts`), and the app's own controls remain the stronger
+ * proof of the in-memory state. EVERY cross-screen assertion below therefore moves
  * through the app's own controls: the header's Back, the tab bar's own tabs.
  * ═════════════════════════════════════════════════════════════════════════════
  */
@@ -504,9 +506,9 @@ test('a goal that holds nothing closes without writing a row', async ({ page }) 
     this test it was held by code alone: `confirmDelete` builds no row when
     `held` is 0, and `deleteGoal` throws if one arrives for an empty goal.
 
-    EVERYTHING IS DONE THROUGH THE APP'S OWN CONTROLS. `page.goto` discards the
-    write (NP1), so a spec that navigated by URL would pass against a writer
-    that did nothing at all.
+    EVERYTHING IS DONE THROUGH THE APP'S OWN CONTROLS, which prove the
+    in-memory state. (Until Gate 85 `page.goto` also discarded the write; it
+    now keeps it.)
   */
   await openPlans(page)
   await page.getByRole('tab', { name: 'Transactions' }).click()

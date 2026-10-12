@@ -19,25 +19,38 @@ import './index.css'
 import { ThemeProvider } from './theme/ThemeProvider'
 import { AccountsProvider } from './accounts/AccountsProvider'
 import { BudgetsProvider } from './budgets/BudgetsProvider'
+import { hydrate } from './persistence/store'
 import App from './App'
 
 const rootEl = document.getElementById('root')
 if (!rootEl) throw new Error('Root element #root not found in index.html')
 
-createRoot(rootEl).render(
-  <StrictMode>
-    <ThemeProvider>
-      {/* App-level, above the router: the balance is read by four flows and
-          written by three (inventory §4b W1), so it cannot be route-scoped. */}
-      <AccountsProvider>
-        {/* Flow 10 (Gate 67): budgets are derived from the ledger above, and
-            must outlive a Finance tab switch and the drilldown route. */}
-        <BudgetsProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </BudgetsProvider>
-      </AccountsProvider>
-    </ThemeProvider>
-  </StrictMode>,
-)
+/*
+  GATE 85 (D-2): READ THE STORE, THEN RENDER — ONCE. Nothing renders until the
+  stored state is known, so there is no frame of seed data to flash and a deep
+  link to a user-created goal or budget resolves instead of being redirected
+  away by its unknown-id backstop. Until then the page shows only the
+  background `index.css` already paints. `hydrate()` never rejects: a missing,
+  failing, slow (4 s) or newer-schema store still ends in a working app. When it
+  resolves it sets `data-store` on #root — the readiness signal the harness waits
+  for. A promise, not top-level await: the Vite build target (es2020) has none.
+*/
+void hydrate().then(() => {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <ThemeProvider>
+        {/* App-level, above the router: the balance is read by four flows and
+            written by three (inventory §4b W1), so it cannot be route-scoped. */}
+        <AccountsProvider>
+          {/* Flow 10 (Gate 67): budgets are derived from the ledger above, and
+              must outlive a Finance tab switch and the drilldown route. */}
+          <BudgetsProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </BudgetsProvider>
+        </AccountsProvider>
+      </ThemeProvider>
+    </StrictMode>,
+  )
+})

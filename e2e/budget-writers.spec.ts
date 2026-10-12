@@ -370,7 +370,7 @@ test('Delete asks first; Cancel returns to Edit; Delete lands on the Budget tab 
   await expect(page.locator('#tab-budget')).toHaveAttribute('aria-selected', 'true')
 })
 
-test('deleting every budget leaves only the Add New card, and a reload restores the seed', async ({
+test('deleting every budget leaves only the Add New card, and a reload KEEPS the deletion', async ({
   page,
 }) => {
   await openBudgetTab(page)
@@ -385,14 +385,41 @@ test('deleting every budget leaves only the Add New card, and a reload restores 
   await expect(page.locator('.mvp-budget > *')).toHaveCount(1)
   await expect(page.locator('.mn-card-monthly-budget--add-new')).toHaveCount(1)
 
-  // NP1: nothing is persisted.
+  /*
+    GATE 85 INVERTED THIS. Until then nothing was persisted and a reload
+    restored the seed; now the deletion is stored, so a reload must KEEP it.
+    A write is durable only once its transaction commits, so poll the store
+    for the empty collection BEFORE reloading — reloading straight after the
+    click would race the asynchronous write.
+  */
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<number | null>((resolve, reject) => {
+            const request = indexedDB.open('monarch-mvp')
+            request.onerror = () => reject(request.error)
+            request.onsuccess = () => {
+              const database = request.result
+              const get = database.transaction('records').objectStore('records').get('budgets')
+              get.onsuccess = () => {
+                database.close()
+                resolve(Array.isArray(get.result) ? get.result.length : null)
+              }
+            }
+          }),
+      ),
+    )
+    .toBe(0)
+
   await page.reload()
   // The history entry still carries `{ financeTab: 'budget' }` (Gate 69's
   // handoff survives a reload), so the Budget tab is already selected.
   await expect(page.locator('#tab-budget')).toHaveAttribute('aria-selected', 'true')
-  await expect(budgetCards(page)).toHaveCount(BUDGETS.length)
+  await expect(budgetCards(page)).toHaveCount(0)
+  await expect(page.locator('.mvp-budget > *')).toHaveCount(1)
+  await expect(page.locator('.mn-card-monthly-budget--add-new')).toHaveCount(1)
   await expect(page.locator('.mn-toast-mobile')).toHaveCount(0)
-  for (const [i, budget] of BUDGETS.entries()) await expectCard(budgetCards(page).nth(i), budget)
 })
 
 test('the form validates in the browser: a left field shows invalid, and Save with it writes nothing', async ({

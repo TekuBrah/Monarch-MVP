@@ -28,8 +28,8 @@ import { gotoRoute } from './harness'
  * (un)capped — and a longer list is reasoned about in the register entry rather
  * than invented as a fixture.
  *
- * THE RELOAD RULE applies: nothing is persisted (NP1), and every test here
- * stays on one page and uses only the app's own controls.
+ * THE RELOAD RULE applies: every test here stays on one page and uses only the
+ * app's own controls. (This read "nothing is persisted (NP1)" until Gate 85.)
  * ═════════════════════════════════════════════════════════════════════════════
  */
 

@@ -18567,3 +18567,236 @@ also matches the `MONARCH-MVP-*` naming of the repo's other standing documents.
   the language model in IndexedDB through `idb-keyval`'s default store. `src/` itself touches no
   `localStorage`, `sessionStorage` or `indexedDB`. A Reset control must not clear that cache by
   accident.
+
+## Persistence — the first storage layer (Gate 85)
+
+No DS re-pin — **v2.8.0 throughout**, and no DS file was written. Testers can now close and reopen
+the MVP and keep their data. **|WALK| stays 77, `OVERLAY_STATES` 45, `ROUTES` 25, baselines 308 -> 308
+(0 changed, 0 added, 0 deleted — all byte-identical, digest
+`735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9` in both its filesystem and git-blob
+forms), tests 1001 -> 1023, spec files 38 -> 39.** `lint:tokens` scans **102** files (95 + the seven
+new modules), 4 exemptions, unchanged. One dependency was added: **`idb` 8.0.4, pinned exact** (ISC;
+`package.json` +1 line, `package-lock.json` +7).
+
+Phase A (Opus) built it and left the tree uncommitted; Phase B (this record) ran the mutation proofs,
+made the documentation inserts and ran the suite three clean times. **Teku does every git write.**
+
+### ⚠ EARLIER "PERSISTENCE DOES NOT EXIST" STATEMENTS ARE SUPERSEDED — and are not edited
+
+This file's earlier sections, the register and the lineage map say, in many places, that nothing is
+persisted (**NP1**), that "a reload reseeds", that a reload "discards a write", and that the
+cross-screen rule exists because `page.goto` loses the write. **All of those describe the app before
+Gate 85 and are history, not current behaviour.** NP1's wording is left as written; this section is
+where its timing was collected on. The rules that replace the reload one are below.
+
+### Where it lives — seven new modules, `src/persistence/`
+
+| module | what it owns |
+|---|---|
+| `store.ts` | opening the database (`monarch-mvp`, version 1, stores `records` / `images` / `quarantine`) with a 4-second timeout; `hydrate()` (read, classify, never rejects); the write queue and `flush` (one `strict` transaction per commit); the `BroadcastChannel` and revision guard; quarantine; `resetToSeed()`; `whenIdle()`; `usePersistence` (the providers' hook) |
+| `schema.ts` | `SCHEMA_VERSION = 1`, the stored shapes, the **total** validators, `MIGRATIONS` (empty at version 1), canonical JSON and the cyrb53 fingerprint |
+| `seed.ts` | `seedState()` (literally the providers' former initialisers, moved) and `seedFingerprint()` |
+| `boundary.ts` | the one place a runtime record becomes a stored one and back |
+| `images.ts` | the image registry: object URL <-> image id <-> bytes, and when an image is released |
+| `captureFacts.ts` | the two capture facts (source, was-the-date-read), moved out of `receiptCapture.ts` |
+| `diagnostics.ts` | the persistence log: an in-memory ring of the last 50 events, **bounded** |
+
+`src/main.tsx` renders only after `hydrate()` resolves; `AccountsProvider` and `BudgetsProvider` take
+their initial state from `hydratedState()` and report every committed change through `usePersistence`.
+The readiness signal is `data-store` on `#root`, set to `persist`, `memory` or `readonly` before the
+first render; `gotoRoute` waits on it.
+
+### The rulings — who made each, and that Teku may overturn any
+
+Teku, 9 Oct 2026: *"Do it properly, dont create technical debt"*, with the criteria best industry
+standard, architecture, scalability and UX practice, and he delegated the decisions. **Claude ruled on
+10 Oct 2026; every item below is overturnable by Teku.**
+
+- **D-1** IndexedDB through `idb`. **D-2** hydration gates the first render. **D-3** one save per
+  commit, after commit, never from inside an updater. **D-4** one key per whole collection — valid to
+  roughly 10,000 ledger rows, after which a versioned migration to per-row records. **D-5 / D-6** a
+  schema version with step migrations and no silent reset: no migration path means the one-slot
+  quarantine, then the seed; a tab running older code than the stored schema is **read-only**.
+  **D-7** total validators. **D-8** images as Blobs; bytes deleted in the same transaction as the write
+  that drops their last reference; object URLs revoked on replace, delete and reset. **D-9** receipt ids
+  are `receipt-capture-<uuid>`. **D-10** two optional `Receipt` facts, kept on the stored record and in
+  a side table at runtime so the runtime type is unchanged. **D-11** the storage-boundary mapping with
+  no runtime rename. **D-12** `BroadcastChannel` sync: a stale tab re-hydrates and its write is dropped
+  and logged. **D-13** reset in place. **D-14** a 4-second open timeout, then in-memory only. **D-15**
+  strict durability. **D-16** no `navigator.storage.persist()`. **D-17** UUIDs are not stubbed in the
+  harness. **D-18** `TransactionDetailSheet` keeps reading seed `HOLDINGS`. **D-19** specs reach reset
+  by importing the module in the page.
+- **Product rulings.** (1) **A changed seed resets saved data automatically**, by a stable fingerprint
+  of the canonical seed — no manual version bump. (2) **No user notice for a save failure or a reset in
+  this gate.** (3) Safari's seven-day cap is a known limit; testers add the app to the home screen.
+  (4) **Theme is not persisted in this gate.**
+- **Decision 4 (date chips after a persisted write): ruled 4A** — leave as designed; chips measure from
+  the newest ledger row. The prompt's appendix for Teku's own answer was blank when it went out; **Teku confirmed 4A on 10 Oct 2026 in the review thread** ("Yeah sure decision A"), after the prompt was sent.
+
+### The standards that are now permanent
+
+1. **THE RELOAD RULE, restated.** *Was:* a cross-screen assertion about a write navigates through the
+   app's own controls, because a reload reseeds. *Now:* **navigating through the app's own controls is
+   still the form that proves the in-memory state, so a cross-screen assertion still does it** — and
+   **a persistence test reloads on purpose and asserts the data was KEPT.** A write is durable only
+   once its transaction commits, so such a test waits first (`whenIdle`, or a poll of the stored
+   value); reloading straight after the click races the asynchronous write. Every test still starts
+   from the seed, because every Playwright test has its own browser context and therefore its own
+   IndexedDB (proved on disk by `e2e/persistence.spec.ts`, and by Phase A's probe).
+2. **AN EDIT TO THE SEED RESETS EVERY TESTER'S SAVED DATA.** `seedFingerprint()` hashes the five seeds
+   **as authored, before the load-time backfills**, with canonical JSON (sorted keys at every depth,
+   `undefined` dropped) and cyrb53. It is stored in `meta`. A mismatch on load discards the stored
+   data for the new seed — intentionally, so it is logged `seed-changed` and **not** quarantined.
+   **A seed gate (Gate 82-style work on `src/data/*.ts`) must therefore now also check the
+   consequence: every tester who has data loses it on the next load.** Nobody bumps a version; that was
+   the point, because this repo's record is full of literals that were right when written.
+3. **PERSIST FROM COMMITTED STATE, NEVER FROM INSIDE AN UPDATER.** The persister runs after a commit in
+   which an atom changed identity, compares against what it last stored, and writes the whole changed
+   collections in one transaction. A state updater must be pure (Gate 81-B's `deleteGoal` defect cost
+   RM 5,040 for exactly this reason); the three sibling updates of a Top-Up commit together and are
+   stored together, so a reopen shows the state before it or after it, never between.
+4. **A STORED SHAPE AND A RUNTIME SHAPE MEET ONLY AT THE STORAGE BOUNDARY** (`boundary.ts`). The
+   runtime `Receipt` still has `sourceUrl`; the stored one has `imageId`. Three image fields swap
+   names there (a receipt's image, an uploaded goal image, and the goal image copied onto a ledger
+   row); nothing derived is ever stored; the database never holds an object URL.
+5. **Nothing here may open, clear or delete another database.** tesseract.js's OCR worker caches its
+   2.9 MB language model through `idb-keyval`'s default database, **`keyval-store`** — the app already
+   had persistent browser storage and it was not the app's. Reset must never touch it (proved:
+   mutation `P10`).
+
+### How a write travels, and the failure modes
+
+`hydrate()` opens the database (race against 4 s), reads everything in one readonly transaction and
+classifies it: **empty** (seed, and nothing is written until the first user write), **ok** (restored),
+**newer** (read-only memory mode; the store is not touched), **seed-changed** (discard, log),
+**quarantine** (copy the raw snapshot into the one `latest` slot, clear, boot from the seed, resume).
+Unavailable, failing or timed-out storage ends in **memory** mode: the app works and keeps nothing.
+A write that fails part-way aborts its transaction, stores nothing of it, and switches the tab to
+memory. **None of this is shown to the user (ruling 2); it is logged in `diagnostics.ts`.**
+
+### What it measured (reported by Phase A; re-derived by Phase B where stated)
+
+- **Tests** 1023 in 39 files (`--list`, re-derived at both phases). **Baselines** 308, byte-identical.
+- **Entry chunk** (`build:package`) 5,926,787 -> 5,942,066 (+15,279) *(Phase A)*; CSS 192,815 unchanged;
+  the OCR lazy chunks unchanged; `modulepreload` 0. Re-derived by Phase B: `build:package` exit 0, entry **5,942,066**, CSS **192,815**, `modulepreload` 0 — the same figures; `lint:tokens` scans 102 files; React 19.2.8; `idb` 8.0.4; `keyval-store` at `idb-keyval/dist/index.js:31`.
+- **Record size.** The seed ledger serialises to 63,907 bytes for 254 rows — about **252 bytes a row**
+  (receipts about 533). Whole-collection rewrites stop being acceptable around **10,000 ledger rows**
+  (about 2.5 MB per write, under strict durability, on a phone). *(Phase A)*
+- **One full-suite run at Phase A:** 1023 passed, 0 failed, 38.2 min, npm exit 0.
+
+### Deviation, stated plainly — one screen file was edited outside the closed list
+
+Phase A edited **one expression in a screen file**: in `GoalDetailScreen.tsx`, `URL.createObjectURL(file)`
+became `registerImage(file)` (and the import). That is outside the closed edit list its prompt gave it.
+**It was reported by the session; Claude accepted it retroactively on 10 Oct; overturnable by Teku.**
+The prompt's "screens do not change" and D-8 could not both hold — **that is the prompt's error**:
+the alternative (reading bytes back with `fetch(blobUrl)`) was probed and rejected, because a fetch of a
+revoked object URL logs a console error the route walk counts as a defect. **Phase B reverted it as a
+mutation (`SC1`) and the uploaded-image persistence test fails**, so the edit is pinned.
+
+### The mutation proofs (Phase B)
+
+**Run 2 of the full set, on the final spec bytes: 29 entries (the negative control plus 28 mutations) — 27 proved, 2 not proved** — the negative control (refused, correctly) and `P5` (a finding). Every proof ran exactly one test, typechecked the mutated tree, failed on an assertion with its expected signature, restored its files SHA-identical and re-passed. Run 1 (before the `P10` strengthening) is superseded. Driver: Gate 81-C's, extended for multi-file mutations; kept outside the repo at `D:\Claude\_handoffs\gate85-phaseB\`.
+
+Coverage required by the prompt: the fingerprint comparison (`P14`, `P14a`, `P14c`); validator totality (`T1`, `P17`); quarantine (`P7`, `P15`); read-only on a newer schema (`P8`); the revision check and the stale tab (`P9`); reset revoking URLs and deleting bytes (`P5b`, `P10`, `IMG`); the hydration gate and readiness marker (`P2a`, `P2b`, `P2c`); the uuid receipt id (`P3`); the open timeout (`P12`); the budget reload (`P13`, `P13b`); the deep link surviving a reload (`P2b`); and the screen edit (`SC1`).
+
+| id | mutation | result |
+|---|---|---|
+| `NC` | a deliberate syntax error in `store.ts` (negative control) | REFUSED, as required — the mutated tree does not typecheck |
+| `P1` | the FIRST write stores only the dirty collections, not every collection | PROVED |
+| `P2a` | the readiness marker is set AFTER the first render, not before | PROVED |
+| `P2b` | render does not wait for hydration (seed first) — a deep link to a created goal is lost | PROVED |
+| `P2c` | the readiness marker is never set on #root | PROVED |
+| `P3` | receipt ids back to a module counter that restarts on every load | PROVED |
+| `P4` | the stored receipt keeps its object URL (sourceUrl) beside the image id | PROVED |
+| `P5` | release ignores `seen` — a just-adopted image is released by any in-flight write | PASSED under mutation — a finding (below) |
+| `P5b` | release drops the entry but never revokes the object URL | PROVED |
+| `P6` | the seed is written on first load (an empty store is filled on hydrate) | PROVED |
+| `P7` | classify skips the stored-records validation | PROVED |
+| `P15` | a missing migration silently resets instead of quarantining | PROVED |
+| `P8` | a newer-schema store is written to: db kept open, mode / schema / revision guards all removed | PROVED |
+| `P9` | no revision guard — a stale tab overwrites the store | PROVED |
+| `P10` | reset also deletes tesseract.js's keyval-store database | PROVED |
+| `P11` | the unread-date capture fact is not stored | PROVED |
+| `P19` | hydration does not restore the capture facts onto the runtime side tables | PROVED |
+| `P12` | the open timeout never fires | PROVED |
+| `P13` | hydration ignores the stored budgets (reload restores the seed budgets) | PROVED |
+| `P13b` | the budgets atom is reported as the hydrated seed when it empties (the deletion is never stored) | PROVED |
+| `P14` | the seed-fingerprint comparison is removed (an edited seed no longer discards stored data) | PROVED |
+| `P14a` | the fingerprint is computed over the BACKFILLED seedState() instead of the raw seeds | PROVED |
+| `P14c` | the fingerprint is blind to numeric values — editing one seed value no longer changes it | PROVED |
+| `P16` | a failing put is swallowed and the transaction commits the rest (the write is no longer atomic) | PROVED |
+| `P17` | a validator stops checking one field (Goal.autoSave.amount) | PROVED |
+| `T1` | storedRecordsProblem stops guarding a non-object snapshot (throws on null) | PROVED |
+| `IMG` | bytes no record names are no longer deleted in the write transaction | PROVED |
+| `BC` | a committed write is never announced on the BroadcastChannel | PROVED |
+| `SC1` | THE SCREEN EDIT REVERTED — GoalDetailScreen uses URL.createObjectURL instead of registerImage | PROVED |
+
+### Findings from Phase B — reported, not fixed (nothing outside section 2 was edited)
+
+- **`P5` PASSES UNDER MUTATION: the image registry's `seen` guard has no test that can fail.** It
+  stops a write that is already in flight from revoking an image that was adopted a moment before the
+  provider commits the record naming it. Reproducing that needs two writes overlapping, and no test
+  does. No assertion-only edit can create that race, so it is reported, not strengthened.
+- **`P10` WAS TOO WEAK AND IS STRENGTHENED.** With `keyval-store` deleted, the reset test's read-back
+  threw inside an IndexedDB event handler and hung until the test timeout — a failure, but not an
+  assertion. The read-back now answers with a value `toBe('model bytes')` can fail on. One assertion-side
+  edit; the whole mutation set was re-run on the final spec bytes.
+- **The read-only guards are four independent defences, and one proof removes all four.** A newer-schema
+  store is protected by the database being closed, by `flush`'s mode check, by the schema check inside
+  the write transaction and by the revision guard. The test pins the outcome (the store is untouched);
+  `P8` therefore removes all four together. No test isolates a single guard — acceptable defence in depth.
+- **"Change one seed value and the fingerprint test must fail" cannot be literal.** The fingerprint test
+  compares two values computed from the same seed, so a real edit to `src/data/*.ts` moves both. What is
+  proved instead: a forged stored fingerprint discards the data (`P14`), and a fingerprint blind to
+  values would fail the test's own edited-value assertion (`P14c`). Phase B ran a real seed edit as a
+  control: the fingerprint test stays green, as it must.
+- **Coverage gaps against Phase A's design outline** (no test exists, so no mutation could fail): the
+  persistence of receipt link / unlink / edit / delete / replace; goal edit, delete and the auto-save
+  switch and amount; budget create and edit (delete is covered in `budget-writers.spec.ts`); a deleted
+  receipt's bytes leaving the image store (only reset is covered); and a deleted goal keeping an uploaded
+  image its Top-Up rows still name. The writers all go through the same commit-then-persist path, which
+  `P1`, `P16` and `P13b` do pin; the gaps are per-writer.
+- **A stale comment outside every edit list:** `AccountsProvider.tsx`'s header still calls it "a provider
+  holding two arrays". It holds five atoms. The one comment Phase B was allowed to edit (the "no
+  persistence" clause near line 114) was edited: *was* "vocabulary, no persistence and no undo." *now*
+  "vocabulary and no undo. Persistence is the storage layer behind it, not part of it (Gate 85,
+  `persistence/store.ts`)."
+- **`src/persistence/diagnostics.ts` is bounded** — a ring of 50 entries.
+
+### Corrections to the record (earlier text is left as written)
+
+- The pause report's baseline digest ending (`…5f9b90e`) was a transcription slip — that is **Gate 81's**
+  digest ending. **The Gate 85 digest is unchanged** and is the one above.
+- **React is 19.2.8, not 18** (`node_modules/react/package.json`). The batching semantics the earlier
+  text relies on are unchanged in 19.
+- **Gate 84's map said three specs would invert under persistence. One assertion did**
+  (`budget-writers.spec.ts`, now "a reload KEEPS the deletion"); the other sites it listed are comments
+  or navigate once.
+- **The map's `localStorage` option (R2) cannot hold images** — 5 MiB, strings only — so it would have
+  forced two systems with no shared transaction.
+- **tesseract.js's database is `keyval-store`**, from `idb-keyval`'s default store.
+- **The Gate 84 commit message says 883 lines; the file is 885** (`wc -l`). History is not rewritten.
+
+### Deferred items — where / what / the decision
+
+| where | what | decision |
+|---|---|---|
+| `store.ts` | no `navigator.storage.persist()` request — Firefox would show a permission prompt, an undesigned UI | solution concluded; fix put off |
+| `diagnostics.ts` | no user notice on a save failure or a reset | solution concluded; fix put off to the settings-modal gate |
+| the platform | Safari deletes script-written storage after seven days without a visit; home-screen apps keep their own count | a known platform limit; testers add the app to the home screen |
+| `ThemeProvider` | the theme is not persisted | solution concluded; fix put off to the settings-modal gate, reading it synchronously before first paint to avoid a flash |
+| `derive.ts` `ledgerNow` | after a persisted write dated later than 12 Sept 2026 that write becomes the newest ledger row, and "This Month" means its month until a reset | **ruled 4A**; revisit at the next seed re-dating |
+| `TransactionDetailSheet.tsx` | reads seed `HOLDINGS`, not the provider | correct today (it shows names only); a defect only if accounts can ever be renamed; **unowned** |
+| lineage map D4 | an emptied collection persists; the receipt library at zero shows a "Show all receipts" action that does nothing useful | handed to the first-run empty-state gate |
+| `npm audit` | two high findings (`js-yaml`; `source-map-js` via `vite` -> `postcss`) predate this gate and do not come from `idb` | paused to the hygiene round |
+| `store.ts` | whole-collection rewrites stop being acceptable around 10,000 rows | solution concluded (a versioned migration to per-row records); fix put off until needed |
+| `GoalDetailScreen.tsx` | the one screen edit outside the closed list | accepted retroactively by Claude, 10 Oct; overturnable |
+
+### What this gate changed
+
+Seven new modules under `src/persistence/`; `src/main.tsx`; `AccountsProvider.tsx`, `BudgetsProvider.tsx`,
+`receiptCapture.ts`, `GoalDetailScreen.tsx` (the one expression), `media.ts` and `types.ts` (comments);
+`e2e/harness.ts` (the readiness wait in `gotoRoute` only); `e2e/budget-writers.spec.ts` (the inverted
+test); `e2e/persistence.spec.ts` (new, 22 tests); comment-only edits in four other specs;
+`package.json` and `package-lock.json` (`idb`). **No baseline moved, and no CSS rule was touched.**

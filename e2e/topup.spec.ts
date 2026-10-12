@@ -213,11 +213,13 @@ test('the account is debited and net worth does NOT move', async ({ page }) => {
   await topUp(page, '125.50')
 
   /*
-    BACK THROUGH THE APP'S OWN CONTROL, NEVER `page.goto`. A navigation
-    RELOADS, and nothing here is persisted (NP1), so a reload would reset every
-    figure to the seed and this test would pass against a writer that did
-    nothing at all. That is not a hypothetical: it is how the first manual
-    check of this gate read "the balance did not move".
+    BACK THROUGH THE APP'S OWN CONTROL. Until Gate 85 a navigation reloaded
+    the seed, so a reload would have reset every figure and this test would
+    have passed against a writer that did nothing at all — how the first manual
+    check of Gate 81 read "the balance did not move". Since Gate 85 a reload
+    keeps the write (`persistence.spec.ts` proves that); moving through the
+    app's own controls still proves the in-memory state, which is the stronger
+    form of this assertion.
   */
   await page.locator('.mn-header-default button').first().click()
   await page.getByRole('tab', { name: 'Overview' }).click()

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import { BUDGETS } from '../data/budgets'
 import type { Budget } from '../data/types'
+import { hydratedState, usePersistence } from '../persistence/store'
+import type { AppState } from '../persistence/seed'
 
 /**
  * App-level budgets state — Flow 10 (Gate 67).
@@ -28,10 +29,14 @@ import type { Budget } from '../data/types'
  * lands just above Add New. Its id is `budget-${crypto.randomUUID()}`: the app
  * has no general id generator (`receiptCapture.ts`'s `receipt-capture-N` is a
  * module-private counter for captures), and an id that is unique without a
- * counter survives the persistence layer NP1 defers. `randomUUID` needs a
+ * counter survives the persistence layer Gate 85 added. `randomUUID` needs a
  * secure context — localhost and the https deploy both are.
  *
- * NOT PERSISTED (NP1). A reload returns `BUDGETS`.
+ * PERSISTED SINCE GATE 85: the initial value is the hydrated state (the store's
+ * budgets, or `BUDGETS` when the store is empty or unusable), and every
+ * committed change is saved by `usePersistence`. A reload keeps a created,
+ * edited or deleted budget. (This line read "NOT PERSISTED (NP1). A reload
+ * returns `BUDGETS`." until Gate 85.)
  */
 interface BudgetsContextValue {
   budgets: Budget[]
@@ -46,7 +51,14 @@ interface BudgetsContextValue {
 const BudgetsContext = createContext<BudgetsContextValue | null>(null)
 
 export function BudgetsProvider({ children }: { children: ReactNode }) {
-  const [budgets, setBudgets] = useState<Budget[]>(BUDGETS)
+  const [budgets, setBudgets] = useState<Budget[]>(() => hydratedState().budgets)
+
+  // The store sets budgets only when it replaces state (another tab, a dropped
+  // stale write, a reset); otherwise it only observes committed changes.
+  const applyStoredState = useCallback((state: AppState) => {
+    setBudgets(state.budgets)
+  }, [])
+  usePersistence({ budgets }, applyStoredState)
 
   const createBudget = useCallback((input: Omit<Budget, 'id'>) => {
     const id = `budget-${crypto.randomUUID()}`

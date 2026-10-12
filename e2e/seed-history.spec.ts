@@ -37,8 +37,9 @@ import { TRANSACTIONS } from '../src/data/transactions'
  * 12 Sept 2026 pair. Nothing else in the seed lives there.
  *
  * Every browser figure is reached through the app's own controls after one
- * navigation: nothing is persisted (NP1), so a second `page.goto` would reseed
- * the app and prove nothing about what it shows.
+ * navigation. (Until Gate 85 a second `page.goto` reseeded the app; since then a
+ * reload keeps any write, and this file writes nothing, so one navigation is
+ * still all it needs.)
  * ─────────────────────────────────────────────────────────────────────────────
  */
 

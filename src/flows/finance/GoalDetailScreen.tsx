@@ -14,6 +14,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { goalImageUrl } from '../../config/media'
+import { registerImage } from '../../persistence/images'
 import {
   goalContributions,
   goalPercent,
@@ -304,17 +305,18 @@ export function GoalDetailScreen() {
    * conditional on a stored provenance flag at that point." `imageOrigin` goes
    * to `'upload'`, so the badge stops rendering on that goal.
    *
-   * IN MEMORY, NO NETWORK, NOTHING LEAVES THE DEVICE — the `URL.createObjectURL`
-   * path `receiptCapture.ts` already uses. The url does not survive a reload,
-   * which is correct rather than a defect: nothing here is persisted (NP1) and
-   * a reload restores the seeded artwork along with everything else.
+   * NO NETWORK, NOTHING LEAVES THE DEVICE. `registerImage` makes the object URL
+   * the goal renders and records the bytes behind it (Gate 85, D-8), so the
+   * store keeps them under an image id and a reload shows the same picture —
+   * on the goal and on every Top-Up row written after the upload. (Until Gate
+   * 85 this was a bare `URL.createObjectURL` that died with the page.)
    */
   const chooseImage = useCallback(
     (file: File) => {
       if (!goal) return
       updateGoal(goal.id, {
         ...goalSettingsOf(goal),
-        image: URL.createObjectURL(file),
+        image: registerImage(file),
         imageOrigin: 'upload',
       })
     },

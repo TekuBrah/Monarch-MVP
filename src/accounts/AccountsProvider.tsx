@@ -6,16 +6,13 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CRYPTO_HOLDINGS, CRYPTO_WALLETS, FIAT_ACCOUNTS } from '../data/accounts'
+import { CRYPTO_HOLDINGS, CRYPTO_WALLETS } from '../data/accounts'
 import { COMMITMENTS } from '../data/commitments'
 import { COMMITMENT_OFFERS } from '../data/offers'
-import { GOALS } from '../data/goals'
 import { buildHoldings } from '../data/holdings'
-import { RECEIPTS } from '../data/receipts'
-import { TRANSACTIONS } from '../data/transactions'
+import { hydratedState, usePersistence } from '../persistence/store'
+import type { AppState } from '../persistence/seed'
 import {
-  backfillAddedAt,
-  backfillReferences,
   cryptoWalletChange,
   cryptoWalletTotal,
   netWorth,
@@ -51,7 +48,12 @@ import type {
  * `useAccounts()` and never `useContext(...)`, so if this ever needs to become a
  * store, this file changes and no screen does.
  *
- * NOT PERSISTED (architecture §3.2). Reload returns the seed data.
+ * PERSISTED SINCE GATE 85, behind this provider: the four atoms below are read
+ * from the store before the first render (`hydratedState()`) and every
+ * committed change is saved (`usePersistence`). No writer here knows that —
+ * persistence observes committed state. See `persistence/store.ts`. (This line
+ * read "NOT PERSISTED (architecture §3.2). Reload returns the seed data." until
+ * Gate 85.)
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * GATE 48 — THE LEDGER STOPPED BEING FROZEN, AND THAT IS ALL THAT CHANGED.
@@ -109,7 +111,8 @@ import type {
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT IS STILL NOT SOLVED, stated so it is not mistaken for solved. This is a
  * provider holding two arrays, not a store. There is no reducer, no action
- * vocabulary, no persistence and no undo. When a flow first needs two collections
+ * vocabulary and no undo. Persistence is the storage layer behind it, not part of it
+ * (Gate 85, `persistence/store.ts`). When a flow first needs two collections
  * to change together — creating a transaction AND linking a receipt to it in one
  * user action — that is the day this becomes a reducer, and every screen still
  * reads `useAccounts()` so no screen moves.
@@ -278,7 +281,9 @@ interface AccountsContextValue {
    * them — and a silent no-op would leave a user looking at an unchanged
    * screen with no reason. `addedAtOf` takes the same position.
    *
-   * NOT PERSISTED. Reload restores the seed, like every other write here.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it. The three sibling updates commit together, so they are
+   * stored together: a reopen never shows the account debited and the goal
+   * not credited.
    * ─────────────────────────────────────────────────────────────────────────
    */
   topUpGoal: (contribution: Transaction) => void
@@ -361,7 +366,7 @@ interface AccountsContextValue {
    * have had to write BOTH collections and would have been one forgotten line
    * away from a row claiming a receipt that no longer claims it.
    *
-   * NOT PERSISTED. Reload restores the seed, like every other write here.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it.
    */
   unlinkReceipt: (receiptId: string) => void
   /**
@@ -387,9 +392,9 @@ interface AccountsContextValue {
    * no id generation (the caller owns identity), no validation, no de-duplication.
    * The same contract `addTransaction` documents.
    *
-   * NOT PERSISTED. Reload restores the seed — and for a captured receipt that is
-   * more than a convention: its image is a blob url that does not survive the
-   * document that made it. See `Receipt.sourceUrl`.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it. A captured receipt's image is a blob url that does not
+   * survive the document that made it, so the store keeps the BYTES under an
+   * image id and a reload makes a fresh url (`persistence/boundary.ts`).
    */
   addReceipt: (receipt: Receipt) => void
   /**
@@ -412,7 +417,8 @@ interface AccountsContextValue {
    * so the transaction a delete frees stays receipt-less until a NEW capture
    * matches it.
    *
-   * NOT PERSISTED. Reload restores the seed — the deleted receipt included.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it. The deletion is kept, and the image bytes go in the same
+   * transaction.
    */
   deleteReceipt: (receiptId: string) => void
   /**
@@ -440,7 +446,7 @@ interface AccountsContextValue {
    * AUTO-MATCH DOES NOT RE-RUN, here or anywhere. It is locked to once, at add
    * time (Gate 50-C).
    *
-   * NOT PERSISTED. Reload restores the seed.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it.
    */
   linkReceipt: (receiptId: string, transactionId: string) => void
   /**
@@ -470,7 +476,7 @@ interface AccountsContextValue {
    * that is locked to add time, and re-running it after an edit would re-link a
    * receipt the user had just unlinked.
    *
-   * NOT PERSISTED. Reload restores the seed.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it.
    */
   updateReceipt: (receiptId: string, changes: ReceiptEdit) => void
   /**
@@ -523,7 +529,8 @@ interface AccountsContextValue {
    * AUTO-MATCH DOES NOT RE-RUN OVER THE LIBRARY, here or anywhere. It is locked
    * to add time (Gate 50-C).
    *
-   * NOT PERSISTED. Reload restores the seed — the replaced receipt included.
+   * PERSISTED (Gate 85). The committed result is stored by the persistence layer and a reload keeps it. The replaced receipt's bytes are deleted in the same
+   * transaction that stores the replacement.
    */
   replaceReceipt: (originalId: string, replacement: Receipt) => void
 }
@@ -545,12 +552,15 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   // BACKFILLED ONCE, IN THE INITIALISER — Gate 81, `backfillAddedAt`'s shape.
   // The seed predates `Transaction.reference` and the detail sheet's Reference
   // row cannot print without one; see `backfillReferences`.
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    backfillReferences(TRANSACTIONS),
+  // GATE 85: THE INITIAL VALUE IS THE HYDRATED STATE — the store's contents,
+  // or `seedState()` (literally the two backfills that used to sit here) when
+  // the store is empty or unusable. `hydrate()` resolves before React renders.
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    () => hydratedState().transactions,
   )
   // BACKFILLED ONCE, IN THE INITIALISER — Gate 58. The seed predates
   // `Receipt.addedAt`, and the Receipts tab orders on it; see `backfillAddedAt`.
-  const [receipts, setReceipts] = useState<Receipt[]>(() => backfillAddedAt(RECEIPTS))
+  const [receipts, setReceipts] = useState<Receipt[]>(() => hydratedState().receipts)
 
   // `useCallback` so the context value's identity is stable across renders that
   // do not change the ledger — without it the memo below rebuilds every render
@@ -565,7 +575,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
    * whose Homepage balance card moved while its Finance Overview card, net-worth
    * hero and chart did not — see `buildHoldings` for why.
    */
-  const [fiatAccounts, setFiatAccounts] = useState<FiatAccount[]>(FIAT_ACCOUNTS)
+  const [fiatAccounts, setFiatAccounts] = useState<FiatAccount[]>(
+    () => hydratedState().fiatAccounts,
+  )
 
   const adjustFiatBalance = useCallback((accountId: string, delta: Amount) => {
     setFiatAccounts((current) =>
@@ -678,7 +690,22 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     Delete and the auto-save toggle — are Gate 81-B's and are not declared here.
     `Commitment` is still a pass-through constant with no writer at all.
   */
-  const [goals, setGoals] = useState<Goal[]>(GOALS)
+  const [goals, setGoals] = useState<Goal[]>(() => hydratedState().goals)
+
+  /*
+    PERSISTENCE OBSERVES; IT NEVER WRITES FROM HERE. The four atoms are reported
+    to the store after each commit that changes one (an effect, never an
+    updater), and the store sets them only through `applyStoredState` — when
+    another tab wrote, a stale write was dropped, or the app was reset to the
+    seed. Every writer above keeps its three-sibling-pure-updater shape.
+  */
+  const applyStoredState = useCallback((state: AppState) => {
+    setTransactions(state.transactions)
+    setReceipts(state.receipts)
+    setFiatAccounts(state.fiatAccounts)
+    setGoals(state.goals)
+  }, [])
+  usePersistence({ transactions, receipts, fiatAccounts, goals }, applyStoredState)
 
   /**
    * See the contract on `AccountsContextValue.topUpGoal`.

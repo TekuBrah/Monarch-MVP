@@ -313,8 +313,9 @@ const GOAL_IMAGE_DIR = '/media/goals'
  * URL the day the sniff was wrong.
  *
  * AN UPLOAD'S URL IS RETURNED UNCHANGED. It is already a complete source, it is
- * not under this directory, and it does not survive a reload (NP1) — which is
- * correct rather than a defect, because nothing here is persisted.
+ * not under this directory. Since Gate 85 it survives a reload: the store keeps
+ * the bytes under an image id and hydration hands back a fresh object URL, so
+ * this resolver still receives a complete source and returns it unchanged.
  */
 export function goalImageUrl(image: string, origin: GoalImageOrigin): string {
   return origin === 'upload' ? image : `${GOAL_IMAGE_DIR}/${image}`

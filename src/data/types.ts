@@ -784,9 +784,11 @@ export interface Receipt {
    * resolver is the place that decides between them. A union would have touched
    * all ten records and every read site to express nothing extra.
    *
-   * IT IS NOT PERSISTED AND CANNOT BE. A blob url is valid only for the document
-   * that created it; a reload restores the seed, like every other write in
-   * `AccountsProvider`.
+   * THE URL ITSELF IS NEVER STORED. A blob url is valid only for the document
+   * that created it, so since Gate 85 the store keeps the BYTES under an image
+   * id (`StoredReceipt.imageId`) and hydration makes a fresh url for this field.
+   * The runtime field is unchanged; only the storage boundary
+   * (`persistence/boundary.ts`) maps it.
    */
   sourceUrl?: string
   /** What the card prints, camera-roll style. See the note above. */
@@ -952,9 +954,9 @@ export interface Goal {
    * become conditional on a stored provenance flag at that point." This is that
    * point and this is that flag.
    *
-   * AN UPLOAD DOES NOT SURVIVE A RELOAD, and that is correct rather than a
-   * defect: an object URL dies with the document that made it, and nothing here
-   * is persisted (NP1). The reload restores the seed, origin included.
+   * AN UPLOAD SURVIVES A RELOAD SINCE GATE 85. The object URL still dies with
+   * the document that made it, so the store keeps the bytes under an image id
+   * and hydration puts a fresh URL back in `image`; the origin is stored as is.
    */
   imageOrigin: GoalImageOrigin
   /**

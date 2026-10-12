@@ -2899,6 +2899,13 @@ export async function gotoRoute(page: Page, route: string, theme: Theme): Promis
 
   await page.goto(route, { waitUntil: 'networkidle' })
 
+  // GATE 85: THE APP RENDERS ONLY AFTER IT HAS READ ITS STORE, and it marks
+  // that moment with `data-store` on #root (`persistence/store.ts`). Waiting
+  // on the attribute, not on time: a fresh context's store is empty, so this
+  // is one database open — and it never depends on a timer, which keeps
+  // `reading-time.spec.ts`'s fake clock out of the happy path.
+  await expect(page.locator('#root')).toHaveAttribute('data-store', /^(persist|memory|readonly)$/)
+
   if (theme === 'dark') {
     // The shell's demo affordance. Its label reads "Dark" while the app is in
     // light mode, which is also the assertion that it is the right button.

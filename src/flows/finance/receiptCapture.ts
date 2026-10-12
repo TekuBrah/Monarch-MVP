@@ -2,6 +2,14 @@ import { bindDiagnostic, CAPTURE_DIAGNOSTICS } from '../../data/captureDiagnosti
 import { localWallClock } from '../../data/today'
 import { extractReceipt, looksLikePdf, type ExtractedReceipt } from '../../data/extract'
 import type { Receipt } from '../../data/types'
+import {
+  type CaptureSource,
+  captureSourceOf,
+  capturedAtReadOf,
+  setCaptureSource,
+  setCapturedAtRead,
+} from '../../persistence/captureFacts'
+import { adoptImage } from '../../persistence/images'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -28,7 +36,6 @@ import type { Receipt } from '../../data/types'
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-let captureSeq = 0
 
 /**
  * `YYYY-MM-DDTHH:mm:ss` IN LOCAL WALL-CLOCK TIME — the zone-less shape every
@@ -86,7 +93,7 @@ export function localWallClockMs(date: Date): string {
  * components in this flow import from `receiptCapture`, never the reverse.
  * Moving it back would invert that for no gain.
  */
-export type ReceiptSource = 'camera' | 'gallery'
+export type ReceiptSource = CaptureSource
 
 /**
  * ─────────────── WHICH SURFACE EACH CAPTURE CAME FROM — GATE 60 ───────────────
@@ -100,15 +107,17 @@ export type ReceiptSource = 'camera' | 'gallery'
  * session-only side store in the shape Gate 59's diagnostic store already
  * uses: `ReceiptFileInput` notes the source against the `File` it handed over
  * (the element that set `capture` is the single point of truth for it), and
- * `capturedToReceipt` binds it to the receipt's id once that id exists. In
- * memory only (D3); a reload forgets it, as it forgets the captures themselves.
+ * `capturedToReceipt` binds it to the receipt's id once that id exists.
+ * GATE 85 (D-10): the receipt-keyed half now lives in
+ * `persistence/captureFacts.ts` and is STORED on the persisted receipt, so a
+ * reopen no longer forgets it. The `File`-keyed half below stays here: it only
+ * has to survive from the pick to the receipt being built.
  *
  * A RECEIPT WITH NO RECORDED SOURCE — every seeded one — answers `undefined`.
  * Those never show the advisory (see `receiptReadFailed`), so the retake never
  * has to guess for them.
  */
 const sourceByFile = new WeakMap<File, ReceiptSource>()
-const sourceByReceipt = new Map<string, ReceiptSource>()
 
 /** Called by `ReceiptFileInput` for every file a pick hands over. */
 export function noteCaptureSource(file: File, source: ReceiptSource): void {
@@ -117,14 +126,15 @@ export function noteCaptureSource(file: File, source: ReceiptSource): void {
 
 /** The surface a captured receipt came from, or `undefined` for a seeded one. */
 export function captureSourceFor(receiptId: string): ReceiptSource | undefined {
-  return sourceByReceipt.get(receiptId)
+  return captureSourceOf(receiptId)
 }
 
 /**
  * ─────────── WAS THIS RECEIPT'S PRINTED DATE ACTUALLY READ? — GATE 64 ────────
  *
- * A SECOND SIDE STORE, SAME SHAPE AS `sourceByReceipt` ABOVE — session-only,
- * keyed by receipt id, set once at capture time. It exists for the same
+ * A SECOND SIDE STORE, SAME SHAPE AS THE SOURCE ONE ABOVE — keyed by receipt
+ * id, set once at capture time, and since Gate 85 (D-10) kept in
+ * `persistence/captureFacts.ts` and stored on the persisted receipt. It exists for the same
  * reason: `Receipt.capturedAt` cannot answer this itself. An unread capture's
  * `capturedAt` falls back to the moment of capture (`capturedToReceipt`,
  * below), which is a real, well-formed local timestamp — nothing about its
@@ -133,11 +143,9 @@ export function captureSourceFor(receiptId: string): ReceiptSource | undefined {
  * total is always positive and the fallback is exactly `0`; a real date has no
  * value that could never occur, so no such sentinel exists for `capturedAt`.
  *
- * NOT A FIELD ON `Receipt`. Widening the stored shape for a fact only the
- * Receipts tab's sort control reads is exactly what Gate 58's ruling 2 (only
- * `addedAt` was permitted) and Gate 50-C's `ExtractedReceipt` boundary argue
- * against — this is the same in-memory, non-persisted shape `sourceByReceipt`
- * already uses for an identical problem.
+ * NOT A FIELD ON THE RUNTIME `Receipt`. Gate 85 (D-10) put it on the STORED
+ * receipt (`StoredReceipt.capturedAtRead`) and kept the runtime type unchanged;
+ * the storage boundary copies it across in each direction.
  *
  * A RECEIPT WITH NO ENTRY — every seeded one, and any capture whose date DID
  * read — answers `true`. Only a capture whose extraction returned `null` for
@@ -145,11 +153,9 @@ export function captureSourceFor(receiptId: string): ReceiptSource | undefined {
  * date" group can only ever hold a receipt that genuinely could not be dated
  * from its photograph.
  */
-const dateReadByReceipt = new Map<string, boolean>()
-
 /** Whether a receipt's `capturedAt` was read off the paper, never guessed. */
 export function receiptDateWasRead(receiptId: string): boolean {
-  return dateReadByReceipt.get(receiptId) ?? true
+  return capturedAtReadOf(receiptId)
 }
 
 /**
@@ -447,9 +453,12 @@ export async function extractCapture(file: File, sourceUrl: string): Promise<Cap
  * by the time this is called, so a filled date or merchant can never make a
  * receipt link itself.
  *
- * THE ID IS A COUNTER, NOT A TIMESTAMP. The harness pins the clock
- * (`page.clock.setFixedTime`), so `Date.now()` returns the SAME value for every
- * capture in a test and two receipts saved together would collide on their key.
+ * THE ID IS A UUID, NOT A TIMESTAMP AND NO LONGER A COUNTER. A timestamp
+ * collides: the harness pins the clock (`page.clock.setFixedTime`), so two
+ * receipts saved together would share one. A module counter collides too, once
+ * receipts are stored: it restarted at 1 on every load, so the first capture
+ * after a reopen took an id a stored receipt already had (Gate 85, D-9). A
+ * UUID is what every other writer here uses (`txn-`, `goal-`, `budget-`).
  */
 export function capturedToReceipt(
   capture: CapturedFile,
@@ -458,17 +467,21 @@ export function capturedToReceipt(
   addedAt: string,
 ): Receipt {
   const { file, sourceUrl, extracted } = capture
-  const id = `receipt-capture-${(captureSeq += 1)}`
+  const id = `receipt-capture-${crypto.randomUUID()}`
   // Gate 59: the capture diagnostic was recorded against the FILE, because the
   // id did not exist yet. Constant `false` without `?diag=1`; see
   // `data/captureDiagnostics.ts`.
   if (CAPTURE_DIAGNOSTICS) bindDiagnostic(file, id)
   // Gate 60: bind the surface this file came from, for the retake.
   const source = sourceByFile.get(file)
-  if (source) sourceByReceipt.set(id, source)
+  if (source) setCaptureSource(id, source)
   // Gate 64: record whether the date was actually read, before the fallback
   // below overwrites the evidence that it was not.
-  dateReadByReceipt.set(id, extracted.capturedAt !== null)
+  setCapturedAtRead(id, extracted.capturedAt !== null)
+  // Gate 85 (D-8): the storage layer keeps these bytes under an image id. It
+  // ADOPTS the url the capture already renders rather than making a new one,
+  // so nothing on screen changes.
+  adoptImage(sourceUrl, file)
   return {
     id,
     // WHERE THE BYTES CAME FROM, UNTOUCHED BY GATE 53. `filename` and
