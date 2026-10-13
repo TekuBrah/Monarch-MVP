@@ -18800,3 +18800,230 @@ Seven new modules under `src/persistence/`; `src/main.tsx`; `AccountsProvider.ts
 `e2e/harness.ts` (the readiness wait in `gotoRoute` only); `e2e/budget-writers.spec.ts` (the inverted
 test); `e2e/persistence.spec.ts` (new, 22 tests); comment-only edits in four other specs;
 `package.json` and `package-lock.json` (`idb`). **No baseline moved, and no CSS rule was touched.**
+
+## Persistence test coverage, writer by writer (Gate 85-B)
+
+No DS re-pin — **v2.8.0 throughout**, and no application file changed. Gate 85 proved the storage layer
+(the Top-Up, a created goal and its first uploaded image, a capture, every failure path) and left the other
+writers unproven. This gate writes the missing tests and proves they can fail. **|WALK| stays 77,
+`OVERLAY_STATES` 45, `ROUTES` 25, baselines 308 -> 308 (0 changed, 0 added, 0 deleted — digest
+`735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9` in both its filesystem and git-blob
+forms, all 64 characters re-derived from disk), tests 1023 -> 1044, spec files 39 -> 40.** `lint:tokens`
+scans 102 files with the same 4 exemptions; `tsc -b --force`, `lint:linkage` clean; DS v2.8.0 at
+`b5b7b2975e5eef14257abd86c5ba34f20c70f949`.
+
+Phase A (Opus) wrote the tests and the matrix and found no application defect; Phase B (this record) ran the
+mutation proofs, made the documentation inserts and ran the suite three clean times. **Teku does every git
+write.**
+
+### What was added — one file, 21 tests, no baseline
+
+`e2e/persistence-writers.spec.ts`, **new and untracked until Teku commits it**: 1009 lines, wholly CRLF (byte
+scan: 1009 CR, 1009 LF), sha256 `06fae83b12172f144a38a60cbb20739960e5a059ff3e7644bca0cb593d542fbd`. Phase A's
+hand-over said 1006 lines; disk says 1009 (it was right on the line endings and wrong on the count).
+`e2e/harness.ts` and every existing spec are unchanged.
+
+**EVERY TEST HAS ONE SHAPE.** Act through the app's own controls; wait for the write queue (`whenIdle`); read
+the store straight from IndexedDB, never through the app's own store module; assert the stored change AND that
+every record the writer must not touch equals the seed; then reload on purpose and assert the screen shows the
+change was KEPT. This is the restated reload rule of Gate 85, applied writer by writer.
+
+The 21 titles (all begin `KEPT`):
+
+| group | exact title |
+|---|---|
+| receipts | `KEPT receipt link: a reload keeps the new link, and no other receipt or ledger row moved` |
+| | `KEPT receipt unlink: a reload keeps the receipt unlinked and its old row without a glyph` |
+| | `KEPT receipt swap: a reload keeps both halves of a Replace` |
+| | `KEPT receipt edit: a reload keeps merchant, date, time and total, and the ledger did not follow` |
+| | `KEPT receipt delete: a reload keeps a seeded receipt deleted, and its row loses the glyph` |
+| | `KEPT receipt replace: a reload keeps the replacement, its inherited link and its bytes, and the original bytes are gone` |
+| goals | `KEPT goal edit: a reload keeps name, target, target date, auto-save amount and funding source` |
+| | `KEPT goal auto-save switch: a reload keeps it off, with its amount` |
+| | `KEPT goal auto-save pencil: a reload keeps the new amount, and the switch did not move` |
+| | `KEPT goal delete with a balance: a reload keeps the goal gone, the return row, the credit, and net worth` |
+| | `KEPT goal delete at RM 0: a reload shows the goal gone and no row written` |
+| budgets | `KEPT budget create: a reload keeps it, with spent, left and percent derived` |
+| | `KEPT budget edit: a reload keeps every edited field, auto-renew included, with figures re-derived` |
+| the image rule | `KEPT images i: a capture keeps its bytes through link and edit, and loses them only when deleted` |
+| | `KEPT images ii: a deleted goal keeps its uploaded image on the rows that name it, and they decode after a reload` |
+| | `KEPT images iii: a replaced goal image keeps its old bytes while a ledger row still names them` |
+| | `KEPT images iv: a replaced goal image nothing else names is released from the store` |
+| | `KEPT images v: deleting an empty goal with an uploaded image leaves no bytes behind` |
+| capture facts | `KEPT facts: a camera capture stays a camera capture after a reload` |
+| | `KEPT facts: a capture whose date WAS read stays dated after a reload` |
+| | `KEPT facts: a capture date label and its group heading are the same after a reload` |
+
+**THE WRITER-BY-FIELD MATRIX** (Phase A's, kept at `D:\Claude\_handoffs\gate85b-phaseA\MATRIX.md`, 18 rows,
+derived from source at `main@b4b3ec9`): every writer that changes a stored record, the fields it changes, and
+the test that proves the change is kept. After this gate **every writer reachable from the UI has a KEPT-across-
+reload test**: the Top-Up, create goal and the first uploaded image (Gate 85); goal edit, the auto-save switch,
+the pencil, delete with and without a balance, link, unlink, swap, edit, delete, replace, budget create and edit,
+the image rule in five cases, and both capture facts (this gate); budget delete and reset (earlier).
+
+**TWO WRITERS REMAIN UNTESTED AND UNREACHABLE FROM THE UI, BY NAME** (review thread, R8): `addTransaction`
+(the Gate 48 seam) and `adjustFiatBalance` (the Gate 75 seam) in `AccountsProvider.tsx`. Neither has a caller.
+Do not sweep them as dead code and do not test them until something calls them.
+
+### Phase A's scoped run, and the one failure that was a test defect
+
+First scoped run: 42 passed / 1 failed — "KEPT goal delete with a balance" read the net-worth hero with
+`innerText` and received `RM 481,038` then a newline then `.84`, because the hero sets its cents in their own
+element. The value was right; the test read it wrongly. `readOverview` now uses `textContent`. Re-run: 43 passed
+(the 21 new tests and Gate 85's 22 in `persistence.spec.ts`). **A reusable trap: read money figures
+with `textContent` or `toHaveText`, never `innerText` on the hero.** (Phase A's hand-over labels this "F2";
+that is a different item from the review thread's F2 below.)
+
+### The mutation proofs — negative control plus 21, and two extras
+
+Driver: Gate 85 Phase B's (`D:\Claude\_handoffs\gate85-phaseB\mutate.mjs`), copied to
+`D:\Claude\_handoffs\gate85b-phaseB\`. For each proof it requires: every needle found exactly once; the mutated
+tree typechecks (else NO PROOF); exactly one test runs (an exact, regex-escaped, `$`-anchored title, argument
+array, no shell); that test fails on an assertion (a deny list, then a required signature); every touched file
+restores SHA-identical; the same test passes again. Phase B added one signature per proof that names the
+**spec line** the failure must land on, so a mutation that tripped an EARLIER assertion would have been refused.
+
+**THE SET IS THE NEGATIVE CONTROL PLUS R1..F3 (21 MUTATIONS, ONE PER TEST), PLUS TWO EXTRA PROBES — 24 ENTRIES.**
+Result of the run: **negative control REFUSED, as required** (a syntax error in `boundary.ts`); **22 PROVED**
+(the 21 plus the extra `I2s`); **`I3b` PASSED UNDER MUTATION — a finding, below**.
+
+| id | test (short) | mutated | landed at spec line |
+|---|---|---|---|
+| R1 | receipt link | `AccountsProvider.tsx:642` — link does not set `transactionId` | 282 |
+| R2 | receipt unlink | `AccountsProvider.tsx:606` — unlink keeps the id | 315 |
+| R3 | receipt swap | `AccountsProvider.tsx:643` — the incumbent is not displaced | 350 |
+| R4 | receipt edit | `boundary.ts:95` — hydration restores the seed merchant | 401 |
+| R5 | receipt delete | `AccountsProvider.tsx:618` — the receipt is kept | 422 |
+| R6 | receipt replace | `store.ts:464` — the byte-delete loop removed | 467 |
+| G1 | goal edit | `boundary.ts:63` — stored funding account stays `main` | 508 |
+| G2 | auto-save switch | `GoalDetailScreen.tsx:286` — always writes enabled | 537 |
+| G3 | auto-save pencil | `GoalDetailScreen.tsx:294` — amount never changes | 567 |
+| G4 | goal delete, balance | `AccountsProvider.tsx:857` — the return row is not appended | 590 |
+| G5 | goal delete, RM 0 | `AccountsProvider.tsx:852` — the goal is kept | 626 |
+| B1 | budget create | `BudgetsProvider.tsx:65` — stores a limit of 1 | 718 |
+| B2 | budget edit | `BudgetsProvider.tsx:70` — auto-renew cannot change | 766 |
+| I1 | images i | `store.ts:427` — a later write skips the receipts collection | 798 |
+| I2 | images ii | `boundary.ts:102` — hydration does not restore a row's image | 861 (inside `shownHash`, 208) |
+| I3 | images iii | `schema.ts:257` — stored rows stop counting as references | 878 |
+| I4 | images iv | `store.ts:464` — the byte-delete loop removed | 912 |
+| I5 | images v | `store.ts:464` — the same mutation | 928 |
+| F1 | facts, camera | `boundary.ts:42` — the STORED `captureSource` flips to gallery | 944 |
+| F2 | facts, date read | `boundary.ts:42` — the STORED `capturedAtRead` flips to false | 961 |
+| F3 | facts, label vs heading | `boundary.ts:95` — hydration replaces the printed date with the added date | 1003 |
+| I2s | images ii (extra) | `schema.ts:257` — the same mutation as I3, on I2's test | 843 |
+| I3b | images iii (extra) | `boundary.ts:73` — runtime `referencedImageUrls` ignores ledger rows | passed |
+
+`R6`, `I4` and `I5` share ONE mutation (the byte-delete loop) and each is its own proof against its own target
+assertion, per the review thread's R3 ruling. `F1` and `F2` target the STORED-value assertion on purpose (R4):
+their on-screen checks cannot see a LOST fact, because a receipt with no fact defaults to camera and to
+date-read. The full table with the mutated line, the change and the landing line is
+`D:\Claude\_handoffs\gate85b-phaseB\PROOF-TABLE.md`; every mutated log is in `mut-run1\`.
+
+**WHAT THESE PROOFS DO AND DO NOT SHOW, stated so nobody over-reads them.** Most mutate a WRITER or the
+boundary and fail at the first assertion that can see it — often the live screen, before the store read. They
+prove each test is sensitive to its writer. The storage layer's own guards (the first-write rule, atomicity, the
+revision check, quarantine) were proved at Gate 85 (`P1`, `P16`, `P9`, `P7`). Where a test has two layers (the
+store read and the reload), the table says which one the proof reaches.
+
+### Findings — reported, not fixed
+
+- **`I3b` PASSES UNDER MUTATION: the runtime `referencedImageUrls` ledger-row loop has no test that can fail.**
+  Removing it (`boundary.ts:73`) makes `releaseUnreferenced` revoke a goal's old image URL while a ledger row
+  still renders it. Nothing in the suite catches it, because the stored-side rule (`schema.ts`
+  `referencedImageIds`) is what keeps the BYTES, and a reload restores the row from those bytes. It would
+  surface only as a broken in-session image, or as a failed later write (`UnregisteredImageError` ->
+  memory mode) — and `images iii` makes no write after the second upload. An assertion-only edit cannot
+  reach it: it needs a further step (navigate to the ledger before the reload), which is a new step. **Same
+  class as Gate 85's `P5` (the `seen` guard); both stay documented and untested (review thread, R7).**
+- **Phase A's predicted landing for the `schema.ts:257` mutation was wrong.** The hand-over said the failure
+  would show after the reload (a row image not decoding). It lands EARLIER, at the in-store assertion (line 843,
+  "the goal is gone but its rows still name the bytes"), because the delete write already drops the bytes.
+  That is the stronger pin, so it is kept as `I2s`; the proof that matches the hand-over's stated target
+  (post-reload decoding) is `I2`, which mutates hydration instead.
+- **`R4`'s mutation is a hydration mutation, not Phase A's exact line** (it returns a fixed merchant for seeded
+  receipts); `G2` uses `isEnabled || true` (a bare `isEnabled: true` would leave the parameter unused and fail
+  `noUnusedParameters`); `R5` uses `|| true` for the same reason. All three are the hand-over's idea made
+  type-valid.
+
+### Rulings — the review thread, 13 Oct 2026; each overturnable by Teku
+
+- **R1 — store helpers duplicated inside the new spec are ACCEPTED.** `readStore` and `storeIdle` exist
+  privately in `persistence.spec.ts` and are copied (about 50 lines) into the new spec. Importing a spec would
+  register its tests twice, and moving them to `harness.ts` would still leave the private copies. **Hygiene-round
+  item: consolidate both copies into `e2e/harness.ts` in one gate.**
+- **R2 — not repeating the gallery plus unread-date capture case is ACCEPTED.** It is covered by Gate 85's
+  `persistence.spec.ts` test `a capture keeps its image, its unread date and its gallery source across a reload`
+  (mutations `P11` and `P19`). This gate adds the complements: camera, and date read.
+- **R3 — images iv and v share one mutation**, run as separate proofs (and `R6` shares it too).
+- **R4 — the capture-fact proofs target the stored value** (above).
+- **R5 — F1 is existing behaviour and an OPEN product decision with Teku** (below).
+- **R7 — `P5` stays an untested documented finding. R8 — the two callerless writers stay untested.**
+
+### F1 — OPEN with Teku: a captured receipt's year-less printed date sits under the month it was ADDED
+
+**NOT A PERSISTENCE FAULT.** Before any reload the harness reproduces the device shape exactly: a receipt
+printed 19 Sept 2025 (no time on the paper, so 00:00) reads **"19 Sept, 00:00" under the heading "August 2026"**.
+A reload changes neither — `KEPT facts: a capture date label and its group heading are the same after a
+reload` asserts that, and records the pair as a test annotation.
+
+**THE MECHANISM, checked on disk.** Under the default "Date added" sort the heading is the month the receipt was
+ADDED (`groupReceiptsByMonth` keys on `addedAtOf(receipt)`, `src/data/derive.ts:1069`; the stamp is
+`localWallClockMs(now)` at `src/flows/finance/receiptCapture.ts:548`), while the label is the PRINTED date, with
+no year (`src/flows/finance/components/ReceiptCard.tsx:117`, `formatTimestamp(receipt.capturedAt)`). The harness
+clock is 15 Aug 2026 (`PINNED_NOW`, `e2e/harness.ts:685`), so the heading reads "August 2026"; Teku's phone
+read 12 Oct 2026, so the same receipt sat under "October 2026". The two can name different months by design.
+
+**NO OPTION IS RECORDED AS CHOSEN AND THE LABEL WAS NOT CHANGED.** This is the open year-less-label question
+already carried since Gate 83 (`formatTimestamp`, `src/data/format.ts:121`), now with a concrete case. It
+belongs to Teku.
+
+### F2 — a known limit, not a defect
+
+The two capture-fact tests cannot see a LOST fact on screen: with no stored fact a receipt retakes from the
+camera (`advisoryCopy.ts`) and counts as date-read (`capturedAtReadOf`). That is why each also asserts the
+stored value, and why their proofs mutate the stored record.
+
+### Research the review thread asked for (R6), read-only
+
+**WHICH GATE GROUPED RECEIPTS BY THEIR ADDED DATE, AND WHO RULED.** Commit `be2bacd` (2026-09-19, tag
+`mvp-gate58`), whose subject reads "Gate 58 — an outcome-triggered second pass for photographs; added-on
+ordering; em dash for unread figures". So **Gate 58 contains BOTH the OCR second pass AND the added-on ordering**;
+the description of Gate 58 as the OCR second pass alone is incomplete. Phase A's phrase "your Gate 58 ruling" is
+consistent with the record. `CLAUDE.md` attributes it to Teku twice: line 9577, "Phase 2 — the Receipts tab
+orders by when a receipt was ADDED ... Teku's ruling, 18 Sept, option C", and line 9498, which records the open
+question at Gate 57 and its disposition: "Ruled at Gate 58, option C: the Receipts tab now groups and orders by
+when a receipt was ADDED." This record rests on `CLAUDE.md`'s attribution; no other document was found that
+states it independently.
+
+**WHICH DATE THE RECEIPTS DATE FILTER TESTS.** The PRINTED date: `filterReceipts` at `src/data/derive.ts:1371`
+calls `withinDateRange(r.capturedAt, filter.dateRange, now)` at line 1380, with `now = receiptsNow(receipts)`
+(the newest `capturedAt`, line 1343). So the filter and the default grouping use different dates — the filter
+tests the printed date, the heading groups on the added date.
+
+### Deferred, and the rest of the hygiene list
+
+- The duplicated store helpers (R1).
+- The two untested runtime image guards: `images.ts` `seen` (Gate 85 `P5`) and `boundary.ts`
+  `referencedImageUrls`'s ledger-row loop (`I3b`).
+
+### What this gate changed
+
+`e2e/persistence-writers.spec.ts` (new, 21 tests, untracked), `CLAUDE.md` (this section) and
+`MONARCH-MVP-DS-GAP-REGISTER.md` (section 2ah). **No application file, baseline, `package.json`, lockfile or other
+spec was touched**; every mutation was restored SHA-identical (225 tracked files re-hashed against a manifest
+taken before the first proof).
+
+### Verification
+
+**THREE CLEAN RUNS OF THE FINAL TREE, SEQUENTIAL, NOTHING ELSE ON THE MACHINE: 1044 tests, 1044 passed, 0 failed,
+0 flaky in every one.** 37.9, 38.7 and 40.1 minutes by Playwright (2276, 2332 and 2418 seconds by wall clock),
+npm's own exit code **0** captured in its own file each time, **zero** "writing actual" lines, 308 PNGs and the
+baseline digest byte-identical after every run and to the start (all 64 characters:
+`735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`). **Arm 1 of the baseline guard is green**,
+as it must be: this gate adds no PNG. The known `section-headers.spec.ts` mount-timing flake did not appear.
+
+Static gates on the final tree: `npx tsc -b --force` clean; `npm run lint:tokens` PASS (102 files, 4
+exemptions); `npm run lint:linkage` PASS (all four sources on v2.8.0). **A markdown-only edit inside these two
+inserted sections was made after the runs began** (this paragraph); no spec, script or source reads either
+document (searched `e2e/`, `scripts/`, `src/` and the config files: only comments mention them), so the runs
+stand.

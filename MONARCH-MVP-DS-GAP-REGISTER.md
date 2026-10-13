@@ -3820,3 +3820,72 @@ first storage layer (Gate 85)".
   mutation `SC1`.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ah. Status at MVP Gate 85-B (2026-10-13) — persistence test coverage; no DS change
+
+Additions only. The DS pin is unchanged at **v2.8.0**. Gate 85-B added one spec file
+(`e2e/persistence-writers.spec.ts`, 21 tests) and changed no application file and no DS file. **No `G` entry is
+opened or closed.**
+
+### The count — INCREMENTAL, NOT RE-ENUMERATED
+
+**48 entries, 29 closed, 19 open; the highest number is G49** — unchanged from §2ag, because nothing was opened or
+closed. The full account, the proof table and the rulings are in `CLAUDE.md`'s "Persistence test coverage,
+writer by writer (Gate 85-B)". Tests 1023 -> 1044 in 40 files; baselines 308 -> 308, digest
+`735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`, unchanged.
+
+### §2ag's "coverage gaps against Phase A's design outline" — CLOSED, except what is named below
+
+§2ag listed no persistence test for receipt link, unlink, edit, delete or replace; goal edit, delete,
+auto-save switch and amount; budget create and edit; a deleted receipt's bytes leaving the store; and a deleted
+goal keeping an image its rows still name. **All are now covered by KEPT-across-reload tests**, each proved by a
+mutation that lands on its target assertion (negative control refused; 22 proved; one extra probe passed under
+mutation — below). **Still untested, and unreachable from the UI** (review thread, 13 Oct): `addTransaction`
+(Gate 48) and `adjustFiatBalance` (Gate 75) in `AccountsProvider.tsx` have no caller.
+
+### MVP-side findings — reported, not fixed (MVP logic, no `G` number)
+
+- **A second runtime image guard has no test that can fail.** `boundary.ts` `referencedImageUrls`'s
+  ledger-row loop (mutation `I3b`) decides when an image's object URL is revoked in-session; removing it left
+  `images iii` green, because the stored-side rule keeps the bytes and a reload restores the row. It is a sibling of
+  Gate 85's `P5` (`images.ts` `seen`); both are documented and untested by ruling (R7).
+- **Phase A's predicted landing for the `schema.ts:257` mutation was wrong** (it lands at the in-store
+  assertion, not after the reload). Recorded in `CLAUDE.md`; both landings are pinned (`I2s`, `I2`).
+- **The store helpers `readStore` and `storeIdle` exist twice** (`persistence.spec.ts` and the new spec).
+  Accepted for this gate (R1). **Hygiene-round item: consolidate both into `e2e/harness.ts` in one gate.**
+
+### F1 — OPEN with Teku (a product decision; no option recorded as chosen)
+
+**A captured receipt's year-less printed date sits under the month it was ADDED.** Evidence, re-derived from
+disk: the default "Date added" sort groups on `addedAtOf(receipt)` (`src/data/derive.ts:1069`), the added date is
+stamped at capture with the clock (`src/flows/finance/receiptCapture.ts:548`), and the card prints the PRINTED
+date with no year (`src/flows/finance/components/ReceiptCard.tsx:117`, `formatTimestamp`, defined at
+`src/data/format.ts:121`). In the harness (clock 15 Aug 2026, `e2e/harness.ts:685`) a receipt printed
+19 Sept 2025 reads "19 Sept, 00:00" under "August 2026"; Teku's device on 12 Oct 2026 read "October 2026". A
+reload changes neither (pinned by `KEPT facts: a capture date label and its group heading are the same after a
+reload`). It is existing behaviour, not a persistence effect, and it is the open year-less-label question
+carried since Gate 83. The label was not changed.
+
+The Receipts date FILTER tests the printed date (`filterReceipts`, `src/data/derive.ts:1380`, on `capturedAt`),
+so the filter and the default grouping use different dates by design.
+
+### F2 — a known limit, not a defect
+
+The two capture-fact tests cannot see a lost fact on screen: a receipt with no stored fact defaults to a camera
+retake and to date-read. Each therefore asserts the stored value, and its proof mutates the stored record.
+
+### The ruling on who introduced added-date grouping (research, read-only)
+
+Commit `be2bacd` (2026-09-19, tag `mvp-gate58`): "Gate 58 — an outcome-triggered second pass for photographs;
+added-on ordering; em dash for unread figures". Gate 58 contains both the OCR second pass and the added-on
+ordering. `CLAUDE.md` (lines 9577 and 9498) attributes the ordering to Teku, "18 Sept, option C".
+
+### Deferred items, with where / what / decision
+
+- **`images.ts` `seen` guard (Gate 85 `P5`) and `boundary.ts` `referencedImageUrls`'s ledger-row loop (`I3b`)** —
+  untested; documented. An assertion-only edit cannot reach either: each needs a second overlapping write or an
+  extra navigation step.
+- **Duplicated store helpers** — see above.
+- **F1** — Teku's.
+
+### Nothing was removed from this register at this gate.
