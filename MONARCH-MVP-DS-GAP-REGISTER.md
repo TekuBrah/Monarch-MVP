@@ -3889,3 +3889,31 @@ ordering. `CLAUDE.md` (lines 9577 and 9498) attributes the ordering to Teku, "18
 - **F1** — Teku's.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ai. Status at MVP Gate 85-C (2026-10-14) — the in-memory image guard is covered; no DS change
+
+No DS gap opened or closed; the tally does not move. This section records one thing: **the finding Gate 85-B put
+in section 2ah's deferred list as `I3b` is now covered by a test.** Section 2ah is not edited; this points back to it.
+
+**The guard** is `src/persistence/boundary.ts:73-75` (the loop over `state.transactions` in `referencedImageUrls`). It
+keeps the in-memory image registry from revoking an object URL that a ledger row still renders. Its stored-side twin is
+`src/persistence/schema.ts:257-259`, already pinned by Gate 85-B's `I3` and `I2s`.
+
+**The test** is `RUNTIME images: a replaced goal image keeps its old ledger rows showing a picture in the same session,
+with no reload`, in the new `e2e/persistence-images-runtime.spec.ts`. It uploads a goal image, writes two Top-Ups so two
+rows name it, replaces the image, then — with no reload — opens the Transactions tab for the first time and polls
+`naturalWidth > 0` on each old row's image. Removing the loop fails it at the image assertion (mutation `M1`, proved;
+negative control refused). The same mutation passes Gate 85-B's `I3`, which is the original finding.
+
+**The deferred item in section 2ah that named the ledger-row loop is therefore closed.** Its sentence that "an
+assertion-only edit cannot reach either" stays true of an edit to the existing spec; a new test with the extra
+navigation step reaches it. **`images.ts` `seen` guard (Gate 85 `P5`) remains untested**, documented, and out of scope:
+it needs two overlapping writes.
+
+Decision 5 (the year-less receipt date, F1) remains open with Teku.
+
+Verification: three clean sequential runs of the final tree, 1045 passed / 0 failed each, 308 baselines
+byte-identical (digest `735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`) — details in the Gate 85-C
+section of `CLAUDE.md`.
+
+### Nothing was removed from this register at this gate.

@@ -19027,3 +19027,84 @@ exemptions); `npm run lint:linkage` PASS (all four sources on v2.8.0). **A markd
 inserted sections was made after the runs began** (this paragraph); no spec, script or source reads either
 document (searched `e2e/`, `scripts/`, `src/` and the config files: only comments mention them), so the runs
 stand.
+
+## The in-memory image guard, tested without a reload (Gate 85-C)
+
+No DS re-pin — **v2.8.0 throughout**, and no application file changed. Gate 85-B closed with one finding, `I3b`:
+the in-memory half of the image-reference rule had no test that could fail. This gate adds one. **|WALK| stays 77,
+`OVERLAY_STATES` 45, `ROUTES` 25, baselines 308 -> 308 (0 changed, 0 added, 0 deleted — digest
+`735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`, filesystem and git-blob forms both),
+tests 1044 -> 1045, spec files 40 -> 41.** `lint:tokens` 102 files, 4 exemptions; `lint:linkage` PASS on v2.8.0.
+
+### The guard, by file and line
+
+**`src/persistence/boundary.ts:73-75`** — the loop over `state.transactions` inside `referencedImageUrls`. It tells
+the image registry (`images.ts`) which object URLs a committed snapshot still names; `releaseUnreferenced`
+(`images.ts:99`) revokes every URL it is not told about, from the write queue's `flush` (`store.ts:408`, `:520-521`).
+Remove the loop and replacing a goal's image makes the registry revoke the old URL while ledger rows written under it
+still render it: the rows show a broken picture until the app is reopened.
+
+**ONE GUARD, TWO NAMES, AND A TWIN.** Gate 85-B described the finding as "the hand-over's `boundary.ts:73`" and as "the
+runtime `referencedImageUrls` ledger-row loop": those are the same loop (73 is its first line). It has a STORED-side
+twin, `src/persistence/schema.ts:257-259` (`referencedImageIds`, which keeps the BYTES in the store); that one was
+already pinned by Gate 85-B's `I3` and `I2s`. Two guards exist; this gate is about the runtime one.
+
+### The test
+
+`e2e/persistence-images-runtime.spec.ts`, **new**, 163 lines, wholly CRLF, sha256
+`b8ba5acc12a9f233e3ad399b0e2880e5de5ba36f7044ca5f25f27ad11cf3b5d2`, one test:
+
+> `RUNTIME images: a replaced goal image keeps its old ledger rows showing a picture in the same session, with no reload`
+
+Through the app's own controls and with no reload anywhere: enter on the goal's route; upload an image; make two
+Top-Ups (RM 37.21 and RM 12.34 — neither magnitude is in the seed, asserted) so two ledger rows name the image;
+replace the image; `whenIdle()` so the release has run; navigate Back and open the Transactions tab; poll
+`naturalWidth > 0` on each old row's `<img>` and compare its bytes with the first upload's. The goal's NEW image is
+asserted decoded and equal to the second upload's bytes before navigating.
+
+**HOW IT GUARANTEES THE OLD ROWS MOUNT FOR THE FIRST TIME AFTER THE REPLACE.** An already-decoded `<img>` keeps its
+pixels after its URL is revoked, so a row already on screen would let the test pass with the guard removed. Two
+things rule that out. (1) The test enters through `gotoRoute` on the goal's own route, so the Finance screen — and the
+Transactions tab and every ledger row — has never been mounted in the page; the goal screen's contribution rows draw no
+image (`ContributionRow` passes `hasIcon={false}`). (2) Immediately before navigating, it reads every `<img>` in the
+document and asserts none holds the old URL, and that `.mvp-transactions__list` does not exist yet.
+
+### The proofs
+
+Driver: Gate 85-B's `mutate.mjs`, kept outside the repo at `D:\Claude\_handoffs\gate85c\`. It typechecks the mutated
+tree, runs exactly one test by its exact `$`-anchored title through an argument array with no shell, requires an
+assertion failure (and, here, a named signature), restores SHA-identical and re-runs the test green.
+
+| id | mutation | against | result |
+|---|---|---|---|
+| NC | a syntax error in `boundary.ts` (negative control) | the new test | **REFUSED**, as required — the mutated tree does not typecheck |
+| M1 | the runtime loop `boundary.ts:73-75` removed | the new test | **PROVED** — fails at `Error: the 37.21 row still shows a picture`, `Expected: > 0, Received: 0`, from `expectDecoded` (spec line 83, called at 160); the restored tree passes |
+| M2 | the STORED loop `schema.ts:257-259` removed | the new test | passes — for the record: the stored half only keeps bytes in the store, and the in-memory blob survives; `I3` and `I2s` pin that half |
+| M1 | the same runtime mutation | Gate 85-B's `I3` | passes — for the record: **this is the original `I3b` finding, reproduced** |
+
+Every touched file restored SHA-identical (all 533 tracked files re-hashed against a manifest taken before the first
+proof). The failure is on the image assertion, not an earlier one: nothing earlier in the test can see the guard.
+
+### What this closes, and what it does not
+
+It closes Gate 85-B's deferred item `I3b`. Gate 85-B said an assertion-only edit could not reach it because it "needs a
+further step (navigate to the ledger before the reload)"; a NEW file may take that step, and this one does. **It does
+not close `P5`** (Gate 85's `images.ts` `seen` guard), which needs two writes overlapping. Decision 5 — the year-less
+receipt date, F1 — remains OPEN with Teku; nothing here chooses an option.
+
+### What this gate changed
+
+`e2e/persistence-images-runtime.spec.ts` (new), `CLAUDE.md` (this section) and `MONARCH-MVP-DS-GAP-REGISTER.md`
+(section 2ai). No application file, baseline, `package.json`, lockfile, `e2e/harness.ts` or other spec.
+Static gates: `npx tsc -b --force` clean; `npm run lint:tokens` PASS; `npm run lint:linkage` PASS.
+
+### Verification — the three clean runs
+
+**THREE CLEAN RUNS OF THE FINAL TREE, SEQUENTIAL, NOTHING ELSE ON THE MACHINE: 1045 tests, 1045 passed, 0 failed,
+0 flaky in every one.** 41.8, 43.6 and 38.9 minutes by Playwright (2509, 2625 and 2349 seconds by wall clock), npm's
+own exit code **0** captured in its own file each time, **zero** "writing actual" lines, 308 PNGs and the baseline
+digest byte-identical after every run and to the start
+(`735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4df7405cc9`). **Arm 1 of the baseline guard is green**, as it
+must be: this gate adds no PNG. The known `section-headers.spec.ts` mount-timing flake did not appear. The two
+documents were complete before the first run began; only this paragraph was appended afterwards (insert-only, to
+this section), and no spec, script or source reads either document.
