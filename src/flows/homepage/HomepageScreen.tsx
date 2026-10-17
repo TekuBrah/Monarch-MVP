@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
 import { ComingSoon } from '../../components/ComingSoon'
 import { mediaUrl } from '../../config/media'
 import { HomepageCrypto } from './HomepageCrypto'
 import { HomepageFiat } from './HomepageFiat'
+import { HOME_TAB_STATE_KEY, requestedHomeTab } from './homeTabs'
 import './homepage.css'
 
 /**
@@ -34,8 +36,27 @@ const TABS: TabItem[] = [
   { id: 'stocks', label: 'Stocks' },
 ]
 
+const TAB_IDS = TABS.map((t) => t.id)
+
 export function HomepageScreen() {
-  const [selected, setSelected] = useState<string>('accounts')
+  /*
+    GATE 87 — coming Back from Settings lands on the tab the user left, read
+    ONCE from router location state (`homeTabs.ts`). The literal fallback stays
+    in this expression because the harness identifies the default tab by
+    parsing it (`parseTabbedScreen` in `e2e/harness.ts`).
+  */
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [selected, setSelected] = useState<string>(
+    () => requestedHomeTab(location.state, TAB_IDS) ?? 'accounts',
+  )
+
+  // Store the tab in THIS history entry, then push Settings — so Back returns
+  // here on the same tab, and Back from here does not loop to Settings.
+  const openSettings = () => {
+    navigate('/', { replace: true, state: { [HOME_TAB_STATE_KEY]: selected } })
+    navigate('/settings')
+  }
 
   return (
     <div className="mvp-home">
@@ -68,6 +89,8 @@ export function HomepageScreen() {
         avatarSrc={mediaUrl('profile')}
         statusBarTime="9:41"
         hasNotification
+        onAvatarClick={openSettings}
+        avatarAriaLabel="Settings"
       />
 
       <div className="mvp-home__tabs">

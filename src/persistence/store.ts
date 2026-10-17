@@ -108,11 +108,15 @@ function quiet(promise: Promise<unknown>): void {
   promise.catch(() => {})
 }
 
+/** Gate 87: the settings screen disables Reset outside `persist`, reactively. */
+const modeListeners = new Set<() => void>()
+
 function setMode(next: StoreMode): void {
   mode = next
   // THE READINESS SIGNAL (D-2) — set before the first render and kept current.
   // It is not painted; the harness waits for it.
   document.getElementById('root')?.setAttribute('data-store', next)
+  for (const listener of modeListeners) listener()
 }
 
 function enqueue(task: () => Promise<void>): Promise<void> {
@@ -370,6 +374,18 @@ export function storeMode(): StoreMode {
 }
 
 /**
+ * Gate 87: hear every mode change (for `useSyncExternalStore` with
+ * `storeMode` as the snapshot). Needed because a failed write logs its event
+ * BEFORE it switches the mode, so a diagnostics listener reads the old mode.
+ */
+export function subscribeStoreMode(listener: () => void): () => void {
+  modeListeners.add(listener)
+  return () => {
+    modeListeners.delete(listener)
+  }
+}
+
+/**
  * Resolves when every write queued SO FAR has finished — for specs, which reach
  * this module by importing it in the page (`ocr.spec.ts`'s precedent), and for
  * the settings-modal gate. Never rejects.
@@ -478,7 +494,9 @@ async function flush(authoritative: boolean): Promise<void> {
     markPersisted(state)
     markReferenced(urls)
     releaseUnreferenced(urls)
-    channel?.postMessage({ revision, schemaVersion: SCHEMA_VERSION })
+    // Gate 87: `reset` tells other tabs this write was a reset (only `flush(true)`
+    // is one), so they can say so; an ordinary write stays silent there.
+    channel?.postMessage({ revision, schemaVersion: SCHEMA_VERSION, reset: authoritative })
   } catch (error) {
     try {
       tx.abort()
@@ -535,14 +553,21 @@ async function rehydrate(reason: string): Promise<void> {
 
 async function onRemote(message: unknown): Promise<void> {
   if (typeof message !== 'object' || message === null) return
-  const { revision, schemaVersion } = message as { revision?: unknown; schemaVersion?: unknown }
+  const { revision, schemaVersion, reset } = message as {
+    revision?: unknown
+    schemaVersion?: unknown
+    reset?: unknown
+  }
   if (typeof schemaVersion === 'number' && schemaVersion > SCHEMA_VERSION) {
     logPersistence('newer-schema', 'announced by another tab; this tab is now read-only')
     setMode('readonly')
     return
   }
   if (mode !== 'persist') return
-  if (revision !== baseRevision) await rehydrate('another tab wrote')
+  if (revision !== baseRevision) {
+    await rehydrate('another tab wrote')
+    if (reset === true && mode === 'persist') logPersistence('remote-reset')
+  }
 }
 
 // ───────────────────────────────── reset ─────────────────────────────────────

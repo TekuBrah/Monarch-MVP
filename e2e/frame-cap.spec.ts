@@ -162,7 +162,7 @@ test.describe(`the fixed chrome follows the frame cap — ${WIDE.width}px`, () =
     ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
 
     // ── THE FIXED ELEMENTS, which do NOT follow the cap by inheritance ─────
-    // nav and scrim span the frame; fab and theme switch sit a gutter inside
+    // nav and scrim span the frame; fab and notice host sit a gutter inside
     // its edges. Both shapes are stated against the SAME derived frameLeft /
     // frameRight, so one mechanism is being checked, not four coincidences.
     const spanning = ['.mvp-shell__nav', '.mvp-shell__scrim']
@@ -204,15 +204,9 @@ test.describe(`the fixed chrome follows the frame cap — ${WIDE.width}px`, () =
         `(frame right ${frameRight} minus gutter ${frame.gutter})`,
     ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
 
-    // THE THEME SWITCH is inset from the frame's LEFT edge by one gutter.
-    const themeSwitch = await readFixed(page, '.mvp-shell__theme-switch')
-    expect(themeSwitch, '.mvp-shell__theme-switch must be present').not.toBeNull()
-    expect(themeSwitch!.position, '.mvp-shell__theme-switch must still be fixed').toBe('fixed')
-    expect(
-      Math.abs(themeSwitch!.left - (frameLeft + frame.gutter)),
-      `.mvp-shell__theme-switch left edge ${themeSwitch!.left}px, derived ` +
-        `${frameLeft + frame.gutter}px (frame left ${frameLeft} plus gutter ${frame.gutter})`,
-    ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
+    // THE LEFT-EDGE ELEMENT — until Gate 87 the shell's theme switch — is now
+    // the notice host. It renders only while a notice shows, so it is raised
+    // and measured at the END of this test, after everything here has read `/`.
 
     // ── HIT-TESTING, not measurement ───────────────────────────────────────
     // The fatal mechanisms leave the geometry looking correct while making the
@@ -234,6 +228,42 @@ test.describe(`the fixed chrome follows the frame cap — ${WIDE.width}px`, () =
         `transform / contain / filter having un-fixed the chrome — geometry can look right ` +
         `while the control cannot be pressed.`,
     ).toBe(true)
+
+    // ── THE NOTICE HOST (Gate 87), inset from BOTH frame edges by one gutter ─
+    // It took the theme switch's place among the fixed elements, and it is
+    // the shell's only fixed element that is NOT always on screen, so a notice
+    // is raised the way a user raises one: the header avatar, then Reset data.
+    // Same intent as the theme-switch assertion it replaces — a fixed element
+    // a gutter inside the frame follows the cap — now checked on both edges.
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await expect(page).toHaveURL(/\/settings$/)
+    await page.locator('.mvp-settings__action .mn-btn').click()
+    await page.locator('.mn-modal__footer .mn-btn--error').click()
+    await expect(page.locator('.mvp-notice .mn-toast-mobile')).toHaveText('Demo data restored.')
+    await finishAnimations(page)
+
+    const notice = await readFixed(page, '.mvp-notice')
+    expect(notice, '.mvp-notice must be present once a notice is raised').not.toBeNull()
+    expect(
+      notice!.position,
+      '.mvp-notice must still be position: fixed. transform / contain: layout paint / filter ' +
+        'each establish a containing block and UN-FIX it, which a width check cannot see',
+    ).toBe('fixed')
+    expect(
+      Math.abs(notice!.left - (frameLeft + frame.gutter)),
+      `.mvp-notice left edge ${notice!.left}px, derived ` +
+        `${frameLeft + frame.gutter}px (frame left ${frameLeft} plus gutter ${frame.gutter})`,
+    ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
+    expect(
+      Math.abs(notice!.right - (frameRight - frame.gutter)),
+      `.mvp-notice right edge ${notice!.right}px, derived ` +
+        `${frameRight - frame.gutter}px (frame right ${frameRight} minus gutter ${frame.gutter})`,
+    ).toBeLessThanOrEqual(LAYOUT_QUANTUM_PX)
+    expect(
+      notice!.bottom,
+      `.mvp-notice bottom edge is at ${notice!.bottom}px against a ${frame.innerHeight}px ` +
+        `viewport — it is no longer fixed to the viewport`,
+    ).toBeLessThanOrEqual(frame.innerHeight + LAYOUT_QUANTUM_PX)
   })
 
   test(`the toast [${WIDE.width}]`, async ({ page }) => {

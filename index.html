@@ -52,6 +52,30 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Monarch MVP</title>
+    <!--
+      GATE 87 — THE STORED THEME IS APPLIED BEFORE FIRST PAINT. A classic, blocking
+      script, so it runs before the body paints and long before the bundle: the app
+      renders only after hydrate() (up to 4 s, src/main.tsx), and without this a
+      dark-mode tester would watch a light page for that whole wait. It restates
+      src/theme/themePreference.ts in ES5 — validate against the value list, resolve,
+      apply — because an HTML script cannot import a module. e2e/settings.spec.ts
+      evaluates this exact script for every candidate stored value and asserts it
+      agrees with resolveTheme(parseThemePreference(value)). Change one, change both.
+      Storage can throw (blocked site data, some private modes): the catch leaves the
+      page light, the default. No Content-Security-Policy is set (netlify.toml); one
+      with script-src would have to carry this script's hash.
+    -->
+    <script>
+      (function () {
+        var preference = 'light'
+        try {
+          var stored = window.localStorage.getItem('monarch-mvp:theme')
+          if (stored === 'light' || stored === 'dark') preference = stored
+        } catch (e) {}
+        var theme = preference === 'dark' ? 'dark' : 'light'
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

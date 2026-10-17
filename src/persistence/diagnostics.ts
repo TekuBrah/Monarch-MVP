@@ -4,9 +4,9 @@
  * Where the storage layer records what it did that a user cannot see: a store
  * it could not open, a write it had to drop, a store it quarantined or reset.
  *
- * IT IS THE ONLY PLACE THESE ARE REPORTED, BY RULING (Gate 85, product
- * decision 2). There is no user-facing notice for a save failure or a reset in
- * this gate — that notice is designed with the settings modal. Nothing here
+ * GATE 85 REPORTED THESE HERE AND NOWHERE ELSE (product decision 2). GATE 87
+ * ADDS THE USER-FACING NOTICES: `shell/notices.ts` subscribes below and maps
+ * each kind to a notice (or to none — `rehydrated` is ordinary sync). Nothing here
  * writes to the console either: the route walk fails on `console.warn` and
  * `console.error` (`e2e/harness.ts`, `watchForProblems`), and a storage event
  * is not a defect in the page.
@@ -33,6 +33,8 @@ export type PersistenceEventKind =
   | 'stale-write-dropped'
   | 'rehydrated'
   | 'reset'
+  /** Gate 87: ANOTHER tab reset the demo data, and this tab re-hydrated to it. */
+  | 'remote-reset'
 
 export interface PersistenceEvent {
   /** `Date.now()` when it happened. */
@@ -43,10 +45,25 @@ export interface PersistenceEvent {
 
 const LIMIT = 50
 const entries: PersistenceEvent[] = []
+const listeners = new Set<(event: PersistenceEvent) => void>()
 
 export function logPersistence(kind: PersistenceEventKind, detail?: string): void {
-  entries.push({ at: Date.now(), kind, ...(detail === undefined ? {} : { detail }) })
+  const event: PersistenceEvent = { at: Date.now(), kind, ...(detail === undefined ? {} : { detail }) }
+  entries.push(event)
   if (entries.length > LIMIT) entries.splice(0, entries.length - LIMIT)
+  for (const listener of listeners) listener(event)
+}
+
+/**
+ * Gate 87: hear every event as it is logged. Returns the unsubscribe. A
+ * listener runs synchronously inside `logPersistence`, so it must not throw and
+ * must not write to the store; the notice feed only sets its own state.
+ */
+export function subscribePersistence(listener: (event: PersistenceEvent) => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
 }
 
 /** A copy of the log, oldest first. */

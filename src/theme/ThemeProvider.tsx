@@ -2,17 +2,32 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
+import {
+  THEME_STORAGE_KEY,
+  parseThemePreference,
+  readThemePreference,
+  resolveTheme,
+  themeAttribute,
+  writeThemePreference,
+  type ResolvedTheme,
+  type ThemePreference,
+} from './themePreference'
 
-export type Theme = 'light' | 'dark'
+/** The painted theme. Kept under this name for `useStatusBarColor`. */
+export type Theme = ResolvedTheme
 
 interface ThemeContextValue {
+  /** What the user chose (stored on this device). */
+  preference: ThemePreference
+  /** What the page paints, `resolveTheme(preference)`. */
   theme: Theme
-  toggle: () => void
+  setPreference: (preference: ThemePreference) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -25,9 +40,19 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
  * globals.css keys its dark block off `[data-theme="dark"]`, so an empty string
  * and an absent attribute behave identically; matching the DS exactly keeps the
  * two apps from drifting.
+ *
+ * GATE 87 — THE PREFERENCE IS STORED, AND IT WAS ALREADY APPLIED BEFORE THIS
+ * RENDERS. `index.html`'s inline script painted the stored choice before the
+ * bundle ran (see `themePreference.ts`); the initialiser below reads the same
+ * stored value through the same validator, so the first layout effect writes
+ * the attribute the page already has. Writes happen in `setPreference` — an
+ * event handler, never a state updater (StrictMode double-invokes updaters).
+ * Another tab's change arrives through the `storage` event, which fires in
+ * every OTHER same-origin tab and never in the writer.
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light')
+  const [preference, setPreferenceState] = useState<ThemePreference>(readThemePreference)
+  const theme = resolveTheme(preference)
 
   // useLayoutEffect, NOT useEffect, AND THE ORDERING IS THE WHOLE REASON.
   // React runs a child's passive effect BEFORE its parent's, and this provider
@@ -48,14 +73,28 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // inherits dark. There is no selector a descendant can match to obtain the
   // light ramp.
   useLayoutEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : '')
+    document.documentElement.setAttribute('data-theme', themeAttribute(theme))
   }, [theme])
 
-  const toggle = useCallback(() => {
-    setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      // `key` is null when another tab cleared storage outright.
+      if (event.key !== null && event.key !== THEME_STORAGE_KEY) return
+      setPreferenceState(parseThemePreference(event.newValue))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
-  const value = useMemo(() => ({ theme, toggle }), [theme, toggle])
+  const setPreference = useCallback((next: ThemePreference) => {
+    writeThemePreference(next)
+    setPreferenceState(next)
+  }, [])
+
+  const value = useMemo(
+    () => ({ preference, theme, setPreference }),
+    [preference, theme, setPreference],
+  )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }

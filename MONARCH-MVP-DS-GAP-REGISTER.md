@@ -3917,3 +3917,137 @@ byte-identical (digest `735974705ab0ed2947f2afe2f773df2e2047052596b89bedf3111a4d
 section of `CLAUDE.md`.
 
 ### Nothing was removed from this register at this gate.
+
+## 2aj. Status at MVP Gate 87 (2026-10-17) — the settings screen; DS v2.9.0; one DS gap opened
+
+**THE TALLY MOVES BY ONE: `G50` IS OPENED AND NOTHING IS CLOSED.** **49 entries, 29 closed, 20 open;
+the highest number is G50.** Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's
+prop half, G19–G23, G28–G33, G44, G48, G49, `MODEL-1`, `UI-3` and `UI-4`. **No MVP-local override was
+added for any of them**, and the `G33` workaround class is untouched and still carries its removal
+condition.
+
+**The pin moved v2.8.0 -> v2.9.0** (`4806dd7369f65e25818aa7d3edea9883666b53bd`). The DS delta is
+`HeaderBg`'s optional avatar button (`onAvatarClick` + `avatarAriaLabel`); both MVP call sites adopt it
+(`/` and `/finance`). Measured inert: the batch-3a full run (avatar wired, switch still present) left all
+308 baselines byte-identical.
+
+### `G50` — OPENED: no settings row with a trailing control
+
+**WHERE.** `src/settings/SettingsScreen.tsx` (`.mvp-settings__card`, `.mvp-settings__row`). Figma draws
+the same shape three times on Onboarding_09 (`1266:14353`, the "Voice Assitance" card
+`I1266:14353;892:8550`): a bordered card, a label line, a row of text with a trailing `❖ Toggle`.
+
+**THE PROBLEM.** The DS ships no list row or settings row with a trailing control, so the screen composes
+one from layout CSS around DS `Toggle` and `Button` — composition, not a primitive (rule 4), but a shape
+the DS should own once a second screen needs it. **Folded in: DS `Toggle` has no visible-label prop.**
+Its `<label>` wraps only the input and track, so the row's visible text "Dark mode" is a sibling and
+`ariaLabel="Dark mode"` is load-bearing (WCAG 2.5.3, label in name), not decoration.
+
+**DECISION.** Fix put off to the DS backlog round: a settings/list row with a label and a trailing slot,
+and a `label` on `Toggle` that names the control from visible text. No MVP-local override.
+
+### Decisions recorded at this gate
+
+- **Decision 5 = 5B (Teku, 14 Oct 2026).** A receipt card shows the printed year on its date when that
+  year differs from the year of the month heading it sits under. **Not built here**: it is built in the UI
+  integration round. This settles the F1 product question carried since Gate 85-B; the label
+  (`ReceiptCard.tsx`, `formatTimestamp(receipt.capturedAt)`) is unchanged at this gate.
+- **Decision 6 = A (delegated by Teku, 15 Oct).** No "System" theme option in this gate: a plain Dark mode
+  switch, starting Light.
+- **Decision 7 = A (delegated by Teku, 15 Oct).** Light/Dark ship now. Onboarding_09's **Standard /
+  Dimmed / High Contrast** set (Figma `I1266:14353;892:8440`) is a **registered scope item for the
+  onboarding flow**, reconciled when that flow is built.
+- **The scalability ruling (review thread, 15 Oct; overturnable).** The user's PREFERENCE and the
+  RESOLVED theme are separate concepts in code — `ThemePreference`, one pure `resolveTheme`, a validator
+  over an explicit value list (`THEME_PREFERENCES`), stored key `monarch-mvp:theme`, anything invalid
+  resolves to Light. A future value is a list entry plus a `resolveTheme` branch, not a rewrite.
+
+### The fourteen technical forks (review thread, 15 Oct; each overturnable)
+
+Confirmed as proposed: (1) focus is not moved on arrival or return; (2) Back returns to the Home or
+Finance tab you came from, through history state; (3) the Reset glyph is `refresh`; (6) boot-time storage
+events raise notices; (7) `role="alert"` only for "changes aren't being saved" (and the read-only tab);
+(8) one notice slot, ordered by severity; (9) the error notice gets a spec, not a baseline; (10) the key
+`monarch-mvp:theme`; (11) no profile block; (13) the four-batch build order; (14) `frame-cap.spec.ts`
+rewritten (theme switch -> notice host).
+
+Changed by ruling:
+
+- **(4) Reset is disabled, with a one-line reason, in `readonly` AND `memory` mode.** In memory mode the
+  database never opened, so a reset would do nothing durable. Caption: existing `type-body-caption`, no
+  new token.
+- **(5) Overturned: another tab IS told.** After a reset, every other open tab shows a polite notice, "The
+  demo data was reset in another tab." Ordinary cross-tab writes stay silent. A reset replaces everything,
+  and a silent wholesale change reads as data loss.
+- **(12) Overturned: a screen toast and a storage notice NEVER overlap.** They stack: the storage notice
+  sits one `--spacing-200` above the screen toast's top edge, both above the nav band and inside the
+  viewport. Undesigned work.
+
+`lint:linkage` was RED at the start of this gate (a v2.9.0 DS checkout against a v2.8.0 pin); the re-pin
+turned it green before any suite run, as ruled.
+
+### The theme switch's removal moved 240 baselines — 236 inside its rectangle, 4 by re-rasterising a toast
+
+**The old switch, measured on the pre-gate code (`d07667d9`):** `[16, 690, 57.14, 716]` in light (label
+"Dark") and `[16, 690, 60.22, 716]` in dark (label "Light"), identical at 375 and 430 and on three routes.
+**236 of the 240 changed baselines differ only inside that rectangle** (2 CSS px margin), old against new,
+pixel by pixel.
+
+**The other 4 are `finance-holding-fd-toast-{375,430}-{light,dark}`.** 1,939 (375) / 1,993 (430)
+differing pixels lie outside the rectangle — every one inside the screen toast's own box, on its text; 0
+anywhere else. The old switch was painted OVER that toast; with it gone, Chromium rasterises the toast's
+text with LCD subpixel antialiasing where it was greyscale. Stable: the four tests re-run clean against
+the new files.
+
+**Ruled 8A by the review thread (17 Oct 2026, overturnable; a thread ruling, not a numbered Teku
+decision):** inside the region proof's intent — attributed to the switch's removal, confined to the
+toast's own text, stable on re-run.
+
+**Ruled 9A by the review thread (17 Oct 2026, same standing)** after the check 8A ordered came back the
+other way. The two existing toasts that never sat under the switch,
+`finance-budget-budget-monthly-deleted-*` and `finance-plans-goals-goal-bali-trip-goal-deleted-*`, render
+their text GREYSCALE (per-channel blend split 0.003); the new fd-toast and the new `settings-reset-done-*`
+notice render LCD (split 0.43–0.46). **Plain page text is LCD** (the `/settings` and
+`/finance/holding/fd` header titles, split 0.45–0.47).
+
+**THE MECHANISM IS PER-CONTEXT COMPOSITING, NOT A TRAIT OF THE TOAST.** On `/finance` the shell renders
+`.mvp-shell__scrim` (`AppShell.tsx:63`; rule `AppShell.css:124-133`: fixed, bottom 0, 256 px tall so
+y 556–812, z-index 1), and the `--above-chrome` toast (`finance.css:496-498`, y 612–652, z-index 3) sits
+entirely over it; text composited over another fixed layer comes out greyscale. fd-toast
+(`finance.css:467-470`, no nav so no scrim) had only the switch over it. **No toast component, toast CSS
+or `ToastMobile` usage changed in this gate** (git diff), and the DS re-pin touched only `HeaderBg`.
+
+So toast text renders two ways depending on what is behind it, and it already did. That is pre-existing,
+made visible here, and not a defect this gate introduced; a toast-rendering consistency change would be
+its own gate.
+
+**Two errors in Phase A's own first proof passes, recorded.** The first pass doubled the rectangle for
+DPR 2, although the baselines are stored at CSS scale (all 240 reported as failing). The second scaled by
+image width ÷ viewport width, which is wrong for a page wider than the viewport
+(`finance-holding-unit-trust-375-*` is 412 px wide: 2 false failures). The script now compares 1:1.
+
+### Stale items found and NOT fixed (ruled)
+
+- **`vite.config.ts:35`** says the DS `Icon` "imports 106 SVGs". At v2.8.0 and v2.9.0 the registry is
+  **109**. Comment only.
+- **`/more`'s placeholder copy** (`App.tsx`, `ComingSoon` "Profile, receipts, settings and everything
+  else.") still promises settings there. Fixing it would move the `/more` baselines and break this gate's
+  attribution.
+
+### Registered for later
+
+- **Route-change focus management, app-wide retrofit.** No drill-down moves focus on arrival or on return
+  (measured); Settings matches them. Moving focus on one screen would make the app inconsistent.
+- **The theme flash returns silently under a future Content-Security-Policy.** There is none today
+  (`netlify.toml`, no `public/_headers`); a `script-src` policy must carry the pre-paint script's hash.
+- **Toast text antialiasing depends on the route** (greyscale over the scrim, LCD elsewhere) — above.
+
+### What Phase B must know
+
+Phase B independently re-runs the fixed region proof over all 240 changed baselines and must report 236
+confined plus the 4 fd-toast files. The closed list, the mutation plan, the driver and the expected
+digest are in `D:\Claude\_handoffs\gate87-phaseA\HANDOVER.md`. The 12 new `settings*` baselines are
+untracked until Teku stages them, so arm 1 of the baseline guard fails until then — expected, not a
+defect.
+
+### Nothing was removed from this register at this gate.

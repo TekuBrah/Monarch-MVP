@@ -163,12 +163,3 @@
   outline-offset: var(--brand-scale-50);
   border-radius: var(--brand-scale-1800);
 }
-
-/* Demo affordance, not part of the design — mirrored opposite the FAB, and
-   sharing its inset so the pair cannot drift apart. */
-.mvp-shell__theme-switch {
-  position: fixed;
-  bottom: var(--mvp-fab-inset);
-  left: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
-  z-index: 3;
-}

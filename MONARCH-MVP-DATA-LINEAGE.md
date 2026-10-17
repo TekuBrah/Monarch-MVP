@@ -921,3 +921,35 @@ except the sentences that say a reload reseeds), and §6.1–§6.2 (the OCR seam
 
 **Two statements in this document were wrong when written:** the Gate 84 commit message says 883 lines
 and the file is 885; and §7.2's "three specs" was one assertion. Neither is edited.
+
+## Status note after Gate 87 (2026-10-17) — the theme is stored, and Reset data has a UI
+
+**Gate 87 added one piece of device-local state that is NOT in the IndexedDB store, and gave
+`resetToSeed()` its first UI entry point. The text above, including the Gate 85 note, is left exactly
+as written; where it says the following, it now misleads.**
+
+- **§2's `theme` rows (the atom table, `:127`; the writer count, `:138`; the writer table, `:158`) and
+  §8's `theme` row (`:699`), the seed list (`:736`) and the initialiser bullet (`:764`).** The theme is
+  no longer `'light'` unconditionally, and `toggle` no longer exists. `ThemeProvider` now holds the
+  user's PREFERENCE (`ThemePreference`, `src/theme/themePreference.ts`), initialised from
+  `localStorage` key **`monarch-mvp:theme`**, and derives the painted theme with `resolveTheme`. Its one
+  writer is `setPreference`, called by the Dark mode switch on `/settings`. A `storage` listener adopts
+  another tab's change.
+- **The preference is read twice, before and after React, from the same key.** `index.html` carries an
+  inline classic script that applies a stored `dark` before first paint (the app renders only after
+  `hydrate()`, up to 4 s); `ThemeProvider` reads it again through the same validator. A spec holds the
+  two together.
+- **It is outside the store on purpose.** It is a device preference, not application data: it is not in
+  the seed fingerprint, not in a stored snapshot, not quarantined, and `resetToSeed()` does not touch it
+  ("the theme survives Reset data" is a test). Persistence hazards in §8 do not apply to it; its own
+  failure mode is a storage that throws, which resolves to light and logs nothing.
+- **§8.4 and the Gate 85 note's "§8.4 (Reset data) exists as `resetToSeed()`, with no UI entry point
+  yet".** The entry point now exists: Settings → Reset data → a confirmation. After the write commits the
+  app shows "Demo data restored."; other open tabs show "The demo data was reset in another tab." (a
+  `reset` flag on the store's broadcast, logged as the new diagnostics kind `remote-reset`).
+- **The persistence log now has a user-facing reader.** `src/shell/notices.ts` subscribes to
+  `subscribePersistence` (new in `diagnostics.ts`) and maps storage events to one notice slot in the
+  shell; `store.ts` gained `subscribeStoreMode`, which the settings screen reads to disable Reset in
+  `readonly` and `memory` modes.
+
+Nothing else in this document changed meaning at Gate 87. See `CLAUDE.md`'s Gate 87 section.

@@ -19108,3 +19108,152 @@ digest byte-identical after every run and to the start
 must be: this gate adds no PNG. The known `section-headers.spec.ts` mount-timing flake did not appear. The two
 documents were complete before the first run began; only this paragraph was appended afterwards (insert-only, to
 this section), and no spec, script or source reads either document.
+
+## The settings screen — avatar entry, a stored theme, Reset data, notices (Gate 87)
+
+The pin moved `v2.8.0` (`b5b7b297…`) -> **`v2.9.0`** (`4806dd7369f65e25818aa7d3edea9883666b53bd`). There is
+no MVP Gate 86; DS Gate 86 shipped `HeaderBg`'s optional avatar button. **|WALK| 77 -> 80, `ROUTES` 25 -> 26,
+`OVERLAY_STATES` 45 -> 47, baselines 308 -> 320 (12 added, 240 changed, 0 deleted, 68 byte-identical), tests
+1045 -> 1089, spec files 41 -> 42.** `lint:tokens` scans **109** files (102 + seven new `src/` files) with the
+same **4** exemptions. Built by Phase A (Opus) in four attributed batches across two sessions (the first hit its
+usage limit after batch 3a); Phase B (Sonnet) runs the mutation proofs and the three clean runs.
+**Teku does every git write.**
+
+### What the user gets
+
+- **Margaret's photo in the header opens Settings**, on `/` and `/finance` — every `HeaderBg` call site, so
+  the same avatar is never tappable on one screen and inert on the other. `avatarAriaLabel="Settings"`.
+- **`/settings`** is a pushed screen (`chrome.ts`: nav suppressed, no FAB). Back goes back through history to
+  the screen and the **tab** you came from — each entry screen REPLACES its own history entry's state with the
+  tab in force before pushing (`homeTabs.ts` new, `financeTabs.ts` reused). Opened directly, Back REPLACES
+  itself with Home, so Back-from-Back cannot loop.
+- **Appearance — a Dark mode switch** (DS `Toggle`, `role="switch"`). **Your data — Reset data**, red
+  tertiary, `refresh` glyph, behind a confirmation that names what goes and the two seed balances (derived).
+- **App-level notices** in one shell slot (`NoticeHost`), for storage failures and resets.
+- **The old shell theme switch is GONE.** It was a demo affordance not in Figma, `position: fixed` on every
+  route. Removing it moved 240 baselines: 236 only inside the switch's own rectangle, 4 by a compositing
+  effect on a toast it used to cover (below).
+
+**UNDESIGNED WORK, all of it.** No Figma frame draws a settings screen, a reset confirmation or a storage
+notice (Phase A searched all seven pages). The row shape is Onboarding_09's card (`1266:14353`).
+
+### The theme: a stored PREFERENCE, resolved, applied before first paint
+
+`src/theme/themePreference.ts`: `THEME_PREFERENCES = ['light', 'dark']`, `ThemePreference`, `ResolvedTheme`,
+`parseThemePreference` (a validator over the list; anything else is light), `resolveTheme` (pure; the ONE place
+a future "System" or Onboarding_09's Standard / Dimmed / High Contrast set is added), `themeAttribute`, and
+`THEME_STORAGE_KEY = 'monarch-mvp:theme'` in **`localStorage`** — NOT the IndexedDB store: a device preference,
+outside the seed fingerprint, untouched by Reset data. `ThemeProvider` holds the preference and derives the
+theme; its one writer is `setPreference`, called in an event handler, never inside an updater. A `storage`
+listener adopts another tab's change.
+
+**THE PRE-PAINT SCRIPT IS WHY IT DOES NOT FLASH.** The app renders only after `hydrate()` — up to 4 s — so
+without it a dark-mode tester watches a light page. `index.html` carries a classic inline script that
+restates validate -> resolve -> apply in ES5. `settings.spec.ts` evaluates that exact script for every
+candidate stored value (each listed value, unknown values, missing, a throwing `getItem`) and asserts it lands
+where `resolveTheme(parseThemePreference(v))` does, reading the same key. **Change one, change both.**
+No CSP exists today; **a future `script-src` must carry this script's hash or the flash returns silently.**
+
+### THE HARNESS REACHES DARK THROUGH THE STORED PREFERENCE NOW
+
+`gotoRoute` used to click `.mvp-shell__theme-switch button`. It now writes `THEME_STORAGE_KEY = 'dark'` with
+`addInitScript` before navigating — the path a returning dark-mode tester takes — and the `data-theme`
+assertion still proves it took. **Measured inert before the switch was removed**: the batch-3a full run
+(1045 passed, all 308 baselines byte-identical) proved a dark state reached by the stored preference renders
+byte-identically to one reached by the click.
+
+### Reset data
+
+`resetToSeed()` (Gate 85) gets its first UI. After `await resetToSeed()` the screen raises **"Demo data
+restored."** — only if the store is still saving, so the notice appears once the write committed. Every OTHER
+open tab shows **"The demo data was reset in another tab."**: the reset's broadcast carries `reset: true`
+(only `flush(true)` sets it), the receiver re-hydrates and logs the new diagnostics kind `remote-reset`.
+Ordinary cross-tab writes stay silent. **Reset is disabled, with a one-line reason, in `readonly` AND
+`memory` mode** (`subscribeStoreMode`, new in `store.ts`, because a failed write logs before it switches
+mode). `keyval-store` and the theme are left alone (both are tests).
+
+### Notices — one slot, by severity, never over a screen toast
+
+`src/shell/notices.ts` subscribes to `subscribePersistence` (new in `diagnostics.ts`) at module evaluation —
+before `hydrate()` — so boot events are heard; it also replays the log. Severity error > warning >
+information > success; a milder notice never covers a stronger one. **`role="alert"` only for "Changes
+aren't being saved"** (and the read-only tab); everything else `role="status"`. No timer, like every toast
+here; focus never moves.
+
+**IT NEVER OVERLAPS A SCREEN'S `ToastMobile`** (ruling (12)). The likeliest collision is the worst: "Goal
+deleted." over "Changes aren't being saved" when that same write failed. `NoticeHost` measures the screen
+toast and sits one `--spacing-200` above it; both stay above the nav band and inside the viewport (a spec
+drives exactly that scenario). It takes the old switch's slot among the fixed elements and carries the frame
+inset (`frame-cap.spec.ts` now measures it on both edges).
+
+### Baselines — predicted, scoped, and every changed pixel inside the switch
+
+**PREDICTED BEFORE THE BUILD: 12 added, 240 changed, 0 deleted, 68 byte-identical, 320 total**, from a
+byte-comparison probe that hid the switch in all 308 states (a hit-test census misclassified two-stack
+states — the Gate 54-B complication). Unchanged at both widths: every Transactions-tab sheet state,
+`receipts-filter`, goal `contributions`. Unchanged at 375 only: the `Modal` states whose card covers x=16 at
+375 but caps at 375 wide (x=27.5) at 430, so the switch peeks out at 430.
+
+**THE MINT SCOPE WAS AN EXACT LIST, NOT A PATTERN.** `-g` was an end-anchored alternation of the 252 exact
+test titles (built from the harness's own `stateTitle`/`stateSlug`); `--list` returned 252, file-by-file equal
+to the prediction, before `--update-snapshots=all` ran.
+
+**THE MINT RECONCILED EXACTLY**: 308 -> 320, 12 added (the `settings*` states), 240 changed (the predicted
+set, file for file), 0 deleted, 68 byte-identical.
+
+**THE REGION-CONFINED DIFF PROOF: 236 OF 240 CONFINED, AND THE 4 THAT ARE NOT ARE A COMPOSITING EFFECT.**
+The old switch was measured on the pre-gate code: `[16, 690, 57.14, 716]` light, `[16, 690, 60.22, 716]`
+dark, the same at both widths and on every route. In 236 changed baselines every differing pixel is inside
+it (2 CSS px margin). In `finance-holding-fd-toast-{375,430}-{light,dark}` the switch was painted OVER the
+screen toast; with it gone the toast's text re-rasterises from greyscale to LCD subpixel antialiasing —
+1,939 / 1,993 pixels outside the rectangle, all on the toast's own text, none elsewhere, stable on re-run.
+
+**TEXT ANTIALIASING HERE IS PER-CONTEXT COMPOSITING, NOT A PER-COMPONENT TRAIT — READ THIS BEFORE CHASING A
+TOAST DIFF.** Plain page text is LCD. Text composited over another `position: fixed` layer is greyscale: the
+`/finance` toasts (`--above-chrome`, y 612–652, z 3) sit entirely over the nav's `.mvp-shell__scrim`
+(`AppShell.css:124-133`, y 556–812, z 1) and stay greyscale; fd-toast (no nav, no scrim) and the new
+`/settings` notice have nothing under them and are LCD. So the same `ToastMobile` renders two ways by
+route, and already did. Ruled acceptable by the review thread (8A, then 9A after the follow-up check;
+thread rulings, not numbered Teku decisions). The 8A check assumed antialiasing was a per-component trait;
+that premise was wrong. No toast file changed in this gate.
+
+**THE PROOF SCRIPT HAD TWO BUGS BEFORE IT WAS RIGHT, AND BOTH ARE THE SAME TRAP: A SCALE ASSUMED, NOT
+MEASURED.** Baselines are captured at CSS scale (`toHaveScreenshot` default), so pass 1 (doubling the
+rectangle for DPR 2) flagged all 240; pass 2 (scaling by image width ÷ viewport width) flagged the two
+`finance-holding-unit-trust-375` files, whose page is 412 px wide. Compare 1:1. Phase B re-runs the fixed
+script independently.
+
+### The settings spec — 20 tests, no baseline
+
+`e2e/settings.spec.ts`: entry and Back (3), the preference (5), Reset data (6), notices (4), the two
+disabled-reset modes, and the pre-paint/`ThemeProvider` agreement test in Node. Store helpers are copied
+from `persistence.spec.ts` (Gate 85-B ruling R1, consolidation is a hygiene item).
+
+### Test count — the RESUME prompt's 28 was wrong; 1089 is right
+
+The first session's +40 was correct; the RESUME prompt counted "16 + 12 = 28", missing that every walk
+state also adds 2 `routes` and 2 `section-headers` tests (the Gate α figure). 1045 + 3 states x 8 = 1069,
++ 20 `settings.spec.ts` = **1089** in 42 files, re-derived by `--list`.
+
+### Recorded, not done
+
+Decision 5 = 5B (a receipt card shows the printed year when it differs from its heading's year — built in
+the UI integration round); Decisions 6A / 7A (no System option; Onboarding_09's contrast set is an
+onboarding scope item); G50 (a settings row with a trailing control; `Toggle` has no visible-label prop);
+route-change focus as an app-wide retrofit; `vite.config.ts:35`'s "106 SVGs" (109) and `/more`'s copy
+promising settings, both left (fixing `/more` would move its baselines). See register §2aj.
+
+### Verification at Phase A's close
+
+`npx tsc -b --force` clean; `lint:tokens` PASS, 109 files, 4 exemptions; `lint:linkage` PASS, all four
+sources on v2.9.0; `build:package` exit 0 — entry 5,949,508 bytes (5,942,214 after the re-pin alone), CSS
+194,739 (193,586), the OCR lazy chunks unchanged, `modulepreload` 0. `--list`: 1089 tests in 42 files
+(visual 320, routes 161, section-headers 162, settings 20, frame-cap 3). `OVERLAY_STATES` 47 by the
+anchored command. Baseline digest **`d85ccaae17a38f26cc430b1181376036f511eeb735ebbd6ae15b78a85bbd6b1d`**,
+filesystem form, re-derived by two instruments (sha256sum and Node crypto); the git-blob form becomes
+available only once Teku stages the 12 new PNGs.
+
+These documents were written BEFORE Phase A's one final full run, as the gate requires; its result is in
+the Phase A build report and `HANDOVER.md`, not here. Phase B runs the mutation proofs (plan:
+`D:\Claude\_handoffs\gate87-phaseB\mutations.mjs`) and the three clean runs. Arm 1 of the baseline guard
+fails until the 12 new PNGs are staged — expected.

@@ -1,0 +1,34 @@
+/*
+  The app-level notice slot (Gate 87, `NoticeHost.tsx`).
+
+  THE SAME BASE GEOMETRY AS A SCREEN'S TOAST, `.mvp-finance-detail__toast` in
+  `finance.css`, restated rather than reused: that rule belongs to the finance
+  screens and a shell component must not depend on a flow's stylesheet being in
+  the bundle ("A component owns its stylesheet", CLAUDE.md). Both values are the
+  same tokens, so the two start from one place; `NoticeHost` lifts this one
+  above a screen toast when both show.
+
+  FIXED, SO IT CARRIES THE FRAME INSET (Gate D). It takes the old theme
+  switch's slot among the app's fixed elements, so the shell still has five
+  kinds: nav, scrim, FAB, a screen toast, this notice.
+
+  `z-index: 3` is the FAB's tier: above the scrim (1) and the nav (2) that reach
+  this high on a screen with chrome, below every `Modal` and `Sheet`.
+*/
+.mvp-notice {
+  position: fixed;
+  right: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
+  bottom: var(--spacing-1400);
+  left: calc(var(--mvp-gutter) + var(--mvp-frame-inset));
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+}
+
+/*
+  On a screen that keeps the nav, the screen toast's `--above-chrome` value:
+  the bottom reserve, already derived from the FAB (`index.css`).
+*/
+.mvp-notice--above-chrome {
+  bottom: var(--mvp-bottom-reserve);
+}

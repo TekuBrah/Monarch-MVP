@@ -82,6 +82,10 @@ const CHROME_BY_ROUTE: Record<string, ChromeConfig> = {
   // (§5 S1), so its nav is suppressed and it does not re-offer the FAB that
   // opened it.
   '/steward': { nav: 'suppressed', fab: false, statusBar: 'page' },
+  // Gate 87 — a pushed screen opened from the header photo, with a back
+  // control: the drill-downs' chrome, declared exactly rather than left to
+  // DEFAULT_CHROME (which is the same value but means "undeclared").
+  '/settings': { nav: 'suppressed', fab: false, statusBar: 'page' },
 }
 
 /**

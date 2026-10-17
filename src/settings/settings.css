@@ -1,0 +1,70 @@
+/*
+  The settings screen (Gate 87). UNDESIGNED WORK: no Figma frame draws it.
+  The card is Onboarding_09's row card (`1266:14353`, `I1266:14353;892:8550`):
+  343 wide at a 16px inset, 16px padding, a bordered surface, a label line
+  above the row. Every value is a token.
+*/
+.mvp-settings {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* 16px above the first section, 24px between sections. */
+.mvp-settings__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-600);
+  padding-top: var(--spacing-400);
+}
+
+.mvp-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+}
+
+.mvp-settings__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+  padding: var(--spacing-400);
+  background: var(--mapped-surface-elevation-default);
+  border: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+  border-radius: var(--brand-scale-200);
+}
+
+/* Onboarding_09's row: text, then the control at the trailing edge. */
+.mvp-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-400);
+}
+
+.mvp-settings__row-label {
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-settings__row-body {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+/* The button keeps its own width; it is not a full-width call to action. */
+.mvp-settings__action {
+  display: flex;
+  padding-top: var(--spacing-100);
+}
+
+/* Why Reset is disabled — the DS caption style, the `PromptBlock` colour. */
+.mvp-settings__reason {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-settings__confirm-body {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}

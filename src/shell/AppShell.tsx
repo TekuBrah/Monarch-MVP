@@ -1,15 +1,16 @@
-import { BottomNavigation, Button, Icon, IconObject } from '@monarch/design-system'
+import { BottomNavigation, Icon, IconObject } from '@monarch/design-system'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '../theme/ThemeProvider'
 import { chromeFor } from './chrome'
 import { NAV_ITEMS } from './navItems'
+import { NoticeHost } from './NoticeHost'
 import { useStatusBarColor } from './useStatusBarColor'
 import './AppShell.css'
 
 export function AppShell() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const { theme, toggle } = useTheme()
+  const { theme } = useTheme()
 
   // EXPLICIT config, never inferred from what the screen renders (§5).
   const chrome = chromeFor(pathname)
@@ -75,20 +76,12 @@ export function AppShell() {
       )}
 
       {/*
-        Theme switch. NOT in the Figma design — a demo affordance, kept from the
-        Phase 4.7 shell because the artifact needs a way to reach dark mode and
-        the file's dark-mode reference exists to be compared against. Parked at
-        the FAB's height on the opposite edge so it collides with neither the
-        FAB nor the nav pill.
+        Gate 87: the app-level notices (storage failures, resets). It takes the
+        slot of the old shell theme switch — a demo affordance not in the Figma
+        design, removed here; dark mode is now a setting on `/settings`, reached
+        from the header avatar.
       */}
-      <div className="mvp-shell__theme-switch">
-        <Button
-          variant="secondary"
-          size="s"
-          label={theme === 'dark' ? 'Light' : 'Dark'}
-          onClick={toggle}
-        />
-      </div>
+      <NoticeHost aboveChrome={chrome.nav === 'present'} />
     </div>
   )
 }

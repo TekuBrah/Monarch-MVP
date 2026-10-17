@@ -7,6 +7,7 @@ import { FinanceScreen } from './flows/finance/FinanceScreen'
 import { GoalDetailScreen } from './flows/finance/GoalDetailScreen'
 import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
+import { SettingsScreen } from './settings/SettingsScreen'
 
 /**
  * The route table. One place to see every screen in the app (architecture
@@ -74,6 +75,10 @@ export default function App() {
             />
           }
         />
+
+        {/* Gate 87 — Settings, opened from the header avatar on `/` and
+            `/finance`. A pushed screen with its own chrome (`chrome.ts`). */}
+        <Route path="settings" element={<SettingsScreen />} />
 
         {/* The Steward FAB's destination. It renders and routes; the flow itself
             belongs to the Assistant Section, not this one. */}

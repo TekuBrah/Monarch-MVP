@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { HeaderBg, Tabs } from '@monarch/design-system'
 import type { TabItem } from '@monarch/design-system'
 import { mediaUrl } from '../../config/media'
@@ -8,7 +8,7 @@ import { FinanceOverview } from './FinanceOverview'
 import { PlansTab } from './PlansTab'
 import { ReceiptsTab } from './ReceiptsTab'
 import { TransactionsLedger } from './TransactionsLedger'
-import { requestedFinanceTab } from './financeTabs'
+import { FINANCE_TAB_STATE_KEY, requestedFinanceTab } from './financeTabs'
 import './finance.css'
 
 /**
@@ -59,6 +59,14 @@ export function FinanceScreen() {
   const [selected, setSelected] = useState<string>(
     () => requestedFinanceTab(location.state, TAB_IDS) ?? 'overview',
   )
+  const navigate = useNavigate()
+
+  // GATE 87 — the header photo opens Settings. Store the tab in THIS history
+  // entry first (the Gate 69 handoff above reads it on the way back), then push.
+  const openSettings = () => {
+    navigate('/finance', { replace: true, state: { [FINANCE_TAB_STATE_KEY]: selected } })
+    navigate('/settings')
+  }
 
   return (
     <div className="mvp-finance">
@@ -91,6 +99,8 @@ export function FinanceScreen() {
         avatarSrc={mediaUrl('profile')}
         statusBarTime="9:41"
         hasNotification
+        onAvatarClick={openSettings}
+        avatarAriaLabel="Settings"
       />
 
       <div className="mvp-finance__tabs">

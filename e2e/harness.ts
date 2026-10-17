@@ -7,6 +7,7 @@ import { COMMITMENTS } from '../src/data/commitments'
 import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
+import { THEME_STORAGE_KEY } from '../src/theme/themePreference'
 import { capturedImageName } from './capture'
 
 /**
@@ -484,7 +485,8 @@ export interface OverlayState {
    *
    * AN OVERLAY IS OPENED THROUGH ITS OWN CONTROL, never by setting React state
    * and never by writing to the DOM — the same discipline that makes
-   * `gotoRoute` click the theme toggle instead of writing `data-theme`, and
+   * `gotoRoute` reach dark through the app's own stored preference instead of
+   * writing `data-theme` (a click on the shell's theme toggle until Gate 87), and
    * `activateTab` click the tab instead of poking `selectedId`. `openModal`
    * lives in `useState` inside `HoldingDetailScreen`; a test that poked it
    * would be verifying a state the app may not think it is in.
@@ -707,8 +709,9 @@ export const PINNED_NOW = new Date('2026-08-15T01:41:00.000Z')
  * CHROME STAYS PRESENT AND OCCLUDED, and on this route family it is thinner
  * than it looks. `chromeFor('/finance/holding/...')` is `nav: 'suppressed',
  * fab: false`, so `.mvp-shell__nav`, `.mvp-shell__fab` and `.mvp-shell__scrim`
- * are NOT RENDERED here — measured, overlay open and closed alike. What IS
- * present is `.mvp-shell__theme-switch` at z-index 3, plus the screen's own
+ * are NOT RENDERED here — measured, overlay open and closed alike. What WAS
+ * present is `.mvp-shell__theme-switch` at z-index 3 (deleted at Gate 87, so
+ * today only the next sentence's action bar remains), plus the screen's own
  * bottom action bar. `Blanket` is `position: fixed; inset: 0` at z-index 100
  * with the card at 101, so both are occluded WITHOUT ANYTHING IN THE CHROME
  * MODEL CHANGING: hit-testing the centre of each returns `div.mn-blanket` with
@@ -1070,7 +1073,8 @@ export const OVERLAY_STATES: WalkState[] = [
   // THE CONTROL IS THE LEDGER ROW ITSELF. `ListItem` renders a real `<button>`
   // when it is given `onClick` (`ListItem.tsx:113`), so this opens the sheet the
   // way a user does rather than by setting `detailId` — the discipline that makes
-  // `gotoRoute` click the theme toggle instead of writing `data-theme`.
+  // `gotoRoute` reach dark through the app's own stored preference (a click on
+  // the shell's theme toggle until Gate 87) instead of writing `data-theme`.
   //
   // THE ROWS ARE SELECTED BY THEIR AMOUNT, NOT BY `nth-child`. All 23 amounts in
   // the ledger are distinct (checked), so `:has-text("RM 250.75")` names exactly
@@ -2399,6 +2403,47 @@ export const OVERLAY_STATES: WalkState[] = [
       title: 'Auto-Save amount',
     },
   },
+  /*
+    GATE 87 — Settings. `/settings` itself is a ROUTE state (parsed from
+    `App.tsx`); these two are the Reset data confirmation and what it leaves.
+
+    THE CONFIRMATION NAMES THE MONEY. Its body is derived from the seed's two
+    cash balances, so the capture fails if it is built from the wrong data.
+  */
+  {
+    route: '/settings',
+    tab: null,
+    overlay: {
+      id: 'reset',
+      control: '.mvp-settings__action .mn-btn',
+      controlLabel: 'Reset data',
+      title: 'Reset demo data?',
+    },
+  },
+  {
+    route: '/settings',
+    tab: null,
+    overlay: {
+      id: 'reset-done',
+      control: '.mvp-settings__action .mn-btn',
+      controlLabel: 'Reset data',
+      title: 'Reset demo data?',
+      confirm: {
+        // The page's own "Reset data" sits OUTSIDE the modal, so the footer's
+        // error-toned button is the confirmation's Reset and nothing else.
+        control: '.mn-modal__footer .mn-btn--error',
+        controlLabel: 'Reset',
+        /*
+          THE NOTICE APPEARS ONLY ONCE THE RESET'S WRITE COMMITTED — the screen
+          raises it after `await resetToSeed()`, and only while the store is
+          still saving. So this settle is also the proof the write landed. NO
+          `landsOn`: a reset holds no record id, so the user stays on Settings.
+        */
+        settlesOn: '.mvp-notice .mn-toast-mobile',
+        settlesText: 'Demo data restored.',
+      },
+    },
+  },
 ]
 
 /**
@@ -2692,7 +2737,9 @@ const POINTER_PARK = { x: -1, y: -1 } as const
  * CASE. Measured across all 96 states before the fix, THREE different residues
  * existed and only one of them came from the theme click:
  *
- *   `.mvp-shell__theme-switch button`  14 states, DARK only  (the theme toggle)
+ *   `.mvp-shell__theme-switch button`  14 states, DARK only  (the theme toggle;
+ *                                       deleted at Gate 87 — dark now comes from
+ *                                       the stored preference, no click at all)
  *   `.mn-tab--selected`                 7 states, BOTH themes (activateTab)
  *   `.mn-blanket` / `.mvp-finance__row` 3 states, BOTH themes (openOverlay)
  *
@@ -2848,10 +2895,12 @@ async function settleImages(page: Page): Promise<void> {
 /**
  * Navigate to a route in a given theme, with time pinned and fonts settled.
  *
- * THEME IS SET THROUGH THE APP'S OWN TOGGLE, not by writing `data-theme` on
+ * THEME IS SET THROUGH THE APP'S OWN MECHANISM, not by writing `data-theme` on
  * <html> directly. `ThemeProvider` owns that attribute and rewrites it from
  * React state; a test that pokes the DOM would be verifying a state the app
- * does not think it is in.
+ * does not think it is in. Since Gate 87 that mechanism is the STORED
+ * preference (`theme/themePreference.ts`); until then it was a click on the
+ * shell's theme switch, which Gate 87 moved into the Settings screen.
  */
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -2897,6 +2946,19 @@ export async function gotoRoute(page: Page, route: string, theme: Theme): Promis
 
   await installExtractionStub(page)
 
+  // GATE 87: DARK IS REACHED THROUGH THE STORED PREFERENCE, the path a returning
+  // dark-mode tester takes — `index.html`'s pre-paint script reads it before the
+  // body paints and `ThemeProvider` adopts it. Still the app's own mechanism,
+  // never a write to `data-theme`; the assertion below is what proves it took.
+  // It replaced a click on the shell's old theme switch, which Gate 87 moved
+  // into Settings. The key is `THEME_STORAGE_KEY`, imported, not retyped.
+  if (theme === 'dark') {
+    await page.addInitScript(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [THEME_STORAGE_KEY, 'dark'] as const,
+    )
+  }
+
   await page.goto(route, { waitUntil: 'networkidle' })
 
   // GATE 85: THE APP RENDERS ONLY AFTER IT HAS READ ITS STORE, and it marks
@@ -2905,19 +2967,6 @@ export async function gotoRoute(page: Page, route: string, theme: Theme): Promis
   // is one database open — and it never depends on a timer, which keeps
   // `reading-time.spec.ts`'s fake clock out of the happy path.
   await expect(page.locator('#root')).toHaveAttribute('data-store', /^(persist|memory|readonly)$/)
-
-  if (theme === 'dark') {
-    // The shell's demo affordance. Its label reads "Dark" while the app is in
-    // light mode, which is also the assertion that it is the right button.
-    const toggle = page.locator('.mvp-shell__theme-switch button')
-    await expect(toggle).toHaveText('Dark')
-    await toggle.click()
-
-    // THE CLICK LEAVES THE POINTER ON THE TOGGLE. Without this the button
-    // stays hovered for the rest of the test and every dark baseline encodes
-    // it. See parkPointer above for the census that found two more residues.
-    await parkPointer(page)
-  }
 
   await expect(page.locator('html')).toHaveAttribute(
     'data-theme',
@@ -2934,8 +2983,9 @@ export async function gotoRoute(page: Page, route: string, theme: Theme): Promis
  *
  * NOT by setting React state and NOT by writing to the DOM. `selected` lives in
  * `useState` inside the screen; a test that pokes it verifies a state the app
- * may not think it is in — the same reasoning that makes `gotoRoute` click the
- * theme toggle instead of writing `data-theme`.
+ * may not think it is in — the same reasoning that makes `gotoRoute` reach dark
+ * through the app's own stored preference (a click on the shell's theme toggle
+ * until Gate 87) instead of writing `data-theme`.
  *
  * SETTLE DETECTION, and why each signal is trustworthy rather than a sleep:
  *
