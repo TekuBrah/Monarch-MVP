@@ -4051,3 +4051,145 @@ untracked until Teku stages them, so arm 1 of the baseline guard fails until the
 defect.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ak. Status at MVP Gate 88 (2026-10-19) — empty states; one DS gap opened; and the Gate 87 Phase B record
+
+**THE TALLY MOVES BY ONE: `G51` IS OPENED AND NOTHING IS CLOSED.** **50 entries, 29 closed, 21 open;
+the highest number is G51.** Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's
+prop half, G19–G23, G28–G33, G44, G48, G49, G50, `MODEL-1`, `UI-3` and `UI-4`. **No MVP-local override
+was added for any of them**, and the `G33` workaround class is untouched and still carries its removal
+condition. No DS re-pin: v2.9.0 throughout.
+
+**What shipped.** Every list the UI can empty now says so. A new MVP-local component, `EmptyState`
+(`src/components/EmptyState.tsx` + `.css`), renders on four surfaces from STORED counts: the Receipts tab
+(page layout: "No receipts"), the Plans tab's Goals section ("No savings goals"), the Budget tab ("No
+budgets", above the DS Add New card) and a goal's Recent Contributions ("No contributions yet"). The
+source picker's Receipt library line, which was false at zero receipts, now reads "Your receipt library
+is empty." there. One pure function, `listPresence(total, visible)` in `derive.ts`, decides empty versus
+no-results from the UNFILTERED count, so `NoResults` renders only for a non-empty list filtered to zero.
+Baselines 320 -> 336 (+16 / 0 / 0); tests 1089 -> 1135.
+
+**UNDESIGNED WORK, all of it.** Phase A searched both files and found no empty, zero or first-run state:
+the case study `v9MI8jxTaXiJA234Hkanlf` (7 pages, every text node) and the DS `xhA5ARVgSeD3gA41lYDqST`
+(41 pages; no empty-state or illustration component). The one drawn affordance used is the DS's own
+`card/monthly budget` `State=Add new` (`237:1702`), already shipped as `CardMonthlyBudget state="addNew"`.
+
+### `G51` — OPENED: `DonutChart` has no zero-data rendering
+
+**WHERE.** `src/flows/finance/BudgetDetailScreen.tsx`, the budget drill-down's donut. A budget whose
+categories have no spend in its range — reachable by creating one — renders `DonutChart` with zero
+segments.
+
+**THE PROBLEM.** Measured at Phase A: the chart draws nothing but its centre figure, "RM 0.00", in an
+otherwise empty 200px box. There is no track ring or other zero-data treatment in the DS component, so the
+chart reads as broken rather than as "nothing spent". The legend below is not affected: it lists every
+category, zero-spend included, so it is never empty.
+
+**DECISION.** A chart, not a list, so it is not an MVP empty state and nothing was built (rule 3). Fix put
+off to the DS round: a zero-data rendering for `DonutChart` (for example a neutral track ring). Review
+thread fork F6, 18 Oct 2026, overturnable. No MVP-local override.
+
+### `EmptyState` — registered for DS promotion, beside `NoResults`
+
+Both are general patterns the DS lacks: a centred mark, a heading and a line of copy (page layout), and a
+two-line text block standing in for a section's rows (section layout). `EmptyState` is a sibling of
+`NoResults`, not an extension: one says a list is empty and implies no error, the other says a filter
+matched nothing and offers to undo it, and a single component with a `kind` prop would make the
+distinction a value someone can pass wrongly. Composition, not a primitive (rule 4): DS `IconObject` and
+`Icon` plus a layout box. **Not promoted here** (R88-4); it belongs on the DS round's list with `NoResults`
+and the illustration gap.
+
+### `NoResults`' stale comment, corrected
+
+`src/components/NoResults.tsx:12-15` said the empty state was "unreachable today … no persistence to
+reset". That was false from Gate 85, when deletes began to persist. Corrected in place, comment only, with
+the original words kept: the empty state now has its own component and `listPresence` decides which renders.
+
+### Decision recorded at this gate
+
+- **Decision 10 = A (Teku, 18 Oct 2026).** Reset data stays in Settings only. No empty state offers
+  "Restore demo data", and `EmptyState` has no action prop. Recorded reasoning: the empty states are the
+  product's real design and will outlive the demo seed; a demo shortcut on four product screens would be
+  removal work before launch and a second action where one belongs. Option B (a link to Settings) is
+  cheap to add later if testers get stuck.
+
+### Phase A's technical forks (review thread, 18 Oct 2026; each overturnable — NOT Teku decisions)
+
+- **F1** — a new goal's empty contributions are in scope: the list is reachable at zero through Add New
+  goal (a created goal starts at RM 0 with no ledger rows).
+- **F2** — the Budget tab's text sits above the DS Add New card rather than relying on the card alone.
+- **F3, extended** — at zero receipts EVERY control that acts on the list is hidden: the search field, the
+  filter button and the chip row. The sort control ("Date added" / "Receipt date") has lived inside the
+  filter sheet since Gate 80-B, reachable only through the filter button, so hiding the button hides it.
+  **The build added one consequence**: search, filter and sort are `useState` in `ReceiptsTab`, which only
+  remounts on a tab switch (`FinanceScreen.tsx:155` mounts tab bodies conditionally), while the last
+  receipt is deleted from the viewer on that same tab. So a search term or a facet could survive into the
+  empty state invisibly and hide the next receipt. The transition INTO zero now clears search and filter
+  (React's adjust-state-while-rendering shape); the sort mode is left, because it orders and never
+  excludes. A test pins it.
+- **F4** — the empty state is not a live region; each delete's existing `role="status"` toast is the
+  announcement, and focus is not moved.
+- **F5** — the harness gains an optional `WalkState.store`, and the four new states sit in an appended
+  `STORE_STATES` list (never crossed with tabs or overlays).
+- **F6** — the zero-spend donut is `G51`, above; nothing built.
+- **F7** — `EmptyState` has no action prop (follows from Decision 10 = A).
+- **F8, with a constraint** — walk states reach an emptied store through a snapshot written inside the
+  IndexedDB upgrade transaction by an init script, built from the app's own `seedState`, `toStored`,
+  `SCHEMA_VERSION` and `seedFingerprint`. The database name, version, object stores, record store and
+  metadata key are PARSED from `src/persistence/store.ts` (the version is module-private and the stores
+  are created inline; the module cannot be imported in Node because it opens a `BroadcastChannel`), so a
+  schema bump cannot silently desynchronise the harness. Behaviour specs empty every list through the real
+  delete controls and reload.
+- **F9** — the copy, with one change: the capture sheet offers "Photo Gallery" (images or PDFs) and
+  "Camera", so the Receipts body names all three: "Photograph a receipt or add an image or PDF, and it
+  appears here."
+- **F10** — the Receipt library's false line is fixed and asserted at zero.
+- **F11** — `NoResults.tsx:12-15` comment-only correction, above.
+
+### Open finding, not fixed here: a lighter band below short Finance tabs
+
+On a Finance tab whose content is shorter than the viewport, the content surface stops and a lighter band
+of page background shows beneath it, down to the nav. It is pre-existing — visible in the committed
+baseline `finance-receipts-applied-375-light` — and it now also shows in the new `finance-receipts-emptied-*`
+and `finance-budget-emptied-*` baselines. Not caused or changed by this gate; recorded so it is not read
+as an empty-state defect.
+
+### Scratch-copy note: Vite's `fs.allow` and a junctioned `node_modules`
+
+A copy of this repo made with `git archive` and a `node_modules` junction to the real one serves its fonts
+through a path Vite's `server.fs.allow` refuses — 16 failures at Phase A until the real `node_modules`
+path was added to `fs.allow` in the COPY's config. **That widening is scratch-only and must never be put
+into the repo's `vite.config.ts`.**
+
+### The local Figma server's name is per environment
+
+In this environment the MVP project's Claude configuration names the local server at
+`http://127.0.0.1:3845/mcp` **`figma-local`**, while the design-system project's configuration names the
+same endpoint **`figma-desktop`**. Both earlier records were right for the project they were written in;
+neither name is universal. It refused the connection (ECONNREFUSED) at this gate.
+
+### Gate 87 Phase B, recorded here (its repo could not take the record after its runs)
+
+Verified on disk in `D:\Claude\_handoffs\gate87-phaseB\`:
+
+- **The original negative control was refused by `tsc`** (`mut-run1.out`: "SettingsScreen.tsx(74,5):
+  error TS1109") — invalid as a control. Its replacement **NC2** (`void 0` in
+  `HomepageScreen.openSettings`, `mutations-r2.mjs`) reported **NO PROOF — the test PASSED under
+  mutation** (`mut-run2.out`), which is what a valid control must report.
+- **S01–S08 and S10–S20 PROVED** (`mut-run1.out`, 19 proved).
+- **S09 survived**: skipping `flush(true)` in `resetToSeed` (`store.ts:595`) leaves the single-tab
+  outcome unchanged, because the ordinary save path writes the seed anyway (`markPersisted`
+  `store.ts:132-134`, `reportState` `:400-411`, the full-write keys `:443`). Its replacement **S09b PROVED
+  at `settings.spec.ts:300`** (`mut-run2.out`).
+- **F1** first missed its signature at `:252`, then **PROVED at `frame-cap.spec.ts:256`** (the matcher
+  line Playwright reports).
+- **The cross-tab check**: the ORIGINAL S09 mutation **PROVED against S11's test, failing at
+  `settings.spec.ts:337`** ("The demo data was reset in another tab."), so the `reset: true` broadcast is
+  covered (`mutations-r3.mjs`, `mut-run3.out`).
+- **Three clean runs, 1089 passed each, 41.2 / 39.6 / 43.9 min**, exit 0 (`run1-3.log`, `.exit`).
+- **The negative-control standard changed (17 Oct 2026)**: a control must typecheck, run, and leave its
+  target test passing; a control refused by `tsc` is invalid.
+- **Correction:** Phase A's prompt cited `markPersisted` as `store.ts:132-135`; it is `:132-134` (`:135`
+  is blank).
+
+### Nothing was removed from this register at this gate.

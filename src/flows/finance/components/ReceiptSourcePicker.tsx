@@ -125,6 +125,13 @@ export interface ReceiptSourcePickerProps {
    * would be a second place deciding what "unlinked" means.
    */
   unlinkedReceipts: Receipt[]
+  /**
+   * Whether the library holds ANY receipt — Gate 88. Decides which sentence the
+   * empty library view prints, because "no unlinked receipt" has two causes:
+   * every receipt is linked, or there is no receipt at all. Passed in rather
+   * than read from a context, for `unlinkedReceipts`' reason.
+   */
+  hasReceipts: boolean
   /** Link that receipt to the transaction this picker was opened from. */
   onPickReceipt: (receiptId: string) => void
   /** Dismiss — the Cancel row, the scrim, and Escape all route here. */
@@ -135,6 +142,7 @@ export function ReceiptSourcePicker({
   onCamera,
   onGallery,
   unlinkedReceipts,
+  hasReceipts,
   onPickReceipt,
   onClose,
 }: ReceiptSourcePickerProps) {
@@ -275,9 +283,17 @@ export function ReceiptSourcePicker({
                 unlinked receipt, which is the ordinary state once every capture
                 has found its transaction. It offers no action of its own because
                 the two actions that would fix it are one tap behind it.
+
+                ⚠ THE SENTENCE WAS FALSE AT ZERO RECEIPTS UNTIL GATE 88. Once
+                Gate 85 made a delete persist, a tester could empty the library
+                and be told every receipt in it was linked. `hasReceipts` now
+                picks the sentence; with receipts present the original line is
+                unchanged, so `[overlay:add-library]` keeps its text.
               */
               <p className="mvp-source-picker__group mvp-source-picker__empty type-body-sm">
-                Every receipt in your library is already linked to a transaction.
+                {hasReceipts
+                  ? 'Every receipt in your library is already linked to a transaction.'
+                  : 'Your receipt library is empty.'}
               </p>
             ) : (
               <ul className="mvp-source-picker__library">

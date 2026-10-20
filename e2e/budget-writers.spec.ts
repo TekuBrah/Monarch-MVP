@@ -382,8 +382,11 @@ test('deleting every budget leaves only the Add New card, and a reload KEEPS the
     await expect(page).toHaveURL(/\/finance$/)
   }
   await expect(budgetCards(page)).toHaveCount(0)
-  await expect(page.locator('.mvp-budget > *')).toHaveCount(1)
-  await expect(page.locator('.mn-card-monthly-budget--add-new')).toHaveCount(1)
+  // GATE 88: the empty state now sits above the Add New card, so the tab holds
+  // two children — the text first, the DS card last.
+  await expect(page.locator('.mvp-budget > *')).toHaveCount(2)
+  await expect(page.locator('.mvp-budget > .mvp-empty-state:first-child')).toHaveCount(1)
+  await expect(page.locator('.mvp-budget > .mn-card-monthly-budget--add-new:last-child')).toHaveCount(1)
 
   /*
     GATE 85 INVERTED THIS. Until then nothing was persisted and a reload
@@ -417,8 +420,11 @@ test('deleting every budget leaves only the Add New card, and a reload KEEPS the
   // handoff survives a reload), so the Budget tab is already selected.
   await expect(page.locator('#tab-budget')).toHaveAttribute('aria-selected', 'true')
   await expect(budgetCards(page)).toHaveCount(0)
-  await expect(page.locator('.mvp-budget > *')).toHaveCount(1)
-  await expect(page.locator('.mn-card-monthly-budget--add-new')).toHaveCount(1)
+  // GATE 88: the empty state now sits above the Add New card, so the tab holds
+  // two children — the text first, the DS card last.
+  await expect(page.locator('.mvp-budget > *')).toHaveCount(2)
+  await expect(page.locator('.mvp-budget > .mvp-empty-state:first-child')).toHaveCount(1)
+  await expect(page.locator('.mvp-budget > .mn-card-monthly-budget--add-new:last-child')).toHaveCount(1)
   await expect(page.locator('.mn-toast-mobile')).toHaveCount(0)
 })
 

@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { CommitmentMark } from '../../components/CommitmentMark'
+import { EmptyState } from '../../components/EmptyState'
 import { GOAL_PLACEHOLDER_IMAGE, goalImageUrl } from '../../config/media'
 import { commitmentCadenceLabel, commitmentDueLabel, goalPercent } from '../../data/derive'
 import { formatMyr } from '../../data/format'
@@ -141,45 +142,61 @@ export function PlansTab() {
           the gutter as padding plus the `scroll-padding-left` that stops a
           snapped first card eating it — Gate 14's finding, and the reason that
           class exists at all.
-        */}
-        <ul className="mvp-plans__goals mvp-column--bleed">
-          {goals.map((goal) => (
-            <li key={goal.id}>
-              <CardGoals
-                image={<img src={goalImageUrl(goal.image, goal.imageOrigin)} alt="" />}
-                title={goal.name}
-                /*
-                  DERIVED, FLOORED. Both seeded goals land on the exact integers
-                  Figma prints (56% and 92%), so the seed cannot tell floor from
-                  round — `goalPercent` states the rule for the first goal that
-                  does not.
-                */
-                percentage={goalPercent(goal)}
-                current={formatMyr(goal.savedAmount)}
-                total={formatMyr(goal.targetAmount)}
-                /*
-                  TAPPABLE AS OF GATE 78, AND THIS IS A `navigate` RATHER THAN
-                  A CALLBACK. The Savings Goals card on the Overview tab takes a
-                  callback because /finance -> /finance would not remount
-                  `FinanceScreen`, so its tab `useState` initialiser would never
-                  re-run; this card goes to a genuinely different path, so the
-                  router is what should move.
 
-                  PASSING `onClick` ALSO FLIPS THE CARD'S ROOT <div> -> <button>,
-                  which is what makes it focusable and announced as a control.
-                  It moves no pixel: `.mn-card-goals` already carries the full
-                  reset (background/border/padding/font-family/text-align) and
-                  an explicit `width: 200px`, and every text node under it - the
-                  title and all three `ProgressBar` labels - carries an explicit
-                  `type-*` class, each of which sets font-size AND line-height,
-                  so the UA button `font` shorthand is fully overridden. Same
-                  mechanism Gate 49 measured for `ListItem`.
-                */
-                onClick={() => navigate(`/finance/plans/goals/${goal.id}`)}
-              />
-            </li>
-          ))}
-        </ul>
+          AT ZERO GOALS THE ROW IS REPLACED, NOT LEFT EMPTY (Gate 88). Deleting
+          both seeded goals used to leave the heading over a 0px row with nothing
+          saying the section was empty. The empty state takes the row's place on
+          the content column; the heading's "Add New" above is the writer's
+          control, so the block carries no action of its own.
+        */}
+        {goals.length === 0 ? (
+          <div className="mvp-column">
+            <EmptyState
+              layout="section"
+              title="No savings goals"
+              description="Add a goal to start saving towards it."
+            />
+          </div>
+        ) : (
+          <ul className="mvp-plans__goals mvp-column--bleed">
+            {goals.map((goal) => (
+              <li key={goal.id}>
+                <CardGoals
+                  image={<img src={goalImageUrl(goal.image, goal.imageOrigin)} alt="" />}
+                  title={goal.name}
+                  /*
+                    DERIVED, FLOORED. Both seeded goals land on the exact integers
+                    Figma prints (56% and 92%), so the seed cannot tell floor from
+                    round — `goalPercent` states the rule for the first goal that
+                    does not.
+                  */
+                  percentage={goalPercent(goal)}
+                  current={formatMyr(goal.savedAmount)}
+                  total={formatMyr(goal.targetAmount)}
+                  /*
+                    TAPPABLE AS OF GATE 78, AND THIS IS A `navigate` RATHER THAN
+                    A CALLBACK. The Savings Goals card on the Overview tab takes a
+                    callback because /finance -> /finance would not remount
+                    `FinanceScreen`, so its tab `useState` initialiser would never
+                    re-run; this card goes to a genuinely different path, so the
+                    router is what should move.
+
+                    PASSING `onClick` ALSO FLIPS THE CARD'S ROOT <div> -> <button>,
+                    which is what makes it focusable and announced as a control.
+                    It moves no pixel: `.mn-card-goals` already carries the full
+                    reset (background/border/padding/font-family/text-align) and
+                    an explicit `width: 200px`, and every text node under it - the
+                    title and all three `ProgressBar` labels - carries an explicit
+                    `type-*` class, each of which sets font-size AND line-height,
+                    so the UA button `font` shorthand is fully overridden. Same
+                    mechanism Gate 49 measured for `ListItem`.
+                  */
+                  onClick={() => navigate(`/finance/plans/goals/${goal.id}`)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="mvp-plans__section mvp-column">

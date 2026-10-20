@@ -231,16 +231,22 @@ test.describe('section headers', () => {
     // the route term as "total minus the other two" would make the printed sum
     // close by construction and prove nothing; three independent counts that
     // happen to add to `WALK.length` are what show the terms do not overlap.
-    const tabStates = WALK.filter((s) => s.tab && !s.overlay).length
+    //
+    // GATE 88 ADDED A FOURTH TERM, the store states. Three of them sit on a tab
+    // and one on a route, so without their own term they would be counted as tab
+    // and route states and the partition would still close — silently wrong.
+    const tabStates = WALK.filter((s) => s.tab && !s.overlay && !s.store).length
     const overlayStates = WALK.filter((s) => s.overlay).length
-    const routeStates = WALK.filter((s) => !s.tab && !s.overlay).length
+    const routeStates = WALK.filter((s) => !s.tab && !s.overlay && !s.store).length
+    const storeStates = WALK.filter((s) => s.store && !s.overlay).length
     console.log(
       `section-header sweep: ${totalHeaders} .mvp-section-header instance(s) checked across ` +
         `${WALK.length} walk state(s) = ${routeStates} route state(s) + ${tabStates} ` +
         `non-default tab state(s) over ${TABBED_SCREENS.length} tabbed screen(s) + ` +
-        `${overlayStates} overlay state(s) [${routeStates} + ${tabStates} + ${overlayStates} = ` +
-        `${routeStates + tabStates + overlayStates}; ${ROUTES.length} route(s) in ROUTES] ` +
-        `x ${THEMES.length} theme(s)`,
+        `${overlayStates} overlay state(s) + ${storeStates} store state(s) ` +
+        `[${routeStates} + ${tabStates} + ${overlayStates} + ${storeStates} = ` +
+        `${routeStates + tabStates + overlayStates + storeStates}; ` +
+        `${ROUTES.length} route(s) in ROUTES] x ${THEMES.length} theme(s)`,
     )
     console.log(
       `distinct headings seen (${headingsSeen.size}):\n  ` +

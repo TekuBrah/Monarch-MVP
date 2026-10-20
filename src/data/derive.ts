@@ -2364,3 +2364,34 @@ export function goalSavedAfter(
   return (toSen(goal.savedAmount) - later) / 100
 }
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHICH OF THREE THINGS A LIST SHOWS — Gate 88.
+ *
+ * `empty`       the STORED collection holds nothing. `EmptyState`.
+ * `no-results`  it holds something and the search or facets matched none of
+ *               it. `NoResults`, whose recovery action can actually recover.
+ * `list`        there is something to show.
+ *
+ * ⚠ THE FIRST ARGUMENT IS THE UNFILTERED COUNT, AND THAT IS THE WHOLE RULE
+ * (R88-2). An empty list and a list filtered to nothing are different states
+ * with different copy and different actions: before this gate the Receipts tab
+ * keyed `NoResults` on the FILTERED count alone, so a library emptied by delete
+ * offered "Show all receipts" — a recovery action with nothing to recover
+ * (measured at Phase A: the click left 0 cards and the same block). Deciding
+ * both states in one pure function from both counts is what makes it
+ * impossible for a surface to render the two at once, or to show the empty
+ * state for a non-empty library that a filter has narrowed to zero.
+ *
+ * Surfaces with no filter (the Goals section, the Budget tab, a goal's
+ * contributions) test their stored count directly; routing them through
+ * `listPresence(n, n)` would be ceremony.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+export type ListPresence = 'empty' | 'no-results' | 'list'
+
+export function listPresence(total: number, visible: number): ListPresence {
+  if (total === 0) return 'empty'
+  return visible === 0 ? 'no-results' : 'list'
+}
+

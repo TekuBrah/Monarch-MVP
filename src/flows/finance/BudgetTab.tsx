@@ -3,6 +3,7 @@ import { CardMonthlyBudget, ToastMobile } from '@monarch/design-system'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { useBudgets } from '../../budgets/BudgetsProvider'
+import { EmptyState } from '../../components/EmptyState'
 import {
   budgetAvailable,
   budgetPercentLeft,
@@ -107,6 +108,20 @@ export function BudgetTab() {
             />
           )
         })}
+        {/*
+          AT ZERO BUDGETS, TWO LINES ABOVE THE ADD NEW CARD (Gate 88, fork F2).
+          Deleting both seeded budgets used to leave the DS Add New card alone
+          over blank space. The card stays as it is — Figma's own creation
+          affordance (`card/monthly budget` `State=Add new`, `237:1702`) — so the
+          text says what a budget is and carries no action of its own.
+        */}
+        {budgets.length === 0 && (
+          <EmptyState
+            layout="section"
+            title="No budgets"
+            description="Set a spending limit for a date range and the categories it covers."
+          />
+        )}
         <CardMonthlyBudget state="addNew" onAddNew={() => setIsCreating(true)} sizing="fill" />
       </div>
 

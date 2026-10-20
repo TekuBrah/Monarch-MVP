@@ -18,6 +18,7 @@ import {
   clearFacet,
   filterChips,
   filterTransactions,
+  listPresence,
   receiptForTransaction,
   receiptsNewestFirst,
   transactionHasReceipt,
@@ -466,8 +467,13 @@ export function TransactionsLedger() {
         THE CHIPS STAY ABOVE IT so the zero is explainable — the row is derived
         from the filter, so a user can see which facets caused it and dismiss one
         without reopening the sheet.
+
+        ROUTED THROUGH `listPresence` SINCE GATE 88, the one rule that keeps an
+        empty list and a filtered one apart. The ledger has no empty state: no
+        writer removes a transaction, so `'empty'` is unreachable here and only
+        `'no-results'` can render.
       */}
-      {rows.length === 0 && (
+      {listPresence(transactions.length, rows.length) === 'no-results' && (
         <NoResults
           title="No transactions match"
           description="Try a wider date range or amount, or dismiss a filter above."
@@ -593,6 +599,7 @@ export function TransactionsLedger() {
           onGallery={() => pick('gallery')}
           onCamera={() => pick('camera')}
           unlinkedReceipts={unlinkedReceipts}
+          hasReceipts={receipts.length > 0}
           onPickReceipt={(receiptId) => {
             linkReceipt(receiptId, detail.id)
             setIsPickerOpen(false)

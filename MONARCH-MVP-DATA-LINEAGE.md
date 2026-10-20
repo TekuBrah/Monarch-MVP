@@ -953,3 +953,24 @@ as written; where it says the following, it now misleads.**
   `readonly` and `memory` modes.
 
 Nothing else in this document changed meaning at Gate 87. See `CLAUDE.md`'s Gate 87 section.
+
+## Status note after Gate 88 (2026-10-19) — empty lists say so
+
+**The text above, including the earlier status notes, is left exactly as written; where it says the
+following, it now misleads.**
+
+- **§8.5's "what renders at zero" column.** Budgets: the text "No budgets" with its line, then the DS Add
+  New card. Goals: "No savings goals" in place of the card row. Receipts: the `EmptyState` "No receipts",
+  with the search field, filter button and chips hidden — no longer `NoResults` and its "Show all receipts".
+  The source picker's Receipt library reads "Your receipt library is empty." at zero receipts. A new goal's
+  Recent Contributions reads "No contributions yet". Transactions and cash accounts still cannot empty.
+- **§9 D4 and the Gate 85 note's "D4 … is handed to the first-run empty-state gate".** Discharged. Which
+  state renders is decided by `listPresence(total, visible)` in `derive.ts`, from the stored count, and
+  `NoResults.tsx`'s stale comment is corrected.
+- **New derived UI state, not stored.** Reaching zero receipts clears the Receipts tab's search and facets
+  (session state in `ReceiptsTab`); nothing about it is persisted.
+- **Test-side data (§7).** The harness can now start a state from a prepared store (`installStorePreset`,
+  `STORE_STATES`), written inside the IndexedDB upgrade transaction from the app's own seed and boundary
+  modules, with the database shape parsed from `store.ts`.
+
+Nothing else in this document changed meaning at Gate 88. See `CLAUDE.md`'s Gate 88 section.

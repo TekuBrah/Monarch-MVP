@@ -3,6 +3,7 @@ import { Button, Field, FilterChip, Icon } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
 import { NoResults } from '../../components/NoResults'
+import { EmptyState } from '../../components/EmptyState'
 import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { ReceiptViewerHost } from './components/ReceiptViewer'
@@ -13,6 +14,7 @@ import {
   filterReceipts,
   groupReceiptsByCapturedDate,
   groupReceiptsByMonth,
+  listPresence,
   receiptFilterChips,
 } from '../../data/derive'
 import type { ReceiptFilter, ReceiptSortMode } from '../../data/derive'
@@ -79,7 +81,9 @@ import { autoMatchBatch } from '../../data/autoMatch'
  *  - NO EMPTY STATE. Nothing in the frame draws one. The search box can empty
  *    the list, and so — since Gate 51 — can deleting every receipt; both render
  *    an empty list under the add control, which is the honest placeholder for a
- *    state the design has not specified.
+ *    state the design has not specified. (SUPERSEDED AT GATE 88: the two cases
+ *    are now told apart by `listPresence` — an emptied library renders
+ *    `EmptyState`, a filtered one `NoResults`. Still undesigned in Figma.)
  *  - NO SECOND CHIP PAIR. Figma draws two chips, "All" and "This Month", with
  *    two further slots hidden. The hidden ones are not built.
  * ─────────────────────────────────────────────────────────────────────────────
@@ -134,6 +138,32 @@ export function ReceiptsTab() {
   const [filter, setFilter] = useState<ReceiptFilter>(RECEIPT_FILTER_ALL)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const closeFilter = useCallback(() => setIsFilterOpen(false), [])
+
+  /*
+    ── REACHING ZERO CLEARS THE SEARCH AND THE FACETS (Gate 88) ──────────────
+
+    At zero receipts the search field, the filter button and the chips are NOT
+    RENDERED (below) — so a search term or a facet still in force would be
+    invisible. And it can be: this state only resets when the tab remounts
+    (`FinanceScreen` mounts tab bodies conditionally), while the last receipt is
+    deleted from the viewer ON this tab. Delete it with "Unlinked" applied, add
+    a capture that auto-match links, and the new receipt would come back
+    filtered out behind controls that had just been hidden.
+
+    So the transition INTO zero clears both. It is React's "adjust state while
+    rendering" shape rather than an effect, so no frame renders the stale
+    filter. The SORT MODE is left alone: it orders, it never excludes, so it
+    cannot hide a receipt.
+  */
+  const isEmptied = receipts.length === 0
+  const [wasEmptied, setWasEmptied] = useState(isEmptied)
+  if (isEmptied !== wasEmptied) {
+    setWasEmptied(isEmptied)
+    if (isEmptied) {
+      setSearch('')
+      setFilter(RECEIPT_FILTER_ALL)
+    }
+  }
 
   /*
     ── THE BULK ADD MODAL (Gate 50) ──────────────────────────────────────────
@@ -243,65 +273,82 @@ export function ReceiptsTab() {
     [transactions],
   )
 
+  // EMPTY, NO-RESULTS OR LIST — decided from the UNFILTERED count. See
+  // `listPresence`: an emptied library must never offer "Show all receipts".
+  const presence = listPresence(receipts.length, groups.length)
+
   return (
     <div className="mvp-receipts">
-      <div className="mvp-receipts__search mvp-column">
-        {/*
-          THE SAME CONTROL THE TRANSACTIONS TAB SHIPS, not a second one: `Field`
-          at `sizing="fill"`, a leading `search` glyph and a trailing filter
-          button. Gate 43's B2 note on `TransactionsLedger` explains why
-          `sizing="fill"` rather than an MVP width override, and it applies here
-          unchanged.
-
-          THE TRAILING BUTTON OPENS THE FILTER SHEET — Gate 80-B. It was INERT
-          from Gate 48 to Gate 80: a real control with a real accessible name
-          and no `onClick` whatsoever. Keeping the markup is what made this a
-          one-handler change rather than a rebuild, which is exactly what the
-          note it replaces predicted.
-        */}
-        <Field
-          value={search}
-          onChange={setSearch}
-          placeholder="Search"
-          ariaLabel="Search receipts"
-          sizing="fill"
-          leadingIcon={<Icon name="search" size="m" />}
-          trailingIcon={
-            <button
-              type="button"
-              className="mvp-receipts__filter-btn"
-              aria-label="Filter receipts"
-              onClick={() => setIsFilterOpen(true)}
-            >
-              <Icon name="filter_list" size="m" />
-            </button>
-          }
-        />
-      </div>
-
       {/*
-        THE APPLIED-FILTER CHIPS — the ledger's row, in the ledger's shape.
-
-        `onDismiss` IS NOW SUPPLIED, where Gate 48 deliberately omitted it. The
-        argument it was omitted under still holds and is what makes supplying it
-        correct now: a dismiss affordance that did nothing was a control that
-        lied, and these chips clear a real facet.
-
-        THE KEY IS THE FACET, NOT THE LABEL OR THE INDEX. Two facets can print
-        the same string — "All" is both the link default and, at a different
-        range, nothing else — so a label key would collide, and an index key
-        would re-identify every chip after one that disappears.
+        AT ZERO RECEIPTS EVERY CONTROL THAT ACTS ON THE LIST IS GONE (Gate 88,
+        fork F3): the search field, the filter button — and with it the filter
+        sheet, which is where the sort control has lived since Gate 80-B — and
+        the chip row. With nothing stored each could only produce nothing, and
+        Gate 44's rule is that a drawn, focusable control that cannot do
+        anything is worse than an absent one. They return with the first
+        receipt; the add control below stays throughout.
       */}
-      <ul className="mvp-receipts__chips mvp-column--bleed">
-        {chips.map((chip) => (
-          <li key={chip.facet}>
-            <FilterChip
-              label={chip.label}
-              onDismiss={() => setFilter((f) => clearReceiptFacet(f, chip.facet))}
+      {presence !== 'empty' && (
+        <>
+          <div className="mvp-receipts__search mvp-column">
+            {/*
+              THE SAME CONTROL THE TRANSACTIONS TAB SHIPS, not a second one: `Field`
+              at `sizing="fill"`, a leading `search` glyph and a trailing filter
+              button. Gate 43's B2 note on `TransactionsLedger` explains why
+              `sizing="fill"` rather than an MVP width override, and it applies here
+              unchanged.
+
+              THE TRAILING BUTTON OPENS THE FILTER SHEET — Gate 80-B. It was INERT
+              from Gate 48 to Gate 80: a real control with a real accessible name
+              and no `onClick` whatsoever. Keeping the markup is what made this a
+              one-handler change rather than a rebuild, which is exactly what the
+              note it replaces predicted.
+            */}
+            <Field
+              value={search}
+              onChange={setSearch}
+              placeholder="Search"
+              ariaLabel="Search receipts"
+              sizing="fill"
+              leadingIcon={<Icon name="search" size="m" />}
+              trailingIcon={
+                <button
+                  type="button"
+                  className="mvp-receipts__filter-btn"
+                  aria-label="Filter receipts"
+                  onClick={() => setIsFilterOpen(true)}
+                >
+                  <Icon name="filter_list" size="m" />
+                </button>
+              }
             />
-          </li>
-        ))}
-      </ul>
+          </div>
+
+          {/*
+            THE APPLIED-FILTER CHIPS — the ledger's row, in the ledger's shape.
+
+            `onDismiss` IS NOW SUPPLIED, where Gate 48 deliberately omitted it. The
+            argument it was omitted under still holds and is what makes supplying it
+            correct now: a dismiss affordance that did nothing was a control that
+            lied, and these chips clear a real facet.
+
+            THE KEY IS THE FACET, NOT THE LABEL OR THE INDEX. Two facets can print
+            the same string — "All" is both the link default and, at a different
+            range, nothing else — so a label key would collide, and an index key
+            would re-identify every chip after one that disappears.
+          */}
+          <ul className="mvp-receipts__chips mvp-column--bleed">
+            {chips.map((chip) => (
+              <li key={chip.facet}>
+                <FilterChip
+                  label={chip.label}
+                  onDismiss={() => setFilter((f) => clearReceiptFacet(f, chip.facet))}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {/*
         ── THE ONE ADD CONTROL (Gate 51) ─────────────────────────────────────
@@ -360,8 +407,23 @@ export function ReceiptsTab() {
         it and dismiss one without opening the sheet. The sort control and the
         add button stay for the same reason — nothing about a zero result makes
         adding a receipt unavailable.
+
+        GATE 88 SPLIT IT FROM THE EMPTY STATE. Until then this keyed on
+        `groups.length` alone, so a library emptied by delete showed "No
+        receipts match" and a "Show all receipts" that could not bring anything
+        back. Now `presence` decides: an empty library gets `EmptyState`, and
+        this block renders only when a non-empty library is filtered to zero —
+        where its action works.
       */}
-      {groups.length === 0 && (
+      {presence === 'empty' && (
+        <EmptyState
+          layout="page"
+          icon="receipt_long"
+          title="No receipts"
+          description="Photograph a receipt or add an image or PDF, and it appears here."
+        />
+      )}
+      {presence === 'no-results' && (
         <NoResults
           title="No receipts match"
           description="Try a wider date range, or dismiss a filter above."

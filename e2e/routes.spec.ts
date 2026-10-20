@@ -56,8 +56,14 @@ test.describe('route walk', () => {
     // Gate alpha's two overlay states sit on a route that is already walked with
     // `tab: null`; without the overlay term all three would collapse to one key
     // and this uniqueness check would fail on a correct walk.
+    // THE STORE PRESET IS TOO (Gate 88): `/finance [tab:receipts] [store:emptied]`
+    // shares its route and tab with the plain Receipts state.
     expect(
-      new Set(WALK.map((s) => `${s.route}#${s.tab?.id ?? ''}#${s.overlay?.id ?? ''}`)).size,
+      new Set(
+        WALK.map(
+          (s) => `${s.route}#${s.tab?.id ?? ''}#${s.overlay?.id ?? ''}#${s.store?.id ?? ''}`,
+        ),
+      ).size,
     ).toBe(WALK.length)
 
     console.log(

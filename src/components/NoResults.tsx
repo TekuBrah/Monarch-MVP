@@ -12,7 +12,11 @@ import './NoResults.css'
  * is unreachable today — nothing can take either collection to zero records,
  * because there is no delete-all and no persistence to reset — and it arrives
  * with persistence, after the Flow 11 completion record. Building for it now
- * would be a prop nobody passes.
+ * would be a prop nobody passes. (CORRECTED AT GATE 88: the claim was stale
+ * from Gate 85, when deletes began to persist and the receipt library became
+ * reachable at zero. That state now has its own sibling, `EmptyState`, and
+ * `listPresence` in `derive.ts` decides which of the two renders — so this
+ * component still serves only the filtered case, as written.)
  *
  * UNDESIGNED WORK, under the 21 Sept ruling (what Teku designed in Figma is
  * followed exactly; what he did not design follows Claude's judgement). Read at

@@ -1,0 +1,46 @@
+/*
+  EmptyState — its own stylesheet (the rule `ComingSoon.css` states).
+
+  THE PAGE LAYOUT IS `NoResults`' AND `ComingSoon`'S SPACING, COPIED. A centred
+  mark, a heading and a line of copy filling a tab body: `gap: var(--spacing-300)`,
+  `padding: var(--spacing-1400) var(--spacing-600)` and a 75% description, so the
+  three blocks read as one pattern and differ only in what they say.
+
+  NOT ON `.mvp-column`, for `NoResults`' reason: the page layout is a centred
+  message whose own inset does the placing. The SECTION layout sits inside a
+  section that already carries the column, so it needs no edge of its own.
+
+  THE SECTION LAYOUT is a two-line text block with `--spacing-100` between the
+  lines — `.mvp-source-picker__empty`'s plain line, one heading heavier.
+
+  Composition only: spacing, alignment and DS tokens (rule 2).
+*/
+
+.mvp-empty-state__title {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-empty-state__description {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-empty-state--page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-300);
+  padding: var(--spacing-1400) var(--spacing-600);
+  text-align: center;
+}
+
+.mvp-empty-state--page .mvp-empty-state__description {
+  max-width: 75%;
+}
+
+.mvp-empty-state--section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}

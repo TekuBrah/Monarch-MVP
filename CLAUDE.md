@@ -19257,3 +19257,109 @@ These documents were written BEFORE Phase A's one final full run, as the gate re
 the Phase A build report and `HANDOVER.md`, not here. Phase B runs the mutation proofs (plan:
 `D:\Claude\_handoffs\gate87-phaseB\mutations.mjs`) and the three clean runs. Arm 1 of the baseline guard
 fails until the 12 new PNGs are staged — expected.
+
+## Empty states for every list the UI can empty (Gate 88)
+
+No DS re-pin — **v2.9.0 throughout**, and no DS file was written. Since Gate 85 a delete persists, so a
+tester can empty the receipt library, the goals and the budgets, and a new goal starts with no
+contributions. Each of those now says what the list is for instead of rendering blank or misleading.
+**|WALK| 80 -> 84, `ROUTES` 26, `OVERLAY_STATES` 47, new `STORE_STATES` 4, baselines 320 -> 336 (16 added,
+0 changed, 0 deleted), tests 1089 -> 1135, spec files 42 -> 43.** `lint:tokens` scans **111** files (109 +
+`EmptyState.tsx` + `EmptyState.css`) with the same **4** exemptions. Built by Phase A (Opus, design and a
+measured census) and a fresh build session; Phase B runs the mutation proofs and three clean runs. **Teku
+does every git write.** Register §2ak carries the rulings, `G51` and the Gate 87 Phase B record.
+
+**UNDESIGNED WORK, all of it** — no frame in either Figma file draws an empty or zero state (Phase A,
+every text node of the case study; 41 DS pages). Decision 10 = A (Teku, 18 Oct 2026): Reset data stays in
+Settings only; no empty state offers "Restore demo data".
+
+### Empty is not no-results, and one function decides
+
+`listPresence(total, visible)` in `derive.ts` returns `'empty'` whenever the STORED count is zero,
+`'no-results'` when a non-empty list is filtered to nothing, and `'list'` otherwise. **The first argument
+is the unfiltered count, and that is the rule (R88-2).** Before this gate the Receipts tab keyed
+`NoResults` on the filtered count alone, so an emptied library offered "Show all receipts", which could
+not bring anything back. `ReceiptsTab` and `TransactionsLedger` both route their no-results decision
+through it (the ledger cannot empty, so it never reaches `'empty'`). Surfaces with no filter test their
+stored count directly.
+
+### The four surfaces and the one copy fix
+
+| surface | at zero | copy |
+|---|---|---|
+| Receipts tab | `EmptyState layout="page"`, `receipt_long` glyph, `h2` | "No receipts" / "Photograph a receipt or add an image or PDF, and it appears here." |
+| Plans → Goals | section layout, in place of the card row | "No savings goals" / "Add a goal to start saving towards it." |
+| Budget tab | section layout, ABOVE the DS Add New card | "No budgets" / "Set a spending limit for a date range and the categories it covers." |
+| Goal → Recent Contributions | section layout, in place of the rows | "No contributions yet" / "Top-ups and auto-save transfers into this goal appear here." |
+| Source picker → Receipt library | the existing line, now chosen by `hasReceipts` | "Your receipt library is empty." (unchanged when receipts exist but all are linked) |
+
+**No empty state carries an action**: each writer's control is already on screen (Add new receipt, the
+Goals heading's Add New, the DS Add New card, Top-Up). **None is a live region**: every path that empties a
+list on screen is a delete, and each delete already raises a polite `role="status"` toast. Focus is not
+moved. The Receipts body names all three capture paths because the sheet offers "Photo Gallery" (images or
+PDFs, `AddReceiptsModal.tsx:333`, accept `image/*,application/pdf` at `ReceiptFileInput.tsx:88`) and
+"Camera" (`:339`).
+
+### At zero receipts the list controls go, and so does any stale filter
+
+The search field, the filter button and the chip row are not rendered at zero (Gate 44's rule: a control
+that can do nothing is worse than none). The sort control is inside the filter sheet (since Gate 80-B), so
+it goes with the button. **And the transition into zero clears the search and the facets**: they are
+`useState` in `ReceiptsTab`, which only remounts on a tab switch, while the last receipt is deleted from the
+viewer on that same tab — so without the reset a search or facet could survive invisibly and hide the next
+receipt. Sort is left: it never excludes. `empty-states.spec.ts` pins it, and disabling the reset fails
+that test (checked once during the build; Phase B proves it formally).
+
+### Store presets — how a walk state reopens on stored data
+
+`WalkState` gained an optional `store?: StorePreset` (`{ id, edit }`), and four states sit in an appended
+`STORE_STATES`: `/finance [tab:receipts] [store:emptied]`, `[tab:plans] [store:emptied]`,
+`[tab:budget] [store:emptied]`, and `/finance/plans/goals/goal-new-phone [store:new-goal]` (a goal as Add
+New makes one, with a FIXED id because UUIDs are not stubbed). The slug puts the preset id after the tab
+(`finance-receipts-emptied-375-light`); the title adds `[store:<id>]`; `routes.spec.ts`'s uniqueness key and
+`section-headers.spec.ts`'s term counts gained a store term (the sweep now prints `26 + 7 + 47 + 4 = 84`).
+
+**`installStorePreset` writes the snapshot INSIDE the database's upgrade transaction from an init script**,
+so the app's own `openDB` is queued behind it and cannot hydrate before the write lands; on a reload no
+upgrade runs and nothing is written, so a test's own writes survive. The snapshot is built by the app's
+`seedState`, `toStored`, `SCHEMA_VERSION` and `seedFingerprint`. **The database name, version, object
+stores, record store and metadata key are PARSED from `src/persistence/store.ts`, never written as
+literals** — the version is module-private and the module cannot be imported in Node (it opens a
+`BroadcastChannel`). Every parse throws rather than guess, including a check that `openDB` is called with
+`DB_NAME` and `DB_VERSION`. **A schema bump that changes the upgrade must keep that shape parseable, or the
+harness stops at load.**
+
+### Baselines — predicted, and exact
+
+Phase A's census predicted **16 added, 0 changed, 0 deleted**. The pre-mint run on this tree reported
+**1105 passed / 16 failed** (npm exit 1), the 16 being exactly the four store states' missing baselines,
+with **0 "writing actual"** and the digest unchanged (`d85ccaae…6bbd6b1d`). The mint was scoped by
+`-g "\[store:"` (dry-run: exactly 16) and reconciled against a manifest taken outside the repo: **320 ->
+336, 16 added, 0 changed, 0 deleted, 320 byte-identical**. New digest (standing command):
+**`09d6cc9625c85ebeaeb0c2df57e91526930c12e6f8728189c4123eeb93a4a503`**. All 16 were opened. The lighter band
+under short Finance tabs that shows in the receipts and budget ones is PRE-EXISTING (register §2ak).
+
+### The tests
+
+`e2e/empty-states.spec.ts`, **14 tests, no baseline** (Phase A planned 13; the F3 reset adds one): the
+`listPresence` rule in Node; receipts emptied through the viewer and kept across a reload; a filtered
+non-empty library shows `NoResults`, never the empty state; adding a receipt from an emptied store; the
+reset of search and filter at zero; the Receipt library at zero; goals and budgets each emptied through the
+UI and kept across a reload, and each refilled through Add New; a new goal's contributions before and after
+a Top-Up, kept across a reload; Reset data from a fully emptied store; the announcement (toast, no live
+region, no focus move); and the harness's own first-paint and reload guarantees.
+`budget-writers.spec.ts:373` changed two assertions only (the tab now holds the text and the card), title
+unchanged. Arithmetic: 1089 + 16 visual + 8 routes + 8 section-headers + 14 = **1135 in 43 files**.
+
+### Build
+
+`npm run build:package` exit 0: entry chunk **5,951,068** bytes (Gate 87: 5,949,508), CSS **195,158**
+(194,739); the OCR lazy chunks unchanged; `modulepreload` 0.
+
+### Deliberately not in scope
+
+A zero-data donut (`G51`, DS-side); a "Restore demo data" shortcut (Decision 10 = A); empty states for
+lists that cannot empty (transactions, cash accounts, commitments); the lighter band under short tabs;
+promoting `EmptyState` or `NoResults` into the DS; route-change focus; every other open DS gap; and the DS
+repo. The `budget-writers.spec.ts:373` title still says "leaves only the Add New card" (assertion-only
+edit, ruled); renaming it is a follow-up.

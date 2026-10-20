@@ -7,6 +7,11 @@ import { COMMITMENTS } from '../src/data/commitments'
 import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
+import type { Goal } from '../src/data/types'
+import { GOAL_PLACEHOLDER_IMAGE } from '../src/config/media'
+import { toStored } from '../src/persistence/boundary'
+import { SCHEMA_VERSION, type StoredMeta } from '../src/persistence/schema'
+import { seedFingerprint, seedState, type AppState } from '../src/persistence/seed'
 import { THEME_STORAGE_KEY } from '../src/theme/themePreference'
 import { capturedImageName } from './capture'
 
@@ -661,6 +666,42 @@ export interface WalkState {
    * nothing, so every construction site is forced to have considered it.
    */
   overlay: OverlayState | null
+  /**
+   * Gate 88. Absent = the app starts from the seed, as every state did before.
+   * Present = the STORED data the app reopens with, written before the page
+   * loads — see `StorePreset` and `installStorePreset`.
+   *
+   * OPTIONAL RATHER THAN AN EXPLICIT `null`, UNLIKE `tab` AND `overlay` (fork
+   * F5). Those two are spelled out on every construction site so each is forced
+   * to consider them; a store preset is the rare case — four states, appended in
+   * `STORE_STATES` — and adding `store: null` to ~50 literals would be noise
+   * that proves nothing.
+   */
+  store?: StorePreset
+}
+
+/**
+ * STORED DATA A WALK STATE REOPENS WITH — Gate 88.
+ *
+ * The empty states exist only once a tester has deleted things, and since Gate
+ * 85 a delete persists. So the honest way to photograph one is the way a tester
+ * meets it: reopen the app on a store that already holds the emptied data.
+ *
+ * `edit` RECEIVES THE APP'S OWN SEED STATE AND RETURNS A CHANGED COPY, and the
+ * stored snapshot is built from it by the app's own `toStored`, with the app's
+ * `SCHEMA_VERSION` and `seedFingerprint()` — nothing is retyped, so the snapshot
+ * cannot drift from the store's format and classifies as `ok` on hydrate.
+ *
+ * WHY NOT DRIVE THE DELETE CONTROLS INSIDE THE WALK: every delete leaves a
+ * screen toast with no timer, which would sit in the baseline; goal and budget
+ * deletes navigate away; and emptying receipts is ten open-delete-confirm
+ * cycles. The behaviour spec (`empty-states.spec.ts`) still empties every list
+ * through the real controls — the walk photographs the RESULT.
+ */
+export interface StorePreset {
+  /** Joins the slug and the title, after the tab: `finance-receipts-emptied`. */
+  id: string
+  edit: (state: AppState) => AppState
 }
 
 /**
@@ -2447,6 +2488,146 @@ export const OVERLAY_STATES: WalkState[] = [
 ]
 
 /**
+ * THE APP'S OWN DATABASE SHAPE, READ OUT OF `src/persistence/store.ts` — Gate 88.
+ *
+ * A store preset has to create the database the app will open, so it needs the
+ * database's name, its version and its object stores — and if the harness held
+ * those as literals, a future schema bump would leave every preset creating a
+ * stale database while the app quietly upgraded or failed past it (F8).
+ *
+ * ONLY `DB_NAME` IS EXPORTED. The version is a module-private `const` and the
+ * stores are created inline in the `upgrade` callback, and `store.ts` is not
+ * importable here anyway: evaluating it opens a `BroadcastChannel`, which would
+ * hold the Node worker open. So they are PARSED from its source, the same
+ * technique this file already uses for the router and the tab lists — and every
+ * parse throws rather than guess, including the check that `openDB` is really
+ * called with the two constants it found.
+ */
+function parseStoreDatabase(): {
+  name: string
+  version: number
+  stores: string[]
+  recordStore: string
+  metaKey: string
+} {
+  const path = resolve(SRC_DIR, 'persistence', 'store.ts')
+  const source = stripComments(readSource(path))
+  const one = (pattern: RegExp, what: string): string => {
+    const match = source.match(pattern)
+    if (!match) throw new Error(`harness: could not find ${what} in ${path}`)
+    return match[1]
+  }
+  const name = one(/export const DB_NAME = '([^']+)'/, 'DB_NAME')
+  const version = Number(one(/const DB_VERSION = (\d+)/, 'DB_VERSION'))
+  if (!/openDB<\w+>\(DB_NAME, DB_VERSION,/.test(source)) {
+    throw new Error(`harness: ${path} no longer opens the database with DB_NAME and DB_VERSION`)
+  }
+  const upgrade = one(/upgrade\(\w*\)\s*\{([\s\S]*?)\n\s*\},/, 'the upgrade callback')
+  const stores = [...upgrade.matchAll(/createObjectStore\('([^']+)'\)/g)].map((m) => m[1])
+  if (stores.length === 0) throw new Error(`harness: no createObjectStore call in ${path}'s upgrade`)
+  // The store `readRaw` reads the records from, and the key it reads the
+  // metadata under — the two places a snapshot has to land for hydrate to see it.
+  const readRaw = one(/(async function readRaw\([\s\S]*?\n\})/, 'readRaw')
+  const recordStore = (readRaw.match(/const recordStore = tx\.objectStore\('([^']+)'\)/) ?? [])[1]
+  const metaKey = (readRaw.match(/meta: byKey\.get\('([^']+)'\)/) ?? [])[1]
+  if (!recordStore || !stores.includes(recordStore)) {
+    throw new Error(`harness: readRaw's record store not found among ${stores.join(', ')}`)
+  }
+  if (!metaKey) throw new Error(`harness: readRaw's metadata key not found in ${path}`)
+  return { name, version, stores, recordStore, metaKey }
+}
+
+const STORE_DATABASE = parseStoreDatabase()
+
+/**
+ * Write a preset's snapshot INSIDE the database's versionchange transaction,
+ * before any page script runs.
+ *
+ * WHY THE APP CANNOT HYDRATE BEFORE THE WRITE LANDS — a guarantee, not a timing
+ * hope. Init scripts run before the page's own scripts, so this `open` is the
+ * first request in the database's connection queue and the app's `openDB` is
+ * queued behind it. A fresh Playwright context has no database, so this open
+ * runs an UPGRADE and the records are written inside it; and IndexedDB does not
+ * process a later open until an earlier one, upgrade included, has finished. So
+ * the app's `readRaw` sees the records.
+ *
+ * ON A RELOAD THE DATABASE EXISTS, no upgrade runs and nothing is written — so a
+ * test's own writes survive its reload, which is the reload rule.
+ */
+export async function installStorePreset(page: Page, preset: StorePreset): Promise<void> {
+  const meta: StoredMeta = {
+    schemaVersion: SCHEMA_VERSION,
+    seedFingerprint: seedFingerprint(),
+    revision: 1,
+  }
+  const entries = { [STORE_DATABASE.metaKey]: meta, ...toStored(preset.edit(seedState())) }
+  await page.addInitScript(
+    ({ db, entries }) => {
+      const request = indexedDB.open(db.name, db.version)
+      request.onupgradeneeded = () => {
+        for (const store of db.stores) request.result.createObjectStore(store)
+        const records = request.transaction!.objectStore(db.recordStore)
+        for (const [key, value] of Object.entries(entries)) records.put(value, key)
+      }
+      request.onsuccess = () => request.result.close()
+    },
+    { db: STORE_DATABASE, entries },
+  )
+}
+
+/** Every list the UI can empty, emptied: receipts, goals and budgets. */
+export const EMPTIED_RECEIPTS: StorePreset = {
+  id: 'emptied',
+  edit: (state) => ({ ...state, receipts: [] }),
+}
+export const EMPTIED_GOALS: StorePreset = {
+  id: 'emptied',
+  edit: (state) => ({ ...state, goals: [] }),
+}
+export const EMPTIED_BUDGETS: StorePreset = {
+  id: 'emptied',
+  edit: (state) => ({ ...state, budgets: [] }),
+}
+
+/**
+ * A goal as "Add New" makes one: RM 0 saved, no ledger rows, the placeholder
+ * image, auto-save off at 0 (`goalDraft.ts`). Its id is FIXED because the walk
+ * needs a route to name and UUIDs are not stubbed in the harness (D-17), so the
+ * route below is named by this preset rather than expanded from `GOALS`.
+ */
+export const NEW_GOAL: Goal = {
+  id: 'goal-new-phone',
+  name: 'New Phone',
+  targetAmount: 5000,
+  savedAmount: 0,
+  targetDate: '2026-12-31',
+  image: GOAL_PLACEHOLDER_IMAGE,
+  imageOrigin: 'placeholder',
+  fundingAccountId: 'main',
+  autoSave: { isEnabled: false, amount: 0 },
+}
+export const WITH_NEW_GOAL: StorePreset = {
+  id: 'new-goal',
+  edit: (state) => ({ ...state, goals: [...state.goals, NEW_GOAL] }),
+}
+
+/**
+ * THE STORE STATES — Gate 88. Enumerated and appended, never crossed with the
+ * overlays or the tabs: the Gate α rule that a state is written down rather than
+ * produced by a cross product, because most combinations mean nothing.
+ *
+ * Their slugs were checked against every existing baseline name: none collides
+ * (`finance-transactions-empty` is the ledger's NO-RESULTS overlay, which is why
+ * the preset id is `emptied`, not `empty`).
+ */
+export const STORE_STATES: WalkState[] = [
+  { route: '/finance', tab: { id: 'receipts', label: 'Receipts' }, overlay: null, store: EMPTIED_RECEIPTS },
+  { route: '/finance', tab: { id: 'plans', label: 'Plans' }, overlay: null, store: EMPTIED_GOALS },
+  { route: '/finance', tab: { id: 'budget', label: 'Budget' }, overlay: null, store: EMPTIED_BUDGETS },
+  { route: `/finance/plans/goals/${NEW_GOAL.id}`, tab: null, overlay: null, store: WITH_NEW_GOAL },
+]
+
+/**
  * THE FULL WALK — every route, plus every NON-DEFAULT tab state of every route.
  *
  * The default state is deliberately expressed as `tab: null` rather than as the
@@ -2497,6 +2678,8 @@ export const WALK: WalkState[] = [
   //     grep -c "^    overlay: {"
   //
   ...OVERLAY_STATES,
+  // Gate 88 — reopened on stored data. See `STORE_STATES`.
+  ...STORE_STATES,
 ]
 
 /**
@@ -2524,7 +2707,10 @@ export const WALK: WalkState[] = [
 export function stateSlug(state: WalkState, viewport: Viewport): string {
   const base = state.route === '/' ? 'index' : state.route.replace(/^\//, '').replace(/\//g, '-')
   const withTab = state.tab ? `${base}-${state.tab.id}` : base
-  const withOverlay = state.overlay ? `${withTab}-${state.overlay.id}` : withTab
+  // Gate 88: the store preset goes after the tab, for the overlay's reason — it
+  // leaves every name minted before it untouched as a prefix.
+  const withStore = state.store ? `${withTab}-${state.store.id}` : withTab
+  const withOverlay = state.overlay ? `${withStore}-${state.overlay.id}` : withStore
   return `${withOverlay}-${viewport.width}`
 }
 
@@ -2532,6 +2718,7 @@ export function stateSlug(state: WalkState, viewport: Viewport): string {
 export function stateTitle(state: WalkState): string {
   const parts = [state.route]
   if (state.tab) parts.push(`[tab:${state.tab.id}]`)
+  if (state.store) parts.push(`[store:${state.store.id}]`)
   if (state.overlay) parts.push(`[overlay:${state.overlay.id}]`)
   return parts.join(' ')
 }
@@ -3574,7 +3761,15 @@ export async function assertOverlayMatchesState(page: Page, state: WalkState): P
  * selects. Opening before the tab settles would click into the outgoing panel.
  */
 export async function gotoState(page: Page, state: WalkState, theme: Theme): Promise<void> {
+  // BEFORE navigating: the preset is written inside the database's first open,
+  // which only an init script can win. See `installStorePreset`.
+  if (state.store) await installStorePreset(page, state.store)
   await gotoRoute(page, state.route, theme)
+  // A preset that left the store unusable would photograph memory-mode data
+  // under the right name; `persist` rules that out. (A preset that QUARANTINED
+  // would boot the seed in `persist` — `empty-states.spec.ts` pins the
+  // first-paint counts, which is what catches that.)
+  if (state.store) await expect(page.locator('#root')).toHaveAttribute('data-store', 'persist')
   if (state.tab) await activateTab(page, state.tab)
   if (state.overlay) await openOverlay(page, state.overlay)
 

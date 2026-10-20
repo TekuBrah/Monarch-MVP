@@ -13,6 +13,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { SectionHeader } from '../../components/SectionHeader'
+import { EmptyState } from '../../components/EmptyState'
 import { goalImageUrl } from '../../config/media'
 import { registerImage } from '../../persistence/images'
 import {
@@ -408,13 +409,29 @@ export function GoalDetailScreen() {
             linkLabel={contributions.length > recent.length ? 'See All' : undefined}
             onLinkClick={() => setIsSheetOpen(true)}
           />
-          <ul className="mvp-goal-detail__rows">
-            {recent.map((t) => (
-              <li key={t.id}>
-                <ContributionRow transaction={t} />
-              </li>
-            ))}
-          </ul>
+          {/*
+            A GOAL WITH NO CONTRIBUTIONS SAYS SO (Gate 88). The one list in this
+            gate that STARTS empty rather than being emptied: a goal made through
+            "Add New" begins at RM 0 with no ledger rows (Gate 81-B), and nothing
+            deletes a row. Top-Up, the primary action directly below, is how the
+            first one arrives, so the block carries no action — and "yet" is
+            honest here in a way it is not for a list the user cleared.
+          */}
+          {recent.length === 0 ? (
+            <EmptyState
+              layout="section"
+              title="No contributions yet"
+              description="Top-ups and auto-save transfers into this goal appear here."
+            />
+          ) : (
+            <ul className="mvp-goal-detail__rows">
+              {recent.map((t) => (
+                <li key={t.id}>
+                  <ContributionRow transaction={t} />
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
