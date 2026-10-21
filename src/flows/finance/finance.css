@@ -1642,6 +1642,78 @@ button.mvp-receipt-card:focus-visible {
 }
 
 /*
+  ── THE CATEGORY PICKER'S TWO PANES (Gate 89) ─────────────────────────────
+
+  BOTH PANES IN ONE GRID CELL, so the cell is as tall as the taller one: the
+  picker view keeps the detail view's height as a floor (Gate 81-C's
+  mechanism, local classes rather than a promoted `.mvp-goal-views` — a
+  component owns its stylesheet; a promotion candidate in the register).
+
+  EACH PANE RESTATES THE SHEET CONTENT'S OWN 16px FLEX GAP (`Sheet.css`), which
+  the wrapper would otherwise collapse — Phase A's first prototype moved seven
+  detail baselines exactly that way.
+
+  THE DETAIL PANE CARRIES THE SIDE PADDING ITSELF. The sheet's `contentPadding`
+  is `none` in both views, so the held pane's width never changes and its text
+  never re-wraps (measured fix 1, in `TransactionDetailSheet.tsx`). The value is
+  the DS content region's own side padding, restated on a pane the MVP owns.
+*/
+.mvp-txn-detail__views {
+  display: grid;
+}
+
+.mvp-txn-detail__pane {
+  grid-area: 1 / 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+}
+
+.mvp-txn-detail__pane--detail {
+  padding-inline: var(--brand-scale-400);
+}
+
+/* `visibility: hidden` keeps the held pane's box in layout and paints nothing;
+   `inert` and `aria-hidden` on the element keep it out of reach. */
+.mvp-txn-detail__pane[data-held='true'] {
+  visibility: hidden;
+}
+
+/*
+  THE CATEGORY CONTROL. A bare button that looks like the value it replaces:
+  the value's own type and colour, then Figma's 20px `chevron_right` at
+  `icon/subtle/default` (the "Add a note" field's chevron on this same frame).
+
+  THE HIT AREA IS AT LEAST 44×44 AND OUT OF FLOW (R89-9). The button is 24
+  tall; the `::after` reaches `--brand-scale-250` (10px) past it on every side,
+  so 24 + 2 × 10 = 44, and it is wider than the label by 20px. Absolutely
+  positioned, so it cannot move the value or the row — the shape of the DS
+  `HeaderBg` avatar's hit area (DS Gate 86).
+*/
+.mvp-txn-detail__row-action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-100);
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.mvp-txn-detail__row-action::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--brand-scale-250));
+}
+
+.mvp-txn-detail__row-action > :last-child {
+  color: var(--mapped-icon-subtle-default);
+}
+
+/*
   ── THE MOVEMENT SUMMARY'S TWO NOTE LINES (Gate 79) ───────────────────────
 
   THE ROWS THEMSELVES NEEDED NO CSS. `MovementSummary` renders the same

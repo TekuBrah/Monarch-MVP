@@ -7,7 +7,8 @@ import { COMMITMENTS } from '../src/data/commitments'
 import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
-import type { Goal } from '../src/data/types'
+import { recategorised } from '../src/data/derive'
+import type { Goal, TransactionCategoryId } from '../src/data/types'
 import { GOAL_PLACEHOLDER_IMAGE } from '../src/config/media'
 import { toStored } from '../src/persistence/boundary'
 import { SCHEMA_VERSION, type StoredMeta } from '../src/persistence/schema'
@@ -1144,6 +1145,67 @@ export const OVERLAY_STATES: WalkState[] = [
       control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
       controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
       title: 'Transaction details',
+    },
+  },
+  // ─────────────────────────────────────────────────────────────── Gate 89 ──
+  // THE CATEGORY PICKER, AND THE SHEET AFTER A RECATEGORISATION. Both open the
+  // `detail` row above (`txn-aeon-0915`, Groceries) and reach their surface by
+  // the user's real path, every rung asserted.
+  //
+  // `category` — ONE STACK THAT RENAMES. The sheet's title follows its view, so
+  // the dialog opens as "Transaction details" and is named "Select category" at
+  // capture: the Gate 50-A `opens` / `dialogs` split, as `view-picker` uses it.
+  // The settle is the listbox's whole text, so a missing or reordered category
+  // fails before a baseline is minted.
+  //
+  // `recategorised` — THE WRITE, THEN THE DETAIL VIEW. Dining & Leisure is the
+  // demo pick because it moves both kinds of budget figure (Entertainment's
+  // totals, Monthly's legend order); the three store states below photograph
+  // those. The settle is the Category control reading the new value.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'category',
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+      dialogs: ['Select category'],
+      prepare: [
+        {
+          control: '.mvp-txn-detail__row-action',
+          controlName: 'Change category, Groceries',
+          action: 'click',
+          settlesOn: '.mn-option-list[role="listbox"]',
+          settlesText: TRANSACTION_CATEGORIES.map((c) => c.label).join(''),
+        },
+      ],
+    },
+  },
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'recategorised',
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+      prepare: [
+        {
+          control: '.mvp-txn-detail__row-action',
+          controlName: 'Change category, Groceries',
+          action: 'click',
+          settlesOn: '.mn-option-list[role="listbox"]',
+          settlesText: TRANSACTION_CATEGORIES.map((c) => c.label).join(''),
+        },
+        {
+          control: '.mn-option-list [role="option"]:has-text("Dining & Leisure")',
+          controlName: 'Dining & Leisure',
+          action: 'click',
+          settlesOn: '.mvp-txn-detail__row-action',
+          settlesText: 'Dining & Leisure',
+        },
+      ],
     },
   },
   {
@@ -2612,6 +2674,27 @@ export const WITH_NEW_GOAL: StorePreset = {
 }
 
 /**
+ * The ledger after one recategorisation — Gate 89: `txn-aeon-0915` (Aeon Big,
+ * −RM 250.75, 15 Sept 2025) moved from Groceries to Dining & Leisure, the same
+ * pick the `recategorised` overlay state makes through the real controls.
+ *
+ * THE EDIT CALLS THE APP'S OWN `recategorised()`, never a hand-written spread,
+ * so this preset and the writer cannot disagree about what one change does.
+ * Exported for `recategorise.spec.ts`.
+ */
+export const RECATEGORISED_ID = 'txn-aeon-0915'
+export const RECATEGORISED_TO: TransactionCategoryId = 'dining'
+export const RECATEGORISED: StorePreset = {
+  id: 'recategorised',
+  edit: (state) => ({
+    ...state,
+    transactions: state.transactions.map((t) =>
+      t.id === RECATEGORISED_ID ? recategorised(t, RECATEGORISED_TO) : t,
+    ),
+  }),
+}
+
+/**
  * THE STORE STATES — Gate 88. Enumerated and appended, never crossed with the
  * overlays or the tabs: the Gate α rule that a state is written down rather than
  * produced by a cross product, because most combinations mean nothing.
@@ -2625,6 +2708,13 @@ export const STORE_STATES: WalkState[] = [
   { route: '/finance', tab: { id: 'plans', label: 'Plans' }, overlay: null, store: EMPTIED_GOALS },
   { route: '/finance', tab: { id: 'budget', label: 'Budget' }, overlay: null, store: EMPTIED_BUDGETS },
   { route: `/finance/plans/goals/${NEW_GOAL.id}`, tab: null, overlay: null, store: WITH_NEW_GOAL },
+  // Gate 89 — every budget surface a recategorisation moves: the Budget tab
+  // (Entertainment's card), and both drill-downs (Monthly's legend reorders;
+  // Entertainment gains a row). Stored snapshots, because the write is on the
+  // Transactions tab and these are other screens.
+  { route: '/finance', tab: { id: 'budget', label: 'Budget' }, overlay: null, store: RECATEGORISED },
+  { route: '/finance/budget/budget-monthly', tab: null, overlay: null, store: RECATEGORISED },
+  { route: '/finance/budget/budget-entertainment', tab: null, overlay: null, store: RECATEGORISED },
 ]
 
 /**

@@ -1,12 +1,23 @@
-import { Button, Chips, Divider, Icon, InlineMessage, Sheet } from '@monarch/design-system'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Button,
+  Chips,
+  Divider,
+  Icon,
+  InlineMessage,
+  OptionList,
+  Sheet,
+} from '@monarch/design-system'
 import type { IconName } from '@monarch/design-system'
 import { CRYPTO_WALLETS } from '../../../data/accounts'
 import { HOLDINGS } from '../../../data/holdings'
+import { TRANSACTION_CATEGORIES } from '../../../data/transactions'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptImageUrl } from '../../../config/media'
 import { CapturingBlock } from './CapturingBlock'
 import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advisoryCopy'
 import {
+  canRecategorise,
   contributionSourceLabel,
   goalSavedAfter,
   transactionReference,
@@ -30,6 +41,7 @@ import type {
   Goal,
   Receipt,
   Transaction,
+  TransactionCategoryId,
   TransactionDisposition,
 } from '../../../data/types'
 
@@ -156,8 +168,48 @@ export interface TransactionDetailSheetProps {
    * 28-row series is actually proved.
    */
   transactions: Transaction[]
+  /**
+   * Change this purchase's category — Gate 89. Called on a tap in the picker
+   * view; the provider writes one row and the sheet re-renders from live data,
+   * so the Category row shows the new value with no toast (Gate 51's rule: a
+   * toast only when the surface the user acted on disappears, and this one
+   * stays).
+   */
+  onRecategorise: (category: TransactionCategoryId) => void
   onClose: () => void
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE CATEGORY PICKER — Gate 89. UNDESIGNED WORK: no Figma frame draws a
+ * category change. Built from the app's own dropdown-in-form pattern (Gates
+ * 74-B and 81-C), with two measured fixes that pattern did not cover.
+ *
+ * ONE SHEET, TWO VIEWS. A tap on the Category row swaps the sheet's content to
+ * a "Select category" view: back on the left, close on the right, a single-
+ * select `OptionList` of the seven categories, no footer. A tap on a row is the
+ * commit — `OptionList` fires `onChange` and `onDismiss` together — so there is
+ * no draft and no confirmation (a category is reversible in two taps).
+ *
+ * THE PICKER HOLDS THE DETAIL VIEW'S HEIGHT AS A FLOOR (Gate 81-C): both panes
+ * sit in one grid cell, the detail pane stays mounted, `visibility: hidden`,
+ * `inert` and `aria-hidden`, and the picker pane mounts only while open.
+ *
+ * MEASURED FIX 1 — `contentPadding="none"` IN BOTH VIEWS. Switching it per view
+ * (Gate 81-C's way) widens the held pane by 32px in the picker view; its text
+ * then re-wraps onto fewer lines and the pane gets SHORTER (604 -> 580 px at
+ * 375, Phase A). So the padding never switches: the detail pane carries the
+ * DS content region's own side padding itself, and its width never changes.
+ *
+ * MEASURED FIX 2 — HOLDING THE HEIGHT DOES NOT HOLD THE SCROLL POSITION. The
+ * content region keeps whatever scroll reached the Category row, so on the
+ * linked state the picker opened above the visible area. On opening, the
+ * picker pane is scrolled to its top and the selected option takes focus
+ * without scrolling again; on Back or a pick, focus returns to the Category
+ * control, which scrolls it back into view.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+type SheetView = 'detail' | 'category'
 
 export function TransactionDetailSheet({
   transaction,
@@ -169,8 +221,31 @@ export function TransactionDetailSheet({
   onRetake,
   goals,
   transactions,
+  onRecategorise,
   onClose,
 }: TransactionDetailSheetProps) {
+  const [view, setView] = useState<SheetView>('detail')
+  const isPicking = view === 'category'
+  const categoryControl = useRef<HTMLButtonElement>(null)
+  const pickerPane = useRef<HTMLDivElement>(null)
+  // Whether the picker was open on the previous render, so focus returns to the
+  // Category control only on the way back and never when the sheet first opens.
+  const wasPicking = useRef(false)
+
+  useEffect(() => {
+    if (isPicking) {
+      wasPicking.current = true
+      const pane = pickerPane.current
+      pane?.scrollIntoView({ block: 'start' })
+      pane
+        ?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
+        ?.focus({ preventScroll: true })
+    } else if (wasPicking.current) {
+      wasPicking.current = false
+      categoryControl.current?.focus()
+    }
+  }, [isPicking])
+
   /*
     WHAT THIS ROW IS, DERIVED — Gate 79. `transactionDisposition` reads `kind`
     and the sign of `amount`, in that order, and nothing is stored. It is
@@ -192,7 +267,7 @@ export function TransactionDetailSheet({
         absent from a sheet whose sibling passes it.
       */
       sizing="hug"
-      title="Transaction details"
+      title={isPicking ? 'Select category' : 'Transaction details'}
       /*
         THE ✕ STAYS, UNLIKE THE FILTER SHEET, and both readings come from the
         same node type. `1021:13772` — this sheet's header — draws a 24×24
@@ -200,7 +275,19 @@ export function TransactionDetailSheet({
         Gate 43 passed `showCloseButton={false}` and this does not. They simply
         differ in the file.
       */
+      onBack={isPicking ? () => setView('detail') : undefined}
+      backLabel="Back to transaction details"
+      // IN BOTH VIEWS — measured fix 1 in the header above. The detail pane
+      // restores the side padding itself, so its width never changes.
+      contentPadding="none"
     >
+      <div className="mvp-txn-detail__views">
+      <div
+        className="mvp-txn-detail__pane mvp-txn-detail__pane--detail"
+        data-held={isPicking}
+        inert={isPicking}
+        aria-hidden={isPicking || undefined}
+      >
       {/*
         ── THE SUMMARY ─────────────────────────────────────────────────────
         Figma Frame 529 (343×124): a 56×56 round mark, `header/h6` merchant on
@@ -323,8 +410,41 @@ export function TransactionDetailSheet({
               label="Date"
               value={formatTimestamp(transaction.occurredAt)}
             />
-            {category && (
-              <InfoRow icon="list_alt" label="Category" value={category.label} />
+            {/*
+              THE CATEGORY ROW IS A CONTROL — Gate 89. The button sits INSIDE the
+              `<dd>`, so the `<dl>` keeps its term/definition structure and every
+              spec that reads these rows by their label still reads them. Its name
+              is "Change category, <label>", so after a pick a screen reader hears
+              the new value when focus returns here.
+
+              THE CHEVRON IS THE ONE FIGMA ALREADY DRAWS ON THIS SHEET: the "Add a
+              note" field's trailing `chevron_right` (`I1266:14278;1029:9930`),
+              20×20 at `icon/subtle/default` — read through the remote connector,
+              and the precedent for a tappable row on this surface.
+
+              THE HIT AREA IS AT LEAST 44×44 WITHOUT MOVING THE ROW (R89-9): the
+              button is 24 tall and an out-of-flow `::after` reaches 10px past it
+              on every side. See `.mvp-txn-detail__row-action`.
+            */}
+            {category && canRecategorise(transaction) && (
+              <div className="mvp-txn-detail__row">
+                <dt className="mvp-txn-detail__row-label type-body-m-medium">
+                  <Icon name="list_alt" size="m" />
+                  Category
+                </dt>
+                <dd className="mvp-txn-detail__row-value type-body-m-medium">
+                  <button
+                    ref={categoryControl}
+                    type="button"
+                    className="mvp-txn-detail__row-action type-body-m-medium"
+                    aria-label={`Change category, ${category.label}`}
+                    onClick={() => setView('category')}
+                  >
+                    {category.label}
+                    <Icon name="chevron_right" size="m" />
+                  </button>
+                </dd>
+              </div>
             )}
             {/*
               PAYMENT METHOD — Figma prints "Monarch Trust", a name that exists
@@ -346,6 +466,29 @@ export function TransactionDetailSheet({
           transactions={transactions}
         />
       )}
+      </div>
+      {isPicking && (
+        <div className="mvp-txn-detail__pane" ref={pickerPane}>
+          {/*
+            LABELS ONLY, IN `TRANSACTION_CATEGORIES` ORDER. `OptionList` takes no
+            icon, and Figma's one drawn category list (the budget picker,
+            `1266:14336`) draws none either. Flat full-bleed rows: the sheet's
+            content padding is already `none`.
+          */}
+          <OptionList
+            selectionMode="single"
+            ariaLabel="Category"
+            options={TRANSACTION_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))}
+            value={[transaction.category]}
+            onChange={(value) => {
+              const picked = value[0] as TransactionCategoryId | undefined
+              if (picked) onRecategorise(picked)
+            }}
+            onDismiss={() => setView('detail')}
+          />
+        </div>
+      )}
+      </div>
     </Sheet>
   )
 }

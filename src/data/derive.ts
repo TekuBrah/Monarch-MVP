@@ -2247,6 +2247,43 @@ export function canCarryReceipt(t: Transaction): boolean {
   return transactionDisposition(t) === 'purchase'
 }
 
+// ───────────────────────────── recategorisation (Gate 89) ─────────────────────
+
+/**
+ * Whether a row offers a category change — Gate 89. PURCHASES ONLY.
+ *
+ * A purchase is the only kind whose category reaches any figure: `countsToward`
+ * rejects a transfer on its first clause and income on its second, before it
+ * ever reads the category. A transfer's `others` is a filler and a refund's
+ * category is never read, so a control on either would change a value nothing
+ * reads and the sheet does not show. Derived, never stored.
+ */
+export function canRecategorise(t: Transaction): boolean {
+  return transactionDisposition(t) === 'purchase'
+}
+
+/**
+ * The row with a new category — Gate 89. Pure; the provider's writer calls it
+ * OUTSIDE its state updater.
+ *
+ * THE SAME OBJECT COMES BACK WHEN THE CATEGORY IS UNCHANGED, so picking the
+ * current category writes nothing: the provider keeps the array's identity and
+ * the persistence layer, which writes on an identity change, stores nothing.
+ *
+ * OTHERWISE ONLY `category` CHANGES. No amount, date, kind or link moves, and
+ * every budget figure follows by derivation (`countsToward` reads this field).
+ *
+ * IT THROWS ON A ROW THAT CANNOT BE RECATEGORISED, rather than writing a value
+ * nothing reads. The sheet offers no control on such a row, so reaching this is
+ * a programmer error, and a silent no-op would hide it.
+ */
+export function recategorised(t: Transaction, category: TransactionCategoryId): Transaction {
+  if (!canRecategorise(t)) {
+    throw new Error(`recategorised: ${t.id} is a ${transactionDisposition(t)}, not a purchase`)
+  }
+  return t.category === category ? t : { ...t, category }
+}
+
 /**
  * The account's OWN NAME — "Main", "Joint Account", "Marge's Wallet".
  *

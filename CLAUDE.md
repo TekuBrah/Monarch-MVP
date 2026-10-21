@@ -19363,3 +19363,164 @@ lists that cannot empty (transactions, cash accounts, commitments); the lighter 
 promoting `EmptyState` or `NoResults` into the DS; route-change focus; every other open DS gap; and the DS
 repo. The `budget-writers.spec.ts:373` title still says "leaves only the Add New card" (assertion-only
 edit, ruled); renaming it is a follow-up.
+
+## Recategorisation — a purchase's category can change (Gate 89)
+
+No DS re-pin — **v2.9.0 throughout**, and no DS file was written. A tester can change a purchase's
+category from its detail sheet, and every budget figure that reads it follows. **|WALK| 84 -> 89,
+`OVERLAY_STATES` 47 -> 49, `STORE_STATES` 4 -> 7, `ROUTES` 26, baselines 336 -> 356 (20 added, 4 changed,
+0 deleted), tests 1135 -> 1188, spec files 43 -> 44.** `lint:tokens` scans **111** files (no file entered
+`src/`) with the same **4** exemptions. Phase A (Opus) designed it and measured the baseline set in a scratch
+copy; this build session wrote it fresh against the repo. Phase B runs the mutation proofs and three clean
+runs. **Teku does every git write.** Register `2al` carries the rulings, the 11A obligation and `G52`.
+
+**UNDESIGNED WORK.** No frame in either Figma file draws a category change (Phase A, all seven case-study
+pages and the DS file). The one drawn detail it follows is the chevron (R89-10, below).
+
+### The rule and the writer
+
+- **Purchases only.** `canRecategorise(t)` in `derive.ts` is `transactionDisposition(t) === 'purchase'`:
+  a purchase is the only kind whose category reaches a figure (`countsToward` rejects a transfer on clause 1
+  and income on clause 2 before reading the category). Transfers and the refund get no control. Derived,
+  never stored.
+- **`recategorised(t, category)`** — pure; throws on a non-purchase; returns THE SAME OBJECT when the
+  category is unchanged; otherwise `{ ...t, category }` and nothing else.
+- **`recategoriseTransaction(transactionId, category)`** in `AccountsProvider` — **the first writer that
+  updates an existing transaction** (every other ledger writer appends or replaces from storage). The id and
+  the category are the whole instruction; the signature cannot express any other change.
+- **R89-8: validate outside, write pure.** The provider looks the row up in its committed `transactions` and
+  throws at the call site on an unknown id or a non-purchase, BEFORE `setTransactions`. The updater re-finds
+  the row, repeats the purchase test as a guard (never a throw), calls `recategorised`, and returns `current`
+  itself when nothing changed — so it cannot throw, StrictMode's second call gives the same answer, and a
+  no-op stores nothing (the persister writes on an identity change). A throw inside an updater would surface
+  during React's render, not at the caller.
+- **Decision 11 = A (Teku, 21 Oct 2026): this transaction only.** No merchant-wide prompt, no rules store.
+  The obligation it leaves is in `2al`: the first flow that creates purchases also builds "Only this
+  transaction" / "All from this merchant".
+- **Decision 12 = A (Teku, 21 Oct 2026): no marker, no "original" row.** The stored row already held
+  `category`, so there is no schema bump, no migration and no boundary change; the seed fingerprint is
+  untouched and Reset data restores the seed category.
+
+### The two-view sheet — and the two things Gate 81-C's pattern did not cover
+
+`TransactionDetailSheet` gains a view state. The Category row's value becomes a button (inside the `<dd>`,
+so the `<dl>` and every spec that reads rows by label are unchanged), named `Change category, <label>`. A tap
+swaps the sheet to **"Select category"**: back on the left (`Sheet.onBack`, "Back to transaction details"),
+close on the right, a single-select DS `OptionList` of the seven categories in `TRANSACTION_CATEGORIES` order,
+labels only, no footer. A tap on a row is the commit (`OptionList` fires `onChange` and `onDismiss` together,
+including on the current option, which the provider makes a no-op). **No confirmation** (reversible in two
+taps) and **no toast** (the surface stays and its row shows the new value).
+
+The picker holds the detail view's height as a floor (Gate 81-C): both panes in one grid cell
+(`.mvp-txn-detail__views` / `__pane`), the detail pane kept mounted, `visibility: hidden`, `inert` and
+`aria-hidden`; the picker pane mounted only while open; each pane restating the sheet content's 16px flex gap.
+**THE STANDARD FOR THE NEXT PICKER — two measured fixes:**
+
+1. **The content-padding switch can SHRINK a held pane.** Switching `contentPadding` per view widens the held
+   pane by 32px in the picker view; its text re-wraps onto fewer lines and the panel got shorter (604 -> 580
+   px at 375, Phase A). So `contentPadding="none"` in BOTH views, and the detail pane carries
+   `padding-inline: var(--brand-scale-400)` itself; its width never changes. This corrects
+   `CLAUDE.md:18007` (Gate 81-C: padding "cannot change the height"), which holds only for a pane with no
+   wrapping text.
+2. **Holding the height does not hold the scroll position.** On the linked state the content keeps the scroll
+   that reached the Category row, and the picker opened above the visible area. On open the picker pane is
+   scrolled to its top and the selected option takes focus with `preventScroll`; on Back or a pick, focus
+   returns to the Category control.
+
+**R89-10 — the chevron is Figma's own.** Read through the remote connector after `whoami` (Teku Cheong,
+pro; `figma-local` refused, ECONNREFUSED): the "Add a note" field on the detail frame
+(`I1266:14278;1029:9930`) ends in `chevron_right` (`…;128:4680;46:922`) in a 20 × 20 slot, coloured
+`icon/subtle/default` (#6b7786 — sampled from the frame's render; the frame binds that token and
+`icon/default/default`, and the glyph's darkest pixel is exactly #6b7786). Shipped as
+`Icon name="chevron_right" size="m"` (20 px) at `--mapped-icon-subtle-default`: an existing glyph and an
+existing token, no new asset. **Phase A's prototype used 16 px**, so the four changed `detail` captures differ
+from its measurement and the band was re-derived (below).
+
+**R89-9 — the hit area.** The button is the value's own 24px line. An out-of-flow `::after` at
+`inset: calc(-1 * var(--brand-scale-250))` makes the hit area 24 + 2 × 10 = 44 tall and 20px wider than the
+label, without moving the value or the row (still 40 tall) — the DS `HeaderBg` avatar's shape (DS Gate 86).
+Asserted at 375 and 430 by computing the `::after` box and hit-testing its outset edges.
+
+### What moves, measured over the seed
+
+Demo: `txn-aeon-0915` (Aeon Big, −RM 250.75, 15 Sept 2025), Groceries -> Dining & Leisure. Only 14 purchases
+fall inside the two budgets' range; the other 206 move only their own Category row.
+
+| figure | before | after |
+|---|---|---|
+| Entertainment spent / available / % | 123.76 / 876.24 / 87 | **374.51 / 625.49 / 62** |
+| Monthly spent / available / % | 2,608.83 / 4,891.17 / 65 | unchanged — it lists all seven |
+| Monthly legend's first (default-open) row | Groceries 1,118.46 | **Shopping 968.42**; Groceries 867.71, Dining 374.51 |
+
+The ledger's filter and search read no category (`filterTransactions`, haystack `${merchant} ${method}`), so a
+recategorised row never leaves an open filter or search — asserted for every category.
+
+### Walk states — five
+
+| state | reached by |
+|---|---|
+| `/finance [tab:transactions] [overlay:category]` | the `detail` row, then the Category control; `dialogs: ['Select category']` (one stack that renames) |
+| `… [overlay:recategorised]` | the same, then Dining & Leisure; settles on the control reading the new value |
+| `/finance [tab:budget] [store:recategorised]` | stored snapshot |
+| `/finance/budget/budget-monthly [store:recategorised]` | stored snapshot |
+| `/finance/budget/budget-entertainment [store:recategorised]` | stored snapshot |
+
+`RECATEGORISED` in `e2e/harness.ts` is a Gate 88 store preset whose `edit` **calls the app's own
+`recategorised()`**, so the preset and the writer cannot disagree. Each state adds 4 visual + 2 routes + 2
+section-headers tests (the Gate α figure), so 1135 + 40 + 13 (`recategorise.spec.ts`) = **1188 in 44 files**.
+|WALK| = 26 routes + 7 tabs + 49 overlays + 7 store states = **89**; Phase B should see
+`26 + 7 + 49 + 7 = 89` printed by `section-headers.spec.ts`.
+
+### The tests — `e2e/recategorise.spec.ts`, 13, no baseline
+
+Five in Node (only a purchase; the category and nothing else, identity on a no-op; a transfer and a refund
+throw; the budget figures above; filter and search never read a category) and eight in the browser, one theme
+(the change through the app's own controls; KEPT across a reload; every derived figure on the Budget tab and
+both drill-downs, reached through the tab bar and Details; no control on a transfer or the refund; the height
+held at 375 and at 430, for the no-receipt and the linked row, with R89-9's hit area; Back, ✕, Escape and the
+current category write nothing; focus into the picker and back). Store helpers copied from
+`persistence-writers.spec.ts` (Gate 85-B R1). **No existing spec needed a rewrite.**
+
+### Baselines — predicted, and exact
+
+**Predicted by Phase A, re-derived here: 20 added, 4 changed, 0 deleted.** The pre-mint run reported **1164
+passed / 24 failed** (47.4 min, npm exit 1): 20 "snapshot doesn't exist" (the five new states) and 4 pixel
+diffs on `finance-transactions-detail-{375,430}-{light,dark}`, all in `visual.spec.ts`, nothing outside it,
+**0 "writing actual"**, digest unchanged (`09d6cc96…a4a503`). The mint scope was an exact, escaped,
+end-anchored alternation of the 24 titles (dry run: 24), minted with `--update-snapshots=all` and reconciled
+against a manifest taken outside the repo: **336 -> 356, 20 added, 4 changed, 0 deleted, 332
+byte-identical.**
+
+**THE BAND, RE-DERIVED FOR THE 20 px CHEVRON.** Decoded against the committed originals: 850 px (light) / 864
+px (dark), bbox `[258, 679, 358, 692]` at 375 and `[313, 679, 413, 692]` at 430. Phase A's 16 px prototype
+measured `[262, …]` / 764–777 px; the band is 4 px wider on the left because the chevron is. **Every changed
+pixel is on the Category row's value line**: in the same capture the info rows' label lines sit at y 638–656
+(Date), 679–696 (Category) and 720–735 (Payment Method). All 24 PNGs were opened. One known DS behaviour shows
+in the dark `category` captures: the `OptionList`'s unselected rows paint the page surface (black) on the
+elevated sheet — the open decision already on record for the Funding Source picker, not new here.
+
+**ONE FAILURE WHILE BUILDING, IN THE NEW SPEC, AND WHY.** The first run of `recategorise.spec.ts` failed B3 on
+a strict-mode violation: it read `.mn-progress-ring__amount` before the drill-down had replaced the Budget tab,
+whose two cards carry rings of their own. The test now waits for the drill-down's header title first. The twelve
+detail-sheet specs Phase A ran passed unchanged (162 of 162); 12 of the 13 new tests passed first time, and all
+13 after that one fix.
+
+### Corrections to the record (insert-only)
+
+- The content-padding switch can shrink a held pane, and holding the height does not hold the scroll position
+  (above).
+- **`derive.ts:1738` is `budgetAvailable`'s signature and `:1737` its doc comment** (measured; Phase A and this
+  gate's prompt said `:1737` / `:1736`).
+- **Decision 10 was Teku's on 19 Oct**, per the review thread; the Gate 88 commit message, `CLAUDE.md:19273`
+  and register `2ak` say 18 Oct. Not verifiable from disk.
+- **`Commitment.category` exists and has no reader** (`types.ts:1063`).
+- **A `use_figma` return with non-ASCII text fails with an SSE parse error** (Phase A); ASCII-only returns work.
+- **The seed's 220 purchases are Gate 82's 200 plus the 20 purchases already in the 53-row ledger** (53 = 20
+  purchases + 33 transfers); "200 purchases plus 1 refund" describes Gate 82's additions only.
+
+### Deliberately not in scope
+
+The merchant-wide choice (the 11A obligation); a marker or an "original" row (12A); opening a transaction from
+a budget drill-down (R89-11, a later candidate); the "Add a note" field and the "Date & Time" label (`G52`);
+retrofitting Gate 81-C's goal form or promoting the two-pane classes; categories as data; any seed, DS, token,
+asset or persistence-module change; and the DS repo.

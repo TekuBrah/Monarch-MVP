@@ -17,6 +17,8 @@ import {
   cryptoWalletTotal,
   netWorth,
   netWorthSeries,
+  canRecategorise,
+  recategorised,
   toSen,
 } from '../data/derive'
 import type {
@@ -32,6 +34,7 @@ import type {
   Holding,
   Receipt,
   Transaction,
+  TransactionCategoryId,
 } from '../data/types'
 
 /**
@@ -287,6 +290,27 @@ interface AccountsContextValue {
    * ─────────────────────────────────────────────────────────────────────────
    */
   topUpGoal: (contribution: Transaction) => void
+  /**
+   * CHANGE ONE PURCHASE'S CATEGORY — Gate 89. THE FIRST WRITER THAT UPDATES AN
+   * EXISTING TRANSACTION; every other ledger writer appends.
+   *
+   * THE ID AND THE CATEGORY ARE THE WHOLE INSTRUCTION. The signature cannot
+   * express any other change, the way `ReceiptEdit` cannot touch a link. It
+   * changes that one row only (Teku's Decision 11 = A, 21 Oct 2026): no
+   * merchant-wide prompt and no rules store. Nothing marks the row as edited
+   * (Decision 12 = A), so the stored shape is unchanged.
+   *
+   * IT VALIDATES BEFORE IT WRITES, AND THE UPDATER CANNOT THROW (R89-8). An
+   * unknown id or a non-purchase throws HERE, at the call site, against the
+   * committed ledger. A throw inside an updater would surface during React's
+   * render rather than at the caller, and StrictMode runs an updater twice. The
+   * updater itself is pure and idempotent: it returns `current` unchanged on a
+   * no-op, so persistence sees no new identity and stores nothing.
+   *
+   * NO OTHER ATOM MOVES. No balance, goal or receipt reads a category, and every
+   * budget figure is derived from the ledger on render.
+   */
+  recategoriseTransaction: (transactionId: string, category: TransactionCategoryId) => void
   /**
    * CREATE A GOAL. It starts at `savedAmount: 0` and there is no second path.
    *
@@ -754,6 +778,35 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  /**
+   * See the context type. VALIDATE OUTSIDE, WRITE PURE (R89-8).
+   *
+   * The checks read the COMMITTED ledger, so they run — and throw — at the call
+   * site. The updater re-finds the row in `current` and repeats the purchase
+   * test as a GUARD, not a throw, before handing it to `recategorised`; so it
+   * cannot throw, and running it twice (StrictMode) gives the same answer. It
+   * returns `current` itself when the row already carries the category.
+   */
+  const recategoriseTransaction = useCallback(
+    (transactionId: string, category: TransactionCategoryId) => {
+      const target = transactions.find((t) => t.id === transactionId)
+      if (!target) {
+        throw new Error(`recategoriseTransaction: no transaction ${transactionId}`)
+      }
+      if (!canRecategorise(target)) {
+        throw new Error(`recategoriseTransaction: ${transactionId} is not a purchase`)
+      }
+      setTransactions((current) => {
+        const i = current.findIndex((t) => t.id === transactionId)
+        if (i < 0 || !canRecategorise(current[i])) return current
+        const next = recategorised(current[i], category)
+        if (next === current[i]) return current
+        return current.map((t, j) => (j === i ? next : t))
+      })
+    },
+    [transactions],
+  )
+
   /** See `createGoal`. The record arrives whole; this only appends it. */
   const createGoal = useCallback((goal: Goal) => {
     if (goal.savedAmount !== 0) {
@@ -908,6 +961,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       addTransaction,
       adjustFiatBalance,
       topUpGoal,
+      recategoriseTransaction,
       createGoal,
       updateGoal,
       deleteGoal,
@@ -926,6 +980,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     addTransaction,
     adjustFiatBalance,
     topUpGoal,
+    recategoriseTransaction,
     createGoal,
     updateGoal,
     deleteGoal,

@@ -974,3 +974,30 @@ following, it now misleads.**
   modules, with the database shape parsed from `store.ts`.
 
 Nothing else in this document changed meaning at Gate 88. See `CLAUDE.md`'s Gate 88 section.
+
+## Status note after Gate 89 (2026-10-21) — a transaction's category can change
+
+**The text above, including the earlier status notes, is left exactly as written; where it says the
+following, it now misleads.**
+
+- **§2.3 "Every application writer".** The table gains its first UPDATER. `recategoriseTransaction(
+  transactionId, category)` in `AccountsProvider` overwrites one purchase's `Transaction.category` in place;
+  every other ledger writer appends (`addTransaction`, `topUpGoal`, `deleteGoal`) or replaces from storage.
+  It changes that one row only (Teku's Decision 11 = A, 21 Oct 2026) and stores no marker or original value
+  (Decision 12 = A). It validates against the committed ledger and throws at the call site; its state updater
+  is pure and returns the same array when nothing changes, so a no-op stores nothing. Only purchases offer the
+  control (`canRecategorise`, derived from the disposition, never stored).
+- **§4's budget derivations gain an input a user can move.** `countsToward`, and through it `budgetSpent`,
+  `budgetAvailable`, `budgetPercentLeft` and `budgetLegend`, read `Transaction.category`, which was authored
+  data until this gate. The figures are still derived on every render, so they follow a recategorisation by
+  construction. A budget's own `categories` are unchanged by this gate.
+- **The stored shape is unchanged.** The stored row already held `category` (`schema.ts`), so no schema
+  bump, migration or boundary change was needed, and the seed fingerprint is untouched. Reset data restores
+  the seed category.
+- **§8.6's anticipation** ("recategorisation, next in the plan, writes `Transaction.category`, not the
+  table") is now what the code does: `TRANSACTION_CATEGORIES` is still a constant, and only a row's category
+  id changes.
+- **Test-side data (§7).** A third kind of store preset: `RECATEGORISED` in `e2e/harness.ts`, whose `edit`
+  calls the app's own `recategorised()`.
+
+Nothing else in this document changed meaning at Gate 89. See `CLAUDE.md`'s Gate 89 section.

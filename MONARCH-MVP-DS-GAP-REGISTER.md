@@ -4193,3 +4193,100 @@ Verified on disk in `D:\Claude\_handoffs\gate87-phaseB\`:
   is blank).
 
 ### Nothing was removed from this register at this gate.
+
+## 2al. Status at MVP Gate 89 (2026-10-21) — recategorisation; one gap opened (G52)
+
+**THE TALLY MOVES BY ONE: `G52` IS OPENED AND NOTHING IS CLOSED.** **51 entries, 29 closed, 22 open;
+the highest number is G52.** Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's
+prop half, G19–G23, G28–G33, G44, G48, G49, G50, G51, `MODEL-1`, `UI-3` and `UI-4`. **No MVP-local override
+was added for any of them**, and the `G33` workaround class is untouched and still carries its removal
+condition. No DS re-pin: v2.9.0 throughout.
+
+**What shipped.** A purchase's category can change. The transaction detail sheet's Category row is now a
+button ("Change category, <label>") with Figma's trailing `chevron_right`; a tap swaps the sheet to a
+"Select category" view (back left, close right, a single-select DS `OptionList` of the seven categories, no
+footer); a tap on a row writes and returns. `recategoriseTransaction(transactionId, category)` in
+`AccountsProvider` is the first writer that UPDATES an existing transaction. Every budget figure follows by
+derivation. Transfers and the refund offer no control. No stored-shape change. Baselines 336 -> 356
+(+20 / 4 changed / 0 deleted); tests 1135 -> 1188.
+
+**UNDESIGNED WORK.** Phase A enumerated all seven pages of the case study `v9MI8jxTaXiJA234Hkanlf` and the
+DS `xhA5ARVgSeD3gA41lYDqST`: nothing draws a category change, a recategorise control or a transaction-category
+picker. No DS gap was needed: the picker is `OptionList`.
+
+**Baselines, measured.** Pre-mint 1164 passed / 24 failed (20 missing, 4 pixel diffs on
+`finance-transactions-detail-*`), nothing written. Mint reconciled 336 -> 356, 20 / 4 / 0, 332 byte-identical.
+The 4 changed files differ only on the Category row's value line: bbox `[258,679,358,692]` at 375,
+`[313,679,413,692]` at 430, 850 / 864 px — 4 px wider than Phase A's measurement because the chevron is 20 px
+(R89-10), not 16.
+
+### Rulings
+
+- **Decision 11 = A (Teku, 21 Oct 2026).** One recategorisation changes that transaction only. No
+  merchant-wide prompt and no rules store.
+- **Decision 12 = A (Teku, 21 Oct 2026).** No "edited" marker and no "original" row. No stored-shape change.
+- **R89-8 (review thread, 21 Oct).** The provider validates the id and `canRecategorise` against its
+  committed ledger and throws THERE, before calling `setTransactions`; the updater is pure, non-throwing and
+  idempotent, and returns `current` itself on a no-op. `recategorised()` in `derive.ts` keeps its throw (a
+  pure function called outside an updater).
+- **R89-9 (review thread).** The Category control's hit area is at least 44 × 44 without moving the value or
+  the row: an out-of-flow `::after` at `inset: calc(-1 * var(--brand-scale-250))`, the DS `HeaderBg` avatar's
+  shape (DS Gate 86). Measured in the spec at 375 and 430.
+- **R89-10 (review thread).** The chevron follows the one Figma already draws on this sheet: the "Add a note"
+  field's trailing `chevron_right` (`I1266:14278;1029:9930;128:4680;46:922`), 20 × 20, `icon/subtle/default`
+  (#6b7786, sampled from the frame's render). Shipped as `Icon name="chevron_right" size="m"` (20 px) at
+  `--mapped-icon-subtle-default` — an existing glyph and an existing token. Phase A's prototype used 16 px.
+- **R89-11 (review thread).** Opening a transaction from a budget drill-down row is out of this gate. Not a
+  Teku decision and not numbered; a candidate for later (below). The next free Teku decision number is 13.
+- **Phase A's ten technical forks** (`gate89-phaseA\PAUSE-REPORT.md` §9) are confirmed, with R89-8 to R89-10
+  as amendments. Each is overturnable by Teku.
+
+### The obligation Decision 11 = A leaves
+
+**THE FIRST FLOW THAT CREATES PURCHASES ALSO BUILDS THE MERCHANT-WIDE CHOICE**: after a pick, "Only this
+transaction" / "All from this merchant" (past and future). That is the pattern Starling publishes on its own
+help pages, and Revolut's help pages reportedly describe the same (Phase A could not fetch them). Today no
+writer creates a purchase, so a future-rows rule would have nothing to act on; the model needs no rewrite to
+add it (an additive rules collection read by the purchase writer).
+
+### Candidates for later, not decisions
+
+- **Open a transaction from a budget drill-down row** (R89-11). A tester on the budget screen must go to the
+  Transactions tab to fix a category. A second entry point would add the detail sheet to the drill-down, new
+  walk states and baselines, and a legend that re-sorts under the tester's finger.
+- **Promote the two-pane height-holding classes.** `.mvp-goal-views` (Gate 81-C) and `.mvp-txn-detail__views`
+  (this gate) are the same mechanism in two components. A shared component for the next picker.
+
+### The two-view sheet — a standard for the next picker
+
+Measured by Phase A and kept here: (1) **switching `contentPadding` per view can SHRINK a held pane** — the
+wider pane re-wraps its text onto fewer lines (604 -> 580 px at 375 on this sheet), so the padding stays
+`none` in both views and the held pane carries its own side padding; (2) **holding the height does not hold
+the scroll position** — the picker is scrolled to its top on open and focus moves to the selected option
+without scrolling; on Back or a pick, focus returns to the control. Gate 81-C's goal form does neither and is
+not retrofitted here.
+
+### G52 — the detail frames have changed since Gate 49 (opened, deferred)
+
+| | |
+|---|---|
+| **where** | Figma `1266:14278` (no receipt), `1266:14279` (linked), `1266:14281` (source picker over the sheet) in `v9MI8jxTaXiJA234Hkanlf`; app `TransactionDetailSheet.tsx` |
+| **what** | all three frames now draw an **"Add a note"** field with a trailing chevron (`I1266:14278;1029:9930`, `I1266:14279;1033:11475`, `I1266:14281;1033:10905`), where Gate 49 recorded an unconfigured "Placeholder" `Field`; and the date row reads **"Date & Time"** (`I1266:14278;1028:9998`) where the app prints "Date" |
+| **decision** | registered, not built. A note is a new stored field (a schema change) and its own subject; the label is a one-word copy change that moves the purchase-detail baselines. Teku's call when to schedule either |
+
+`G52` is an MVP-side divergence from the case-study file, not a DS gap; the number is taken in this register's
+sequence because that is where the next gate will look.
+
+### Corrections to the record (insert-only; the earlier text is left as written)
+
+- **The content-padding switch can SHRINK a held pane.** `CLAUDE.md:18007` (Gate 81-C) says padding "is sides
+  only and cannot change the height". True for Gate 81-C's form, which has no wrapping text; false in general.
+- **Holding the height does not hold the scroll position** (above).
+- **`derive.ts:1738` is `budgetAvailable`'s signature and `:1737` its doc comment** — measured at
+  `mvp-gate88` and unchanged by this gate. Phase A's pause report said `:1737` / `:1736`, and this gate's
+  prompt carried that; both are one line off.
+- **Decision 10 was Teku's on 19 Oct**, per the review thread; the Gate 88 commit message, `CLAUDE.md:19273`
+  and this register's `2ak` (`:4110`) say 18 Oct. This gate could not verify either date from disk.
+- **`Commitment.category` exists and nothing reads it** (`types.ts:1063`; seeded in `commitments.ts`).
+- **A `use_figma` return containing non-ASCII text fails** with an SSE JSON parse error (Phase A, three
+  times); ASCII-only returns work.

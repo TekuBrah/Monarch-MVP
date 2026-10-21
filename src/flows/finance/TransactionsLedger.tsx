@@ -65,8 +65,15 @@ import { formatSignedMyr, formatTimestamp } from '../../data/format'
  * target and its accessible name, and only its `onClick` body changed.
  */
 export function TransactionsLedger() {
-  const { transactions, receipts, goals, unlinkReceipt, addReceipt, linkReceipt } =
-    useAccounts()
+  const {
+    transactions,
+    receipts,
+    goals,
+    unlinkReceipt,
+    addReceipt,
+    linkReceipt,
+    recategoriseTransaction,
+  } = useAccounts()
   const [search, setSearch] = useState('')
 
   // THE SCREEN OPENS UNFILTERED, AS OF GATE 44. This was
@@ -554,6 +561,9 @@ export function TransactionsLedger() {
           // A RETAKE READS IN THE SAME PLACE A FIRST CAPTURE DOES (Gate 60).
           isCapturing={isCapturing || (detailReceipt !== undefined && sheetRetake.retakingId === detailReceipt.id)}
           onRetake={sheetRetake.start}
+          // GATE 89 — one row, by id. The sheet re-resolves `detail` from the live
+          // ledger every render, so the Category row shows the new value at once.
+          onRecategorise={(category) => recategoriseTransaction(detail.id, category)}
           onClose={closeDetail}
         />
       )}
