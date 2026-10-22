@@ -19524,3 +19524,87 @@ The merchant-wide choice (the 11A obligation); a marker or an "original" row (12
 a budget drill-down (R89-11, a later candidate); the "Add a note" field and the "Date & Time" label (`G52`);
 retrofitting Gate 81-C's goal form or promoting the two-pane classes; categories as data; any seed, DS, token,
 asset or persistence-module change; and the DS repo.
+
+## The Category control's focus ring (Gate 89-B)
+
+No DS re-pin — **v2.9.0 throughout**, and no DS file was written. One subject: the focus indicator of the
+Category control Gate 89 added to the transaction detail sheet. **|WALK| stays 89, `OVERLAY_STATES` 49,
+`STORE_STATES` 7, `ROUTES` 26; baselines 356 -> 356 (0 added, 0 changed, 0 deleted — predicted in writing
+before the first run, digest `1f5dece49f9ca4873adee4f0410a4fc2745e52c5d4a777bae74c7cadb32b5123` unchanged);
+tests 1188 -> 1192, spec files 44.** `lint:tokens` scans **111** files (no file entered `src/`), 4 exemptions.
+One build session; Phase B (Sonnet) runs the mutation proofs and three clean runs. **Teku does every git write.**
+Register `2am` carries the rulings, the Gate 89 Phase B record, Decision 13 and the Revolut correction.
+
+### What Teku saw, and what painted it
+
+On the live site (`main@78a1969`, 21 Oct), after a category pick the control showed a **square black outline**;
+the sheet's close control shows a **rounded blue ring**. Measured in Chromium 151 (the harness) through a
+throwaway probe, deleted afterwards:
+
+| | computed when `:focus-visible` | from |
+|---|---|---|
+| the Category control, before | `outline: auto 1px rgb(16, 16, 16)`, offset 0, radius 0 | the user-agent `:focus-visible` rule — **no author rule existed** |
+| the DS close control | `outline: 2px solid rgb(4, 110, 255)`, offset 2px, radius 8px | DS `OverlayHeader.css:93-114` |
+
+The black square is Chromium's `auto` outline. `box-shadow` and `border` were `none` on both.
+
+**WHEN IT PAINTS AFTER A POINTER PICK — MEASURED, AND NOT WHEN THE PROMPT ASSUMED.** A pick made wholly with
+the mouse or by touch did **not** match `:focus-visible` in Chromium 151 headless, nor in the in-app browser's
+Chrome 152 against the live site. What does paint it: the option is **keyboard-focused** (opening the picker or
+moving through it with the arrows), **then clicked or tapped**. The click lands on the already-focused option,
+so focus does not move and `:focus-visible` survives on it; Gate 89's effect then calls
+`categoryControl.current?.focus()`, and Chromium's heuristic carries `:focus-visible` from the previously
+focused element through the script focus. The same probe showed the close control has NO ring after a click
+or tap open, and HAS one after an Enter open — so Teku's screenshot (close ringed) is consistent with a session
+whose last input was the keyboard. Which exact sequence Teku used is not established.
+
+### What was built
+
+- **`finance.css` — `.mvp-txn-detail__row-action:focus-visible`** copies the close control's ring token for
+  token: `outline: var(--brand-scale-50) solid var(--mapped-border-primary-default)`, `outline-offset:
+  var(--brand-scale-50)`, and `border-radius: var(--brand-scale-200)` (the close control carries 8px at rest; this
+  control sets it only under `:focus-visible`, where it is the only thing it shapes). The author `outline`
+  replaces the UA one — the same property — so nothing stacks. **The ring follows the VISIBLE BOX, not the 44px
+  hit area** (R89B-1): the close control's ring follows its own box, and a ring on the `::after` would reach
+  10px past the value, across the row edges.
+- **`TransactionDetailSheet.tsx` — the focus return.** Focus still returns to the control after a pick and
+  after Back (Gate 89's B7). After a **pointer** pick it returns with `focus({ focusVisible: false })`; a
+  keyboard pick and Back keep the platform heuristic, which rings for the keyboard. The pointer decision comes
+  from the pick's own click: the picker pane's `onClickCapture` records `event.detail > 0`. A keyboard pick
+  reaches `MenuItem` through Enter or Space (`MenuItem.tsx:64-69`, `preventDefault`), which dispatch no click; a
+  click synthesised for a keyboard or an assistive technology has `detail` 0. **No input-modality tracker** —
+  one ref, set by the pick's own event and cleared on use and on every open.
+- **TypeScript 5.8's DOM lib does not declare `focusVisible`**, so the option is typed locally at the call
+  (`FocusOptions & { focusVisible?: boolean }`) rather than by widening a shared declaration.
+
+**Support, read 21 Oct 2026** (MDN browser-compat-data `api.HTMLElement.focus.options_focusVisible_parameter`,
+`main`): **Chrome 145, Safari 18.4 (iOS mirrors), Firefox 104**, no flags or partial notes. The HTML spec's
+`FocusOptions` is `{ boolean preventScroll = false; boolean focusVisible; }` and step 3 of `focus(options)`
+indicates focus "if `focusVisible` is true, or does not exist but … the user agent determines it would be
+best". Measured in Chromium 151: `focus({ focusVisible: false })` after a keyboard state leaves
+`:focus-visible` false; `focus({ focusVisible: true })` after a mouse state sets it true. **WebKit was not
+measured** — Playwright's WebKit is not installed here; Safari's support rests on BCD alone.
+
+**POINTER BACK IS NOT CHANGED.** The DS types `onBack` as `() => void` (`OverlayHeader.tsx:38`); at runtime it
+is wired `onClick={onBack}` (`:80`) and so receives the click, but an untyped argument was not relied on. The
+heuristic left the control unringed after a mouse or tap Back in every measured case, including Back clicked
+after a keyboard-opened picker.
+
+### Baselines and tests
+
+**No committed baseline shows the control with a ring, before or after.** `finance-transactions-recategorised-*`
+captures the control focused but not `:focus-visible` (its prepare steps are pointer clicks); `…-category-*`
+holds it hidden; `…-detail-*` focuses the close control. Pre-mint full run: **1192 passed / 0 failed** (45.7 min, npm exit 0), 0 `writing actual`, digest unchanged — exactly
+the prediction, so **nothing was minted**.
+
+`e2e/recategorise.spec.ts` +4 (1188 -> 1192): **K1** a keyboard pick returns focus with the close control's
+ring, property for property; **K2** (mouse) and **K2** (touch, `isMobile`) a pointer pick through the
+keyboard-focused option returns focus with no ring; **K3** Back by keyboard returns focus with a ring. The
+pointer tests go through the keyboard first on purpose: a click-only pick never rang, so it could prove nothing.
+Verified before writing them: with `focusVisible` stripped in-page, both pointer paths match `:focus-visible`.
+
+### Deliberately not in scope
+
+The DS close and back controls' own focus behaviour (measured clean, nothing to register); the goal form's
+focus drop to `body` (a retrofit item); every other control's focus styling; any DS, token, asset, seed or
+persistence change.

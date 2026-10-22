@@ -4290,3 +4290,72 @@ sequence because that is where the next gate will look.
 - **`Commitment.category` exists and nothing reads it** (`types.ts:1063`; seeded in `commitments.ts`).
 - **A `use_figma` return containing non-ASCII text fails** with an SSE JSON parse error (Phase A, three
   times); ASCII-only returns work.
+
+## 2am. Status at MVP Gate 89-B (2026-10-21) — the Category control's focus ring; the Gate 89 Phase B record; Decision 13
+
+**THE TALLY DOES NOT MOVE.** **51 entries, 29 closed, 22 open; the highest number is G52.** Nothing opened,
+nothing closed. Still open and still deferred, unchanged: G6, G13, G14, G17's prop half, G19–G23, G28–G33,
+G44, G48, G49, G50, G51, G52, `MODEL-1`, `UI-3` and `UI-4`. **No MVP-local override was added for any of
+them**, and the `G33` workaround class is untouched and still carries its removal condition. No DS re-pin:
+v2.9.0 throughout. Baselines 356 -> 356 (0 / 0 / 0); tests 1188 -> 1192.
+
+### Gate 89 Phase B — verification record (21 Oct 2026)
+
+- The mutation set ran at Phase B: **NC refused (type-valid, inert, B1 passed under it) and 16 of 16 proofs
+  proved**, each one test, each failing at its stated landing line (`recategorise.spec.ts` `:66 :76 :84 :91
+  :115 :203 :215 :240 :248 :271`, the `near` helper `:193` via call lines `:320 / :330`, and `:378 :388`), each
+  restored SHA-identical and re-passing. Driver: the Gate 88 build's `mutate.mjs`, unchanged (sha256
+  `af6d4b4c…0593c73`).
+- The 4 changed `finance-transactions-detail-*` baselines differ from HEAD in **850 / 864 / 850 / 864 pixels**,
+  bbox `[258, 679, 358, 692]` (375) and `[313, 679, 413, 692]` (430) — the Category row's value line and
+  chevron, nothing else.
+- All 24 added or changed baselines were opened and read; the dark `Select category` rows paint black (the
+  known DS `OptionList` behaviour, DS round, ruling 1A).
+- Three clean runs of the staged tree: **1188 passed / 0 failed / 0 flaky** each, npm exit 0, 51.7 / 46.8 /
+  45.3 min, 356 baselines, digest `1f5dece49f9ca4873adee4f0410a4fc2745e52c5d4a777bae74c7cadb32b5123`
+  (filesystem form = the index form), sweep line `26 + 7 + 49 + 7 = 89`, 0 `writing actual`.
+- **Correction (supersedes `2al`'s statement that Revolut's pages could not be read):** the review thread read
+  Revolut's recategorisation flow from `help.revolut.com`'s own page text through search on 21 Oct (a direct
+  fetch is refused with 403). The flow it reads: tap the current category, pick, then choose **"All from this
+  merchant"** (past and future) or **"Only this transaction"** — the same shape as the Decision 11 = A
+  obligation. Carried as the review thread's; not re-checked from disk by Phase B or by this gate.
+- **A note for anyone re-running Gate 89's set:** its B7 needle (`      categoryControl.current?.focus()`) no
+  longer exists after Gate 89-B — the focus-return line now passes an option. Gate 89's set is closed and was
+  not edited; a re-run would report B7 as a needle problem, not a regression.
+
+### Decision 13 = A — the year on dates is the next gate
+
+**Decision 13 = A (Teku, 21 Oct 2026, taking the review thread's recommendation, "Decision follow yours").**
+The "dates show no year" fix — 2C, 5B, plus the year on a budget's date range when it is not the current year
+— is brought forward as **the next gate after 89-B, before Flow 4**.
+
+**The walk finding behind it.** A tester recategorised `txn-ifruits-0912` (12 Sept 2026) and saw no budget
+move: both budgets cover 30 Aug – 20 Sept **2025**, and neither the detail sheet ("12 Sept, 16:13") nor the
+budget screens print a year, so nothing on screen says the row falls outside both ranges.
+
+### This gate's rulings (review thread, 21 Oct; each overturnable by Teku)
+
+- **R89B-1 One look.** The control's focus indicator is the DS close control's ring: `outline:
+  var(--brand-scale-50) solid var(--mapped-border-primary-default)`, `outline-offset: var(--brand-scale-50)`,
+  8px corner (`--brand-scale-200`), tokens only, on `:focus-visible`. **It follows the visible box**, not the
+  44px hit area — the close control's ring follows its own box, and a hit-area ring would cross the row edges.
+  No DS change was needed.
+- **R89B-2 No ring after a tap or click; always one for the keyboard.** After a pointer pick the returned
+  focus is `focus({ focusVisible: false })`, decided from the pick's own click (`event.detail > 0`, captured on
+  the picker pane); a keyboard pick and Back keep the heuristic. Support (MDN BCD, read 21 Oct 2026): Chrome
+  145, Safari 18.4, Firefox 104 — no stop. WebKit was not measured here.
+- **R89B-3 Scope.** No DS, token, asset, seed or persistence edit; no other control's focus styling.
+
+### Findings
+
+- **The black square was the user-agent ring.** No author `:focus-visible` rule existed on the control, so
+  Chromium's `outline: auto 1px` (computed rgb(16, 16, 16)) painted.
+- **A pointer-only pick never rang in Chromium.** Measured in Chromium 151 headless and Chrome 152 (the
+  in-app browser, live site): mouse and touch picks left `:focus-visible` false. It rang when the option was
+  keyboard-focused and THEN clicked or tapped — the click does not move focus, `:focus-visible` survives on the
+  option, and the heuristic carries it through the script focus. Teku's exact sequence is not established.
+- **No DS-round item from R89B-2.** The DS close control after a click or tap open is focused WITHOUT a ring
+  (measured), and rings after an Enter open, which is correct. The back control likewise.
+- **TypeScript 5.8's DOM lib does not declare `FocusOptions.focusVisible`.** Typed locally at the one call.
+
+### Nothing was removed from this register at this gate.

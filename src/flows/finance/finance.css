@@ -1714,6 +1714,26 @@ button.mvp-receipt-card:focus-visible {
 }
 
 /*
+  THE FOCUS RING IS THE SHEET'S OWN (Gate 89-B, R89B-1). Without this rule the
+  user-agent default painted — Chromium's `outline: auto 1px`, computed
+  rgb(16, 16, 16): the square black outline — beside the close button's rounded
+  blue ring. The values are the DS close control's, token for token
+  (`OverlayHeader.css` `.mn-overlay-header__control` and its `:focus-visible`):
+  a 2px solid primary-border outline at a 2px offset on an 8px corner. The
+  author outline replaces the UA one (the same property), so nothing stacks.
+
+  IT FOLLOWS THE VISIBLE BOX, NOT THE 44px HIT AREA. The close button's ring
+  follows its own box; a ring on the `::after` would reach 10px past the
+  value, across the row edges, and outline the space rather than the control.
+  The corner is set here rather than at rest because at rest it paints nothing.
+*/
+.mvp-txn-detail__row-action:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+  border-radius: var(--brand-scale-200);
+}
+
+/*
   ── THE MOVEMENT SUMMARY'S TWO NOTE LINES (Gate 79) ───────────────────────
 
   THE ROWS THEMSELVES NEEDED NO CSS. `MovementSummary` renders the same

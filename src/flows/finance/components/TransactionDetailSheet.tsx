@@ -231,10 +231,15 @@ export function TransactionDetailSheet({
   // Whether the picker was open on the previous render, so focus returns to the
   // Category control only on the way back and never when the sheet first opens.
   const wasPicking = useRef(false)
+  // Whether the pick that closed the picker came from a pointer — set from the
+  // pick's own click (Gate 89-B, R89B-2). A keyboard pick reaches `MenuItem`
+  // through Enter or Space, which never dispatch a click.
+  const pickedByPointer = useRef(false)
 
   useEffect(() => {
     if (isPicking) {
       wasPicking.current = true
+      pickedByPointer.current = false
       const pane = pickerPane.current
       pane?.scrollIntoView({ block: 'start' })
       pane
@@ -242,7 +247,19 @@ export function TransactionDetailSheet({
         ?.focus({ preventScroll: true })
     } else if (wasPicking.current) {
       wasPicking.current = false
-      categoryControl.current?.focus()
+      /*
+        FOCUS STILL RETURNS (Gate 89's B7: it is how a screen reader hears the
+        new value). After a POINTER pick it returns WITHOUT a ring — the
+        platform's own `focusVisible: false` (Chromium 145, Safari 18.4,
+        Firefox 104). Measured: Chromium's heuristic otherwise carries
+        `:focus-visible` through this call when the clicked option was already
+        keyboard-focused. A keyboard pick, and Back, keep the heuristic, which
+        paints the ring for the keyboard.
+      */
+      // TypeScript 5.8's DOM lib does not declare `focusVisible` yet.
+      const withoutRing: FocusOptions & { focusVisible?: boolean } = { focusVisible: false }
+      categoryControl.current?.focus(pickedByPointer.current ? withoutRing : undefined)
+      pickedByPointer.current = false
     }
   }, [isPicking])
 
@@ -468,7 +485,15 @@ export function TransactionDetailSheet({
       )}
       </div>
       {isPicking && (
-        <div className="mvp-txn-detail__pane" ref={pickerPane}>
+        <div
+          className="mvp-txn-detail__pane"
+          ref={pickerPane}
+          // A click with `detail > 0` is a pointer's; a click synthesised for
+          // a keyboard or an assistive technology has `detail` 0.
+          onClickCapture={(event) => {
+            pickedByPointer.current = event.detail > 0
+          }}
+        >
           {/*
             LABELS ONLY, IN `TRANSACTION_CATEGORIES` ORDER. `OptionList` takes no
             icon, and Figma's one drawn category list (the budget picker,

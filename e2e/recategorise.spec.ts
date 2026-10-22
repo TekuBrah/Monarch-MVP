@@ -393,3 +393,121 @@ test('focus moves into the picker and returns to the Category control', async ({
   await page.getByRole('button', { name: 'Back to transaction details' }).click()
   await expect(categoryControl(page)).toBeFocused()
 })
+
+// ════════════════════════ the focus ring — Gate 89-B ═══════════════════════
+//
+// R89B-1: the Category control's ring is the sheet's own close control's ring,
+// property for property. R89B-2: after a POINTER pick the returned focus paints
+// no ring; after a KEYBOARD pick or Back it does.
+//
+// THE POINTER CASE NEEDS THE KEYBOARD FIRST, AND THAT IS THE POINT. A pick made
+// wholly with the mouse never matched `:focus-visible` in Chromium, so it could
+// not prove anything. The case that DID paint the black square (measured): the
+// option is keyboard-focused, then clicked or tapped — the click does not move
+// focus, so `:focus-visible` survives on the option and Chromium's heuristic
+// carries it through the script focus back to the control.
+
+const closeControl = (page: Page) => page.getByRole('button', { name: 'Close' })
+const backControl = (page: Page) => page.getByRole('button', { name: 'Back to transaction details' })
+const focusVisible = (l: Locator) => l.evaluate((e) => e.matches(':focus-visible'))
+const ring = (l: Locator) =>
+  l.evaluate((e) => {
+    const c = getComputedStyle(e)
+    return {
+      outlineStyle: c.outlineStyle,
+      outlineWidth: c.outlineWidth,
+      outlineColor: c.outlineColor,
+      outlineOffset: c.outlineOffset,
+      borderTopLeftRadius: c.borderTopLeftRadius,
+      borderTopRightRadius: c.borderTopRightRadius,
+      borderBottomRightRadius: c.borderBottomRightRadius,
+      borderBottomLeftRadius: c.borderBottomLeftRadius,
+      boxShadow: c.boxShadow,
+    }
+  })
+
+/** Press `key` until `target` has focus — the keyboard's own route to it. */
+async function keyTo(page: Page, target: Locator, key = 'Tab'): Promise<void> {
+  for (let i = 0; i < 25; i++) {
+    if (await target.evaluate((e) => e === document.activeElement)) return
+    await page.keyboard.press(key)
+  }
+  throw new Error(`${key} never reached the control`)
+}
+
+/** Open the picker by keyboard and move to Dining & Leisure, which then has a visible ring. */
+async function keyboardToOption(page: Page): Promise<void> {
+  await keyTo(page, categoryControl(page))
+  await page.keyboard.press('Enter')
+  await expect(option(page, 'groceries')).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(option(page, TO)).toBeFocused()
+  expect(await focusVisible(option(page, TO)), 'precondition: the option shows a ring').toBe(true)
+}
+
+test('K1 a keyboard pick returns focus with the close control\'s ring, property for property', async ({ page }) => {
+  // MUTATION TARGET: finance.css `.mvp-txn-detail__row-action:focus-visible`'s `outline:` line.
+  await openLedger(page)
+  await openRow(page, DEMO_AMOUNT)
+  await keyboardToOption(page)
+  await page.keyboard.press('Enter')
+  await expect(categoryControl(page)).toBeFocused()
+  await expect(categoryControl(page)).toHaveAccessibleName('Change category, Dining & Leisure')
+  expect(await focusVisible(categoryControl(page)), 'the keyboard pick paints a ring').toBe(true)
+  const mine = await ring(categoryControl(page))
+
+  await keyTo(page, closeControl(page), 'Shift+Tab')
+  expect(await focusVisible(closeControl(page)), 'the close control shows its ring').toBe(true)
+  const theirs = await ring(closeControl(page))
+  expect(theirs.outlineStyle, 'the DS ring is a solid outline').toBe('solid')
+  expect(mine, 'the Category control wears the close control\'s ring').toEqual(theirs)
+})
+
+test('K2 a mouse pick returns focus with no ring', async ({ page }) => {
+  // MUTATION TARGET: TransactionDetailSheet.tsx, the focus-return call's `withoutRing`.
+  await openLedger(page)
+  await openRow(page, DEMO_AMOUNT)
+  await keyboardToOption(page)
+  await option(page, TO).click()
+  await expect(categoryControl(page)).toBeFocused()
+  expect(await focusVisible(categoryControl(page)), 'no ring after a mouse pick').toBe(false)
+  expect((await ring(categoryControl(page))).outlineStyle, 'no outline paints').toBe('none')
+
+  // And the wholly-pointer path, which the heuristic already left unringed.
+  await categoryControl(page).click()
+  await option(page, 'groceries').click()
+  await expect(categoryControl(page)).toBeFocused()
+  expect(await focusVisible(categoryControl(page)), 'no ring after a click-only pick').toBe(false)
+})
+
+test.describe('touch, under mobile emulation', () => {
+  test.use({ isMobile: true, hasTouch: true })
+
+  test('K2 a touch pick returns focus with no ring', async ({ page }) => {
+    // MUTATION TARGET: TransactionDetailSheet.tsx, the pick's `onClickCapture`.
+    await gotoRoute(page, '/finance', 'light')
+    await activateTab(page, TRANSACTIONS_TAB)
+    await page.locator(`.mvp-transactions__list > li:has-text("${DEMO_AMOUNT}") .mn-list-item`).tap()
+    await expect(sheetNamed(page, 'Transaction details')).toBeVisible()
+    await keyboardToOption(page)
+    await option(page, TO).tap()
+    await expect(categoryControl(page)).toBeFocused()
+    expect(await focusVisible(categoryControl(page)), 'no ring after a touch pick').toBe(false)
+    expect((await ring(categoryControl(page))).outlineStyle, 'no outline paints').toBe('none')
+  })
+})
+
+test('K3 Back by keyboard returns focus with a ring', async ({ page }) => {
+  // MUTATION TARGET: TransactionDetailSheet.tsx, the focus-return call — the ring withheld for every return.
+  await openLedger(page)
+  await openRow(page, DEMO_AMOUNT)
+  await keyTo(page, categoryControl(page))
+  await page.keyboard.press('Enter')
+  await expect(sheetNamed(page, 'Select category')).toBeVisible()
+  await keyTo(page, backControl(page), 'Shift+Tab')
+  await page.keyboard.press('Enter')
+  await expect(categoryControl(page)).toBeFocused()
+  await expect(categoryControl(page)).toHaveAccessibleName('Change category, Groceries')
+  expect(await focusVisible(categoryControl(page)), 'Back by keyboard paints a ring').toBe(true)
+  expect((await ring(categoryControl(page))).outlineStyle, 'the ring is the DS outline').toBe('solid')
+})
