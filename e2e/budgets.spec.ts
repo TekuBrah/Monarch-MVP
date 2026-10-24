@@ -187,8 +187,11 @@ test('both boundary dates are inclusive, and the day after `to` is excluded', ()
 
 test('the period label matches Figma, and every budget field survives JSON', () => {
   // Figma `1266:14334`, both cards: "30 Aug - 20 Sept" — space, U+002D, space.
-  expect(budgetPeriodLabel(MONTHLY)).toBe('30 Aug - 20 Sept')
-  expect(budgetPeriodLabel(ENTERTAINMENT)).toBe('30 Aug - 20 Sept')
+  // Gate 90 (Decision 14B): read against its own year the period prints exactly
+  // Figma's form; read against 2026 (the harness year) it carries its year once.
+  expect(budgetPeriodLabel(MONTHLY, 2025)).toBe('30 Aug - 20 Sept')
+  expect(budgetPeriodLabel(MONTHLY, 2026)).toBe('30 Aug - 20 Sept 2025')
+  expect(budgetPeriodLabel(ENTERTAINMENT, 2026)).toBe('30 Aug - 20 Sept 2025')
   // NP1: plain serialisable data, so persistence later is an adapter.
   expect(JSON.parse(JSON.stringify(BUDGETS))).toEqual(BUDGETS)
 })

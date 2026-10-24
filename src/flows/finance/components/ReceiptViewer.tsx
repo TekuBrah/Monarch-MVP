@@ -21,6 +21,7 @@ import {
   formatSignedMyr,
   formatTimestamp,
 } from '../../../data/format'
+import { TODAY } from '../../../data/today'
 import type { ButtonTone } from '@monarch/design-system'
 import type { Receipt, Transaction } from '../../../data/types'
 import {
@@ -221,7 +222,7 @@ function ReceiptDetails({ receipt, onEdit }: { receipt: Receipt; onEdit: () => v
       <SectionHeader label="Receipt details" linkLabel="Edit" onLinkClick={onEdit} />
       <dl className="mvp-receipt-details__rows">
         <DetailRow label="Merchant" value={receipt.merchant} />
-        <DetailRow label="Date" value={formatTimestamp(receipt.capturedAt)} />
+        <DetailRow label="Date" value={formatTimestamp(receipt.capturedAt, TODAY.getFullYear())} />
         <DetailRow label="Total" value={formatMyrOrUnread(receiptTotalRead(receipt))} />
       </dl>
     </section>
@@ -364,7 +365,7 @@ function ReceiptViewerBody({
             title={transaction.merchant}
             titleInfo={transaction.method}
             amount={formatSignedMyr(transaction.amount)}
-            amountInfo={formatTimestamp(transaction.occurredAt)}
+            amountInfo={formatTimestamp(transaction.occurredAt, TODAY.getFullYear())}
             hasReceiptIcon={false}
           />
         </div>

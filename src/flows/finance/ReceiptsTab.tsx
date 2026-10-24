@@ -8,6 +8,8 @@ import { ReceiptCard } from './components/ReceiptCard'
 import { AddReceiptsModal } from './components/AddReceiptsModal'
 import { ReceiptViewerHost } from './components/ReceiptViewer'
 import { capturedToReceipts, receiptDateWasRead, type CapturedFile } from './receiptCapture'
+import { headingYear } from '../../data/format'
+import { TODAY } from '../../data/today'
 import {
   RECEIPT_FILTER_ALL,
   clearReceiptFacet,
@@ -382,6 +384,14 @@ export function ReceiptsTab() {
               <ReceiptCard
                 key={receipt.id}
                 receipt={receipt}
+                /*
+                  THE HEADING'S YEAR (Gate 90, 14B): the nested row prints no
+                  year under its own year's heading. "No receipt date" names no
+                  year, so its cards read against this calendar year (F8).
+                */
+                referenceYear={
+                  Number.isNaN(headingYear(group.key)) ? TODAY.getFullYear() : headingYear(group.key)
+                }
                 transaction={
                   receipt.transactionId
                     ? byId.get(receipt.transactionId)

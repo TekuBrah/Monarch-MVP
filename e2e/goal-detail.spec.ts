@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { activateTab, gotoRoute } from './harness'
+import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 
 import {
   contributionSourceLabel,
@@ -8,11 +8,10 @@ import {
   goalPercent,
   goalTargetLabel,
 } from '../src/data/derive'
-import { formatMyr } from '../src/data/format'
+import { formatDay, formatMyr } from '../src/data/format'
 import { GOALS } from '../src/data/goals'
 import { buildHoldings } from '../src/data/holdings'
 import { FIAT_ACCOUNTS } from '../src/data/accounts'
-import { formatDayMonth } from '../src/data/today'
 import { TRANSACTIONS } from '../src/data/transactions'
 import type { Goal } from '../src/data/types'
 
@@ -163,7 +162,9 @@ for (const goal of [BALI, EMERGENCY]) {
     for (const [i, t] of expected.entries()) {
       const row = rows.nth(i)
       await expect(row).toContainText(contributionSourceLabel(t.contributionSource!))
-      await expect(row).toContainText(formatDayMonth(t.occurredAt.slice(0, 10)))
+      // `formatDay` replaced `today.ts`'s `formatDayMonth` at Gate 90; the row
+      // reads against this calendar year (the harness's).
+      await expect(row).toContainText(formatDay(t.occurredAt.slice(0, 10), PINNED_NOW.getFullYear()))
       /*
         THE MAGNITUDE, UNSIGNED. The ledger row is NEGATIVE — a contribution
         debits `main` — and Figma prints "RM 250.00". A row printing the debit's

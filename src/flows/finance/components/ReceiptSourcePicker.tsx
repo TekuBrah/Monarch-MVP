@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Blanket, Icon, IconButton } from '@monarch/design-system'
 import type { Receipt } from '../../../data/types'
 import { ReceiptCard } from './ReceiptCard'
+import { TODAY } from '../../../data/today'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -309,6 +310,8 @@ export function ReceiptSourcePicker({
                     */}
                     <ReceiptCard
                       receipt={receipt}
+                      // No month heading here, so this calendar year (Gate 90, 14B).
+                      referenceYear={TODAY.getFullYear()}
                       onOpen={() => onPickReceipt(receipt.id)}
                     />
                   </li>

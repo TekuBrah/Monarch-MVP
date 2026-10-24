@@ -1,8 +1,8 @@
 import { ChartLegendItem } from '@monarch/design-system'
 
 import { contributionSourceLabel } from '../../../data/derive'
-import { formatMyr } from '../../../data/format'
-import { formatDayMonth } from '../../../data/today'
+import { formatDay, formatMyr } from '../../../data/format'
+import { TODAY } from '../../../data/today'
 import type { Transaction } from '../../../data/types'
 
 /**
@@ -69,7 +69,7 @@ export function ContributionRow({ transaction }: { transaction: Transaction }) {
       variant="contribution"
       hasIcon={false}
       title={contributionSourceLabel(transaction.contributionSource!)}
-      subtitle={formatDayMonth(transaction.occurredAt.slice(0, 10))}
+      subtitle={formatDay(transaction.occurredAt.slice(0, 10), TODAY.getFullYear())}
       amount={formatMyr(Math.abs(transaction.amount))}
     />
   )

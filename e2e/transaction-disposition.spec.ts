@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { OVERLAY_STATES, THEMES, activateTab, gotoRoute, gotoState } from './harness'
+import { OVERLAY_STATES, PINNED_NOW, THEMES, activateTab, gotoRoute, gotoState } from './harness'
 import type { Theme } from './harness'
 import { CRYPTO_WALLETS, FIAT_ACCOUNTS } from '../src/data/accounts'
 import { BUDGETS } from '../src/data/budgets'
@@ -15,7 +15,7 @@ import {
   referenceFor,
   transactionDisposition,
 } from '../src/data/derive'
-import { formatMyr, formatSignedMyr, formatTimestamp } from '../src/data/format'
+import { formatMyr, formatSignedMyr, formatTimestamp, headingYear } from '../src/data/format'
 import { GOALS } from '../src/data/goals'
 import { buildHoldings } from '../src/data/holdings'
 import { TRANSACTIONS } from '../src/data/transactions'
@@ -316,7 +316,8 @@ for (const theme of THEMES) {
       contributions, so an amount locator resolves to twelve and fails strict
       mode. occurredAt is distinct across all 53 rows.
     */
-    await openRow(page, theme, formatTimestamp(row.occurredAt))
+    // The ledger row reads against its month heading's year (Gate 90).
+    await openRow(page, theme, formatTimestamp(row.occurredAt, headingYear(row.occurredAt.slice(0, 7))))
 
     /*
       EVERY EXPECTATION IS DERIVED FROM THE SAME FUNCTION THE SCREEN CALLS. What
@@ -339,7 +340,8 @@ for (const theme of THEMES) {
     expect(await rowMap(page)).toEqual({
       From: expected.from,
       To: expected.to,
-      Date: formatTimestamp(row.occurredAt),
+      // The sheet reads against this calendar year — the harness's (Gate 90).
+      Date: formatTimestamp(row.occurredAt, PINNED_NOW.getFullYear()),
       Type: contributionSourceLabel(row.contributionSource!),
       Reference: referenceFor(row),
     })
@@ -376,7 +378,7 @@ for (const theme of THEMES) {
     expect(await rowMap(page)).toEqual({
       From: expected.from,
       To: expected.to,
-      Date: formatTimestamp(row.occurredAt),
+      Date: formatTimestamp(row.occurredAt, PINNED_NOW.getFullYear()),
       Reference: referenceFor(row),
     })
 

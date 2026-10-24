@@ -4,10 +4,9 @@ import {
   addMonths,
   addYears,
   daysInMonth,
-  formatDayMonth,
-  formatDayMonthYear,
   yearsBetween,
 } from './today'
+import { formatDay, formatDayMonthYear, formatMonthYear, formatPeriod } from './format'
 import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import type {
@@ -1075,31 +1074,16 @@ export function groupReceiptsByMonth(receipts: Receipt[]): ReceiptMonthGroup[] {
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([key, items]) => ({
       key,
-      label: monthLabel(key),
+      label: formatMonthYear(key),
       receipts: items,
     }))
 }
 
-/**
- * `2025-09` → `September 2025` — a month heading, for the two surfaces that
- * draw one.
- *
- * EXTRACTED AT GATE 51-B, WHEN THE SECOND CONSUMER ARRIVED, and not before —
- * `groupReceiptsByMonth`'s own note says to move it then. It is provably the
- * same expression that function carried, moved rather than rewritten, so the
- * Receipts tab's headings cannot have changed.
- *
- * `en-GB` AND AN EXPLICIT LOCALE, NOT THE HOST DEFAULT. The harness pins the
- * browser locale, but the app also runs in a real browser where the default is
- * the visitor's; a month name that changed language per visitor would be a
- * baseline that only agrees by luck.
+/*
+ * `monthLabel` (Gate 51-B) MOVED TO `format.ts` AS `formatMonthYear` AT GATE 90,
+ * expression for expression — `format.ts` is now the one module that turns a
+ * date into a string. Its rationale (an explicit `en-GB` locale) moved with it.
  */
-export function monthLabel(key: string): string {
-  return new Date(`${key}-01T00:00:00`).toLocaleDateString('en-GB', {
-    month: 'long',
-    year: 'numeric',
-  })
-}
 
 /** One month's worth of transactions, with the heading that month prints. */
 export interface TransactionMonthGroup {
@@ -1112,18 +1096,20 @@ export interface TransactionMonthGroup {
 
 /**
  * Group transactions into months, newest month first, newest row first inside —
- * the manual link picker's "Everything else" list (Gate 51-B).
+ * the manual link picker's "Everything else" list (Gate 51-B) and, since Gate
+ * 90, the Transactions ledger itself.
  *
  * DERIVED FROM `occurredAt`, never stored, for the same reason
  * `groupReceiptsByMonth` derives from `addedAt`: a month is a property of how
  * one screen slices the rows, not of a row.
  *
- * THE LEDGER ITSELF DOES **NOT** GROUP BY MONTH — it renders one flat
- * date-descending list (`TransactionsLedger.tsx`). This grouping exists because
- * the picker shows the WHOLE ledger at once with no filter chips to narrow it,
- * where the ledger shows a filtered slice. Do not "restore consistency" by
- * grouping the ledger; that would move four committed baselines to make two
- * screens look alike.
+ * THE LEDGER NOW GROUPS BY MONTH (Gate 90, ruling 2C). Until then this comment
+ * said the ledger rendered one flat list and must not be grouped, because that
+ * "would move four committed baselines". Ruling 2C superseded it: the ledger
+ * holds 2025 and 2026 rows, and under Decision 14B a row prints no year when
+ * its heading carries it, so the heading is what makes a row's year knowable.
+ * It moved 56 baselines, not four — every capture that shows the ledger. The
+ * ledger groups its FILTERED result, so an empty month never renders.
  */
 export function groupTransactionsByMonth(
   transactions: Transaction[],
@@ -1140,7 +1126,7 @@ export function groupTransactionsByMonth(
   }
   return [...groups.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([key, items]) => ({ key, label: monthLabel(key), transactions: items }))
+    .map(([key, items]) => ({ key, label: formatMonthYear(key), transactions: items }))
 }
 
 /**
@@ -1200,7 +1186,7 @@ export function groupReceiptsByCapturedDate(
   }
   const monthGroups: ReceiptMonthGroup[] = [...groups.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([key, items]) => ({ key, label: monthLabel(key), receipts: items }))
+    .map(([key, items]) => ({ key, label: formatMonthYear(key), receipts: items }))
 
   if (undated.length === 0) return monthGroups
   return [
@@ -1825,12 +1811,17 @@ export function budgetLegend(budget: Budget, transactions: Transaction[]): Budge
 }
 
 /**
- * `"30 Aug - 20 Sept"` — the card's period, exactly as Figma's card text on
- * `1266:14334` writes it: space, hyphen-minus, space. No year is shown, because
- * Figma shows none.
+ * `"30 Aug - 20 Sept"` — the card's period, as Figma's card text on
+ * `1266:14334` writes it: space, hyphen-minus, space.
+ *
+ * THE YEAR (Gate 90, Decision 14B; Decision 13 already said so for budgets).
+ * Figma shows none, and until Gate 90 neither did this; a 2025 budget read in
+ * 2026 then looked current. It now carries its year once, at the end, when the
+ * period is not in `referenceYear` (`"30 Aug - 20 Sept 2025"`) — Teku's 17A
+ * override of the drawn format. `format.ts`'s `formatPeriod` owns the rule.
  */
-export function budgetPeriodLabel(budget: Budget): string {
-  return `${formatDayMonth(budget.from)} - ${formatDayMonth(budget.to)}`
+export function budgetPeriodLabel(budget: Budget, referenceYear: number): string {
+  return formatPeriod(budget.from, budget.to, referenceYear)
 }
 
 // -------------------------------------------------- Flow 11: goals (Gate 76)
@@ -1929,7 +1920,7 @@ export function goalPercent(goal: Goal): number {
  * month. Slicing here keeps that a rendering decision rather than a stored one.
  */
 export function goalTargetLabel(goal: Goal): string {
-  return monthLabel(goal.targetDate.slice(0, 7))
+  return formatMonthYear(goal.targetDate.slice(0, 7))
 }
 
 /**
@@ -1975,10 +1966,12 @@ export function commitmentCadenceLabel(commitment: Commitment): string {
 }
 
 /**
- * `"next on 01 Sept"` — the caption under a commitment's amount.
+ * `"next on 01 Sept"` — the caption under a commitment's amount. Since Gate 90
+ * it follows the 14B year rule against `referenceYear` (every seeded due date is
+ * 2026, so nothing on today's seed gains a year).
  *
  * ⚠ THE DAY IS TWO DIGITS AND FIGMA'S IS ONE ("next on 1 Oct"), AND THE
- * DIVERGENCE IS DELIBERATE. It reuses `formatDayMonth`, which is what the budget
+ * DIVERGENCE IS DELIBERATE. It reuses `formatDay` (was `formatDayMonth`), which is what the budget
  * period and the ledger's own timestamps already print ("30 Aug - 20 Sept",
  * "04 Sept"). One formatter across the app outranks one frame's leading zero —
  * the same call this repo already made on two-decimal money against Figma's
@@ -1986,8 +1979,8 @@ export function commitmentCadenceLabel(commitment: Commitment): string {
  * Adding a second day format to match one caption is how an app ends up with two
  * conventions and no rule.
  */
-export function commitmentDueLabel(commitment: Commitment): string {
-  return `next on ${formatDayMonth(commitment.nextDueOn)}`
+export function commitmentDueLabel(commitment: Commitment, referenceYear: number): string {
+  return `next on ${formatDay(commitment.nextDueOn, referenceYear)}`
 }
 
 /**

@@ -11,7 +11,8 @@ import {
   receiptTotalRead,
   transactionHasReceipt,
 } from '../../../data/derive'
-import { formatMyrOrUnread, formatSignedMyr, formatTimestamp } from '../../../data/format'
+import { formatMyrOrUnread, formatSignedMyr, formatTimestamp, headingYear } from '../../../data/format'
+import { TODAY } from '../../../data/today'
 import type { Receipt, Transaction } from '../../../data/types'
 
 /**
@@ -152,7 +153,7 @@ export function TransactionPicker({
         <span className="mvp-link-picker__context-merchant type-body-sm-semibold">
           {receipt.merchant}
         </span>
-        {` · ${formatTimestamp(receipt.capturedAt)} · ${formatMyrOrUnread(receiptTotalRead(receipt))}`}
+        {` · ${formatTimestamp(receipt.capturedAt, TODAY.getFullYear())} · ${formatMyrOrUnread(receiptTotalRead(receipt))}`}
       </p>
 
       {/*
@@ -185,6 +186,8 @@ export function TransactionPicker({
             {suggested.map((s) => (
               <li key={s.transaction.id}>
                 <PickerRow
+                  // "Suggested" names no month, so this calendar year (Gate 90, 14B).
+                  referenceYear={TODAY.getFullYear()}
                   transaction={s.transaction}
                   receipts={receipts}
                   onPick={onPick}
@@ -202,6 +205,7 @@ export function TransactionPicker({
             {group.transactions.map((transaction) => (
               <li key={transaction.id}>
                 <PickerRow
+                  referenceYear={headingYear(group.key)}
                   transaction={transaction}
                   receipts={receipts}
                   onPick={onPick}
@@ -238,7 +242,10 @@ function PickerRow({
   transaction,
   receipts,
   onPick,
+  referenceYear,
 }: {
+  /** The year this row's date reads against — its heading's, or today's. */
+  referenceYear: number
   transaction: Transaction
   receipts: Receipt[]
   onPick: (transaction: Transaction) => void
@@ -250,7 +257,7 @@ function PickerRow({
       title={transaction.merchant}
       titleInfo={transaction.method}
       amount={formatSignedMyr(transaction.amount)}
-      amountInfo={formatTimestamp(transaction.occurredAt)}
+      amountInfo={formatTimestamp(transaction.occurredAt, referenceYear)}
       /*
         DERIVED, AND PASSED IN BOTH DIRECTIONS. `transactionHasReceipt` is the
         single statement of the fact (Gate 48), and this row is the one place a

@@ -297,7 +297,7 @@ for (const theme of THEMES) {
     // FLIPPED BACK TO THE VIEWER, showing what was saved.
     expect(await openDialogNames(page)).toEqual([RECEIPT])
     await expect(page.locator('.mvp-receipt-details__rows')).toHaveText(
-      'MerchantAeon Big Wangsa MajuDate03 Sept, 20:34TotalRM 431.00',
+      'MerchantAeon Big Wangsa MajuDate03 Sept 2025, 20:34TotalRM 431.00',
     )
 
     /*

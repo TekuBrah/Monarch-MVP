@@ -1,6 +1,5 @@
 import { Icon, IconButton, LineChart } from '@monarch/design-system'
-import { formatMyr, formatSignedMyr, splitMyr } from '../../../data/format'
-import { formatDayOfMonth } from '../../../data/today'
+import { formatDayOfMonth, formatMyr, formatSignedMyr, splitMyr } from '../../../data/format'
 import type { Amount } from '../../../data/types'
 
 /**

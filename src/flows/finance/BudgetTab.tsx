@@ -11,6 +11,7 @@ import {
   budgetSpent,
 } from '../../data/derive'
 import { formatMyr, formatSignedMyr } from '../../data/format'
+import { TODAY } from '../../data/today'
 import type { Amount } from '../../data/types'
 import { BudgetFormModal } from './components/BudgetFormModal'
 import { FINANCE_TAB_STATE_KEY, budgetDeletedNotice } from './financeTabs'
@@ -97,7 +98,7 @@ export function BudgetTab() {
             <CardMonthlyBudget
               key={budget.id}
               title={budget.name}
-              period={budgetPeriodLabel(budget)}
+              period={budgetPeriodLabel(budget, TODAY.getFullYear())}
               percentage={budgetPercentLeft(budget, transactions)}
               amountLeft={availableLabel(available)}
               totalAmount={formatMyr(budget.limit)}

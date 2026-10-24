@@ -687,6 +687,32 @@
   display: none;
 }
 
+/*
+  A MONTH OF THE LEDGER — Gate 90, ruling 2C. Heading, 16, rows; months sit
+  8 + 16 = 24 apart (the parent's 8px gap plus this margin), and the first month
+  sits 24 below the chips exactly as the single list did. The heading-to-rows
+  16 is the Receipts heading gap (`.mvp-receipts__month`); undesigned, since
+  Figma draws no heading on this screen.
+*/
+.mvp-transactions__month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  margin-top: var(--spacing-400);
+}
+
+/*
+  THE LIST INSIDE A MONTH TAKES NO MARGIN — the month carries it — AND NO
+  PADDING, AND THE PADDING RESET IS LOAD-BEARING. The list used to carry
+  `.mvp-column`, whose padding longhands overrode the browser's 40px list
+  indent; the column moved to the month, so without `padding: 0` that indent
+  returns under every row. Found by Gate 90 Phase A's row-diff proof.
+*/
+.mvp-transactions__month .mvp-transactions__list {
+  margin: 0;
+  padding: 0;
+}
+
 /* =========================================================================
    The Transactions filter sheet (Gate 43)
 

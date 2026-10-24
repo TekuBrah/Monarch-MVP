@@ -100,59 +100,14 @@ export function yearsBetween(from: Date, to: Date): number {
   return (to.getTime() - from.getTime()) / MS_PER_DAY / 365.25
 }
 
-const DATE = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: 'numeric',
-})
-
-/**
- * en-GB abbreviates September as "Sep"; the design writes "Sept" (format.ts
- * makes the same correction for timestamps). Written once here and used by both
- * date formatters below.
- */
-function sept(formatted: string): string {
-  return formatted.replace(/\bSep\b/, 'Sept')
-}
-
-/** `"15 Dec 2026"` — the form the design writes on the fixed-deposit screen. */
-export function formatDate(date: Date): string {
-  return sept(DATE.format(date))
-}
-
-const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' })
-
-/**
- * `'2025-08-30'` -> `"30 Aug"`, `'2025-09-20'` -> `"20 Sept"` — the two ends of
- * a budget's period (Figma `1266:14334`). It takes the typed `'YYYY-MM-DD'`
- * string and builds a LOCAL date from its three numbers, so no timezone can
- * move the day. The day has two digits, matching the app's other dates
- * ("04 Sept"). Figma draws only two-digit days, so it does not settle this.
- */
-export function formatDayMonth(isoDay: string): string {
-  const [year, month, day] = isoDay.split('-').map(Number)
-  return sept(DAY_MONTH.format(new Date(year, month - 1, day)))
-}
-
-/**
- * `'2026-10-07'` -> `"07 Oct 2026"`. The ISO-string entry point to the format
- * `formatDate` already produces for the fixed-deposit screen — NOT a fourth date
- * format. It takes the typed string and builds a LOCAL date from its three
- * numbers, exactly as `formatDayMonth` does, so no timezone can move the day.
+/*
+ * NO DATE IS FORMATTED HERE ANY MORE (Gate 90). This file keeps the clock
+ * (`TODAY`, `localWallClock`) and the date arithmetic; every function that turns
+ * a date into a string — `formatFullDate` (was `formatDate`), `formatDay` (was
+ * `formatDayMonth`), `formatDayMonthYear`, `formatDayOfMonth` — moved to
+ * `format.ts`, which is now the one module that prints a date.
  *
- * IT RESOLVES FIGMA'S OWN DISAGREEMENT WITH ITSELF. The commitment detail
- * (`1266:14343`) prints "Oct 7, 2025" on one card and "15 Dec 2026" on the card
- * beside it — two full-date formats in one 2×2 grid, which is inventory A5's
- * "three date formats in one Section" showing up again. This app has one
- * formatter per shape, so both cards take this one, and the day-month-year
- * order is the one that matches the app's existing `formatDayMonth` core.
+ * THE COMMITMENT DETAIL'S ONE-FORMATTER RULING (Gate 80) MOVED WITH IT: Figma
+ * prints "Oct 7, 2025" on one card and "15 Dec 2026" beside it; both cards take
+ * `formatDayMonthYear`.
  */
-export function formatDayMonthYear(isoDay: string): string {
-  const [year, month, day] = isoDay.split('-').map(Number)
-  return sept(DATE.format(new Date(year, month - 1, day)))
-}
-
-/** `"01"`, `"15"` — zero-padded day, for the chart's x axis. */
-export function formatDayOfMonth(day: number): string {
-  return String(day).padStart(2, '0')
-}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Locator, Page } from '@playwright/test'
-import { activateTab, gotoRoute } from './harness'
+import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 
 import { BUDGETS } from '../src/data/budgets'
 import {
@@ -170,7 +170,7 @@ const budgetCards = (page: Page) =>
 
 async function expectCard(card: Locator, budget: Budget): Promise<void> {
   await expect(card.locator('.mn-card-monthly-budget__header-title')).toHaveText(budget.name)
-  await expect(card).toContainText(budgetPeriodLabel(budget))
+  await expect(card).toContainText(budgetPeriodLabel(budget, PINNED_NOW.getFullYear()))
   await expect(card).toContainText(`${budgetPercentLeft(budget, TRANSACTIONS)}%`)
   await expect(card).toContainText(availableLabel(budget))
   await expect(card).toContainText(formatMyr(budget.limit))
@@ -186,7 +186,7 @@ async function expectDrilldown(page: Page, budget: Budget): Promise<void> {
   )
   await expect(page.locator('.mvp-budget-detail__info dd')).toHaveText([
     formatMyr(budget.limit),
-    budgetPeriodLabel(budget),
+    budgetPeriodLabel(budget, PINNED_NOW.getFullYear()),
     availableLabel(budget),
     formatMyr(budgetSpent(budget, TRANSACTIONS)),
   ])

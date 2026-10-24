@@ -14,11 +14,12 @@ import {
   formatMyr,
   formatPercent,
   formatQuantity,
+  formatFullDate,
   formatSignedMyr,
   formatTimestamp,
   formatTrendPercent,
 } from '../../data/format'
-import { formatDate } from '../../data/today'
+import { TODAY } from '../../data/today'
 import type {
   CryptoHolding,
   Holding,
@@ -132,7 +133,7 @@ export function holdingFields(
       const { start, maturity } = fixedDepositDates(holding)
       const principal = fixedDepositPrincipal(holding)
       return {
-        hero: { trend, footnote: `Maturity: ${formatDate(maturity)}` },
+        hero: { trend, footnote: `Maturity: ${formatFullDate(maturity)}` },
         tiles: [
           /*
             B3 — PRINCIPAL IS DERIVED FROM VALUE, not transcribed. Figma prints
@@ -143,8 +144,8 @@ export function holdingFields(
           { info: 'Principal Amount', content: formatMyr(principal) },
           { info: 'Interest Rate', content: `${formatPercent(holding.ratePct)} p.a` },
           // B5 — offsets from a live TODAY, so "15 Months" stays true.
-          { info: 'Start Date', content: formatDate(start) },
-          { info: 'Maturity Date', content: formatDate(maturity) },
+          { info: 'Start Date', content: formatFullDate(start) },
+          { info: 'Maturity Date', content: formatFullDate(maturity) },
         ],
         rows: [
           { label: 'Current Value', value: formatMyr(value) },
@@ -189,7 +190,7 @@ export function holdingFields(
             // Signed — outflows are negative in the ledger, and the sign is the
             // only thing on the row that says which way the money went.
             amount: formatSignedMyr(t.amount),
-            amountInfo: formatTimestamp(t.occurredAt),
+            amountInfo: formatTimestamp(t.occurredAt, TODAY.getFullYear()),
             logo: t.logo,
           })),
         },

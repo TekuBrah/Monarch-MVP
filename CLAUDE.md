@@ -19608,3 +19608,142 @@ Verified before writing them: with `focusVisible` stripped in-page, both pointer
 The DS close and back controls' own focus behaviour (measured clean, nothing to register); the goal form's
 focus drop to `body` (a retrofit item); every other control's focus styling; any DS, token, asset, seed or
 persistence change.
+
+## Years on dates — the year rule and the ledger's month headings (Gate 90)
+
+No DS re-pin — **v2.9.0 throughout**, and no DS file was written. A tester could not tell a 2025 date from a 2026
+one: the ledger, the detail sheet, the receipt cards and the budget screens printed "15 Sept, 22:03" or
+"30 Aug - 20 Sept" with no year (Teku's 21 Oct walk; Decision 13 = A brought it forward). **|WALK| 89 -> 90,
+`STORE_STATES` 7 -> 8, `OVERLAY_STATES` 49, `ROUTES` 26, baselines 356 -> 360 (4 added, 152 changed, 0 deleted),
+tests 1192 -> 1219, spec files 44 -> 45.** `lint:tokens` scans **111** files (no file entered `src/`) with the
+same **4** exemptions. Phase A (Opus) designed and measured it (`D:\Claude\_handoffs\gate90-phaseA\`); this build
+session built it against Teku's answers. Phase B runs the mutation set and three clean runs. **Teku does every git
+write.** Register `2an` carries the decisions, the review thread's rulings and forks, `G53` and the Gate 89-B Phase
+B record.
+
+### The rule — Teku's Decision 14B (23 Oct 2026)
+
+**A date shows its year only when the year differs from the year it is read against.** Under a month heading
+that is the heading's year; anywhere else it is `TODAY.getFullYear()`, **passed in by the caller**. No formatter
+reads a clock, so every printed string is a pure function of the data plus one number — 2026 in the harness on
+every run. `showsYear(dateYear, referenceYear)` in `format.ts` is the one predicate; everything else asks it.
+
+| reference | callers |
+|---|---|
+| the heading's year (`headingYear(group.key)`) | ledger rows; receipt card nested rows; link picker month rows |
+| `TODAY.getFullYear()` | detail sheet Date rows and receipt head; Homepage strip; holding drill-down rows; budget card period and Duration; budget drill-down rows; contribution rows; commitment "next on"; receipt viewer Date row and nested row; link picker context line and "Suggested" rows; source-picker library cards; the Receipts "No receipt date" group |
+
+**`ledgerNow()` IS NOT THE REFERENCE**, and `dates.spec.ts` B10 pins it: with the clock on 2 Jan 2027 a 2026
+row's detail prints `12 Sept 2026, 16:13`. The newest row moves (Gate 53 moved it a year; a persisted write can
+move it again, ruling 4A); "this year" for a person reading a date means the calendar. **From 1 Jan 2027 a phone
+prints "2026" on rows the baselines show without it** — the rule working; the harness never reaches 2027.
+
+### `format.ts` is the one module that turns a date into a string
+
+Until this gate date formatters lived in three files. **Moved, not rewritten** — each prints what it printed
+before for every input it was given before:
+
+| now in `format.ts` | was |
+|---|---|
+| `formatTimestamp(iso, referenceYear)` | `format.ts` (no reference) |
+| `formatDay(isoDay, referenceYear)` | `today.ts` `formatDayMonth` |
+| `formatFullDate(date)` | `today.ts` `formatDate` |
+| `formatDayMonthYear(isoDay)` | `today.ts` (now reads only the first ten characters, so a timestamp may be passed) |
+| `formatDayOfMonth(day)` | `today.ts` |
+| `formatMonthYear(key)` | `derive.ts` `monthLabel`, expression for expression |
+| `showsYear`, `formatPeriod`, `headingYear`, `formatReceiptDate` | new |
+
+`today.ts` keeps the clock (`TODAY`, `localWallClock`) and the arithmetic. `budgetPeriodLabel(budget,
+referenceYear)` and `commitmentDueLabel(commitment, referenceYear)` stay as one-line callers so their consumers
+did not move. **A period writes a shared year once, at the end** (`30 Aug - 20 Sept 2025`, Figma's spaced hyphen,
+CLDR's range shape); ends in different years each carry their own (`15 Dec 2025 - 15 Jan 2026`).
+
+### The ledger's month headings (ruling 2C)
+
+One `section.mvp-transactions__month.mvp-column` per month of the FILTERED rows, holding a `SectionHeader`
+("September 2025") and that month's `ul.mvp-transactions__list` — so every existing `.mvp-transactions__list > li`
+selector still finds its row. **Not sticky. No "Today" / "Yesterday" (Decision 16B).** Heading -> rows 16, months
+8 + 16 = 24 apart, rows keep 28. An empty month never renders; a filter to zero shows `NoResults` and no heading.
+
+**`padding: 0` ON THE LIST IS LOAD-BEARING.** The list used to carry `.mvp-column`, whose padding longhands beat
+the browser's 40px list indent; the column moved to the month, and without the reset the indent returns under every
+row (found by Phase A's row-diff proof). `groupTransactionsByMonth`'s comment, which said never to group the ledger
+because it "would move four committed baselines", is corrected in place: it moved 56.
+
+### Receipt dates — Decision 15A and R90R-2
+
+**The receipt card's date is the printed day with its year and no time** — `13 Sept 2025` — whichever heading the
+card sits under (Teku's 15A, following Figma `Item/receipts` `1266:14286`). **Ruling 5B is retired.** The card's
+nested transaction row keeps the 14B rule against the heading's year (`13 Sept, 18:50` under "September 2025",
+`13 Sept 2025, 18:50` under "August 2026"). **The detail sheet's linked-receipt head follows Figma the same way**
+(`04 Sept 2025`, `I1266:14279;1046:11195`; the review thread's R90R-2 — Teku's drawing, so not an override).
+
+**A receipt whose printed date was NOT read keeps its old form** (R90R-3): its `capturedAt` is the capture moment,
+and both surfaces print it with the time by the 14B rule (`15 Aug, 09:41` in the harness), so
+`capture-time.spec.ts` did not move. The choice is one function, `formatReceiptDate(capturedAt, dateWasRead,
+referenceYear)`, fed by the existing side table `receiptDateWasRead` — no new stored field. `G53` records the
+`00:00` the viewer and the link picker still print for paper with a date and no time.
+
+### The walk state and the tests
+
+`/finance [tab:receipts] [store:year-apart]`: the store preset `YEAR_APART` in `e2e/harness.ts` re-dates
+`receipt-caring01`'s `addedAt` to `2026-08-14T10:05:00.000` (no seed edit), so one card printed 13 Sept 2025 sits
+alone under "August 2026". The Gate α figure: 4 baselines and 8 tests.
+
+`e2e/dates.spec.ts`, **19 tests, no baseline**: N1–N8 pin the pure functions in Node (N3 runs in the page, because
+the year boundary only shows in the pinned Kuala Lumpur zone); B1–B11 drive the app. **B2 searches Netflix, not Aeon
+Big**: the seed has no Aeon Big row in September 2026, and Netflix bills on 05 Sept in both years — the "two rows a
+year apart" case. 1192 + 8 + 19 = **1219 in 45 files**.
+
+**Existing tests rewritten before the pre-mint run:** `budgets.spec.ts`, `budget-writers.spec.ts`,
+`persistence-writers.spec.ts`, `link-editor.spec.ts`, `receipt-glyph.spec.ts` (the ledger root, since the first
+list is now one month), `receipt-order.spec.ts` (`01 Mar 2011`, `02 Apr 2012`), `seed-history.spec.ts`,
+`transaction-disposition.spec.ts` — Phase A's list — plus two the module moves added: `goal-detail.spec.ts`
+(imported `formatDayMonth` from `today.ts`) and `plans.spec.ts` (`commitmentDueLabel` gained a reference year).
+Harness settle literals: `IMG_4806.jpg04 Sept 2025` and `Aeon Big · 04 Sept 2025, 13:45 · RM 429.19` (twice).
+
+**THE MUTATION SET IS WRITTEN, NOT RUN** (`D:\Claude\_handoffs\gate90-build\mutations.mjs`, NC + M1–M14; Phase B
+runs it with the Gate 88 driver). **M13 is the retired ruling 5B** written as `formatDay` (no time), because a
+`formatTimestamp` form would fail one matcher earlier than the "Receipt date" card matcher it exists to hit.
+
+### Baselines and verification
+
+**Predicted in writing before the run** (`D:\Claude\_handoffs\gate90-build\PREDICTION.md`): 156 visual failures —
+exactly Phase A's measured 14B + 15A file list, copied to `EXPECTED-156.txt` — 1063 passed, 0 `writing actual`. A
+sweep of every non-visual spec ran first, to find any further test the change broke: **859 passed, 0 failed**.
+
+**The pre-mint full run matched name for name: 156 failed / 1063 passed** (58.4 min, npm exit 1), every failure in
+`visual.spec.ts` — 152 pixel diffs and 4 "snapshot doesn't exist" (`finance-receipts-year-apart-*`), the failing set
+equal to `EXPECTED-156.txt` — 0 `writing actual`, digest still `1f5dece4…5123`.
+
+**The mint** ran `--update-snapshots=all` over an exact, escaped, end-anchored `-g` of the 156 titles (dry run:
+156): 156 passed, 308 write lines (4 new once, 152 twice). Reconciled against a manifest taken outside the repo:
+**356 -> 360, 4 added, 152 changed, 0 deleted, 204 byte-identical**, added and changed disjoint, the touched set
+equal to `EXPECTED-156.txt`. New digest (filesystem form; four files are untracked until Teku stages them),
+**`bc1a1c07bc7c23c80291fa7afcda3a943700a54ffaee5ccffb23a40853c37114`**, by the standing command and again by
+Node crypto.
+
+**Every changed PNG was decoded against its `HEAD` original** (`gate90-build\PNG-REVIEW.md`). Same-height files
+differ only in date-line bands: the budget card periods (y 187–195, 407–415), the Duration row and nested-row
+dates, the holding rows' 2025 dates (82 bands on `main` from y 10,620; 2 on `joint`), the receipt-card dates, the
+viewer's Date row, the picker's context line and Suggested row. The 56 tall Transactions captures grow 396 px and
+were row-hash diffed with Phase A's `rowdiff.cjs`: 13–14 inserted headings, chrome bands under the fixed nav or open
+sheet, re-rastered moved rows, and 3–4 "content" bands per file, each read — the nav boundary at y=812, the "October
+2025" heading `diff` merged with its first row, and one-pixel ink shifts on unchanged lines. Crops were read for each
+family: the ledger's "September 2026" with year-less rows, the receipt head `04 Sept 2025`, `year-apart`'s card and
+rows, the budget card `30 Aug - 20 Sept 2025`, the unread capture keeping `15 Aug, 09:41`.
+
+**`build:package`**: exit 0; entry chunk **5,954,033** bytes (Gate 89: 5,953,094, +939), CSS **196,158** (195,788,
++370); the OCR lazy chunks unchanged (read 1,092, recognise 4,368, parseReceipt 13,481, diagnose 2,866); 0
+`modulepreload`. `tsc -b --force` clean; `lint:tokens` 111 files / 4 exemptions; `lint:linkage` PASS.
+
+**The checkpoint run is predicted to fail exactly one test**: `baselines.spec.ts` arm 1 ("every baseline on disk is
+tracked by git"), naming the four untracked `finance-receipts-year-apart-*` PNGs. The 152 changed files are tracked
+and present, so they fail no arm. Staging is Teku's.
+
+### Deliberately not in scope
+
+Time formats, including the `00:00` (`G53`); the "Date & Time" label (`G52`); "Today" / "Yesterday" headings
+(16B, a Flow 4 question); sticky headings; the "This Month" chip's anchor (F-3, ruling 4A); the past commitment
+due dates and the insight's "31 July" (F-4, F-6, seed); the slider bubble ("UI-5", UI round); any DS, token,
+asset, seed, stored-shape or persistence change; moving the harness clock; and the DS repo.

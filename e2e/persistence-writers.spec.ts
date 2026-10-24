@@ -399,7 +399,7 @@ test('KEPT receipt edit: a reload keeps merchant, date, time and total, and the 
   await activateTab(page, RECEIPTS_TAB)
   await openViewerFor(page, AEON_RECEIPT.displayName)
   await expect(page.locator('.mvp-receipt-details__rows')).toHaveText(
-    'MerchantAeon Big Wangsa MajuDate03 Sept, 20:34TotalRM 431.00',
+    'MerchantAeon Big Wangsa MajuDate03 Sept 2025, 20:34TotalRM 431.00',
   )
   await expect(page.locator('.mvp-receipt-details__mismatch')).toHaveText(
     `This receipt's total is RM 431.00, and the transaction is ${formatMyr(-AEON_ROW.amount)}.`,
@@ -675,7 +675,7 @@ async function expectBudgetDrilldown(page: Page, budget: Budget): Promise<void> 
   )
   await expect(page.locator('.mvp-budget-detail__info dd')).toHaveText([
     formatMyr(budget.limit),
-    budgetPeriodLabel(budget),
+    budgetPeriodLabel(budget, PINNED_NOW.getFullYear()),
     availableLabel(budget),
     formatMyr(budgetSpent(budget, TRANSACTIONS)),
   ])

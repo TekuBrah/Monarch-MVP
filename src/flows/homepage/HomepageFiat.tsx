@@ -11,6 +11,7 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { mediaUrl } from '../../config/media'
 import { recentTransactions, transactionHasReceipt } from '../../data/derive'
 import { formatSignedMyr, formatTimestamp } from '../../data/format'
+import { TODAY } from '../../data/today'
 import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insights'
 import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
@@ -58,7 +59,7 @@ export function HomepageFiat() {
                 title={txn.merchant}
                 titleInfo={txn.method}
                 amount={formatSignedMyr(txn.amount)}
-                amountInfo={formatTimestamp(txn.occurredAt)}
+                amountInfo={formatTimestamp(txn.occurredAt, TODAY.getFullYear())}
                 /*
                   DERIVED, NOT READ OFF THE ROW (Gate 48).
                   `Transaction.hasReceipt` was a stored boolean and is gone; the

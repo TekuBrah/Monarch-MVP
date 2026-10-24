@@ -9,6 +9,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { GOAL_PLACEHOLDER_IMAGE, goalImageUrl } from '../../config/media'
 import { commitmentCadenceLabel, commitmentDueLabel, goalPercent } from '../../data/derive'
 import { formatMyr } from '../../data/format'
+import { TODAY } from '../../data/today'
 import { GoalFormModal } from './components/GoalFormModal'
 import { FINANCE_TAB_STATE_KEY, goalDeletedNotice } from './financeTabs'
 import type { GoalSettings } from './goalDraft'
@@ -209,7 +210,7 @@ export function PlansTab() {
                 title={commitment.name}
                 titleInfo={commitmentCadenceLabel(commitment)}
                 amount={formatMyr(commitment.amount)}
-                amountInfo={commitmentDueLabel(commitment)}
+                amountInfo={commitmentDueLabel(commitment, TODAY.getFullYear())}
                 /*
                   PASSED, NOT OMITTED. `ListItem.hasReceiptIcon` DEFAULTS TO
                   TRUE, so leaving it out draws a `receipt_long` glyph beside

@@ -25,6 +25,7 @@ import {
   transactionHasReceipt,
 } from '../../data/derive'
 import { formatMyr, formatPercent, formatSignedMyr, formatTimestamp } from '../../data/format'
+import { TODAY } from '../../data/today'
 import type { Amount, TransactionCategoryId } from '../../data/types'
 import { BudgetDeleteConfirm, BudgetFormModal } from './components/BudgetFormModal'
 import { BUDGET_DELETED_STATE_KEY, FINANCE_TAB_STATE_KEY } from './financeTabs'
@@ -162,7 +163,7 @@ export function BudgetDetailScreen() {
 
   const info: InfoRow[] = [
     { label: 'Budget', icon: 'icon_budget', value: formatMyr(budget.limit) },
-    { label: 'Duration', icon: 'icon_duration', value: budgetPeriodLabel(budget) },
+    { label: 'Duration', icon: 'icon_duration', value: budgetPeriodLabel(budget, TODAY.getFullYear()) },
     { label: 'Available', icon: 'icon_wallet', value: availableLabel(available) },
     { label: 'Spent', icon: 'icon_spend', value: formatMyr(spent) },
   ]
@@ -268,7 +269,7 @@ export function BudgetDetailScreen() {
                             title={txn.merchant}
                             titleInfo={txn.method}
                             amount={formatSignedMyr(txn.amount)}
-                            amountInfo={formatTimestamp(txn.occurredAt)}
+                            amountInfo={formatTimestamp(txn.occurredAt, TODAY.getFullYear())}
                             hasReceiptIcon={transactionHasReceipt(receipts, txn.id)}
                           />
                         </li>

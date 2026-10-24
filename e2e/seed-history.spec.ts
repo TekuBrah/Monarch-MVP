@@ -105,7 +105,11 @@ test.describe('the Gate 82 rows', () => {
 
   test('no timestamp label repeats on the same merchant, and every occurredAt is distinct', () => {
     expect(new Set(TRANSACTIONS.map((t) => t.occurredAt)).size).toBe(TRANSACTIONS.length)
-    const labels = TRANSACTIONS.map((t) => `${t.merchant}|${formatTimestamp(t.occurredAt)}`)
+    // Read as the ledger prints it since Gate 90: against the row's month
+    // heading's year, i.e. its own year, so no year in the label.
+    const labels = TRANSACTIONS.map(
+      (t) => `${t.merchant}|${formatTimestamp(t.occurredAt, Number(t.occurredAt.slice(0, 4)))}`,
+    )
     expect(new Set(labels).size).toBe(labels.length)
   })
 })

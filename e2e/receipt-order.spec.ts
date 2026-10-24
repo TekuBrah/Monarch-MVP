@@ -110,7 +110,8 @@ test.describe('the wiring', () => {
     await expect(first.locator('.mvp-section-header')).toHaveText('August 2026')
     const cards = first.locator('.mvp-receipt-card')
     await expect(cards).toHaveCount(1)
-    await expect(cards.first().locator('.mvp-receipt-card__date')).toHaveText('01 Mar, 10:00')
+    // Gate 90, Decision 15A: the printed day with its year, and no time.
+    await expect(cards.first().locator('.mvp-receipt-card__date')).toHaveText('01 Mar 2011')
     // The ten seeds are still there, below it, in their own months.
     await expect(page.locator('.mvp-receipt-card')).toHaveCount(RECEIPTS.length + 1)
   })
@@ -127,8 +128,8 @@ test.describe('the wiring', () => {
 
     const cards = page.locator('.mvp-receipts__month').first().locator('.mvp-receipt-card')
     await expect(cards).toHaveCount(2)
-    await expect(cards.nth(0).locator('.mvp-receipt-card__date')).toHaveText('01 Mar, 10:00')
-    await expect(cards.nth(1).locator('.mvp-receipt-card__date')).toHaveText('02 Apr, 10:00')
+    await expect(cards.nth(0).locator('.mvp-receipt-card__date')).toHaveText('01 Mar 2011')
+    await expect(cards.nth(1).locator('.mvp-receipt-card__date')).toHaveText('02 Apr 2012')
   })
 })
 

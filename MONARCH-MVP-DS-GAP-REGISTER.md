@@ -4359,3 +4359,140 @@ budget screens print a year, so nothing on screen says the row falls outside bot
 - **TypeScript 5.8's DOM lib does not declare `FocusOptions.focusVisible`.** Typed locally at the one call.
 
 ### Nothing was removed from this register at this gate.
+
+## 2an. Status at MVP Gate 90 (2026-10-23) — years on dates; one gap opened (G53); the Gate 89-B Phase B record
+
+**THE TALLY MOVES BY ONE: `G53` IS OPENED AND NOTHING IS CLOSED.** **52 entries, 29 closed, 23 open; the
+highest number is G53.** Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop half,
+G19–G23, G28–G33, G44, G48, G49, G50, G51, G52, `MODEL-1` and `UI-3`. **No MVP-local override was added for any
+of them**, and the `G33` workaround class is untouched and still carries its removal condition. No DS re-pin:
+v2.9.0 throughout. Baselines 356 -> 360 (4 added, 152 changed, 0 deleted); tests 1192 -> 1219 in 45 files;
+\|WALK\| 89 -> 90 (`26 + 7 + 49 + 8`).
+
+**What shipped.** A date shows its year when it is not the year it is read against. The Transactions ledger
+groups under month headings that carry the year ("September 2025"); a row under a heading prints no year. A
+date with no heading reads against this calendar year. The receipt card and the detail sheet's linked-receipt
+head print the printed day with its year and no time ("13 Sept 2025"). `format.ts` is now the one module that
+turns a date into a string. No stored shape, seed, writer, token, asset or persistence code changed.
+
+### Gate 89-B Phase B — verification record (22 Oct 2026), verbatim from its report §5
+
+> **Gate 89-B Phase B (22 Oct 2026).** Premises re-derived against the staged snapshot: 5 staged, 0 added, 0 unstaged, 0 PNGs; baselines 356, digest `1f5dece49f9ca4873adee4f0410a4fc2745e52c5d4a777bae74c7cadb32b5123` in both forms. Mutation proofs: NC refused (inert `detail >= 1`, K1 passes) as required; K1, K2 (mouse), K2 (touch) and K3 each PROVED, failing at the stated matcher lines 463 / 473 / 495 / 511 with their stated messages. Three sequential clean runs of the staged tree: 1192 passed / 0 failed / 0 flaky each, npm exit 0, 44.7 / 44.1 / 45.3 min, 0 `writing actual`, 356 PNGs byte-stable, sweep `26 + 7 + 49 + 7 = 89`. The `section-headers` mount-timing flake did not occur. No finding.
+
+### Teku's decisions (23 Oct 2026)
+
+- **Decision 14B (Teku, 23 Oct 2026, taking the review thread's recommendation).** A date shows its year only
+  when the year differs from the reference year: under a month heading, the heading's year; anywhere else,
+  `TODAY.getFullYear()` passed in by the caller. No formatter reads a clock.
+- **Decision 15A (Teku, 23 Oct 2026, taking the review thread's recommendation).** The receipt card's date
+  follows Figma: day, month and year always, no time — `13 Sept 2025` — whichever heading it sits under
+  (`Item/receipts` `1266:14286`; `I1266:14283;1043:10245;1043:10041`). The card's nested transaction row keeps
+  the 14B rule with the heading's year, as Figma draws it (`15 Sept, 22:03`).
+- **Ruling 5B is retired** — superseded by Teku's 15A. It printed the card's year only when it differed from
+  the heading's year (the review thread, on Teku's delegation, 14 Oct).
+- **Decision 16B (Teku, 23 Oct 2026, taking the review thread's recommendation).** No "Today" / "Yesterday"
+  headings; month headings only. Recorded as a question for Flow 4.
+- **Decision 17A (Teku, 23 Oct 2026, taking the review thread's recommendation).** Teku confirms as his
+  overrides of drawn formats: (1) the detail sheet's Date value; (2) the budget card period and the
+  drill-down Duration; (3) the budget drill-down's rows; (4) the goal's contribution rows; (5) the receipt
+  viewer's linked transaction row; (6) the Transactions month headings (undrawn); (7) the Receipts month
+  headings' year (drawn as "January"). Figma is not edited.
+
+### Rulings by the review thread for the build (23 Oct; each overturnable by Teku)
+
+- **R90R-1 Surface count: 18.** Re-derived from the build: the callers whose printed date can change are the
+  ledger rows, the Homepage strip, the detail sheet's two Date rows and its receipt head, the holding
+  drill-down rows, the budget card period, the Duration row, the budget drill-down rows, the contribution rows,
+  the commitment rows, the receipt card's date and its nested row, the receipt viewer's Date row and nested row,
+  the link picker's context line and its "Suggested" rows, and the source picker's library cards — 18. One more
+  caller was changed and cannot change its output: the link picker's month rows read against their heading's
+  year, which is their own. Phase A's report said both 14 and 18; 18 is right.
+- **R90R-2 The detail sheet's linked-receipt head follows Figma like 15A** (`15 Sept 2025`,
+  `I1266:14279;1046:11195`), through the same always-year formatter as the card. It follows Teku's drawing, so
+  it is not an override. Phase A's design (with a time) is superseded here.
+- **R90R-3 The always-year formatter is `formatDayMonthYear`**, moved into `format.ts`; no second one was made.
+  A receipt whose printed date was NOT read keeps what the card printed before (its capture moment with the
+  time, `15 Aug, 09:41` in the harness), so `capture-time.spec.ts` is unchanged. Both surfaces call one chooser,
+  `formatReceiptDate`.
+- **R90R-4 G53 opened** (below).
+- **R90R-5 Findings recorded, not fixed:** F-3, F-4 and F-6 (below).
+- **R90R-6 "UI-5" recorded by description** (below).
+- **R90R-7 Drawn surfaces that follow 14B without a separate confirmation:** the Homepage strip (drawn
+  `15 Sept, 22:03`), the commitment rows (`next on 1 Oct`) and the receipt card's nested row — **follow Teku's
+  14B; flagged to Teku 23 Oct, not separately confirmed.** None changes a pixel on today's seed (the Homepage's
+  two rows and every commitment date are 2026; a nested row sits under its own year's heading). They are not
+  part of Teku's 17A.
+- **R90R-8 Corrections from Phase A's §11, taken as disk says** (below).
+
+### The technical forks (Phase A; rulings by the review thread, each overturnable by Teku)
+
+| # | fork | ruling |
+|---|---|---|
+| F1 | the "current year" for a date with no heading | `TODAY.getFullYear()`, passed in; not `ledgerNow()` (the newest row, which moves) |
+| F2 | under a heading | the heading's year — one predicate covers every case |
+| F3 | sticky headings | no |
+| F4 | heading spacing | heading -> rows 16; months 8 + 16 apart; rows keep 28 |
+| F5 | one module | `format.ts` owns every date string; `today.ts` keeps the clock and arithmetic; `derive.ts`'s label functions stay as one-line callers |
+| F6 | period format | `30 Aug - 20 Sept 2025` — Figma's spaced hyphen, a shared year once at the end; different years on each end |
+| F7 | holding drill-down | no month headings there; the heading-less rule |
+| F8 | the Receipts "No receipt date" group | reference = `TODAY` year |
+| F9 | `sept()` correction | kept (ICU 78 already writes "Sept"; Chromium's ICU not measured) |
+| F10 | the "Date & Time" label (G52) | not changed here — the value changes, the label stays G52's |
+| F11 | accessible names | follow the visible text; no extra `aria-label` |
+| F12 | markup | a `section` per month holding a `ul.mvp-transactions__list`, so every existing `> li` selector stays valid; `padding: 0` on the list is load-bearing |
+
+### G53 — a receipt with no printed time still paints "00:00" (opened, deferred)
+
+| | |
+|---|---|
+| **where** | `formatTimestamp(receipt.capturedAt, …)` at the receipt viewer's Date row (`ReceiptViewer.tsx`, the details block) and the link picker's context line (`TransactionPicker.tsx`); also the receipt card and the detail sheet's receipt head for a receipt whose DATE was not read (R90R-3), which print the capture moment |
+| **what** | where the paper printed a date and no time, `capturedAt` stores `T00:00:00` and these callers print `00:00`, a time nobody read. The card and the head no longer do for a read date (15A, R90R-2) |
+| **decision** | registered, not fixed. Time formats are out of this gate's scope (R90-2). Telling "midnight" from "no time" needs a stored fact the record does not carry |
+
+`G53` is an MVP-side item, not a DS gap; the number is taken in this register's sequence on the `G52`
+precedent, because that is where the next gate will look.
+
+### "UI-5" — recorded by description, not opened
+
+The review thread's label for **the amount slider's value bubble clipping at the left edge in
+`TransactionFilterSheet`**. It had no entry on disk (Phase A: 0 matches). **By this register's own convention a
+`UI-n` label is a deferred item, not a G entry** (the `UI-1` precedent at 2r, repeated for `UI-4`): it names an
+MVP-side layout item and moves no tally. Its cause (the DS `RangeSlider`'s bubble or the sheet's container) is
+not established, so it is not classified further here. **A UI-integration-round item.**
+
+### Findings, recorded and not fixed
+
+- **F-3 — "This Month" means the newest row's month** (ruling 4A): September 2026 by `ledgerNow`, so on a phone
+  in October 2026 the chip returns September rows, now visible beside a "September 2026" heading.
+- **F-4 — the commitment due dates are already past on a real phone.** The seed's `nextDueOn` dates are
+  1–7 Oct 2026 (`commitments.ts`); on 23 Oct 2026 the Plans tab still says "next on 01 Oct". Seed; the harness
+  (15 Aug 2026) cannot see it.
+- **F-6 — "left to pay by 31 July"** is transcribed seed copy (`insights.ts`), with no year, and past under the
+  harness clock.
+- **The seed has no Aeon Big row in September 2026.** Phase A's B2 described a search for "Aeon Big" showing rows
+  under both "September 2026" and "September 2025"; disk has Aeon Big from September 2025 to August 2026 only.
+  The two same-day rows a year apart are Netflix (05 Sept 2025 09:15 and 05 Sept 2026 09:20, RM 54.90 both);
+  `dates.spec.ts` B2 uses Netflix.
+- **`format.ts` and `today.ts` said en-GB writes "Sep".** ICU 78 (Node 24.17) already writes "Sept"; the
+  correction is kept as a no-op there (F9).
+
+### Corrections to the record (insert-only; earlier text is left as written)
+
+- **The ledger rows are rendered at `TransactionsLedger.tsx:437`**, not `:429` (Phase A, measured at
+  `mvp-gate89b`; now inside the month sections).
+- **The harness clock is `PINNED_NOW` at `e2e/harness.ts:729`, set at `:3222`** at `mvp-gate89b` (`:685` was
+  inside the `WalkState` type and `:2874` the console listener). Line numbers move: re-derive.
+- **Date formatters lived in THREE files**, not one: `format.ts`, `today.ts` and `derive.ts` (`monthLabel`).
+  Since Gate 90, one: `format.ts`.
+- **`groupTransactionsByMonth`'s comment said not to group the ledger** ("would move four committed
+  baselines"). Ruling 2C superseded it; it moved 56 (the 14 Transactions states × 4), and the comment is
+  corrected in place.
+- **Phase A's rewrite list was measured on its 14B copy, not on the 14B + 15A copy**, and the copy did not do
+  the module moves; two more specs break under them and were rewritten: `goal-detail.spec.ts` (imported
+  `formatDayMonth` from `today.ts`) and `plans.spec.ts` (`commitmentDueLabel` gained a reference year).
+- **`UI-4` is closed, not open.** `2al` and `2am` list it among the items "still open and still deferred"; its
+  own entry is headed "UI-4 — CLOSED at Gate 80-C". This section's list leaves it out for that reason.
+- **Decision 13's own text (2am) already gave the budget half of 14B** ("the year on a budget's date range
+  when it is not the current year").
+
+### Nothing was removed from this register at this gate.

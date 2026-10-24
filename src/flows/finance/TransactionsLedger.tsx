@@ -3,6 +3,7 @@ import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import { NoResults } from '../../components/NoResults'
+import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionFilterSheet } from './TransactionFilterSheet'
 import { TransactionDetailSheet } from './components/TransactionDetailSheet'
 import { ReceiptSourcePicker } from './components/ReceiptSourcePicker'
@@ -18,12 +19,13 @@ import {
   clearFacet,
   filterChips,
   filterTransactions,
+  groupTransactionsByMonth,
   listPresence,
   receiptForTransaction,
   receiptsNewestFirst,
   transactionHasReceipt,
 } from '../../data/derive'
-import { formatSignedMyr, formatTimestamp } from '../../data/format'
+import { formatSignedMyr, formatTimestamp, headingYear } from '../../data/format'
 
 /**
  * `Finance_Transaction01` (`1266:14328`) — the Transactions tab's body.
@@ -251,6 +253,9 @@ export function TransactionsLedger() {
     [transactions, filter, search],
   )
   const chips = useMemo(() => filterChips(filter), [filter])
+  // Gate 90 (ruling 2C): the FILTERED rows, in months. An empty month never
+  // renders, because a month exists only where a row does.
+  const months = useMemo(() => groupTransactionsByMonth(rows), [rows])
 
   /*
     THE RECOVERY ACTION RESETS BOTH NARROWING MECHANISMS — see `ReceiptsTab`
@@ -425,40 +430,63 @@ export function TransactionsLedger() {
         the bottom so the last row clears the nav band. Rows 10-15 are reached
         by scrolling, which is the correct behaviour rather than a defect.
       */}
-      <ul className="mvp-transactions__list mvp-column">
-        {rows.map((txn) => (
-          <li key={txn.id}>
-            <ListItem
-              type="default"
-              leading={<TransactionMark mark={txn.logo} size="m" />}
-              title={txn.merchant}
-              titleInfo={txn.method}
-              amount={formatSignedMyr(txn.amount)}
-              amountInfo={formatTimestamp(txn.occurredAt)}
-              /* DERIVED (Gate 48) — see `HomepageFiat` for the full note. */
-              hasReceiptIcon={transactionHasReceipt(receipts, txn.id)}
-              /*
-                GATE 49 — THE ROW OPENS THE DETAIL SHEET, AND `ListItem` ALREADY
-                MODELS THAT. Passing `onClick` makes the DS render a `<button>`
-                instead of a `<div>`; no wrapper, no `role`, no `tabIndex` and no
-                keydown handler is written here, because a real button is
-                focusable, Enter- and Space-activated and announced already.
+      {/*
+        MONTH HEADINGS — Gate 90, ruling 2C and Decision 14B. The ledger holds
+        2025 and 2026 rows, and until this gate a row printed "15 Sept, 22:03"
+        with no year, so two Aeon Big rows a year apart could not be told apart
+        (Teku's 21 Oct walk). Each month is a `SectionHeader` carrying its year
+        ("September 2025"), the Receipts tab's own pattern; a row under it
+        passes the HEADING'S year as its reference, so it prints no year — the
+        heading already says it. Figma draws no heading here (`1266:14328`), so
+        this is undesigned work and Teku's 17A override.
 
-                THE ROW IS THE ONLY AFFORDANCE. Figma draws no chevron on these
-                rows and `ListItem` only offers one on its `profile` type, so
-                adding one would be inventing an affordance the design does not
-                have — and `hasChevron` is silently ignored on `default` anyway.
+        NOT STICKY, deliberately: the Receipts headings are not, and a sticky
+        heading in the shell's scroller would add a z-order against the fixed
+        nav, scrim and FAB. No "Today" / "Yesterday" headings (Decision 16B).
 
-                THE HOMEPAGE'S TWO-ROW SLICE IS DELIBERATELY NOT WIRED. Flow 1's
-                rows are a summary, the sheet belongs to the ledger, and giving
-                the Homepage a second entry point would change a screen this
-                gate has no mandate over — and would move four more baselines.
-              */
-              onClick={() => setDetailId(txn.id)}
-            />
-          </li>
-        ))}
-      </ul>
+        ONE `ul.mvp-transactions__list` PER MONTH, inside a section that carries
+        the content column, so every existing `.mvp-transactions__list > li`
+        selector (30 references in 11 files at Gate 80-C) still finds its row.
+      */}
+      {months.map((month) => (
+        <section className="mvp-transactions__month mvp-column" key={month.key}>
+          <SectionHeader label={month.label} />
+          <ul className="mvp-transactions__list">
+            {month.transactions.map((txn) => (
+              <li key={txn.id}>
+                <ListItem
+                  type="default"
+                  leading={<TransactionMark mark={txn.logo} size="m" />}
+                  title={txn.merchant}
+                  titleInfo={txn.method}
+                  amount={formatSignedMyr(txn.amount)}
+                  amountInfo={formatTimestamp(txn.occurredAt, headingYear(month.key))}
+                  /* DERIVED (Gate 48) — see `HomepageFiat` for the full note. */
+                  hasReceiptIcon={transactionHasReceipt(receipts, txn.id)}
+                  /*
+                    GATE 49 — THE ROW OPENS THE DETAIL SHEET, AND `ListItem` ALREADY
+                    MODELS THAT. Passing `onClick` makes the DS render a `<button>`
+                    instead of a `<div>`; no wrapper, no `role`, no `tabIndex` and no
+                    keydown handler is written here, because a real button is
+                    focusable, Enter- and Space-activated and announced already.
+
+                    THE ROW IS THE ONLY AFFORDANCE. Figma draws no chevron on these
+                    rows and `ListItem` only offers one on its `profile` type, so
+                    adding one would be inventing an affordance the design does not
+                    have — and `hasChevron` is silently ignored on `default` anyway.
+
+                    THE HOMEPAGE'S TWO-ROW SLICE IS DELIBERATELY NOT WIRED. Flow 1's
+                    rows are a summary, the sheet belongs to the ledger, and giving
+                    the Homepage a second entry point would change a screen this
+                    gate has no mandate over — and would move four more baselines.
+                  */
+                  onClick={() => setDetailId(txn.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
 
       {/*
         THE NO-RESULTS STATE (Gate 80-C). Before this gate a filter that

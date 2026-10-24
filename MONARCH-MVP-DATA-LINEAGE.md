@@ -1001,3 +1001,48 @@ following, it now misleads.**
   calls the app's own `recategorised()`.
 
 Nothing else in this document changed meaning at Gate 89. See `CLAUDE.md`'s Gate 89 section.
+
+## Status note after Gate 90 (2026-10-23) — dates carry their year, and the ledger has month headings
+
+**The text above, including the earlier status notes, is left exactly as written; where it says the
+following, it now misleads.**
+
+- **§3.1 "Formatting" (`:316-322`).** It lists the date formatters across two files by line —
+  `formatTimestamp` `format.ts:121`, `formatDate` `today.ts:119`, `formatDayMonth` `:132`,
+  `formatDayMonthYear` `:150`, `formatDayOfMonth` `:156` — and `monthLabel` sits in `derive.ts:1097`
+  (§3.1, `:274`). **`format.ts` is now the one module that turns a date into a string.** `today.ts` keeps
+  the clock (`TODAY`, `localWallClock`) and the date arithmetic and formats nothing. At `mvp-gate90`'s
+  tree: `showsYear` `format.ts:161`, `formatTimestamp(iso, referenceYear)` `:184`, `formatDay(isoDay,
+  referenceYear)` `:195` (was `formatDayMonth`), `formatPeriod` `:207`, `formatDayMonthYear` `:224` (moved),
+  `formatReceiptDate` `:236`, `formatFullDate` `:245` (was `today.ts`'s `formatDate`), `formatMonthYear`
+  `:253` (was `derive.ts`'s `monthLabel`), `headingYear` `:265`, `formatDayOfMonth` `:270` (moved). Each
+  moved function prints exactly what it printed before for every input it was given before.
+- **A new reader of `TODAY` (§4.1).** Every date that sits under no month heading now reads
+  `TODAY.getFullYear()` — passed in by the CALLER, never read by a formatter — as the year it is printed
+  against (Teku's Decision 14B, 23 Oct 2026): the detail sheet's Date rows and receipt head, the holding
+  drill-down rows, the budget card period and Duration, the budget drill-down rows, the contribution rows,
+  the commitment rows' "next on", the receipt viewer, the link picker's context line and "Suggested" rows,
+  the source picker's library cards and the Homepage strip. A date shows its year only when it differs.
+  Under the harness that year is 2026; on a phone it is the device's year, so from 1 Jan 2027 a 2026 row
+  shows "2026" on a phone where the baselines show none. `ledgerNow` is NOT the reference (it is the newest
+  row, which moves).
+- **§3.1 `groupTransactionsByMonth` (`:274`, "`TransactionPicker` only").** It now also serves
+  **`TransactionsLedger`**, which groups its FILTERED rows by month (ruling 2C); an empty month never
+  renders. Its label comes from `formatMonthYear`. `derive.ts:1114` is the function at this tree.
+- **§5.4 "The Transactions list's month headings" (`:517-525`).** It describes the ledger as one flat list
+  with 2C "queued, not built". **Built at Gate 90**: one `section.mvp-transactions__month` per month, a
+  `SectionHeader` carrying the month and year, then that month's `ul.mvp-transactions__list`. A row under a
+  heading reads its date against the heading's year, so it prints no year. Still derived from `occurredAt`;
+  no stored field was added.
+- **Receipt dates.** The receipt card's date and the detail sheet's linked-receipt head now print the
+  printed DAY with its year and no time (`formatDayMonthYear`, Decision 15A and R90R-2). A receipt whose
+  date was NOT read keeps its capture-moment form (`formatTimestamp` with the time), decided by the existing
+  side table (`receiptDateWasRead`, `captureFacts.ts`), not a new field.
+- **Signatures.** `budgetPeriodLabel(budget, referenceYear)` and `commitmentDueLabel(commitment,
+  referenceYear)` gained a reference year; `formatTimestamp` gained one too.
+- **Test-side data (§7).** A fourth store preset in `e2e/harness.ts`: `YEAR_APART`, which re-dates
+  `receipt-caring01`'s `addedAt` to `2026-08-14T10:05:00.000` (no seed edit), giving the walk state
+  `/finance [tab:receipts] [store:year-apart]`.
+
+Nothing else in this document changed meaning at Gate 90: no stored shape, no seed, no writer and no
+persistence code moved. See `CLAUDE.md`'s Gate 90 section.

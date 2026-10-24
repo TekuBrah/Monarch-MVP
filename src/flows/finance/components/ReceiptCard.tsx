@@ -3,9 +3,10 @@ import { Chips, Divider, Icon, ListItem } from '@monarch/design-system'
 import { receiptImageUrl } from '../../../config/media'
 import { TransactionMark } from '../../../components/TransactionMark'
 import { receiptReadFailed } from '../../../data/derive'
-import { formatSignedMyr, formatTimestamp } from '../../../data/format'
+import { formatReceiptDate, formatSignedMyr, formatTimestamp } from '../../../data/format'
 import type { Receipt, Transaction } from '../../../data/types'
 import { advisoryCaption } from '../advisoryCopy'
+import { receiptDateWasRead } from '../receiptCapture'
 
 /**
  * Figma `Item/receipts` — one captured receipt, in both of its variants.
@@ -73,8 +74,17 @@ export function ReceiptCard({
   receipt,
   transaction,
   onOpen,
+  referenceYear,
 }: {
   receipt: Receipt
+  /**
+   * The year the nested transaction row reads its date against (Decision 14B,
+   * Gate 90): the card's month heading's year, or `TODAY.getFullYear()` where the
+   * card sits under no dated heading. The card's OWN date does not use it — it
+   * always carries its year (Decision 15A) — except a receipt whose date was not
+   * read, which keeps its pre-Gate-90 capture-moment form (R90R-3).
+   */
+  referenceYear: number
   /**
    * The linked transaction, when there is one. The SCREEN resolves this from
    * `receipt.transactionId`; passing it keeps this component free of context.
@@ -113,8 +123,15 @@ export function ReceiptCard({
           <span id={nameId} className="mvp-receipt-card__name type-body-sm-semibold">
             {receipt.displayName}
           </span>
+          {/*
+            THE PRINTED DAY, ALWAYS WITH ITS YEAR, NEVER A TIME — Teku's
+            Decision 15A (23 Oct 2026), following Figma `Item/receipts`
+            (`1266:14286`; `I1266:14283;1043:10245;1043:10041`, "15 Sept 2025"),
+            whichever heading the card sits under. Ruling 5B is retired. It also
+            ends the "00:00" the card printed for paper with no printed time.
+          */}
           <span id={dateId} className="mvp-receipt-card__date type-body-caption">
-            {formatTimestamp(receipt.capturedAt)}
+            {formatReceiptDate(receipt.capturedAt, receiptDateWasRead(receipt.id), referenceYear)}
           </span>
           {/*
             GATE 60 — THE ADVISORY'S ONE-LINE FORM. The card is a `<button>`, so
@@ -171,7 +188,7 @@ export function ReceiptCard({
             title={transaction.merchant}
             titleInfo={transaction.method}
             amount={formatSignedMyr(transaction.amount)}
-            amountInfo={formatTimestamp(transaction.occurredAt)}
+            amountInfo={formatTimestamp(transaction.occurredAt, referenceYear)}
             hasReceiptIcon={false}
           />
         </>

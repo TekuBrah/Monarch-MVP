@@ -205,7 +205,9 @@ test('HoldingDetailScreen — /finance/holding/joint', async ({ page }) => {
 test('TransactionsLedger — /finance [tab:transactions]', async ({ page }) => {
   await gotoRoute(page, '/finance', 'light')
   await activateTab(page, { id: 'transactions', label: 'Transactions' })
-  await expectDerivedGlyphs(page, '.mvp-transactions__list', '/finance [tab:transactions]', {
+  // The SCREEN ROOT since Gate 90: the ledger is one list per month, so the
+  // first `.mvp-transactions__list` is only the newest month.
+  await expectDerivedGlyphs(page, '.mvp-transactions', '/finance [tab:transactions]', {
     discriminating: true,
   })
 })

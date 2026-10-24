@@ -34,9 +34,12 @@ import {
   formatMyr,
   formatMyrOrUnread,
   goalProgressAfter,
+  formatReceiptDate,
   formatSignedMyr,
   formatTimestamp,
 } from '../../../data/format'
+import { TODAY } from '../../../data/today'
+import { receiptDateWasRead } from '../receiptCapture'
 import type {
   Goal,
   Receipt,
@@ -425,7 +428,7 @@ export function TransactionDetailSheet({
             <InfoRow
               icon="calendar_today"
               label="Date"
-              value={formatTimestamp(transaction.occurredAt)}
+              value={formatTimestamp(transaction.occurredAt, TODAY.getFullYear())}
             />
             {/*
               THE CATEGORY ROW IS A CONTROL — Gate 89. The button sits INSIDE the
@@ -696,7 +699,7 @@ function MovementSummary({
       <dl className="mvp-txn-detail__rows">
         <InfoRow label="From" value={parties.from} />
         <InfoRow label="To" value={parties.to} />
-        <InfoRow label="Date" value={formatTimestamp(transaction.occurredAt)} />
+        <InfoRow label="Date" value={formatTimestamp(transaction.occurredAt, TODAY.getFullYear())} />
         {transaction.contributionSource && (
           <InfoRow
             label="Type"
@@ -788,8 +791,18 @@ function ReceiptBlock({
           <span className="mvp-txn-detail__receipt-name type-body-sm-semibold">
             {receipt.displayName}
           </span>
+          {/*
+            THE PRINTED DAY WITH ITS YEAR AND NO TIME — Figma draws this head
+            `15 Sept 2025` (`I1266:14279;1046:11195`), so it follows Teku's
+            drawing (R90R-2, Gate 90), through the same chooser as the receipt
+            card. A receipt whose date was not read keeps its capture moment.
+          */}
           <span className="mvp-txn-detail__receipt-date type-body-caption">
-            {formatTimestamp(receipt.capturedAt)}
+            {formatReceiptDate(
+              receipt.capturedAt,
+              receiptDateWasRead(receipt.id),
+              TODAY.getFullYear(),
+            )}
           </span>
         </div>
         {/*

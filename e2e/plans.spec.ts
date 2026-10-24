@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { activateTab, gotoRoute } from './harness'
+import { PINNED_NOW, activateTab, gotoRoute } from './harness'
 
 import { CRYPTO_HOLDINGS, FIAT_ACCOUNTS } from '../src/data/accounts'
 import { COMMITMENTS } from '../src/data/commitments'
@@ -113,8 +113,9 @@ test.describe('the commitment labels', () => {
     // TWO-DIGIT DAY, DELIBERATELY. Figma writes "next on 1 Oct"; this app has
     // one day formatter and it pads — see `commitmentDueLabel`. The MONTH is
     // Figma’s as of Gate 80, which read all seven due dates off the frame.
-    expect(commitmentDueLabel(mortgage)).toBe('next on 01 Oct')
-    expect(commitmentDueLabel({ ...mortgage, nextDueOn: '2026-08-28' })).toBe(
+    // Read against 2026 (the harness year, and the due dates' own), so no year.
+    expect(commitmentDueLabel(mortgage, 2026)).toBe('next on 01 Oct')
+    expect(commitmentDueLabel({ ...mortgage, nextDueOn: '2026-08-28' }, 2026)).toBe(
       'next on 28 Aug',
     )
   })
@@ -158,7 +159,7 @@ test.describe('the Plans tab', () => {
         const row = rows.nth(i)
         await expect(row).toContainText(c.name)
         await expect(row).toContainText(formatMyr(c.amount))
-        await expect(row).toContainText(commitmentDueLabel(c))
+        await expect(row).toContainText(commitmentDueLabel(c, PINNED_NOW.getFullYear()))
         // `hasReceiptIcon` DEFAULTS TO TRUE — the omitted-prop trap this repo
         // has hit four times. One glyph per row is the leading mark; a second
         // would be `receipt_long`.

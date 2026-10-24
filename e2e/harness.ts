@@ -1468,7 +1468,9 @@ export const OVERLAY_STATES: WalkState[] = [
           // the proof that the view swapped, that the unlinked receipt reached
           // it, and that exactly one did — a second card would change the text.
           settlesOn: '.mvp-source-picker__library',
-          settlesText: 'IMG_4806.jpg04 Sept, 13:45',
+          // Gate 90, Decision 15A: the card's date is the printed day with its
+          // year and no time.
+          settlesText: 'IMG_4806.jpg04 Sept 2025',
         },
       ],
     },
@@ -1823,8 +1825,9 @@ export const OVERLAY_STATES: WalkState[] = [
           action: 'click',
           // THE CONTEXT LINE, which proves the picker opened AND which receipt
           // it is matching against — a heading alone would prove only the first.
+          // Gate 90 (14B): the 2025 receipt shows its year against 2026.
           settlesOn: '.mvp-link-picker__context',
-          settlesText: 'Aeon Big · 04 Sept, 13:45 · RM 429.19',
+          settlesText: 'Aeon Big · 04 Sept 2025, 13:45 · RM 429.19',
         },
       ],
     },
@@ -1906,7 +1909,7 @@ export const OVERLAY_STATES: WalkState[] = [
           controlName: 'Link to transaction',
           action: 'click',
           settlesOn: '.mvp-link-picker__context',
-          settlesText: 'Aeon Big · 04 Sept, 13:45 · RM 429.19',
+          settlesText: 'Aeon Big · 04 Sept 2025, 13:45 · RM 429.19',
         },
         {
           control: '.mvp-link-picker .mn-list-item:has-text("RM 26.29")',
@@ -2674,6 +2677,27 @@ export const WITH_NEW_GOAL: StorePreset = {
 }
 
 /**
+ * A receipt ADDED A YEAR AFTER THE DATE PRINTED ON IT — Gate 90, Decision 15A.
+ * `receipt-caring01` (printed 13 Sept 2025 18:50, linked to `txn-caring-0913`)
+ * re-dated as added on 14 Aug 2026, the day before the pinned clock, so under
+ * the default "Date added" order it sits alone under "August 2026" while every
+ * other card stays under "September 2025". No seeded receipt is added in a
+ * different year from the one printed on it, so without this no capture shows
+ * the case 15A exists for. Only `addedAt` moves — no seed edit.
+ */
+export const YEAR_APART_ID = 'receipt-caring01'
+export const YEAR_APART_ADDED_AT = '2026-08-14T10:05:00.000'
+export const YEAR_APART: StorePreset = {
+  id: 'year-apart',
+  edit: (state) => ({
+    ...state,
+    receipts: state.receipts.map((r) =>
+      r.id === YEAR_APART_ID ? { ...r, addedAt: YEAR_APART_ADDED_AT } : r,
+    ),
+  }),
+}
+
+/**
  * The ledger after one recategorisation — Gate 89: `txn-aeon-0915` (Aeon Big,
  * −RM 250.75, 15 Sept 2025) moved from Groceries to Dining & Leisure, the same
  * pick the `recategorised` overlay state makes through the real controls.
@@ -2715,6 +2739,9 @@ export const STORE_STATES: WalkState[] = [
   { route: '/finance', tab: { id: 'budget', label: 'Budget' }, overlay: null, store: RECATEGORISED },
   { route: '/finance/budget/budget-monthly', tab: null, overlay: null, store: RECATEGORISED },
   { route: '/finance/budget/budget-entertainment', tab: null, overlay: null, store: RECATEGORISED },
+  // Gate 90 — a receipt card under a heading of a different year from its
+  // printed date (Decision 15A).
+  { route: '/finance', tab: { id: 'receipts', label: 'Receipts' }, overlay: null, store: YEAR_APART },
 ]
 
 /**
