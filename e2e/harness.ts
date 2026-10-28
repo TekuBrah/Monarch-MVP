@@ -787,6 +787,41 @@ const BUDGET_DELETE_BODY =
   "This removes 'Monthly Budget' and its settings. Your transactions aren't affected. This can't be undone."
 
 export const OVERLAY_STATES: WalkState[] = [
+  // Gate 92 — the Transfer sheet over Home, opened through the bar's Transfer item (18A, R92-1).
+  {
+    route: '/',
+    tab: null,
+    overlay: {
+      id: 'transfer',
+      control: '.mvp-shell__nav .mn-bottom-nav__item:nth-of-type(2)',
+      controlLabel: 'Transfer',
+      title: 'Transfer',
+    },
+  },
+  // Gate 92 — the picker's search with no match (R92-7). Not a dialog: the
+  // `opens: []` branch, with the screen itself as the surface.
+  {
+    route: '/transfer',
+    tab: null,
+    overlay: {
+      id: 'no-match',
+      control: '.mvp-transfer input[aria-label="Search recipients"]',
+      controlLabel: 'Search recipients',
+      title: 'Search recipients',
+      opens: [],
+      settlesOn: '.mvp-transfer',
+      prepare: [
+        {
+          control: '.mvp-transfer input[aria-label="Search recipients"]',
+          controlName: 'Search recipients',
+          action: 'fill',
+          value: 'zzz',
+          settlesOn: '.mvp-no-results',
+          settlesText: 'No recipients matchTry a name, account number or bank.Clear search',
+        },
+      ],
+    },
+  },
   {
     route: '/finance/holding/fd',
     tab: null,

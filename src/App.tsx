@@ -8,6 +8,7 @@ import { GoalDetailScreen } from './flows/finance/GoalDetailScreen'
 import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
 import { SettingsScreen } from './settings/SettingsScreen'
+import { TransferScreen } from './flows/transfer/TransferScreen'
 
 /**
  * The route table. One place to see every screen in the app (architecture
@@ -28,16 +29,8 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<HomepageScreen />} />
 
-        <Route
-          path="transfer"
-          element={
-            <ComingSoon
-              title="Transfer"
-              description="Send money and crypto to people and accounts."
-              icon="icon_transfer"
-            />
-          }
-        />
+        {/* Flow 4 (Gate 92) — the recipient picker. */}
+        <Route path="transfer" element={<TransferScreen />} />
         {/*
           Flow 7. ONE route for the overview, whose five tabs are in-screen state
           the same way the Homepage's four are — and one route PER HOLDING for

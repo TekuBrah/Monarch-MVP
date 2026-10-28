@@ -1,0 +1,6 @@
+/* Gate 92 — Figma `Content`: the two cards 16px apart. */
+.mvp-transfer-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+}

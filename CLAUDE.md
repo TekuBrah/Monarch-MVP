@@ -19747,3 +19747,166 @@ Time formats, including the `00:00` (`G53`); the "Date & Time" label (`G52`); "T
 (16B, a Flow 4 question); sticky headings; the "This Month" chip's anchor (F-3, ruling 4A); the past commitment
 due dates and the insight's "31 July" (F-4, F-6, seed); the slider bubble ("UI-5", UI round); any DS, token,
 asset, seed, stored-shape or persistence change; moving the harness clock; and the DS repo.
+
+## Flow 4 part 1 — the Transfer sheet and the recipient picker (Gate 92)
+
+The pin moved `v2.9.0` (`4806dd73…`) -> **`v2.11.1`** (`c644746ccebc899f19fb10e5b4ba6d6a5393e17a`, tag object
+`52b45042…`), through `v2.10.0` (`49550d56a8837078f31bc62a512abcaf60aa382f`, tag object `79e9298d…`), which the
+build pinned first. There is no MVP Gate 91; DS Gate 91 shipped v2.10.0, and DS Gate 92 shipped v2.11.0 and its
+documentation patch v2.11.1 (Decision 25 = C; see "The repurposed bar" below). **|WALK| 90 -> 93, `ROUTES` 26,
+`OVERLAY_STATES` 49 -> 51, `STORE_STATES` 8, baselines 360 -> 372 (12 added, 4 changed, 0 deleted), tests
+1219 -> 1260, spec files 45 -> 46.** `lint:tokens` scans **117** files with the same **4** exemptions. Phase A
+(Opus) designed and measured it in census copies (`D:\Claude\_handoffs\gate92-phaseA\`); this resume session
+built and minted it (`gate92-build\`). Phase B runs the mutation proofs and three clean runs. **Teku does every
+git write.** Register `2ao` carries the decisions, R92-1 to R92-23, the forks, the findings, G54–G57 and G59 (closed) and G58 (open), and the DS Gate 92 record. A re-pin session (`gate92-repin\`) moved the pin to v2.11.1 before the commit.
+
+### Decisions, numbered as the files number them
+
+**18A** (Teku's own words): the bar's Transfer item opens the "Transfer" sheet. **19B** and **22A** (Teku,
+taking the review thread's recommendation): a confirmation then a success page, and a send to a business is a
+purchase — both Gate 93's. **The prompts called 22A "20A"; on disk Decision 20 is the From picker.** 20 and 23
+were ruled by the review thread on Teku's behalf (Figma's From dropdown; Main's number `6235474597`), Gate 93's.
+21 (Today / Yesterday) is held for Gate 93. **24A** (Teku's words: he generated the three photos with AI): the
+photos ship. **25C** (Teku, 27 Oct): fix the repurposed bar in the DS, then re-pin (Phase A's earlier use of the
+number for a `fill` proposal was withdrawn under R92-11 before it reached Teku). **The next free Teku decision
+number is 26.**
+
+### The bar's Transfer item is an ACTION, not a destination
+
+`NAV_ITEMS`' transfer entry has `path: null` (`navItems.ts`), so `isSelected` is never true for it, and
+`AppShell`'s `onSelect` opens the sheet instead of navigating. **Nothing navigates and the selected tab stays
+selected underneath** (R92-1). The sheet is `src/shell/TransferSheet.tsx` — DS `Sheet title="Transfer"` with two
+DS `CardAction`s, Receive (`icon_receive`) and Send (`send`), copy from Figma `1266:14390`. It lives in the shell
+because the shell opens it, and it owns its stylesheet.
+
+- **Close:** ✕, Escape or the scrim. The DS `Sheet` restores focus to what was focused at open, which in
+  Chromium is the Transfer item (asserted). **WebKit does not focus a tapped button, so on iOS focus lands on
+  the page** — register `G58`.
+- **It cannot say "opens a dialog".** DS `BottomNavItem` takes no `aria-haspopup` / `aria-expanded`. Shipped
+  without (R92-13); `G58`, DS round. **Do not patch the attribute onto the DS's DOM.**
+- **Send** closes the sheet and navigates to `/transfer`; **Back from there lands on the screen beneath on its
+  DEFAULT tab** — the sheet is shell-level and cannot see a screen's in-screen tab (X5, a finding).
+- **Receive** closes the sheet and raises "Coming soon." on the screen beneath.
+- The title is centred by `OverlayHeader` where Figma draws it left (R92-2). The panel renders 333 tall where
+  Figma draws 313 (cards 94, not 92) — DS-owned, a finding, no override (R92-15).
+
+### The recipient picker — `/transfer`, Figma `1266:14391`
+
+`src/flows/transfer/TransferScreen.tsx` + `transfer.css`: `StatusBar`; `HeaderDefault title="Send"
+hasSubtitle={false}` (**`hasSubtitle={false}` is load-bearing** — the DS defaults it to `true`, the omitted-prop
+trap); DS `Tabs` Bank / Crypto filling the column through Home's existing two rules (SYS-11 / A3, X10); a
+`Field` search; a `SectionHeader` "Recent recipients"; five `ListItem type="profile" hasChevron={false}` rows
+(**`hasChevron={false}` is load-bearing too**) with a `TransactionMark size="l"`; a secondary "New recipient".
+
+- **Back** is the Settings mechanism: opened directly (`location.key === 'default'`) it replaces itself with
+  `/`; otherwise `navigate(-1)`.
+- **A balance card's Send skips the sheet** (R92-3): `HomepageScreen.openTransfer` replaces Home's own history
+  entry with its tab, then pushes `/transfer` with the matching tab (`transferTabs.ts`) — so the crypto card
+  opens the Crypto tab and Back lands on Home's Crypto tab (X4).
+- **Search** narrows by name, account number or bank code (`filterRecipients`, R92-7); the heading stays.
+  **No match** shows `NoResults` (glyph `search`, "No recipients match" / "Try a name, account number or bank."
+  / "Clear search") through `listPresence`. The list is a constant of five, so it can never be empty.
+- **Crypto tab:** `ComingSoon` ("Crypto", `icon_crypto_transfers`) until Flow 5.
+- **"Coming soon."** (R92-4) for a recipient tap (until Gate 93), New recipient (until Flow 6), Scan QR,
+  Receive, Add money and Add crypto: one new shell notice kind, `'coming-soon'` (`notices.ts`), information,
+  `role="status"`, **dismissed when the route changes** so it never follows the user.
+- **The rows render 44 tall (Figma 48), the heading 16 (20), the field 46 (44), the button 50 (48)** — the DS's
+  own heights and the `body/sm` 16px line height below 768 (Gate 78's finding). Findings, no override (R92-15).
+
+### The repurposed bar — the hug pill, as drawn (R92-11)
+
+`chrome.ts` gives `/transfer` `{ nav: 'repurposed', fab: false, statusBar: 'page' }` — the type has existed since
+Flow 1 (`a0cfb9c`) and nothing rendered it. `AppShell` now renders it from `REPURPOSED_NAV['/transfer']`: **Recipients**
+(`people`, selected, `aria-current="page"`) and **Scan QR** (`qr_code_scanner`). The scrim and `NoticeHost`'s
+lift now key on `nav !== 'suppressed'`, not `=== 'present'`, so the repurposed bar gets the same fade runway.
+
+**It is `barWidth="hug"`, passed explicitly, following Figma** — not `fill` like the main bar. On DS **v2.11.1** bar labels
+never wrap (`white-space: nowrap`, DS R92D-5) and "Recipients" is marked `width: 'hug'` in `REPURPOSED_NAV`
+(R92-21, Decision 25 = C), so it sizes to its label plus the item's 8px padding while "Scan QR" keeps the fixed
+64. Measured at DPR 2 through a Playwright probe (deleted afterwards), light = dark: the pill is 191.672 wide at 375 (x=91.656) and 191.672 at 430 (x=119.156), "Recipients" 79.672, "Scan QR" 64, height 64, centred,
+**both labels on one line**. Figma draws 190 / 80 / 62; the +1.67 is the DS's approved 62 -> 64 rounding. **G59
+is closed.** The main bar is `fill` and passes no `width`, so v2.11.1 changed none of its boxes (the four
+`index-transfer-*` and every other committed baseline are byte-identical). `transfer.spec.ts` **B12** pins it:
+both labels one line, "Recipients" at least 10 wider than "Scan QR" and within 1 of 79.672.
+
+How it got here: the build pinned v2.10.0, where the DS item was a fixed 64 with a 48px content box, so the pill
+measured 176 and "Scan QR" wrapped onto two lines. That was register G59. Phase A had proposed `fill` under the
+number 25; the review thread withdrew it (overriding a drawn design is Teku's call). Teku then answered Decision
+25 = C: the DS fixed the bar (v2.11.0, patched as v2.11.1) and this gate re-pinned before its commit.
+
+### Data — `RECIPIENTS`, a constant, outside the seed fingerprint
+
+`Recipient` / `RecipientKind` in `types.ts`; `RECIPIENTS` (5, Figma's order, fictional account numbers as drawn)
+in `src/data/recipients.ts`; `recipientAccountLine` and `filterRecipients` in `derive.ts`. **Not stored, not a
+seed:** `seedFingerprint()` hashes accounts, budgets, goals, receipts and transactions only, so this gate resets
+no tester's data. `Recipient.kind` is there for Gate 93 (22A). Aeon Big and Caring Pharmacy use the DS logos;
+the three people are photographs. **Rachum Greene's seeded ledger rows keep their initials** (F12) — the
+constant and the ledger are not joined until Gate 93.
+
+**The photos** (Teku's 24A: AI-generated by him), in `public/media/transactions/` beside Gate 53's two:
+
+
+| file | source | export | bytes |
+|---|---|---|---|
+| `rachum-greene.jpg` | 588×538, 6-row strip | 532×532 | 52,010 |
+| `perry-matthew.jpg` | 655×586, 2-row strip | 584×584 | 44,521 |
+| `fiona-hammock.jpg` | 464×446, no strip | 446×446 (Phase A's file) | 35,441 |
+
+ The capture strip two sources carry along the top is trimmed out (R92-12), not merely tolerated.
+
+`NoResults` gained a REQUIRED `icon` prop (no default — the omitted-prop trap); the ledger and Receipts pass
+`filter_list`, so their render is unchanged.
+
+### Harness, tests and baselines
+
+Three walk states: `/transfer [tab:crypto]` (derived by `parseTabbedScreen` from `TransferScreen.tsx`'s
+`TABS` and its lazy-initialiser default), `/ [overlay:transfer]` (the sheet over Home, opened through the bar's
+second item), and `/transfer [overlay:no-match]` — **the first adopter of Gate 50-A's `opens: []` branch**: the
+screen is the surface, a `prepare` fill of `zzz` settles on `NoResults`. The sheet is photographed over `/`
+only; the spec asserts it over `/finance` and `/more` (X11).
+
+`e2e/transfer.spec.ts`, 16 tests, no baseline: N1–N3 in Node (the five recipients, search, the action item and
+the repurposed chrome); B1 ×3 (the sheet over `/`, `/finance`, `/more`, no route change); B2 (✕ / Escape /
+scrim return focus to the item); B3 (Send -> picker, Recipients current, no FAB, Bank); B4 (Receive); B5 / B6
+(the cards' Send, Back to the right Home tab); B7 (Add money and Add crypto); B8 (five rows, 2 logos, 3 decoded
+photos, no chevrons); B9 (search, no match, Clear search); B10 (three "Coming soon."); B11 (the notice does not
+follow the user). 1219 + 12 visual + 6 routes + 6 section-headers + 16 = **1259 in 46 files**. The re-pin added
+**B12** (both bar labels on one line, "Recipients" hugging; R92-22), so the file holds **17** and the suite
+**1260 in 46 files**.
+
+**Measured, in order** (logs in `gate92-build\logs\`):
+
+| run | result |
+|---|---|
+| Batch 1 alone (the re-pin), full `test:e2e` | **1219 passed / 0 failed**, 47.3 min, npm exit 0, 0 `writing actual`, digest `bc1a1c07…5c37114` — **DS v2.10.0 moves no baseline** |
+| `build:package` after the re-pin alone | exit 0; entry 5,955,534 bytes, CSS 197,823 (Gate 90: 5,954,033 / 196,158) |
+| non-visual sweep (every spec but `visual.spec.ts`) | **887 passed / 0 failed**, 29.1 min — no existing spec needed a rewrite; sweep `26 + 8 + 51 + 8 = 93` |
+| pre-mint full run | **16 failed / 1243 passed**, 50.3 min: exactly `PREDICTION.md`'s 16, name for name — 12 "snapshot doesn't exist", 4 pixel diffs (`transfer-*`); 0 `writing actual`, digest unchanged. **Arm 1 was green**, because no new PNG existed yet |
+| mint, `--update-snapshots=all` over an exact, escaped, end-anchored `-g` of the 16 (dry run: 16) | 16 passed; 20 write lines over the 16 predicted files |
+| reconcile against an outside manifest | **360 -> 372, 12 added, 4 changed, 0 deleted, 356 byte-identical** |
+| digest **at the build (v2.10.0)** (filesystem form; 12 files untracked until staged) | **`be8cbad0f82d58ed3ea7e375ef788cfe20014758f5451ec7f68e4c9cdbbaedd7`**, by the standing command and by Node crypto — superseded by the shipped-tree row below |
+| post-mint full run | **1258 passed / 1 failed**, 47.5 min, npm exit 1 — the one is `baselines.spec.ts` arm 1 naming exactly the 12 untracked PNGs, as predicted; 0 `writing actual`; digest stable |
+| `build:package` **at the build (v2.10.0)** | exit 0; entry **5,959,959** bytes (+4,425 for the app), CSS **198,502** (+679); the OCR lazy chunks unchanged in size; 0 `modulepreload` |
+| **the shipped tree, after the DS v2.11.1 re-pin** | `build:package` exit 0, entry **5,960,027** bytes, CSS **198,558** (the re-pin: +68 / +56); PNG digest **`204e2a7c5a800eae53095cbfee7f25f082fbcf2fcda596be9fd4f71224b016c3`** (372 files; filesystem and git-blob forms equal) — the 12 `/transfer` captures were re-minted by the re-pin |
+
+**B2's focus check was strengthened before the commit (R92-24).** Phase B's mutation M8 (a close handler that blurs the active
+element 50 ms after closing) survived: `toBeFocused` returns the moment the Transfer item holds focus, so a later loss was
+invisible. B2 now installs a `focusout` listener on the item once the sheet holds focus, and after each close variant
+asserts the item is focused, waits a 400 ms observation window, then asserts the listener recorded 0 losses and the item
+is still focused. With M8 (50 ms) or M8b (250 ms) applied it fails at that count assertion; restored, it passes.
+
+**All 16 minted PNGs were opened**, both themes and both widths. The picker matches `1266:14391` row for row, the
+three photographs read with no line along the top; the sheet over Home matches `1266:14390` with the title
+centred; the Crypto tab shows `ComingSoon`; the no-match state shows `NoResults` under the focused field. The
+one divergence was the bar's wrapped "Scan QR" (above) — gone after the re-pin, whose 12 re-minted `/transfer`
+captures show both labels on one line and "Recipients" visibly wider. In `index-transfer-*` the page below the fold is
+undimmed — the Gate α full-page artifact, not a defect.
+
+**Arm 1 of the baseline guard fails until Teku stages the 12 new PNGs** — predicted, not a defect.
+
+### Deliberately not in scope
+
+The amount screen, the From / To pickers, `FormField`, `sendMoney`, the confirmation and success pages, Main's
+account number and Today / Yesterday (Gate 93); merchant-wide recategorisation (Gate 94); the Crypto send (Flow
+5); adding a recipient (Flow 6); Receive and Scan QR; G58 (DS round; G59 closed by the re-pin); any seed, stored-shape,
+persistence, token or DS change; the harness clock; every earlier flow's retrofit; and the DS repo.

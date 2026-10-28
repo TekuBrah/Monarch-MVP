@@ -24,6 +24,7 @@ import type {
   FiatAccount,
   Goal,
   Receipt,
+  Recipient,
   Transaction,
   TransactionCategory,
   TransactionCategoryId,
@@ -2423,5 +2424,19 @@ export type ListPresence = 'empty' | 'no-results' | 'list'
 export function listPresence(total: number, visible: number): ListPresence {
   if (total === 0) return 'empty'
   return visible === 0 ? 'no-results' : 'list'
+}
+
+/** Flow 4 (Gate 92): a recipient's second line, as Figma prints it. */
+export function recipientAccountLine(r: Recipient): string {
+  return `${r.accountNo} • ${r.bankCode}`
+}
+
+/** Flow 4 (Gate 92), R92-7: name, account number or bank code, case-insensitive. */
+export function filterRecipients(recipients: readonly Recipient[], search: string): Recipient[] {
+  const needle = search.trim().toLowerCase()
+  if (needle === '') return [...recipients]
+  return recipients.filter((r) =>
+    `${r.name} ${r.accountNo} ${r.bankCode}`.toLowerCase().includes(needle),
+  )
 }
 

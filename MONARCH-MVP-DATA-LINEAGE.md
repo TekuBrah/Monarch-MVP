@@ -1046,3 +1046,39 @@ following, it now misleads.**
 
 Nothing else in this document changed meaning at Gate 90: no stored shape, no seed, no writer and no
 persistence code moved. See `CLAUDE.md`'s Gate 90 section.
+
+## Status note after Gate 92 (2026-10-27) — the Transfer sheet and the recipient picker
+
+**The text above, including the earlier status notes, is left exactly as written; where it says the
+following, it now misleads.**
+
+- **§5.1 Routes, the row "`/transfer`, `/more`, `/steward` | `ComingSoon` | nothing".** `/transfer` is no
+  longer a `ComingSoon` stub. It renders **`TransferScreen`** (`src/flows/transfer/TransferScreen.tsx`), the
+  recipient picker (Figma `1266:14391`): two in-screen tabs, Bank (default) and Crypto, the Crypto tab still a
+  `ComingSoon` panel. It **reads** `RECIPIENTS` only, narrowed by `filterRecipients` and counted by
+  `listPresence`; it **writes** nothing (a row tap, "New recipient" and the bar's Scan QR raise a "Coming soon."
+  notice). Its chrome is `{ nav: 'repurposed', fab: false, statusBar: 'page' }` (`chrome.ts`): the shell draws
+  the bar repurposed to Recipients / Scan QR (`REPURPOSED_NAV`, `navItems.ts`). `/more` and `/steward` are
+  unchanged.
+- **§5.2 Overlays.** A new shell-level overlay: the **Transfer sheet** (`src/shell/TransferSheet.tsx`), opened
+  by the bottom bar's Transfer item over `/`, `/finance` or `/more` with no route change. It reads and writes
+  nothing; Send navigates to `/transfer`, Receive raises "Coming soon.". The bar's Transfer item is now an
+  ACTION with `path: null` (`navItems.ts`), never a selected destination.
+- **§1.1 The seed modules.** A new constant, **not a seed and not stored**: `RECIPIENTS` in
+  `src/data/recipients.ts` — 5 `Recipient` rows (id, name, `kind` person / business, fictional `accountNo`,
+  `bankCode`, `mark` as a `TransactionLogo`), Figma's order, imported by `TransferScreen.tsx` (and
+  `e2e/transfer.spec.ts`). It is **outside the seed fingerprint** (`seedFingerprint()` hashes the five seeds
+  only), so adding it reset no tester's data. Three of its marks are `{ kind: 'image' }` photographs in
+  `public/media/transactions/` (`rachum-greene.jpg`, `perry-matthew.jpg`, `fiona-hammock.jpg`), resolved by the
+  existing `transactionLogoUrl()`. Rachum Greene's three seeded ledger rows keep their initials mark; the
+  constant and the ledger are not joined.
+- **§8.1 What would have to be persisted.** `RECIPIENTS` joins the "no writer today" row: a constant, and
+  persisting it would freeze an edit behind stored data. Gate 93's send will write ledger rows that NAME a
+  recipient; that is the first time this list meets stored data.
+- **§3.1 Derivations.** Two new pure functions in `derive.ts`: `recipientAccountLine(r)` ("4597623547 • CIMB")
+  and `filterRecipients(list, search)` (name, account number or bank code, case-insensitive, trimmed).
+- **Notices.** A new shell notice kind, `'coming-soon'` (`notices.ts`), not a persistence event: it is raised
+  by controls, never by the store, and the shell dismisses it when the route changes.
+
+Nothing else in this document changed meaning at Gate 92: no stored shape, no seed, no writer and no
+persistence code moved. See `CLAUDE.md`'s Gate 92 section.

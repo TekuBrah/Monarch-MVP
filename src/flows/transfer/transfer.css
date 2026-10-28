@@ -1,0 +1,47 @@
+/* Gate 92 — the recipient picker, Figma `1266:14391`. */
+.mvp-transfer {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* Figma `Frame 279`: 52 tall, the 32px Tabs at y=10. */
+.mvp-transfer__tabs {
+  padding-top: var(--brand-scale-250);
+  padding-bottom: var(--brand-scale-250);
+}
+
+/* The two tabs fill the row, 171.5 each at 375 - Home's own rule (homepage.css, SYS-11 / A3). */
+.mvp-transfer__tabs .mn-tabs {
+  width: 100%;
+}
+
+.mvp-transfer__tabs .mn-tabs > * {
+  flex: 1 1 0;
+}
+
+/* Figma `Frame 455`: search at +16; the recents block 24 below it. */
+.mvp-transfer__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+  padding-top: var(--brand-scale-400);
+}
+
+/* Figma `Frame 453`: heading, then the list 10 below. */
+.mvp-transfer__recents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-250);
+}
+
+/* Figma `Frame 515`: rows 48 tall at a 72 pitch. */
+.mvp-transfer__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

@@ -510,6 +510,7 @@ export function TransactionsLedger() {
       */}
       {listPresence(transactions.length, rows.length) === 'no-results' && (
         <NoResults
+          icon="filter_list"
           title="No transactions match"
           description="Try a wider date range or amount, or dismiss a filter above."
           actionLabel="Show all transactions"

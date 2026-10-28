@@ -1,9 +1,12 @@
 import { BottomNavigation, Icon, IconObject } from '@monarch/design-system'
+import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '../theme/ThemeProvider'
 import { chromeFor } from './chrome'
-import { NAV_ITEMS } from './navItems'
+import { NAV_ITEMS, REPURPOSED_NAV } from './navItems'
 import { NoticeHost } from './NoticeHost'
+import { currentNotice, dismissNotice, raiseNotice } from './notices'
+import { TransferSheet } from './TransferSheet'
 import { useStatusBarColor } from './useStatusBarColor'
 import './AppShell.css'
 
@@ -23,8 +26,16 @@ export function AppShell() {
 
   const items = NAV_ITEMS.map(({ path, ...item }) => ({
     ...item,
-    isSelected: path === pathname,
+    isSelected: path !== null && path === pathname,
   }))
+
+  const [isTransferOpen, setTransferOpen] = useState(false)
+  const closeTransfer = useCallback(() => setTransferOpen(false), [])
+
+  // A shell "Coming soon." belongs to the screen it was raised over.
+  useEffect(() => {
+    if (currentNotice() === 'coming-soon') dismissNotice()
+  }, [pathname])
 
   return (
     <div className="mvp-shell">
@@ -60,7 +71,7 @@ export function AppShell() {
         the nav's fade runway, so it appears exactly where the nav does and
         never on a screen whose chrome is suppressed.
       */}
-      {chrome.nav === 'present' && <div className="mvp-shell__scrim" aria-hidden="true" />}
+      {chrome.nav !== 'suppressed' && <div className="mvp-shell__scrim" aria-hidden="true" />}
 
       {chrome.nav === 'present' && (
         <div className="mvp-shell__nav mvp-column">
@@ -68,12 +79,48 @@ export function AppShell() {
             items={items}
             barWidth="fill"
             onSelect={(id) => {
+              if (id === 'transfer') {
+                setTransferOpen(true)
+                return
+              }
               const target = NAV_ITEMS.find((n) => n.id === id)
-              if (target) navigate(target.path)
+              if (target?.path) navigate(target.path)
             }}
           />
         </div>
       )}
+
+      {/*
+        Gate 92, R92-11: the bar repurposed on the recipient picker follows
+        Figma `1266:14391` — the HUG pill, passed explicitly though it is the DS
+        default. With "Recipients" marked `width: 'hug'` in `REPURPOSED_NAV`
+        (R92-21, Decision 25 C, DS v2.11.1) it renders 191.672 wide (Figma draws
+        190) with both labels on one line (register G59, closed).
+      */}
+      {chrome.nav === 'repurposed' && (
+        <div className="mvp-shell__nav mvp-column">
+          <BottomNavigation
+            items={REPURPOSED_NAV[pathname] ?? []}
+            barWidth="hug"
+            onSelect={(id) => {
+              if (id === 'scan-qr') raiseNotice('coming-soon')
+            }}
+          />
+        </div>
+      )}
+
+      <TransferSheet
+        isOpen={isTransferOpen}
+        onClose={closeTransfer}
+        onReceive={() => {
+          setTransferOpen(false)
+          raiseNotice('coming-soon')
+        }}
+        onSend={() => {
+          setTransferOpen(false)
+          navigate('/transfer')
+        }}
+      />
 
       {/*
         Gate 87: the app-level notices (storage failures, resets). It takes the
@@ -81,7 +128,7 @@ export function AppShell() {
         design, removed here; dark mode is now a setting on `/settings`, reached
         from the header avatar.
       */}
-      <NoticeHost aboveChrome={chrome.nav === 'present'} />
+      <NoticeHost aboveChrome={chrome.nav !== 'suppressed'} />
     </div>
   )
 }

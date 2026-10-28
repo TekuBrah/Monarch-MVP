@@ -15,9 +15,19 @@ import type { BottomNavItem } from '@monarch/design-system'
  * `icon` values must be real DS IconName keys, which is enforced by
  * BottomNavItem's type — a typo fails the build rather than rendering nothing.
  */
-export const NAV_ITEMS: (Omit<BottomNavItem, 'isSelected'> & { path: string })[] = [
+export const NAV_ITEMS: (Omit<BottomNavItem, 'isSelected'> & { path: string | null })[] = [
   { id: 'home', icon: 'icon_home', label: 'Home', path: '/' },
-  { id: 'transfer', icon: 'icon_transfer', label: 'Transfer', path: '/transfer' },
+  // Gate 92, R92-1: an ACTION, not a destination. It opens the Transfer sheet.
+  { id: 'transfer', icon: 'icon_transfer', label: 'Transfer', path: null },
   { id: 'finance', icon: 'icon_finance', label: 'Finance', path: '/finance' },
   { id: 'more', icon: 'icon_more', label: 'More', path: '/more' },
 ]
+
+/** Gate 92, R92-8: the bar repurposed on the recipient picker (Figma `1266:14391`). */
+export const REPURPOSED_NAV: Record<string, BottomNavItem[]> = {
+  '/transfer': [
+    // R92-21 / Decision 25 C: hug, as Figma draws an 80 px item; Scan QR stays fixed.
+    { id: 'recipients', icon: 'people', label: 'Recipients', isSelected: true, width: 'hug' },
+    { id: 'scan-qr', icon: 'qr_code_scanner', label: 'Scan QR' },
+  ],
+}

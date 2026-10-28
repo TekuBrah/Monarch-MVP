@@ -61,3 +61,30 @@ files are square and could therefore never demonstrate it themselves.
 **THAT IS WHY THE SQUARE ASPECT IS NOT A REQUIREMENT OF THIS DIRECTORY.** A
 future non-square merchant photograph renders correctly; it just loses its
 edges. Centre the subject.
+
+## Recipient photographs, Gate 92
+
+The recipient picker's three people (`src/data/recipients.ts`, Figma `1266:14391`) draw through the same
+`{ kind: 'image', filename }` mark as the two merchant photographs above, so they live here too.
+
+| file | source (Figma image fill) | export | bytes | sha256 |
+|---|---|---|---|---|
+| `rachum-greene.jpg` | 588×538 PNG; dark strip 6 rows (mean luminance 33) | **532×532**, crop x=28 y=6 | 52,010 | `b3dad239e17b49ae0772c110a15d411ed440fa32c3dc2935b74013867788674c` |
+| `perry-matthew.jpg` | 655×586 PNG; dark strip 2 rows (33) | **584×584**, crop x=35 y=2 (centring is 35.5; 35 left, 36 right) | 44,521 | `1af0d9f7b1ea776aadd7eca998098d61fd62f3a64fd47de31f7743c81282847f` |
+| `fiona-hammock.jpg` | 464×446 PNG; no strip | **446×446**, crop x=9 y=0 — byte-identical to Phase A's export | 35,441 | `397f520d0377f4e510f943783772d03d408a0a07707d79a1f7f9cb21aaf8db17` |
+
+**PROVENANCE — Teku's Decision 24A (26 Oct 2026), in his own words: he generated the three photos with AI.**
+They ship on that basis. They are not stock and not photographs of real people; if that ever changes, this row
+is what must change with it.
+
+**HOW THEY WERE EXPORTED (R92-12).** Figma fills each 40px avatar from a rectangular PNG with a centre-square
+crop at the source's short side. Two sources carry a dark capture strip along the top (mean luminance 33):
+Rachum 6 rows, Perry 2, Fiona none. Each file is the largest centred square that EXCLUDES the strip — side =
+source height minus the strip, centred horizontally, starting below the strip — encoded through headless
+Chromium as JPEG q0.9 (`gate92-build\photos\export.cjs`, outside the repo). Perry's centring is 35.5px, so his
+square starts at x=35 (35 px left, 36 right). Fiona's file is byte-identical to Phase A's export. All three were
+read at 40 and 80 px with no line along the top.
+
+**NOT DOWNSCALED, for the reason given above for the merchant photographs:** `Avatar l` paints 80 device px,
+so these are 5.6–7.3× oversupplied, and a common size would upscale Fiona (446). No EXIF orientation tag on any
+of the three (Chromium canvas encodes none).

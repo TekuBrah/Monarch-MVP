@@ -47,6 +47,7 @@ export type NoticeKind =
   | 'seed-updated'
   | 'remote-reset'
   | 'reset-done'
+  | 'coming-soon'
 
 export interface NoticeSpec {
   title: string
@@ -95,6 +96,12 @@ export const NOTICES: Record<NoticeKind, NoticeSpec> = {
   'reset-done': {
     title: 'Demo data restored.',
     appearance: 'success',
+    role: 'status',
+  },
+  // Gate 92 — a shell-level control that is not built yet (scope rule, R92-4).
+  'coming-soon': {
+    title: 'Coming soon.',
+    appearance: 'information',
     role: 'status',
   },
 }

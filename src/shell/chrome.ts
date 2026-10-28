@@ -74,7 +74,8 @@ const CHROME_BY_ROUTE: Record<string, ChromeConfig> = {
   // The other three page roots. Their flows are not built yet; the chrome they
   // declare is the page-level chrome §5 assigns to a root screen, and it does
   // not change when the real screens land behind them.
-  '/transfer': { nav: 'present', fab: true, statusBar: 'page' },
+  // Gate 92, R92-8: the recipient picker. The bar is repurposed; no FAB.
+  '/transfer': { nav: 'repurposed', fab: false, statusBar: 'page' },
   '/finance': { nav: 'present', fab: true, statusBar: 'artwork' },
   '/more': { nav: 'present', fab: true, statusBar: 'page' },
 

@@ -4496,3 +4496,294 @@ not established, so it is not classified further here. **A UI-integration-round 
   when it is not the current year").
 
 ### Nothing was removed from this register at this gate.
+
+## 2ao. Status at MVP Gate 92 (2026-10-27, re-pinned 2026-10-28) — the Transfer sheet and the recipient picker; DS v2.11.1; G54–G57 and G59 entered closed; G58 opened
+
+**THE TALLY MOVES BY SIX: G54–G57 AND G59 ARE ENTERED CLOSED AND G58 IS OPENED.** **58 entries, 34 closed, 24
+open; the highest number is G59.** Derived from §2an's 52 / 29 / 23: the DS Gate 91 record below closes G54, G55,
+G56 and G57 in the DS, and this register had never listed them (they existed only in the DS records), so they
+enter here for the first time, already closed (+4 entries, +4 closed); G58 opens (+1 entry, +1 open); G59 was
+raised by this gate's build and closed by DS v2.11.0 before the gate was committed, so it enters closed (+1
+entry, +1 closed). 52 + 6 = 58; 29 + 5 = 34; 23 + 1 = 24. Still
+open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop half, G19–G23, G28–G33, G44, G48,
+G49, G50, G51, G52, G53, `MODEL-1` and `UI-3`. **No MVP-local override was added for any of them**, and the
+`G33` workaround class is untouched and still carries its removal condition. **Next free: section `2ap`, gap
+`G60`; next free Teku decision 26.**
+
+**The gate ships on DS `v2.11.1`** (`c644746ccebc899f19fb10e5b4ba6d6a5393e17a`, tag object
+`52b4504231fcd7577b5d592a51359e0c82d767a0`), re-pinned by name on 28 Oct 2026 before the commit (Decision 25 =
+C). The build first pinned v2.10.0, as the paragraph below records; v2.11.0 (`926b9936…`) fixed the bar and
+v2.11.1 is its documentation-only patch. The re-pin moved exactly the 12 `/transfer` captures and no other
+baseline; the "Recipients" item is marked `width: 'hug'` (`src/shell/navItems.ts`, R92-21). Tests 1259 -> 1260
+(B12, R92-22). The DS record is below.
+
+The pin moved `v2.9.0` -> **`v2.10.0`** (`49550d56a8837078f31bc62a512abcaf60aa382f`, tag object
+`79e9298d589b32e9d5bf2596b4b74d56d87346f5`); the re-pin alone moved no baseline (checkpoint run: 1219 passed / 0 failed, 47.3 min, npm exit 0, 0 `writing actual`, 360 PNGs at digest `bc1a1c07…5c37114`). Baselines 360 ->
+372 (12 added, 4 changed, 0 deleted); tests 1219 -> 1259 in 46 files (1260 after the re-pin's B12); \|WALK\| 90 -> 93 (`26 + 8 + 51 + 8`).
+
+**What shipped.** The bottom bar's Transfer item opens a "Transfer" bottom sheet (Receive, Send) over the screen
+the user is on, with no route change. Send opens the recipient picker at `/transfer` (Figma `1266:14391`): a
+"Send" header with Back, Bank / Crypto tabs, a search field, "Recent recipients" (five rows, constant data),
+"New recipient", and the bottom bar repurposed to Recipients / Scan QR (the drawn hug pill, both labels on one
+line, "Recipients" hugging its label). Receive, Add money, Add crypto, a
+recipient row, New recipient and Scan QR each say "Coming soon.". The Crypto tab shows `ComingSoon`. A balance
+card's Send opens the picker directly. No stored shape, seed, writer or persistence code changed; the recipients
+are a constant outside the seed fingerprint, so this gate resets no tester's data.
+
+### Gate 90 Phase B — verification record (24 Oct 2026), verbatim from its report §5
+
+> **Gate 90 Phase B (24 Oct 2026).** Premises re-derived against the staged snapshot: HEAD `50570e93f594bf779a4d390d19f8f165987ac387`, 189 staged, 5 added, 156 PNGs, 0 unstaged, 0 untracked; baselines 360, digest `bc1a1c07bc7c23c80291fa7afcda3a943700a54ffaee5ccffb23a40853c37114` in both forms; 1219 tests in 45 files; DS v2.9.0. Mutation proofs: NC refused (inert `|| false` on `showsYear`, N1 passes) as required; M1–M14 each PROVED, failing at the stated matcher lines 201 / 242 / 201 / 303 / 144 / 146 / 241 / 160 / 225 / 381 / 338 / 134 / 302 / 387, every file restored SHA-identical. PNG review: 152 changed (96 same-height, 56 tall, +396 px) decoded against `HEAD`, 4 added opened; every band is a date line, an inserted month heading, fixed chrome or a re-raster; no content change. Three sequential clean runs of the staged tree: 1219 passed / 0 failed / 0 flaky each, npm exit 0, 49.0 / 50.7 / 51.0 min, 0 `writing actual`, 360 PNGs byte-stable, sweep `26 + 7 + 49 + 8 = 90`. The `section-headers` mount-timing flake did not occur. No finding against the build; one process finding by Phase B (the first launch of the runs was reported as in progress without evidence that it had started).
+
+### DS Gate 91 (v2.10.0) — record, verbatim from the DS Phase B report §6, with the Phase B2 §5 addendum applied
+
+**One word in the Phase B record is changed, as the addendum requires: its "974 tests in 72 files" reads "975
+tests in 72 files" below.** The addendum follows it verbatim. Sources: `gate91-ds-phaseB\PHASE-B-REPORT.md` §6
+and `gate91-ds-phaseB2\PHASE-B2-REPORT.md` §5 (hand-over directories, outside both repos).
+
+> **Gate 91 (DS v2.10.0) — shipped.** DS v2.10.0 adds `FormField`, `FieldMessage`, `TransferAmount`, `SelectWalletAccount.leadingSlot`, and the glyphs `people` and `qr_code_scanner`. It is a minor release and every change is additive. Verified in the DS at Phase B: 975 tests in 72 files, three identical clean runs, 195 mutation proofs.
+>
+> **Closed in the DS.** G54: `SelectWalletAccount.leadingSlot`, a 40px decorative slot before the name stack. G55: `TransferAmount`, all four Figma variants, rows derived from the item count. G56: `people` and `qr_code_scanner`, Material Round package imports (icon registry 109 to 111). G57: `FieldMessage` plus `FormField`, field messages as part of the form row.
+>
+> **Rulings applied.** R91D-1 (one minor release). R91D-2 (all four `TransferAmount` variants). R91D-4 (Material Round package glyphs only). R91D-5 (nothing beyond the closed list). R91D-6 (token colours only from Teku's Figma bindings). R91D-7 (messages belong to the form row; one wrapper holding a label, one control and an error and/or helper line). R91D-8 (no existing default render changes: 82 render paths of `Field`, `SelectTransfer` and `SelectWalletAccount` are pinned to their v2.9.0 markup). There is no R91D-3.
+>
+> **The review thread accepted the build's departures.** (1) The label names the control through `aria-labelledby`, not `<label for>`, because `Label` renders a `<div>`; the wallet button is named by the wrapper label followed by its own existing name. (2) There is no consumer `aria-describedby` prop to merge, because none of the three controls accepts one. (3) The dark error contrast measured 5.77:1 on black and 4.16:1 on `#262626`; the carried 3.81:1 figure is retired.
+>
+> **Findings for the DS round, recorded and not fixed.** (a) Clicking a `FormField` label does not focus a text input; this needs a native-label mode on `Label`. (b) A compact `Field` inside a `FormField` has no accessible name, because the compact branch has no input to wire. (c) `Avatar` is a `<div>`, so a leading avatar puts a `<div>` inside the wallet trigger `<button>`. (d) The DS Figma `Input` draws two labels by default (its default control is a labelled `Field`), while the case study hides the inner one. (e) The `TransferAmount` separator carries two foreign Figma bindings (fill `Neutral02`, text style `Mcfont/Caption/2`). (f) The 4px row gap in `TransferAmount` is unbound in Figma. (g) `Frame 445`, a hidden `TransferAmount` inside `Input` Type=Transfer, is not built. Phase B added: (h) the axe test for a `Field` with no messages cannot detect a lost wrapper label while the input has a placeholder; (i) a helper id colliding with the error id inside one `FormField` has no test; (j) `FieldMessage.css` still carries a comment citing the retired 3.81:1 figure; (k) the Gate 91 CLAUDE.md section says `Icon.test.tsx` gained two imports and it gained three.
+
+> **Gate 91 (DS v2.10.0) — Phase B2 addendum, replacing findings (h) and (i) and closing (j) and (k).** Verified in the DS after the fix pass: **975 tests in 72 files**, three identical clean runs, no change to any shipped byte.
+>
+> **(h), restated.** The axe test for a `Field` with no messages cannot detect a lost wrapper label while the input has a placeholder, because axe accepts the placeholder as a name. **This is not a gap in the suite.** With the wrapper's `aria-labelledby` pointed at a missing id, the whole `Field.formField.test.tsx` fails 11 of 40 tests, the first at line 78 (`is named by the wrapper label, which is in the name in full`). A lost wrapper label is caught. No test was added.
+>
+> **(i), closed.** A helper id colliding with the error id inside one `FormField` was untested; the whole `FormField.test.tsx` passed 22 of 22 under that mutation. The test `gives the error line and the helper line distinct ids within one FormField` was added. It fails at line 145 when the ids collide and at line 146 when the error id is listed twice in `aria-describedby`; the whole-file run of that mutation now fails exactly that test.
+>
+> **(j), fixed before the commit.** `FieldMessage.css` no longer cites 3.81:1 as the current figure. It records 5.77:1 on black and 4.16:1 on `#262626`, and names 3.81:1 only as the retired Gate 26 figure.
+>
+> **(k), fixed before the commit.** The Gate 91 CLAUDE.md section now says `Icon.test.tsx` gained three imports (`readFileSync`, `resolve`, `ICONS`).
+>
+> **Mutation total.** 195 planned mutations at Phase B: 193 proved at their planned lines, 2 survived as weak mutations (M037, M143), each killed by a second type-valid mutation (S037, S143). Phase B2 added A1 and A2 (both proved), re-ran M037 and M143 against their whole files (both killed), and ran the negative control (NO PROOF, as required). That is **197 proving mutations** (193 + S037 + S143 + A1 + A2), all restored byte for byte.
+
+### Teku's decisions — numbered as the files on disk number them
+
+The review thread renumbered in conversation; Gate 92 Phase A's pause report §9.1 was right about the files.
+On disk (`gate91-phaseA\PAUSE-REPORT.md`) Decision 20 is the From account picker, 21 Today / Yesterday, 22
+whether a send to a business is spending, 23 Main's account number. Recorded here in that numbering:
+
+- **Decision 18A (Teku's own words, 24 Oct 2026).** The bottom bar's Transfer item opens the "Transfer" sheet
+  with Receive and Send. Built at this gate.
+- **Decision 19B (Teku, 24 Oct 2026, taking the review thread's recommendation).** A confirmation step, then a
+  "Transfer successful" page. Gate 93's.
+- **Decision 22A (Teku, 24 Oct 2026, taking the review thread's recommendation).** A send to a business is a
+  purchase; to a person, a transfer. Gate 93's; it brings Gate 94. **The Gate 92 Phase A prompt and the
+  conversation called this "20A"; it is Decision 22.** `Recipient.kind` (`person` / `business`) is in the model
+  now for Gate 93 to read.
+- **Decision 20 (the From picker) and Decision 23 (Main's account number) were not put to Teku.** The review
+  thread ruled them on his behalf, overturnable: the From picker follows Figma's drawn dropdown; Main's number
+  is the drawn `6235474597` everywhere (Main's drill-down shows `•••• 4597`), Joint keeps `•••• 3160`. Both are
+  Gate 93's to build.
+- **Decision 21 (Today / Yesterday)** is held for Gate 93, to be ruled by the review thread with research under
+  Teku's standing instruction of 24 Oct.
+- **Decision 24A (Teku's own words, 26 Oct 2026: he generated the three photos with AI).** The recipient photos
+  ship.
+- **Decision 25 = C (Teku, 27 Oct 2026).** Fix the repurposed bar in the DS first, then re-pin: DS v2.11.0
+  makes bar labels never wrap and adds a per-item `width: 'hug'`; the MVP pins v2.11.1 and marks "Recipients"
+  `width: 'hug'`. (Phase A had used the number 25 for a `fill` proposal, withdrawn under R92-11 before it was
+  put to Teku; this is the decision Teku actually made under that number.) **The next free Teku decision number
+  is 26.**
+
+### Rulings by the review thread (each overturnable by Teku)
+
+R92-1 to R92-10 are quoted from the Gate 92 Phase A prompt. **Their text was on no file before this gate**:
+Phase A's `DESIGN.md` and `PAUSE-REPORT.md` cite them by number only. The build recovered them from that
+session's transcript (`bc06a444-1c4d-475a-96b4-6ead2c3fcd5b.jsonl`) and saved them as
+`gate92-build\R92-1-to-10.txt`.
+
+- **R92-1** The Transfer bar item is an action, not a destination (the 18A research: Material's navigation bar is for destinations; YouTube's create button is the known precedent for a bar item opening a sheet). It is never shown as selected; it opens the sheet over whatever screen is showing without a route change; closing the sheet returns to that screen with focus on the Transfer item; the active tab stays selected underneath. Give it the semantics of a button that opens a dialog.
+- **R92-2** The sheet's title is centred by the DS `OverlayHeader` (Teku's shared-header standard), though Figma draws it left.
+- **R92-3** The balance card's Send goes straight to the recipient picker (`/transfer`), skipping the sheet.
+- **R92-4** Undrawn actions get a "Coming soon." toast, by the scope rule: Receive, Add money, Scan QR, + New recipient (until Flow 6), and a recipient tap (until Gate 93). The Crypto tab shows the existing `ComingSoon` panel until Flow 5.
+- **R92-5** Recipients are a constant `src/data/recipients.ts` (Gate 91 Phase A's F1), outside the seed fingerprint, not stored; Figma's order; fictional account numbers as drawn.
+- **R92-6** Recipient photos are exported from Teku's Figma (F11) and drawn through the existing `image` mark. Rachum Greene's seeded ledger rows keep their initials (F12; no seed edit).
+- **R92-7** The picker's search filters by name, account number or bank code; no match shows `NoResults` through `listPresence`.
+- **R92-8** `/transfer` uses the repurposed bottom bar (Recipients selected / Scan QR) and no FAB; `AppShell` learns to render `nav: 'repurposed'` (the type exists, nothing renders it [reported]).
+- **R92-9** Everything else in Gate 91 Phase A's F1–F15 that bears on this gate stands.
+- **R92-10** Scope (R92-10). In: the re-pin to v2.10.0 by name; the sheet; the bar action; the picker screen, its tabs, search, no-results, repurposed bar; `RECIPIENTS`; recipient images; the toasts; harness states; documentation. Out: the amount screen, From/To pickers, `FormField` use, `sendMoney`, schema changes, the confirmation and success screens, the account-number ruling (Gate 93), Today/Yesterday (ruled at Gate 93), merchant-wide recategorisation (Gate 94), the harness clock, the seed, every earlier flow's retrofit.
+- **R92-11 (as amended by R92-21) The repurposed bar is the drawn hug pill** (`barWidth="hug"`), not `fill`,
+  **with "Recipients" `width: 'hug'`.** Overriding a drawn design is Teku's call, and following it is the
+  default. On DS v2.11.1 it renders **191.672** wide where Figma draws 190 (the approved 62 -> 64 item rounding),
+  with both labels on one line (**G59**, closed). Phase A minted `fill`; the build minted `hug`; the re-pin
+  re-minted the 12 `/transfer` captures. The file counts did not change.
+- **R92-12 The capture strip is trimmed from the photos.** Each is the largest centred square that excludes the
+  strip: side = source height minus the strip, centred horizontally, starting below the strip; JPEG q0.9.
+  Measured by the build (`gate92-build\photos\export.cjs`): Rachum's strip is 6 rows and Perry's 2 (mean
+  luminance 33, then 116 and 232); Fiona has none. Results: `rachum-greene.jpg` 532×532, 52,010 bytes;
+  `perry-matthew.jpg` 584×584, 44,521 bytes (centring 35.5, so x=35); `fiona-hammock.jpg` 446×446, 35,441 bytes,
+  byte-identical to Phase A's export. 131,972 bytes together; baseline JPEG, no EXIF. Each was read at 40 and 80 px
+  with no line along the top.
+- **R92-13 (fork X1)** Ship without `aria-haspopup` / `aria-expanded`; register **G58**. Do not patch the DS's
+  DOM from the MVP.
+- **R92-14** Forks X2–X13 are accepted as Phase A proposed them (below), with X5 recorded as a finding.
+- **R92-15 DS-owned size differences are findings, not overrides:** rows 44 (Figma 48), the heading 16 (20), the
+  field 46 (44), the button 50 (48), the sheet panel 333 (313) with cards 94 (92). No MVP override.
+- **R92-16** The mutation negative control must typecheck, run, leave its target passing and report NO PROOF.
+  Phase A's D8 proposed a syntax error that fails to typecheck; that is refused by the project standard. Phase
+  B's plan uses a type-valid inert edit instead (`gate92-build\MUTATION-PLAN.md`).
+- **R92-17** The build prompt's pre-mint "plus arm 1" was wrong: arm 1 is green until a new PNG exists on disk.
+  Accepted.
+- **R92-18** M16 (a typo in the image directory) lands in the harness's `settleImages` (`e2e/harness.ts`), a
+  valid proof at its planned point. B8's own image poll is recorded as a redundant guard no mutation can isolate.
+  **Corrected by R92-25: that was wrong on this tree.**
+- **R92-19** Add M21 for B7's "Add crypto" half (`HomepageCrypto.tsx`), failing at B7's Add-crypto matcher.
+- **R92-20** Accepted as built: R92-1 to R92-10 recovered from the Phase A transcript; Perry's crop at x = 35;
+  npm writing `package.json` and the lock with LF; the third `npm audit` high is a hygiene-round item.
+- **R92-21** R92-11 now reads: the repurposed bar is the drawn hug pill, with "Recipients" `width: 'hug'`; DS
+  v2.11.1 renders it 191.672 wide (Figma 190) with both labels on one line. **G59 enters this register CLOSED**
+  (addressed by DS v2.11.0, shipped in v2.11.1), not open.
+- **R92-22** One new test, `e2e/transfer.spec.ts` **B12**: on `/transfer` the bar's "Recipients" and "Scan QR"
+  labels each render on one line, and the "Recipients" item is at least 10 px wider than "Scan QR" and within
+  1 px of the DS-reported 79.672 (`getBoundingClientRect`, polled). Its mutation, **M22**, removes `width:
+  'hug'` and must fail at the width matcher.
+- **R92-23** Everything else in Gate 92 stands (R92-1 to R92-16, the forks, the scope).
+- **R92-24** (Phase B's M8 survivor, 28 Oct 2026) B2 checked that focus *arrives* on the bar's Transfer item after each
+  close, never that it *stays*. It is strengthened without changing its title or the 17-test count: a `focusout`
+  listener on the item once the sheet holds focus, the item focused after the close, a 400 ms observation window
+  (an absence of an event can only be observed over a bounded window; it is not a tolerance), then 0 recorded losses and
+  the item still focused. Sanity-checked at the fix: with the plan's M8 (50 ms deferred blur) and M8b (250 ms) applied,
+  B2 fails at the count assertion (`Expected: 0` / `Received: 1`); restored byte for byte, it passes.
+- **R92-25** R92-18 is corrected. A wrong image directory on `/transfer` (M16) is caught by B8's own `naturalWidth`
+  poll (spec line 138 in the staged spec), not by the harness's `settleImages`; B8's poll is load-bearing, not
+  redundant. **Why `settleImages` let a 404 image through is NOT established** (Phase B suspected it ran before the
+  picker's images mounted; not investigated). Recorded as an open, unowned finding for the hygiene round. No G number,
+  and the tally does not change.
+- **R92-26** The plan's M3, M4 and M22 signatures were written from memory; Phase B's corrections stand (`+ Array []` for
+  M3/M4, `Received:\s+0` for M22). Every future plan's signatures come from a failing log.
+- **R92-27** Phase B's findings 1 and 2 are fixed before the commit: the stale `AppShell.tsx` comment (it said the pill
+  ships 176 wide) and the `CLAUDE.md` Gate 92 table rows that carried the build's v2.10.0 bytes and digest as the
+  shipped tree's (now relabelled, with a row for the v2.11.1 tree).
+
+### DS Gate 92 (v2.11.0, then v2.11.1) — record
+
+The DS Phase B report's register-ready record (`gate92-ds-phaseB\PHASE-B-REPORT.md` §8), verbatim:
+
+> **Gate 92 DS, v2.11.0 (Phase B verified 2026-10-28). G59 is addressed and closed by v2.11.0** (closing the register entry is the MVP's).
+> Shipped: `BottomNavigation` labels never wrap (`.mn-bottom-nav__label { white-space: nowrap }`, R92D-5, a deliberate default change); `BottomNavItem.width?: 'fixed' | 'hug'` (default `'fixed'`; `'hug'` = label + `--brand-scale-200` padding, no floor or ceiling; no effect in a `barWidth="fill"` bar, R92D-6/7). Showcase pill demo. Minor release.
+> MVP effect: `/transfer` "Scan QR" is one line with no MVP change. To widen "Recipients" the MVP passes `width: 'hug'` on that one item: pill 191.672 × 64 (Recipients 79.672, Scan QR 64; Figma 80 / 62 / 190, 62 → 64 rounding approved).
+> Counts: tests 975 → 990, files 72 → 73 (15 new, none edited); folders 56, CSS files 65/65 registered; `style={` 14 in 9; `:hover` 50 / hover-guard 42; icon registry unchanged; no token, glyph or generated file changed. Pins: 49/49 markup identical; boxes move in 10 rows only. `dist/index.js` 5,613,773 B, `dist/index.css` 158,982 B.
+> Verification: NC reported NO PROOF; 15/15 mutations proved at their planned lines; three identical full runs (990 / 73).
+
+**v2.11.1** (`c644746c…`, tag object `52b45042…`) is a documentation-only patch
+(`gate92-ds-v2111\REPORT.md`): the v2.11.0 commit missed a staged `CLAUDE.md` fix (a Sourcetree re-stage
+silently failed) and published tags are never moved. No code, CSS, token or test changed; `build:lib` emits the
+same byte sizes. The MVP pins v2.11.1.
+
+**The DS rulings, summarised** (R92D-1 to R92D-4 from `gate92-ds\BUILD-REPORT.md` §3; R92D-5 to R92D-14 from the
+DS `CLAUDE.md` Gate 92 DS table):
+
+| | ruling |
+|---|---|
+| R92D-1 | opt-in, default untouched — sound but incomplete (superseded by R92D-5's deliberate default change) |
+| R92D-2 | hug follows Figma — contradicted as written: Figma's component item is fixed; the case study hugs one item |
+| R92D-3 | minor release, closed list — not exercised by the first (stopped) session; restated as R92D-8 |
+| R92D-4 | mutation plan — not exercised by the first session; restated as R92D-9 |
+| R92D-5 | bar labels never wrap, by default (`white-space: nowrap`); no truncation or clipping |
+| R92D-6 | per-item hug: `BottomNavItem.width`, default `'fixed'`; hug = label + `Scale/200` padding, no floor or ceiling |
+| R92D-7 | in a `fill` bar the per-item field has no effect |
+| R92D-8 | one minor release, 2.10.0 -> 2.11.0, closed list |
+| R92D-9 | the mutation negative control must typecheck, run, leave its target passing and report NO PROOF |
+| R92D-10 | record corrections (main bar node ids, `BottomNavItem` is a data interface, no Storybook, no 64 floor) |
+| R92D-11 | "all 98 rows" corrected (8 zero-item rows render no label; the changed property is `text-wrap-mode`) |
+| R92D-12 | `CHANGELOG.md` and `docs/component-tokens.md` are part of v2.11.0, inserted after the build |
+| R92D-13 | R92D-7 is implemented in the markup (the hug class is never emitted in a fill bar) |
+| R92D-14 | R92D-11 to R92D-13 and three corrections missed the v2.11.0 commit and ship in v2.11.1 |
+
+**The MVP re-pin, measured** (`gate92-repin\`): the pill renders 191.672 wide at 375 (x=91.656) and 191.672 at 430 (x=119.156), "Recipients" 79.672, "Scan QR" 64, height 64, at DPR 2 through a Playwright probe
+(deleted afterwards), light = dark; both labels one line. The 4 `index-transfer-*` captures (Home's fill bar
+under the sheet) and all 356 other committed baselines are byte-identical under v2.11.1.
+
+### The technical forks (Phase A `PAUSE-REPORT.md` §7; accepted under R92-13 and R92-14)
+
+| # | fork | ruling |
+|---|---|---|
+| X1 | the Transfer item cannot say "opens a dialog" through DS `BottomNavItem` | ship without it (R92-13); **G58** |
+| X2 | focus return to the Transfer item | the DS `Sheet` restores focus to what was focused at open; Chromium focuses a clicked button, so it lands on the item (asserted); WebKit does not focus a tapped button, so on iOS it lands on the page — folded into **G58** |
+| X3 | where "Coming soon." is raised | the shell's notice slot, a new `'coming-soon'` kind (information, `role="status"`), cleared when the route changes |
+| X4 | the Home Crypto card's Send | the picker on its Crypto tab (router state); Back returns to Home on Crypto |
+| X5 | Back after the sheet's Send | returns to the screen beneath on its DEFAULT tab — the sheet is shell-level and cannot see a screen's in-screen tab. **A finding (R92-14)**, not worked around |
+| X6 | `NoResults`' glyph | a required `icon` prop, no default; the ledger and Receipts pass `filter_list` (render unchanged); the picker passes `search` |
+| X7 | "Add crypto" | also "Coming soon." |
+| X8 | `Recipient.kind` | in the model now; Gate 93 reads it (Decision 22A) |
+| X9 | the photos | a centre square, JPEG q0.9, not resized to a common size; amended by R92-12 (strip trimmed) |
+| X10 | the picker's tabs | Home's existing two rules (`homepage.css`, SYS-11 / A3), not a new mechanism |
+| X11 | walk states | the sheet photographed over `/` only (asserted over `/finance` and `/more`); a no-match state added; "search with matches" and a "Coming soon." state declined |
+| X12 | recipient order | Figma's; newest-send-first arrives with Gate 93 |
+| X13 | the no-match capture | the search field stays focused; its ring is in the baseline |
+
+### G54–G57 — entered closed (closed in the DS at Gate 91, v2.10.0)
+
+| gap | closed by |
+|---|---|
+| **G54** | `SelectWalletAccount.leadingSlot`, a 40px decorative slot before the name stack |
+| **G55** | `TransferAmount`, all four Figma variants, rows derived from the item count |
+| **G56** | `people` and `qr_code_scanner`, Material Round package glyphs (registry 109 -> 111). **Gate 92 is the first consumer of both** (the repurposed bar) |
+| **G57** | `FieldMessage` plus `FormField`: field messages as part of the form row |
+
+Only G56 has a consumer at this gate. G54, G55 and G57 are Gate 93's (the amount screen and its pickers).
+
+### G58 — a bottom-bar item cannot say it opens a dialog (opened, DS round)
+
+| | |
+|---|---|
+| **where** | DS `BottomNavigation` / `BottomNavItem` (`src/components/Navigation/BottomNavigation.tsx`); MVP consumer `src/shell/AppShell.tsx` (the Transfer item) |
+| **what** | the Transfer item is a native `<button>` named "Transfer" with no `aria-current` — correct — but `BottomNavItem` has no way to add `aria-haspopup="dialog"` or `aria-expanded`, so a screen reader is not told the item opens a dialog or whether it is open. And WebKit does not focus a tapped `<button>`, so on iOS the DS `Sheet`'s focus restore (to whatever was focused at open) lands on the page rather than the item; Chromium focuses it (asserted in `transfer.spec.ts` B2) |
+| **decision** | registered, fixed in the DS round: an item-level way to declare "opens a dialog" (`aria-haspopup` / `aria-expanded`) and a way for the consumer to focus the item. Not patched from the MVP (rule 3; R92-13) |
+
+### G59 — a bottom-bar item cannot size to its label (entered CLOSED: DS v2.11.0, shipped in v2.11.1)
+
+| | |
+|---|---|
+| **where** | DS `BottomNavigation.css` (`.mn-bottom-nav__item`, width `--brand-scale-1300` = 64); MVP consumer the repurposed bar on `/transfer` |
+| **what** | Figma `1266:14391` draws the hug pill 190 wide with a "Recipients" item 80 wide and "Scan QR" 62. Under DS v2.10.0 (the build's pin) the item was a fixed 64 with a 48px content box, so the pill measured 176 at both widths and "Scan QR" wrapped onto two lines (48×32) where Figma draws one. Phase A's "0.17 to spare" had been measured against the item, not its content box. That was the gap; it does not ship |
+| **decision** | **CLOSED (R92-21, Decision 25 = C).** DS v2.11.0 makes bar labels never wrap and adds `BottomNavItem.width: 'hug'`; the MVP pins v2.11.1 and marks "Recipients" `width: 'hug'`. The pill renders 191.672 (Figma 190, the approved 62 -> 64 rounding), "Recipients" 79.672, "Scan QR" 64, both labels on one line. |
+
+### Findings, recorded and not fixed
+
+- **The repurposed bar (G59) was resolved before the commit.** On DS v2.11.1 both labels sit on one line and the pill is 191.672 wide ("Recipients" 79.672, "Scan QR" 64), measured at DPR 2 at 375 and 430 in both themes (R92-21). The build's v2.10.0 measurement is in G59's "what" row.
+- **X5 — Back after the sheet's Send lands on the screen beneath on its DEFAULT tab** (R92-14). The sheet is
+  shell-level and cannot read a screen's in-screen tab (B7). A balance card's Send does not have this problem
+  (it replaces its own entry with its tab first).
+- **The DS names every bottom bar `aria-label="Primary"`**, so the repurposed bar on `/transfer` is also
+  "Primary". The two bars never coexist, so no page carries two navigations of one name; noted for the DS round
+  beside G58, not opened as its own entry.
+- **The sheet over Home is photographed full-page** (1125 tall at 375, 1136 at 430): the scrim follows the
+  viewport, so the page below the fold is undimmed in `index-transfer-*` — the Gate α artifact, not a defect.
+- **`npm audit` reports 3 high findings, not Gate 85's 2.** `js-yaml` and `source-map-js` as before, plus `vite`
+  (upstream advisories against `launch-editor` and two Vite dev-server advisories). All dev-time; none reaches
+  `dist`. Not fixed (the hygiene round).
+- **npm wrote `package.json` and `package-lock.json` with LF** where the checkout is CRLF. Inert: git normalises
+  (numstat 1/1 and 3/3).
+- **`TransactionMark`'s comment says `Logo` and `Avatar` share one ramp**; in box terms `Logo l` is 56 and
+  `Avatar l` 40 (Phase A §9.6). At `l` the logo's artwork paints 40, so the picker matches Figma. Not fixed (outside
+  this gate's edit list).
+
+### Corrections to the record (insert-only; earlier text is left as written)
+
+- **The Gate 92 resume prompt predicted the pre-mint run would fail the 16 visual tests "plus the arm-1
+  checkpoint test".** Arm 1 compares PNGs on disk with git; before the mint no new PNG exists, so it was GREEN.
+  Measured: 16 failed / 1243 passed. Arm 1 fails only after the mint (1258 / 1).
+- **Phase A's D8 said mutation M16 (a typo in the image directory) would fail at B8's `naturalWidth` poll.** The build
+  corrected it to `e2e/harness.ts:3226` (`settleImages`). **Phase B measured the opposite (R92-25): M16 fails at B8's
+  poll, `e2e/transfer.spec.ts` line 138 in the staged spec, and `settleImages` lets the 404 image through.** Phase A's D8
+  was right; the correction was wrong.
+- **Phase A's D3 said "Recipients" fits "in a 64 item, 0.17 to spare".** The item's content box is 48; see G59.
+- **This section, as the build wrote it, said G59 was opened and that the pill ships 176 wide with "Scan QR" on two
+  lines.** Corrected by the re-pin (28 Oct 2026, R92-21): G59 is closed, the pill is 191.672, and no label wraps.
+  The build's sentences are kept, marked as the v2.10.0 render, where they explain why the gap existed.
+- **R92-1 to R92-10 were on no file.** Phase A cited them by number only; their text came from that session's
+  transcript and is quoted above.
+- **Phase A's draft B7 was titled "Add money and Add crypto" and clicked Add money only.** The build added the
+  Add crypto half (X7).
+- **The prototype inserted `openTransfer` between `openSettings` and its own comment** in `HomepageScreen.tsx`;
+  the build gave each function its own comment.
+- **The `nav: 'repurposed'` type has existed since Flow 1** (`a0cfb9c`, 5 Aug 2026), as Phase A said ("the type
+  exists, nothing renders it").
+
+### Nothing was removed from this register at this gate.

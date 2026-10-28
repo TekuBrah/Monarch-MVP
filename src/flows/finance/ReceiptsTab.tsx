@@ -435,6 +435,7 @@ export function ReceiptsTab() {
       )}
       {presence === 'no-results' && (
         <NoResults
+          icon="filter_list"
           title="No receipts match"
           description="Try a wider date range, or dismiss a filter above."
           actionLabel="Show all receipts"

@@ -1,6 +1,5 @@
 import { LineChart, ListItem, Logo } from '@monarch/design-system'
 import type { ChartHue, TrendDirection } from '@monarch/design-system'
-import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import {
   cryptoWalletChange,
@@ -12,6 +11,7 @@ import {
 import { formatMyr, formatQuantity, formatTrendPercent } from '../../data/format'
 import { FEATURED_COINS } from '../../data/market'
 import { SectionHeader } from '../../components/SectionHeader'
+import { raiseNotice } from '../../shell/notices'
 import { BalanceCard } from './components/BalanceCard'
 
 /**
@@ -48,8 +48,7 @@ const TREND_HUE: Record<TrendDirection, ChartHue> = {
   down: 'red',
   flat: 'gray',
 }
-export function HomepageCrypto() {
-  const navigate = useNavigate()
+export function HomepageCrypto({ onSend }: { onSend: () => void }) {
   const { cryptoWallets, cryptoHoldings } = useAccounts()
 
   const wallet = cryptoWallets[0]
@@ -82,7 +81,8 @@ export function HomepageCrypto() {
         amount={walletTotal}
         change={walletChange}
         addLabel="Add crypto"
-        onSend={() => navigate('/transfer')}
+        onAdd={() => raiseNotice('coming-soon')}
+        onSend={onSend}
       />
 
       <section className="mvp-home__section mvp-column">

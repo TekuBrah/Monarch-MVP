@@ -7,6 +7,7 @@ import { mediaUrl } from '../../config/media'
 import { HomepageCrypto } from './HomepageCrypto'
 import { HomepageFiat } from './HomepageFiat'
 import { HOME_TAB_STATE_KEY, requestedHomeTab } from './homeTabs'
+import { TRANSFER_TAB_STATE_KEY } from '../transfer/transferTabs'
 import './homepage.css'
 
 /**
@@ -58,6 +59,14 @@ export function HomepageScreen() {
     navigate('/settings')
   }
 
+  // Gate 92 (R92-3): a balance card's Send skips the Transfer sheet. The same
+  // mechanism as Settings — this entry keeps the tab, so Back lands on it — and
+  // the picker opens on the matching tab (Bank for Accounts, Crypto for Crypto).
+  const openTransfer = (transferTab: 'bank' | 'crypto') => {
+    navigate('/', { replace: true, state: { [HOME_TAB_STATE_KEY]: selected } })
+    navigate('/transfer', { state: { [TRANSFER_TAB_STATE_KEY]: transferTab } })
+  }
+
   return (
     <div className="mvp-home">
       {/*
@@ -102,8 +111,8 @@ export function HomepageScreen() {
         />
       </div>
 
-      {selected === 'accounts' && <HomepageFiat />}
-      {selected === 'crypto' && <HomepageCrypto />}
+      {selected === 'accounts' && <HomepageFiat onSend={() => openTransfer('bank')} />}
+      {selected === 'crypto' && <HomepageCrypto onSend={() => openTransfer('crypto')} />}
       {selected === 'cards' && (
         <ComingSoon
           title="Cards"

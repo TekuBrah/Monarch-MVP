@@ -1,4 +1,5 @@
 import { Button, Icon, IconObject } from '@monarch/design-system'
+import type { IconName } from '@monarch/design-system'
 import './NoResults.css'
 
 /**
@@ -89,6 +90,8 @@ export interface NoResultsProps {
    * combination caused the state.
    */
   actionLabel: string
+  /** Gate 92: the glyph names the cause. Passed by every caller. */
+  icon: IconName
   /** Resets the facets AND the search term — see `actionLabel`. */
   onReset: () => void
 }
@@ -97,6 +100,7 @@ export function NoResults({
   title,
   description,
   actionLabel,
+  icon,
   onReset,
 }: NoResultsProps) {
   return (
@@ -122,7 +126,7 @@ export function NoResults({
     */
     <div className="mvp-no-results" role="status" aria-live="polite">
       <IconObject color="slate" shape="circle" size="xxl">
-        <Icon name="filter_list" size="l" />
+        <Icon name={icon} size="l" />
       </IconObject>
 
       {/* `h2` MATCHES `ComingSoon`, which is the only other heading these tab

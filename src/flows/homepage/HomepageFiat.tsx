@@ -6,7 +6,6 @@ import {
   ListItem,
   Logo,
 } from '@monarch/design-system'
-import { useNavigate } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { mediaUrl } from '../../config/media'
 import { recentTransactions, transactionHasReceipt } from '../../data/derive'
@@ -15,6 +14,7 @@ import { TODAY } from '../../data/today'
 import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insights'
 import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
+import { raiseNotice } from '../../shell/notices'
 import { BalanceCard } from './components/BalanceCard'
 
 /**
@@ -29,8 +29,7 @@ import { BalanceCard } from './components/BalanceCard'
  * Note F1 A2, recorded and left: the tab reads "Accounts" while the frame is
  * named `Homepage_Fiat`. Node IDs are authoritative; the file name is not.
  */
-export function HomepageFiat() {
-  const navigate = useNavigate()
+export function HomepageFiat({ onSend }: { onSend: () => void }) {
   const { primaryAccount, transactions, receipts } = useAccounts()
 
   // A slice of the one ledger, newest first — not a second hand-authored list.
@@ -44,7 +43,8 @@ export function HomepageFiat() {
         name={primaryAccount.name}
         amount={primaryAccount.balance}
         addLabel="Add money"
-        onSend={() => navigate('/transfer')}
+        onAdd={() => raiseNotice('coming-soon')}
+        onSend={onSend}
       />
 
       <section className="mvp-home__section mvp-column">

@@ -1185,3 +1185,19 @@ export interface CommitmentOffer {
 export type CommitmentLogo =
   | { kind: 'brand'; name: LogoName }
   | { kind: 'icon'; name: IconName; tint: IconObjectColor }
+
+/** Flow 4 (Gate 92). Whether a send to this recipient is spending — Teku's Decision 22 (22A; Gate 93 reads it). */
+export type RecipientKind = 'person' | 'business'
+
+/** Flow 4 (Gate 92) — someone the user can send money to. A constant, never stored (R92-5). */
+export interface Recipient {
+  id: string
+  name: string
+  kind: RecipientKind
+  /** Figma's sample number, fictional. */
+  accountNo: string
+  /** The bank's short code as Figma prints it. */
+  bankCode: string
+  /** Drawn through `TransactionMark`: a DS logo or a photograph. */
+  mark: TransactionLogo
+}
