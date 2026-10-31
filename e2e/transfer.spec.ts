@@ -175,11 +175,16 @@ test('B9 search narrows the list; no match shows NoResults; Clear search restore
   await expect(page.locator('.mvp-transfer__list > li')).toHaveCount(5)
 })
 
-test('B10 a recipient, New recipient and Scan QR each say Coming soon.', async ({ page }) => {
+// Gate 93 rewrote this test: a recipient tap now opens that recipient's amount
+// screen (it said "Coming soon." until then). New recipient and Scan QR still do.
+test('B10 a recipient opens its amount screen; New recipient and Scan QR each say Coming soon.', async ({ page }) => {
   await gotoRoute(page, '/transfer', 'light')
   await page.locator('.mvp-transfer__list > li').first().getByRole('button').click()
-  await expect(notice(page)).toHaveText('Coming soon.')
-  await notice(page).getByRole('button').click()
+  await expect(page).toHaveURL(/\/transfer\/send\/recipient-aeon-big$/)
+  await expect(page.locator('.mvp-send .mn-header-default')).toContainText('Send money')
+  await expect(page.locator('.mvp-notice')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back' }).click()
+  await expect(page).toHaveURL(/\/transfer$/)
   await page.getByRole('button', { name: 'New recipient' }).click()
   await expect(notice(page)).toHaveText('Coming soon.')
   await notice(page).getByRole('button').click()

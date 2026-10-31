@@ -29,7 +29,9 @@ import { buildHoldings } from '../src/data/holdings'
 import { RECEIPTS } from '../src/data/receipts'
 import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import type { Budget, TransactionCategoryId } from '../src/data/types'
-import { seedState } from '../src/persistence/seed'
+import { seedFingerprint, seedState } from '../src/persistence/seed'
+import { toStored } from '../src/persistence/boundary'
+import { SCHEMA_VERSION } from '../src/persistence/schema'
 
 /**
  * ──────────────── PERSISTENCE, WRITER BY WRITER — Gate 85-B ────────────────
@@ -1006,4 +1008,97 @@ test('KEPT facts: a capture date label and its group heading are the same after 
     capturedAt: stored.capturedAt,
     addedAt: stored.addedAt,
   })
+})
+
+// ═══════════════════════════════ Gate 93 · sends ════════════════════════════
+
+test('KEPT send: a reload keeps the row, its recipient and the debit, and the success page re-reads it', async ({
+  page,
+}) => {
+  await gotoRoute(page, '/transfer', 'light')
+  await page.locator('.mvp-transfer__list > li', { hasText: 'Rachum Greene' }).getByRole('button').click()
+  await page.getByRole('combobox', { name: 'Transfer Amount' }).fill('100.00')
+  await page.getByRole('button', { name: 'Transfer money' }).click()
+  await page.getByRole('dialog', { name: 'Review transfer' }).getByRole('button', { name: 'Transfer now' }).click()
+  await expect(page).toHaveURL(/\/transfer\/done\/txn-send-[0-9a-f-]{36}$/)
+
+  const dump = await settled(page)
+  const sent = records(dump, 'transactions').filter((t) => t.recipientId !== undefined)
+  expect(sent, 'exactly one stored row carries a recipient').toHaveLength(1)
+  expect(sent[0]).toMatchObject({
+    recipientId: 'recipient-rachum-greene',
+    accountId: MAIN.id,
+    amount: -100,
+    kind: 'transfer',
+    method: 'Fund Transfer',
+  })
+  expect(records(dump, 'transactions')).toHaveLength(TRANSACTIONS.length + 1)
+  const storedMain = records(dump, 'fiatAccounts').find((a) => a.id === MAIN.id)!
+  expect(toSen(storedMain.balance as number)).toBe(toSen(MAIN.balance) - 10000)
+  expect((dump.records.meta as { schemaVersion: number }).schemaVersion).toBe(SCHEMA_VERSION)
+
+  await reload(page)
+  await expect(page.locator('.mvp-transfer-done__hero')).toHaveText('Transfer successfulRM 100.00to Rachum Greene')
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.locator('.mvp-shell__nav').getByRole('button', { name: 'Transfer' }).click()
+  await page.getByRole('dialog', { name: 'Transfer' }).getByRole('button', { name: /^Send/ }).click()
+  await expect(page.locator('.mvp-transfer__list > li').first(), 'recents survive a reload').toContainText('Rachum Greene')
+  await page.locator('.mvp-transfer__list > li', { hasText: 'Rachum Greene' }).getByRole('button').click()
+  await expect(page.getByRole('button', { name: /^From / })).toContainText(formatMyr(MAIN.balance - 100))
+})
+
+test('MIGRATED: a schema-1 store hydrates through the identity step, unquarantined, and is written back as v2', async ({
+  page,
+}) => {
+  await gotoRoute(page, '/transfer', 'light')
+  // A full v1 snapshot of the seed, with one stored edit so the screen can prove
+  // it is the STORED data that came back, not a fresh seed.
+  const state = { ...SEED, fiatAccounts: SEED.fiatAccounts.map((a) => (a.id === MAIN.id ? { ...a, balance: 1234.56 } : a)) }
+  await page.evaluate(
+    async ({ name, entries }) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(name)
+        request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+      })
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('records', 'readwrite')
+        for (const [key, value] of Object.entries(entries)) tx.objectStore('records').put(value, key)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+      db.close()
+    },
+    {
+      name: DB,
+      entries: { ...toStored(state), meta: { schemaVersion: 1, seedFingerprint: seedFingerprint(), revision: 3 } },
+    },
+  )
+  await reload(page)
+  await page.locator('.mvp-transfer__list > li', { hasText: 'Perry Matthew' }).getByRole('button').click()
+  await expect(page.getByRole('button', { name: /^From / })).toContainText('RM 1,234.56')
+  const quarantined = await page.evaluate(async (name) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(name)
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    const count = await new Promise<number>((resolve, reject) => {
+      const request = db.transaction('quarantine').objectStore('quarantine').count()
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+    db.close()
+    return count
+  }, DB)
+  expect(quarantined, 'a v1 store has a migration path, so nothing was quarantined').toBe(0)
+
+  await page.getByRole('combobox', { name: 'Transfer Amount' }).fill('1.00')
+  await page.getByRole('button', { name: 'Transfer money' }).click()
+  await page.getByRole('dialog', { name: 'Review transfer' }).getByRole('button', { name: 'Transfer now' }).click()
+  const dump = await settled(page)
+  expect((dump.records.meta as { schemaVersion: number }).schemaVersion, 'written back whole as v2').toBe(SCHEMA_VERSION)
+  expect(SCHEMA_VERSION).toBe(2)
+  expect(records(dump, 'fiatAccounts').find((a) => a.id === MAIN.id)!.balance).toBe(1233.56)
+  expect(records(dump, 'transactions').filter((t) => t.recipientId === 'recipient-perry-matthew')).toHaveLength(1)
 })

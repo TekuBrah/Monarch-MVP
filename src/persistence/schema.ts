@@ -28,9 +28,15 @@ import type { CaptureSource } from './captureFacts'
  * SCHEMA VERSION 1 IS THE FIRST. A later shape change bumps it and adds a step
  * to `MIGRATIONS`; a stored version with no migration path is quarantined, not
  * silently reset (D-5, amended).
+ *
+ * VERSION 2 — Gate 93 (Flow 4): `Transaction.recipientId?`, set on a row
+ * `sendMoney` writes. An identity step (`MIGRATIONS[1]`), because a v1 row is
+ * a valid v2 row with no recipient. `DB_VERSION` (`store.ts`, the IndexedDB
+ * version) does NOT move: the object stores are unchanged, and the harness
+ * parses that value.
  */
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export interface StoredReceipt extends Omit<Receipt, 'sourceUrl'> {
   /** The image's id in the `images` store, present exactly for a capture. */
@@ -127,7 +133,9 @@ export function isStoredTransaction(v: unknown): boolean {
     optional(isNonEmptyStr)(v.goalId) &&
     optional(oneOf('automatic', 'manual'))(v.contributionSource) &&
     optional(isNonEmptyStr)(v.reference) &&
-    isNonEmptyStr(v.accountId)
+    isNonEmptyStr(v.accountId) &&
+    // Gate 93, schema v2: the recipient a send went to.
+    optional(isNonEmptyStr)(v.recipientId)
   )
 }
 
@@ -263,12 +271,19 @@ export function referencedImageIds(records: StoredRecords): Set<string> {
 // ───────────────────────────── migrations ─────────────────────────────
 
 /**
- * `MIGRATIONS[n]` turns a version-`n` snapshot into version `n + 1`. Empty at
- * version 1. A stored version below `SCHEMA_VERSION` with a missing step is
- * QUARANTINED and the app starts from the seed (D-5, amended) — never reset
- * silently.
+ * `MIGRATIONS[n]` turns a version-`n` snapshot into version `n + 1`. A stored
+ * version below `SCHEMA_VERSION` with a missing step is QUARANTINED and the app
+ * starts from the seed (D-5, amended) — never reset silently.
+ *
+ * 1 -> 2 (Gate 93) IS THE IDENTITY. Version 2 adds one OPTIONAL field,
+ * `Transaction.recipientId`, and a v1 snapshot is a valid v2 snapshot that
+ * simply carries none. The step still has to EXIST: without it a v1 store has no
+ * path and is quarantined. The hydrated snapshot classifies `migrated` and is
+ * written whole on the next commit (`store.ts`).
  */
-export const MIGRATIONS: Record<number, (records: unknown) => unknown> = {}
+export const MIGRATIONS: Record<number, (records: unknown) => unknown> = {
+  1: (records) => records,
+}
 
 // ───────────────────────────── the fingerprint ─────────────────────────────
 

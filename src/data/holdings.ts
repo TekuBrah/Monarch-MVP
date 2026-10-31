@@ -118,8 +118,11 @@ export function buildHoldings(accounts: FiatAccount[]): Holding[] {
       icon: 'icon_bank',
       badgeColor: 'teal',
       balance: bankBalance(accounts, 'main'),
-      // AUTHORED — the file shows no account number anywhere.
-      accountNo: '•••• 8842',
+      // FIGMA'S DRAWN NUMBER — Gate 93, ruling 23 (`1266:14392`, "6235474597 • MN").
+      // It replaced an AUTHORED masked "•••• 8842" the file never showed; the
+      // masked form is now derived from this (`maskedAccountNo`).
+      accountNumber: '6235474597',
+      bankCode: 'MN',
       bank: 'Monarch Bank',
       accountType: 'Savings Account',
       accountId: 'main',
@@ -133,7 +136,9 @@ export function buildHoldings(accounts: FiatAccount[]): Holding[] {
       icon: 'icon_bank',
       badgeColor: 'teal',
       balance: bankBalance(accounts, 'joint'),
-      accountNo: '•••• 3160',
+      // AUTHORED — undrawn. It keeps the "•••• 3160" Joint has always shown.
+      accountNumber: '7718203160',
+      bankCode: 'MN',
       bank: 'Monarch Bank',
       accountType: 'Joint Savings',
       accountId: 'joint',

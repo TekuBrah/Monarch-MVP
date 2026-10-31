@@ -414,6 +414,18 @@ export interface Transaction {
    * true.
    */
   accountId: string
+  /**
+   * WHO A SEND WENT TO — Gate 93 (Flow 4). Joins to `Recipient.id`. Present
+   * exactly on a row `sendMoney` wrote; absent on every seeded row, including
+   * Rachum Greene's two 2025 rows, which are ledger merchants and not sends.
+   *
+   * It is what the success page reads (an id naming a row WITHOUT it is not a
+   * send, and that page redirects home) and what orders the picker's recents
+   * (`recentRecipients`). OPTIONAL for the same reason `goalId` is: most rows
+   * are not sends. Its arrival is schema version 2 (`persistence/schema.ts`),
+   * an identity migration — a v1 row simply has none.
+   */
+  recipientId?: string
 }
 
 // -------------------------------------------------------------- crypto
@@ -589,8 +601,17 @@ export interface FixedDepositHolding extends HoldingBase {
 export interface BankHolding extends HoldingBase {
   type: 'bank' | 'joint'
   balance: Amount
-  /** Masked, as a statement would print it. AUTHORED. */
-  accountNo: string
+  /**
+   * The full account number — Gate 93 (ruling 23). Main's is Figma's drawn
+   * `6235474597` (`1266:14392`); Joint's is undrawn and authored. The masked
+   * form a statement prints ("•••• 4597") is DERIVED from it
+   * (`maskedAccountNo`), so the two cannot disagree. It lives here, on the
+   * holding, and NOT on `FiatAccount`: that record is inside the seed
+   * fingerprint, so widening it would reset every tester's data.
+   */
+  accountNumber: string
+  /** The bank's short code as Figma prints it beside the number — `MN`. */
+  bankCode: string
   bank: string
   /** "Savings Account", "Joint Savings". */
   accountType: string

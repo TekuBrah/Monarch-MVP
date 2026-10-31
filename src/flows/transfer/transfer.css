@@ -45,3 +45,148 @@
   padding: 0;
   list-style: none;
 }
+
+/* ── Gate 93 — the amount screen, Figma `1266:14392` ──────────────────────── */
+
+.mvp-send {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* `Frame 455` starts 20 below the header; From/To and the amount block are 24
+   apart, and the button sits 48 below the balance line (24 + 24). */
+.mvp-send__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+  padding-top: var(--brand-scale-500);
+}
+
+/* `Frame 291`: From, then To, 16 apart. `--menu-width` is the DS's own seam for
+   the From menu (Gate 71 precedent): it fills the 343 column, as `1266:14393`
+   draws it, instead of Menu's 426px demo width. */
+.mvp-send__parties {
+  --menu-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+}
+
+/* `Frame 453`: the amount field, then the balance line 8 below it, centred. */
+.mvp-send__amount {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-200);
+  margin-bottom: var(--brand-scale-600);
+}
+
+.mvp-send__balance {
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Gate 93 — "Review transfer" (undrawn; the sheet's own content column) ── */
+
+.mvp-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+}
+
+.mvp-review__amount {
+  margin: 0;
+  text-align: center;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-review__rows,
+.mvp-transfer-done__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+  margin: 0;
+}
+
+.mvp-review__row,
+.mvp-transfer-done__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--brand-scale-400);
+}
+
+.mvp-review__row dt,
+.mvp-transfer-done__row dt {
+  flex: 0 0 auto;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-review__row dd,
+.mvp-transfer-done__row dd {
+  margin: 0;
+  min-width: 0;
+  text-align: right;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-review__party {
+  display: flex;
+  align-items: center;
+  gap: var(--brand-scale-300);
+}
+
+.mvp-review__party-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.mvp-review__sub {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* ── Gate 93 — "Transfer successful" (undrawn) ───────────────────────────── */
+
+.mvp-transfer-done {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+.mvp-transfer-done__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+  padding-top: var(--brand-scale-1100);
+}
+
+.mvp-transfer-done__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--brand-scale-200);
+  text-align: center;
+}
+
+.mvp-transfer-done__title,
+.mvp-transfer-done__amount {
+  margin: 0;
+  color: var(--mapped-text-default-default);
+}
+
+.mvp-transfer-done__title {
+  margin-top: var(--brand-scale-200);
+}
+
+.mvp-transfer-done__to {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}
+
+.mvp-transfer-done__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-300);
+}

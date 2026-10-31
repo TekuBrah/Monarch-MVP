@@ -124,6 +124,12 @@ const CHROME_BY_PREFIX: [string, ChromeConfig][] = [
   // it carries its own bottom action buttons, which the nav pill and the FAB
   // would collide with.
   ['/finance/plans/commitments/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
+  // Flow 4 (Gate 93), `/transfer/send/<id>` and `/transfer/done/<id>`. Figma
+  // hides the navbar on `1266:14392`, and both screens end in their own primary
+  // button. `DEFAULT_CHROME` is the same value, but means "undeclared"; the
+  // exact `'/transfer'` entry above still wins for the picker, because
+  // `chromeFor` reads the exact map first.
+  ['/transfer/', { nav: 'suppressed', fab: false, statusBar: 'page' }],
 ]
 
 export const DEFAULT_CHROME: ChromeConfig = { nav: 'suppressed', fab: false, statusBar: 'page' }

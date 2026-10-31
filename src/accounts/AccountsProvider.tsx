@@ -10,6 +10,7 @@ import { CRYPTO_HOLDINGS, CRYPTO_WALLETS } from '../data/accounts'
 import { COMMITMENTS } from '../data/commitments'
 import { COMMITMENT_OFFERS } from '../data/offers'
 import { buildHoldings } from '../data/holdings'
+import { RECIPIENTS } from '../data/recipients'
 import { hydratedState, usePersistence } from '../persistence/store'
 import type { AppState } from '../persistence/seed'
 import {
@@ -19,6 +20,7 @@ import {
   netWorthSeries,
   canRecategorise,
   recategorised,
+  sendRowProblem,
   toSen,
 } from '../data/derive'
 import type {
@@ -290,6 +292,31 @@ interface AccountsContextValue {
    * ─────────────────────────────────────────────────────────────────────────
    */
   topUpGoal: (contribution: Transaction) => void
+  /**
+   * SEND MONEY TO A RECIPIENT — Gate 93 (Flow 4). The first money-moving writer
+   * since Flow 11.
+   *
+   * ONE ARGUMENT: THE ROW IS THE INSTRUCTION (`topUpGoal`'s shape). The account
+   * comes from `accountId`, the debit from `amount`, the recipient from
+   * `recipientId`, so "the ledger and the balance agree" is true by
+   * construction. The screen builds the row with `buildSend` (`derive.ts`).
+   *
+   * VALIDATE OUTSIDE, WRITE PURE (R89-8). `sendRowProblem` judges the row
+   * against the COMMITTED accounts BEFORE any setter, so a refusal throws HERE,
+   * at the call site, and writes nothing. It deliberately does NOT copy
+   * `topUpGoal`, which throws inside `setFiatAccounts`'s updater: a throw there
+   * surfaces during React's render, not at the caller, and StrictMode runs an
+   * updater twice.
+   *
+   * TWO SIBLING PURE UPDATERS, batched into one commit: the row is appended and
+   * the account debited in sen. It calls neither `addTransaction` nor
+   * `adjustFiatBalance` — those stay the uncalled Gate 48 and Gate 75 seams. Net
+   * worth falls by the amount, because the money has left the app.
+   *
+   * PERSISTED (Gate 85, schema v2): the two atoms commit together, so they are
+   * stored together.
+   */
+  sendMoney: (row: Transaction) => void
   /**
    * CHANGE ONE PURCHASE'S CATEGORY — Gate 89. THE FIRST WRITER THAT UPDATES AN
    * EXISTING TRANSACTION; every other ledger writer appends.
@@ -779,6 +806,27 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   /**
+   * See the contract on `AccountsContextValue.sendMoney`. The guard reads the
+   * COMMITTED accounts (the dependency below), so it runs — and throws — at the
+   * call site; the two updaters cannot throw.
+   */
+  const sendMoney = useCallback(
+    (row: Transaction) => {
+      const problem = sendRowProblem(row, fiatAccounts, RECIPIENTS)
+      if (problem !== null) throw new Error(`sendMoney: ${row.id} ${problem}`)
+      setTransactions((current) => [...current, row])
+      setFiatAccounts((current) =>
+        current.map((account) =>
+          account.id === row.accountId
+            ? { ...account, balance: (toSen(account.balance) + toSen(row.amount)) / 100 }
+            : account,
+        ),
+      )
+    },
+    [fiatAccounts],
+  )
+
+  /**
    * See the context type. VALIDATE OUTSIDE, WRITE PURE (R89-8).
    *
    * The checks read the COMMITTED ledger, so they run — and throw — at the call
@@ -961,6 +1009,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       addTransaction,
       adjustFiatBalance,
       topUpGoal,
+      sendMoney,
       recategoriseTransaction,
       createGoal,
       updateGoal,
@@ -980,6 +1029,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     addTransaction,
     adjustFiatBalance,
     topUpGoal,
+    sendMoney,
     recategoriseTransaction,
     createGoal,
     updateGoal,

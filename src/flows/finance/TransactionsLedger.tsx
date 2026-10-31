@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Field, FilterChip, Icon, ListItem } from '@monarch/design-system'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
@@ -14,6 +15,7 @@ import {
 } from './components/ReceiptFileInput'
 import { captureToReceipt, type ReceiptSource } from './receiptCapture'
 import { useReceiptRetake } from './useReceiptRetake'
+import { OPEN_TRANSACTION_STATE_KEY, requestedTransactionId } from './financeTabs'
 import {
   TRANSACTION_FILTER_ALL,
   clearFacet,
@@ -126,7 +128,20 @@ export function TransactionsLedger() {
     would otherwise unmount the open sheet the instant the row stopped matching.
     `transactions` cannot do that.
   */
-  const [detailId, setDetailId] = useState<string | null>(null)
+  /*
+    GATE 93 (R93-6): the send flow's success page asks for the new row's sheet
+    to be OPEN on arrival, through router location state — read once, here,
+    and then dropped from the state below so it is a one-shot.
+  */
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [detailId, setDetailId] = useState<string | null>(() => requestedTransactionId(location.state))
+  useEffect(() => {
+    if (requestedTransactionId(location.state) === null) return
+    const rest = { ...(location.state as Record<string, unknown>) }
+    delete rest[OPEN_TRANSACTION_STATE_KEY]
+    navigate(location.pathname, { replace: true, state: rest })
+  }, [location.state, location.pathname, navigate])
   const detail = detailId ? transactions.find((t) => t.id === detailId) : undefined
   const detailReceipt = detail ? receiptForTransaction(receipts, detail.id) : undefined
 

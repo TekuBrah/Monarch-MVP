@@ -49,3 +49,18 @@ export function requestedFinanceTab(state: unknown, tabIds: readonly string[]): 
   const requested = (state as Record<string, unknown>)[FINANCE_TAB_STATE_KEY]
   return typeof requested === 'string' && tabIds.includes(requested) ? requested : null
 }
+
+/**
+ * OPEN ONE ROW'S DETAIL SHEET ON ARRIVAL — Gate 93 (R93-6, fork X11). The send
+ * flow's success page hands the new row's id over beside the Transactions tab;
+ * `TransactionsLedger` reads it ONCE, in its detail state's initialiser, and
+ * then replaces the location state without it, so a reload or a Back/Forward
+ * onto that entry does not reopen the sheet — the toasts' one-shot shape.
+ */
+export const OPEN_TRANSACTION_STATE_KEY = 'openTransactionId'
+
+export function requestedTransactionId(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null) return null
+  const requested = (state as Record<string, unknown>)[OPEN_TRANSACTION_STATE_KEY]
+  return typeof requested === 'string' && requested !== '' ? requested : null
+}

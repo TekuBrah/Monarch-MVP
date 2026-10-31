@@ -4787,3 +4787,145 @@ Only G56 has a consumer at this gate. G54, G55 and G57 are Gate 93's (the amount
   exists, nothing renders it").
 
 ### Nothing was removed from this register at this gate.
+
+## 2ap. Status at MVP Gate 93 (2026-10-30) — the amount screen, the review, the send and the success page; DS v2.12.0; G60 and G61 opened
+
+**THE TALLY MOVES BY TWO: G60 AND G61 ARE OPENED.** **60 entries, 34 closed, 26 open; the highest number is G61.**
+Derived from §2ao's 58 / 34 / 24: G60 opens (+1 entry, +1 open) and G61 opens (+1 entry, +1 open). 58 + 2 = 60;
+34 + 0 = 34; 24 + 2 = 26. Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop half,
+G19–G23, G28–G33, G44, G48, G49, G50, G51, G52, G53, G58, `MODEL-1` and `UI-3`. **No MVP-local override was added
+for any of them**, and the `G33` workaround class is untouched and still carries its removal condition. **Next
+free: section `2aq`, gap `G62`; next free Teku decision 27.**
+
+**The gate ships on DS `v2.12.0`** (`fbc6e2f215194909f5afbc77c7fb83832f82992b`, tag object
+`f578fdafdc2158e77c4d75b5b56a83dbca6ce53d`), installed by name; `lint:linkage` PASS against `fbc6e2f21519`. v2.12.0
+gave `SelectWalletAccount` its own dismissal (Escape, an outside press, focus leaving) and focus return to the
+trigger after Escape or a pick, with no new prop and no render change; `MenuItem`, `Menu` and `Avatar` are
+unchanged. No screen rendered `SelectWalletAccount` before this gate, so the re-pin moves no baseline by itself.
+
+**What shipped.** A recipient tap on the picker opens `/transfer/send/<id>` (Figma `1266:14392`, "Send money"):
+From (a DS `FormField` + `SelectWalletAccount` with the drawn account menu, `1266:14393`), To (the recipient; the
+whole control goes back to the picker with the draft kept), the Transfer Amount field ("RM " + what was typed), the
+new balance when the amount is valid, and "Transfer money". It opens a "Review transfer" sheet (undrawn) whose
+"Transfer now" writes ONE ledger row through the new `sendMoney` writer and replaces the screen with
+`/transfer/done/<id>` (undrawn): "Transfer successful", the amount, From / To / Date, Done (home) and View
+transaction (the Transactions tab with that row's detail sheet open). A send to a business is a `payment` in that
+business's latest category; to a person, a `transfer` (22A). Schema v1 -> v2 (`Transaction.recipientId?`, an
+identity migration). Baselines 372 -> 412 (40 added, 4 changed, 0 deleted); tests 1260 -> 1363 in 47 files;
+\|WALK\| 93 -> 103.
+
+### Decisions (Teku)
+
+- **Decision 26 = B** (Teku, 29 Oct 2026, "follow yours"). The account prints **"Main" everywhere**, including the
+  transfer screens. Figma's "Main Account" on `1266:14392` / `1266:14393` is a recorded divergence by Teku's choice.
+  No seed edit (`FiatAccount.name` is inside the seed fingerprint).
+- **Decision 21 = A** (ruled as R93-1, below). No "Today" / "Yesterday" anywhere; 16B stands.
+- **Next free Teku decision: 27.**
+
+### Thread rulings (overturnable)
+
+- **R93-1 — Decision 21 = A.** No "Today" / "Yesterday" anywhere. `format.ts` is unchanged; 16B stands. The
+  measured case is Phase A's PAUSE-REPORT §6 (option B moved 84 baselines, C 60; the harness clock sits inside the
+  seed's date range, so a "Today" heading would land mid-list).
+- **R93-2 — Ruling 23 (DESIGN D13).** `BankHolding` gains `accountNumber` and `bankCode`; the masked `accountNo`
+  field is removed and `maskedAccountNo` derives it. Main reads `6235474597` / `MN` -> `•••• 4597` (it was an
+  authored `•••• 8842` the file never showed); Joint gets an undrawn full number ending `3160` (`7718203160`),
+  so it still reads `•••• 3160`. `FiatAccount` is NOT widened (it is inside the seed fingerprint); the From field
+  reads the number through the holding with the same `accountId` (`bankHoldingFor`, `cashAccountLine`). Moving the
+  number onto the account record is registered for the next seed re-dating.
+- **R93-3 — Joint's mark is a photo (DS R93D-1).** `public/media/profile/joint-account.svg` is a byte copy of the
+  DS's read-only export of `192:8180` (`Avatar/photo/Placeholder`), sha256 `12abd3c7…1b22ac06`, served through
+  `accountMarkUrl()` in `media.ts`. Drawn through `MenuItem type="account" avatarSrc` and, when Joint is the From
+  account, `leadingSlot={<Avatar size="l" src=… />}`; `avatarName` is omitted so `alt=""`. Main's mark is
+  Margaret's profile photo (`mediaUrl('profile')`), as drawn. **The raw `#77c3cc` fill is image content** (DS
+  R93D-1): the token rule does not reach a file under `public/media/`.
+- **R93-4 — The From menu's dismissal is the DS's (v2.12.0).** The screen adds NO Escape or outside-press listener
+  (fork X10 is superseded). A pick calls the screen's close; the DS returns focus to the trigger (asserted).
+- **R93-5 — The confirmation is a `Sheet` "Review transfer" over the amount screen** (X1), primary "Transfer now"
+  (X5). Rows in order: the hero amount; To (mark, name, account line); From (`Main · 6235474597 • MN`); Your new
+  balance. **No "Type" row (X9 rejected).** Close, Escape, the scrim and Back all return to the amount screen with
+  everything kept; nothing on the sheet is editable. Built as a history entry of its own (below), so device Back
+  closes it.
+- **R93-6 — The success page is `/transfer/done/:transactionId`** (X3), reached by replace, no reference shown
+  (X2). Done -> `navigate('/', { replace: true })`. View transaction -> the Transactions tab with that row's detail
+  sheet open (X11). An id that names no row, or a row without `recipientId`, -> `/` (replace).
+- **R93-7 — The draft and the To chevron** (X4, amended). `TransferDraftProvider` in `AppShell` holds
+  `{ amount, fromId }` and clears when the path leaves `/transfer*`. The To control calls `navigate(-1)` when the
+  screen was reached in-app (`location.key !== 'default'`), else `navigate('/transfer', { replace: true })`; a
+  deep link never backs out of the app (asserted).
+- **R93-8 — `settleImages` at the end of `gotoRoute`** (X6), in the first batch. Phase A measured it inert (1258
+  passed; the 2 failures were git arms that cannot run in a copy). **`settleImages` was never in `gotoRoute`**,
+  which contradicts Gate 51-B's record that it ran "at the end of `gotoRoute`".
+- **R93-9 — The currency chevron says "Coming soon."** (X7).
+- **R93-10 — The `:recipientId` expansion is total over `RECIPIENTS`** (X8, the Gate 80 precedent): 5 states.
+- **R93-11 — `sendMoney`, the row, the schema, the category and recents are DESIGN D8, D9 and D10.** One argument;
+  `sendRowProblem` judges the row against the committed accounts BEFORE any setter, then two sibling pure updaters.
+  It never copies `topUpGoal`'s throw inside an updater and never calls `addTransaction` or `adjustFiatBalance`.
+  `kind` follows 22A. Schema v1 -> v2 with an identity migration, a validator, a reload test and a no-reload test.
+  `DB_VERSION` does not move. **The zero-amount predicate is not worsened:** `sendRowProblem` requires
+  `amount < 0` strictly, so this writer cannot emit the row `transactionDisposition`'s `>= 0` test would call income.
+- **R93-12 — The amount field is DESIGN D5.** The header reads "Send money". The input is not a `Field
+  type="number"` but `SelectTransfer`'s own text input (`inputMode="decimal"`, `role="combobox"`): **a finding
+  against G49, not a fix** — the drawn control is the DS's, and it has no number type.
+- **R93-13 — the records below.**
+
+### The records (R93-13)
+
+- **R92-25's "spec line 138" is line 160.** At `mvp-gate92` the `naturalWidth` poll of `transfer.spec.ts` B8 is
+  line 160. **And R92-25's finding no longer describes this tree:** with `settleImages` now at the end of
+  `gotoRoute` (R93-8), a broken picker image fails in the harness before B8's poll is reached.
+- **The zero-amount `>= 0` test is at `derive.ts:2106`** on `mvp-gate92` (Gate 83 said `:2112`; the file grew).
+  Still OPEN AND UNOWNED; not worsened (R93-11).
+- **Decision 21 = A, Decision 26 = B** (above).
+- **The DS v2.12.0 re-pin** (above).
+- **G60 opened** (below).
+- **The Joint mark's raw fill** (R93-3).
+- **Figma-internal disagreements (Phase A §2.4):** the To field draws a chevron on `1266:14392` and none on
+  `1266:14393`; the To field is a DETACHED frame named "Input" on both frames while From is a real `Input` instance.
+  Built with the chevron, because the registered scope gives it a job.
+
+### G60 — Escape in an open `Select` inside a `Modal` closes the whole `Modal` (opened, DS round)
+
+| | |
+|---|---|
+| **where** | DS `Select` (`src/components/Select/Select.tsx`) inside DS `Modal`; MVP consumer `src/flows/finance/components/PresetModals.tsx` |
+| **what** | DS R93D-4: v2.12.0 gave `SelectWalletAccount` window-capture Escape handling (the first Escape closes the menu, the second the dialog). `Select` did not get it, so in `PresetModals`' open `Select` one Escape closes the whole `Modal` |
+| **decision** | registered, fixed in the DS round (the same dismissal `SelectWalletAccount` gained). Not patched from the MVP (rule 3) |
+
+### G61 — no `Logo` size fits the 20px currency-flag slot (opened, DS round)
+
+| | |
+|---|---|
+| **where** | DS `Logo` (`Logo.css`: `xs` 14, `s` 32, `m` 40, `l` 56) inside `ElementWrapper size="m"` (20); MVP consumer `src/flows/transfer/SendScreen.tsx` (`SelectTransfer`'s `currencyFlag`) |
+| **what** | Figma `1266:14392` draws the MYR flag at 20px. DESIGN D3 proposed `<ElementWrapper size="m"><Logo name="flag"/></ElementWrapper>`, which renders the logo at its default 40 and paints over "MYR" (found by looking at the build's first render). No `Logo` size is 20 |
+| **decision** | shipped at `Logo size="xs"` (14px, centred in the 20px wrapper): 6px short of Figma, not overlapping. Registered for the DS round (a 20px `Logo` size, or a flag sized by its wrapper). No MVP override of DS geometry |
+
+### Findings, recorded and not fixed
+
+- **The To control announces a listbox it never opens.** It is a `SelectWalletAccount` pinned closed, whose
+  `<button>` carries `aria-haspopup="listbox"`; pressing it navigates to the picker. The DS has no way to say "this
+  trigger navigates". DS round, beside G58.
+- **The DS `FormField` renders a `Label`**, so `section-headers.spec.ts`'s header claim that "`Label` is used by no
+  other DS component" stopped being true at DS v2.10.0. `.mn-form-field__label` was added to its reviewed
+  exceptions (outside this gate's closed list; reported).
+- **The success page has no reference**, by X2; it is one tap away in View transaction, whose detail sheet prints
+  it.
+- **The review is a history entry.** "Transfer money" pushes the same path with `{ review: true }`; ✕ / Escape /
+  scrim pop it. "Transfer now" writes, pops it, and the screen then REPLACES itself with the success page — so Back
+  from the success page lands on the picker (measured) and the same money can never be re-offered (the draft is also
+  cleared). A reload restoring `{ review: true }` with no draft behind it shows no sheet.
+- **View transaction replaces** the success page, like Done: both leave the flow.
+- **`npm audit` still reports 3 high findings** (Gate 92's set); no change from `idb`, unchanged by the re-pin.
+  Hygiene round.
+
+### Corrections to the record (insert-only; earlier text is left as written)
+
+- **Gate 51-B's "the end of `gotoRoute`"** — `settleImages` was never there (Phase A, every tag from `mvp-gate51b`
+  to `mvp-gate92`). It is there from this gate on (R93-8).
+- **R92-25's "line 138"** is line 160 (above).
+- **DESIGN D3's flag composition** overflowed its slot (G61).
+- **DESIGN D4's "the screen adds a capture-phase `pointerdown` outside-close and an Escape handler"** is superseded
+  by DS v2.12.0 (R93-4).
+- **`section-headers.spec.ts`'s "`Label` is used by no other DS component"** (above).
+
+### Nothing was removed from this register at this gate.

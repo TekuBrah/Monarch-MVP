@@ -110,6 +110,15 @@ const BYPASS_EXCEPTIONS: { selector: string; why: string }[] = [
       'where this row\'s right-hand node is a plain semibold date. Same shape as the ' +
       'three card-identity rows above.',
   },
+  {
+    selector: '.mn-form-field__label',
+    why:
+      'the DS `FormField` label (Gate 93, the amount screen\'s From / To / Transfer Amount) — ' +
+      'a form control\'s label, not a section heading. `FormField` (DS v2.10.0+) renders the real ' +
+      '`Label` component inside its own `.mn-form-field__label` wrapper, so this header\'s claim ' +
+      'that "Label is used by no other DS component" stopped being true at that release. ' +
+      'Figma\'s `Input` (`191:11583`) draws the label as a `Label` instance.',
+  },
 ]
 
 /**

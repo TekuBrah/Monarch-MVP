@@ -19910,3 +19910,167 @@ The amount screen, the From / To pickers, `FormField`, `sendMoney`, the confirma
 account number and Today / Yesterday (Gate 93); merchant-wide recategorisation (Gate 94); the Crypto send (Flow
 5); adding a recipient (Flow 6); Receive and Scan QR; G58 (DS round; G59 closed by the re-pin); any seed, stored-shape,
 persistence, token or DS change; the harness clock; every earlier flow's retrofit; and the DS repo.
+
+## Flow 4 part 2 — the amount screen, the review, the send and the success page (Gate 93)
+
+The pin moved `v2.11.1` (`c644746c…`) -> **`v2.12.0`** (`fbc6e2f215194909f5afbc77c7fb83832f82992b`, tag object
+`f578fdafdc2158e77c4d75b5b56a83dbca6ce53d`), installed by name; `lint:linkage` PASS. **|WALK| 93 -> 103, `ROUTES`
+26 -> 31, `OVERLAY_STATES` 51 -> 56, `STORE_STATES` 8; baselines 372 -> 412 (40 added, 4 changed, 0 deleted);
+tests 1260 -> 1363 in 47 files.** `lint:tokens` scans **121** files (117 + `SendScreen.tsx`,
+`ReviewTransferSheet.tsx`, `TransferDoneScreen.tsx`, `transferDraft.tsx`) with the same **4** exemptions. Phase A
+(Opus) designed and measured it (`D:\Claude\_handoffs\gate93-phaseA\`); the build session built it
+(`gate93-build\`). Phase B runs the mutation proofs and three clean runs. **Teku does every git write.** Register
+`2ap` carries the decisions, R93-1 to R93-13, G60, G61 and the findings.
+
+**THE FIRST MONEY-MOVING WRITER SINCE FLOW 11, AND THE FIRST SCHEMA BUMP SINCE GATE 85.**
+
+### Decisions
+
+- **Decision 26 = B** (Teku, 29 Oct 2026): the account is **"Main" everywhere**, including the transfer screens.
+  Figma's "Main Account" is a recorded divergence. No seed edit.
+- **Decision 21 = A** (R93-1): no "Today" / "Yesterday" anywhere; `format.ts` is unchanged and 16B stands.
+- **Next free Teku decision: 27.** R93-1 to R93-13 are thread rulings (overturnable); see `2ap`.
+
+### The surfaces
+
+| route / surface | Figma | built from |
+|---|---|---|
+| `/transfer/send/:recipientId` — "Send money" | `1266:14392`, From open `1266:14393` | DS `FormField`, `SelectWalletAccount`, `Menu` + `MenuItem type="account"`, `SelectTransfer appearance="attention"`, `TransferAmount type="currency"`, `Button` |
+| "Review transfer" | undrawn | DS `Sheet` over the amount screen |
+| `/transfer/done/:transactionId` — "Transfer successful" | undrawn | DS `IconObject`, `Divider`, `Button` |
+
+**Spacing is Figma's, read from `1266:14392`'s metadata** through the remote connector (authenticated; `figma-local`
+refused): content 20 below the header, From -> To 16, To -> amount 24, amount -> balance line 8 (centred), 48 to
+"Transfer money" — which sits IN FLOW, not pinned. The From menu fills the column through the DS's own
+`--menu-width` seam (Gate 71 precedent); it rendered at Menu's 426px demo width and ran off the screen until then.
+
+- **Unknown recipient** -> `/transfer` (replace). **A done id naming no row, or a row with no `recipientId`** -> `/`.
+- **Chrome:** one `CHROME_BY_PREFIX` entry `/transfer/` (suppressed). The exact `/transfer` entry still wins for the
+  picker.
+- **The To control is the whole field** (`SelectWalletAccount` pinned closed, its open request turned into the
+  navigation): in-app it is `navigate(-1)`, from a deep link `navigate('/transfer', { replace: true })` (R93-7).
+- **The amount field shows `RM ` + what was typed** (`sendAmountInput` keeps digits and the first point); the rule
+  (`transferAmountError`) has three messages — "Enter an amount", "Up to 2 decimal places", "More than your balance
+  of RM …" — shown through `FormField error` once the field is left or after an attempt (Gate 71-B
+  `useTouchedValidation`). "Transfer money" is never disabled; a failed attempt reveals and focuses.
+- **The currency chevron says "Coming soon."** (R93-9).
+- **The flag is `Logo size="xs"` (14px) in a 20px `ElementWrapper`** — no `Logo` size is 20; DESIGN D3's default
+  size painted over "MYR". **G61**, DS round.
+
+### The review is a history entry, and why
+
+"Transfer money" pushes the SAME path with `{ review: true }` in location state; the sheet is open while that entry
+is current. So ✕, Escape and the scrim (`navigate(-1)`) AND device Back all return to the amount screen with the
+draft kept (R93-5). **"Transfer now"** builds the row, calls `sendMoney`, clears the draft, records the new id and
+pops the review entry; the screen then renders `<Navigate to="/transfer/done/<id>" replace />` on ITS OWN entry. So
+Back from the success page lands on the picker — measured — and the same money can never be re-offered. A reload
+that restores `{ review: true }` with no draft behind it shows no sheet.
+
+### The writer — `sendMoney(row)`
+
+One argument: the row is the instruction (`topUpGoal`'s shape). **`sendRowProblem` (`derive.ts`, pure, Node-tested)
+judges the row against the COMMITTED accounts before any setter**, so a refusal throws at the call site and writes
+nothing (R89-8) — **it does NOT copy `topUpGoal`, which throws inside `setFiatAccounts`' updater**. Then two sibling
+pure updaters: append the row, debit the account in sen. It never calls `addTransaction` or `adjustFiatBalance`
+(both still the uncalled Gate 48 / Gate 75 seams — do not sweep them). Net worth falls by the amount.
+
+The row (`buildSend`, `derive.ts`): `id` `txn-send-<uuid>`; `merchant` the recipient's name; `logo` the recipient's
+mark; `method` `'Fund Transfer'`; **`kind` `payment` for a business, `transfer` for a person (22A, `sendKind`)**;
+`amount` negative; `occurredAt` `localWallClock(now)`; **`category`: a business's latest `payment` row's category,
+else `others`; a person `others`** (`sendCategory`; Aeon Big -> groceries, Caring Pharmacy -> healthcare);
+`recipientId`; `reference` `newReference(occurredAt)`. **No walk state photographs the id or the reference.**
+
+**The zero-amount predicate is not worsened:** `amount < 0` strictly, so no exactly-zero row can be written.
+A send to a business is a `purchase` by disposition, so its detail sheet offers a receipt and a category control.
+
+### Schema v2
+
+`Transaction.recipientId?` (`types.ts`); `SCHEMA_VERSION = 2`; `MIGRATIONS[1]` is the identity (a v1 snapshot is a
+valid v2 snapshot with no recipient — the step must still exist or a v1 store is quarantined);
+`isStoredTransaction` validates `optional(isNonEmptyStr)(recipientId)`. **`DB_VERSION` does not move** (the harness
+parses it). The seed fingerprint is unchanged (no seed edit), so **the bump resets no tester**: a stored v1 snapshot
+hydrates as `migrated` and is written back whole on the next commit — `persistence-writers.spec.ts` "MIGRATED"
+proves it with a v1 store holding an edited balance, which comes back and is rewritten as v2.
+
+### Ruling 23 — the account number lives on the holding
+
+`BankHolding` gains `accountNumber` and `bankCode`; the masked `accountNo` field is gone and `maskedAccountNo`
+derives it. Main: `6235474597` / `MN` -> `•••• 4597` (was an authored `•••• 8842` Figma never showed); Joint:
+`7718203160` / `MN` -> `•••• 3160`, unchanged on screen. **`FiatAccount` is not widened** (inside the seed
+fingerprint); `bankHoldingFor` / `cashAccountLine` read the number through the holding. This is what moved the four
+`finance-holding-main-*` baselines.
+
+### The marks
+
+Main's is Margaret's profile photo (`mediaUrl('profile')`); Joint's is DS `192:8180`, copied byte-for-byte to
+`public/media/profile/joint-account.svg` and served through `accountMarkUrl()` (R93-3). Both through `Avatar src`
+with no `name`, so `alt=""`. Its `#77c3cc` is image content.
+
+### The draft — `TransferDraftProvider`
+
+`src/flows/transfer/transferDraft.tsx`, mounted around the `Outlet` in `AppShell`: `{ amount, fromId }`, cleared
+when the path leaves `/transfer*` and after a send. Not stored: an unsent draft, not a record.
+
+### Recents, and View transaction
+
+`recentRecipients` puts everyone sent to first, newest send first, then Figma's order. No seeded row carries a
+`recipientId`, so until the first send the picker is unchanged — its four baselines did not move. **View
+transaction** replaces the success page with `/finance` carrying `{ financeTab: 'transactions', openTransactionId }`;
+`TransactionsLedger` reads the id ONCE in its detail state's initialiser and then replaces the location state
+without it, so a reload does not reopen the sheet (asserted).
+
+### Harness
+
+- **R93-8: `settleImages` at the end of `gotoRoute`.** It was never there, whatever Gate 51-B's record says; the
+  29 route-only and store-only states were never image-checked, and the dev server answers a missing image with
+  `200 text/html`. Phase A measured the line inert over the whole suite.
+- **`:recipientId` expands over `RECIPIENTS`** (total, R93-10). **`:transactionId` expands over seeded rows with a
+  `recipientId` — zero today**; the success page is photographed through `[overlay:sent]`.
+- **Five overlay states** on `/transfer/send/recipient-rachum-greene` (Figma's drawn recipient): `amount` (fill
+  `2550.00`, settles on "Your new balance RM 25,428.59"), `from` (the menu open), `invalid` ("Transfer money" with
+  nothing typed), `review` (the sheet), `sent` (confirmed onto the success page). All but `sent` declare
+  `opens: []` with the screen as the surface; `review` declares `dialogs: ['Review transfer']`. **`sent` has no
+  `landsOn`**: the path carries a random id. Its settle text proves the page; `send.spec.ts` asserts the URL shape.
+- **`section-headers.spec.ts` gained one reviewed exception, `.mn-form-field__label`** — the DS `FormField`
+  renders a `Label`. Outside the gate's closed list; reported.
+
+### Tests
+
+`e2e/send.spec.ts`, **21 tests, no baseline**: N1–N8 in Node (input, the amount rule, kind and category, the row,
+`sendRowProblem`, recents, ruling 23, schema v2); B1–B13 in the browser (the screen as drawn; an unknown recipient;
+the rules; touched validation; the From menu staying closed through a 400 ms window and returning focus; the To
+round trip keeping the draft; a deep link never backing out; ✕ / Escape / scrim / Back all keeping everything; a
+person send end to end with Back and recents; a business send as a categorised purchase with View transaction
+opening once; Done and the done-route guards; the currency chevron; the draft clearing on leaving).
+`persistence-writers.spec.ts` +2 (KEPT send; MIGRATED v1 -> v2). `transfer.spec.ts` **B10 rewritten** — a
+recipient tap now opens its amount screen. 1260 + 10 states × 8 + 21 + 2 = **1363 in 47 files**.
+
+### Bundle (`build:package`)
+
+Entry chunk **5,977,508** bytes (Gate 92: 5,960,027, +17,481 for the DS v2.12.0 dist and this gate's app code
+together; not split), CSS **200,549** (198,558, +1,991). The OCR lazy chunks are unchanged in size; 0
+`modulepreload`.
+
+### Verification (the build session)
+
+| run | result |
+|---|---|
+| re-pin by name | `lint:linkage` PASS against `fbc6e2f21519`; `node_modules` 2.12.0 |
+| non-visual sweep (every spec except `visual.spec.ts`) | **951 passed / 0 failed**, 32.4 min, npm exit 0 |
+| pre-mint `visual.spec.ts` | **44 failed / 368 passed**, 19.6 min — exactly `PREDICTION.md`'s 44, name for name (40 "snapshot doesn't exist", 4 pixel diffs); 0 `writing actual`; all 372 PNGs unchanged |
+| mint, an exact escaped end-anchored `-g` of the 44 (dry run 44) | 44 passed, 48 write lines (40 new once, 4 modified twice) |
+| reconcile against an outside manifest | **372 -> 412, 40 added, 4 changed, 0 deleted, 368 identical**, added and changed disjoint |
+| digest (filesystem form; 40 files untracked until staged) | **`6cccb8345ba348f26dee98a8f7fdd1a13771617aac61443581cd7db2140bf720`** |
+| full suite on the final tree | **1362 passed / 1 failed**, 51.2 min, npm exit 1 — the one is `baselines.spec.ts` arm 1 naming exactly the 40 untracked PNGs, as predicted; 0 `writing actual`; digest stable |
+
+**The four changed captures were decoded against their pre-mint copies**: in each, exactly 624 pixels in two bands —
+the hero footnote (y 232–241) and the "Account no." tile (y 330–342), `•••• 8842` -> `•••• 4597` — and nothing else on
+a 15,751 px page. **All 40 new captures were opened**, both themes and widths. **Arm 1 fails until Teku stages the
+40 new PNGs** — predicted, not a defect. The three clean runs are Phase B's.
+
+### Deliberately not in scope
+
+Merchant-wide recategorisation (Gate 94); the Crypto send (Flow 5); adding a recipient (Flow 6); Receive and Scan QR;
+Bank-side approval; Today / Yesterday (R93-1); moving the account number onto `FiatAccount` (next seed re-dating);
+G58, G60, G61 (DS round); any DS, token or seed change; the harness clock; every earlier flow's retrofit; the DS
+repo.

@@ -7,6 +7,7 @@ import { NAV_ITEMS, REPURPOSED_NAV } from './navItems'
 import { NoticeHost } from './NoticeHost'
 import { currentNotice, dismissNotice, raiseNotice } from './notices'
 import { TransferSheet } from './TransferSheet'
+import { TransferDraftProvider } from '../flows/transfer/transferDraft'
 import { useStatusBarColor } from './useStatusBarColor'
 import './AppShell.css'
 
@@ -40,7 +41,11 @@ export function AppShell() {
   return (
     <div className="mvp-shell">
       <main className="mvp-shell__main">
-        <Outlet />
+        {/* Gate 93 (R93-7): the unsent send survives the To chevron's trip back
+            to the picker, and is cleared when the path leaves /transfer*. */}
+        <TransferDraftProvider>
+          <Outlet />
+        </TransferDraftProvider>
       </main>
 
       {/*

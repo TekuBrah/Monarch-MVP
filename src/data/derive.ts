@@ -4,9 +4,10 @@ import {
   addMonths,
   addYears,
   daysInMonth,
+  localWallClock,
   yearsBetween,
 } from './today'
-import { formatDay, formatDayMonthYear, formatMonthYear, formatPeriod } from './format'
+import { formatDay, formatDayMonthYear, formatMonthYear, formatMyr, formatPeriod } from './format'
 import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import type {
@@ -29,6 +30,7 @@ import type {
   TransactionCategory,
   TransactionCategoryId,
   TransactionDisposition,
+  TransactionKind,
   TransactionMethod,
 } from './types'
 
@@ -2292,11 +2294,13 @@ export function recategorised(t: Transaction, category: TransactionCategoryId): 
  * bank-only lookup would return undefined on exactly the rows a transfer summary
  * most needs to name.
  *
- * ⚠ NO MASKED ACCOUNT NUMBER IS RETURNED, AND ONE EXISTS. `BankHolding.accountNo`
- * holds `'•••• 8842'` / `'•••• 3160'`, both AUTHORED and both absent from Figma —
- * and `CryptoWallet` has no counterpart at all, so including it would give the
- * same row two shapes depending on which account it names. Name only. If Teku
- * wants the number, it is one template literal here and four baselines.
+ * ⚠ NO ACCOUNT NUMBER IS RETURNED, AND ONE EXISTS. Since Gate 93 (ruling 23)
+ * `BankHolding.accountNumber` holds the full number — Main's is Figma's drawn
+ * `6235474597`, Joint's is authored — and the masked form is DERIVED from it
+ * (`maskedAccountNo`). `CryptoWallet` has no counterpart at all, so including a
+ * number here would give the same row two shapes depending on which account it
+ * names. Name only. If Teku wants the number, it is one template literal here
+ * and four baselines.
  */
 export function accountDisplayName(
   holdings: Holding[],
@@ -2426,6 +2430,35 @@ export function listPresence(total: number, visible: number): ListPresence {
   return visible === 0 ? 'no-results' : 'list'
 }
 
+/**
+ * A bank account's number as a statement prints it — "•••• 4597". Gate 93
+ * (ruling 23): DERIVED from the full number, never stored beside it, so the
+ * masked and the full form cannot disagree.
+ */
+export function maskedAccountNo(accountNumber: string): string {
+  return `•••• ${accountNumber.slice(-4)}`
+}
+
+/**
+ * A cash account's line on the transfer screens, as Figma prints it —
+ * "6235474597 • MN" (`1266:14392`). The same shape as `recipientAccountLine`.
+ */
+export function accountNumberLine(holding: BankHolding): string {
+  return `${holding.accountNumber} • ${holding.bankCode}`
+}
+
+/**
+ * The bank holding behind a cash account — Gate 93 (ruling 23). The account
+ * number lives on the HOLDING, which is outside the seed fingerprint, and the
+ * From field reads it through the holding with the same `accountId`. Undefined
+ * for an account with no bank holding, which the seed never produces.
+ */
+export function bankHoldingFor(holdings: readonly Holding[], accountId: string): BankHolding | undefined {
+  return holdings.find(
+    (h): h is BankHolding => (h.type === 'bank' || h.type === 'joint') && h.accountId === accountId,
+  )
+}
+
 /** Flow 4 (Gate 92): a recipient's second line, as Figma prints it. */
 export function recipientAccountLine(r: Recipient): string {
   return `${r.accountNo} • ${r.bankCode}`
@@ -2440,3 +2473,180 @@ export function filterRecipients(recipients: readonly Recipient[], search: strin
   )
 }
 
+
+// ───────────────────────────── sending money (Gate 93, Flow 4) ─────────────
+
+/**
+ * WHAT THE AMOUNT FIELD KEEPS OF WHAT WAS TYPED — Gate 93 (DESIGN D5).
+ *
+ * The field prints `RM ` before the figure (Figma `1266:14392` draws
+ * "RM 2550.00": a prefix and no thousands separator), so the browser hands back
+ * whatever the input holds, prefix included. This keeps the digits and the FIRST
+ * decimal point and drops everything else; the draft stores the result. It
+ * never rounds and never reformats: the field echoes what was typed, and the
+ * rules below judge it.
+ */
+export function sendAmountInput(raw: string): string {
+  let seenPoint = false
+  let out = ''
+  for (const ch of raw) {
+    if (ch >= '0' && ch <= '9') out += ch
+    else if (ch === '.' && !seenPoint) {
+      seenPoint = true
+      out += ch
+    }
+  }
+  return out
+}
+
+/** The draft amount in sen, or 0 for a draft with no figure in it yet. */
+export function sendAmountSen(amount: string): number {
+  if (amount === '' || amount === '.') return 0
+  return Math.round(Number(amount) * 100)
+}
+
+/**
+ * THE ONE RULE FOR THE AMOUNT, AND ITS MESSAGE — Gate 93 (registered copy).
+ * Null when the draft can be sent. Compared in sen against the From account's
+ * balance, the way every money comparison in this file is. ZERO IS NOT AN
+ * AMOUNT: a send must move money, which is also what keeps this writer from
+ * ever producing the exactly-zero row `transactionDisposition` would call
+ * income.
+ */
+export function transferAmountError(amount: string, balance: Amount): string | null {
+  const sen = sendAmountSen(amount)
+  if (sen <= 0) return 'Enter an amount'
+  const point = amount.indexOf('.')
+  if (point >= 0 && amount.length - point - 1 > 2) return 'Up to 2 decimal places'
+  if (sen > toSen(balance)) return `More than your balance of ${formatMyr(balance)}`
+  return null
+}
+
+/**
+ * WHAT A SEND IS, BY WHO RECEIVES IT — Teku's Decision 22 (22A). Money sent to
+ * a business is SPENDING, so it is a `payment` and budgets count it; money sent
+ * to a person is a `transfer` and they do not.
+ */
+export function sendKind(recipient: Recipient): TransactionKind {
+  return recipient.kind === 'business' ? 'payment' : 'transfer'
+}
+
+/**
+ * A SEND'S CATEGORY — Gate 93 (DESIGN D8). A business takes the category of
+ * its own most recent PAYMENT in the ledger (Aeon Big -> groceries, Caring
+ * Pharmacy -> healthcare, measured over the seed), so a send to a shop lands in
+ * the budget its card purchases already do; with no such payment, `others`. A
+ * person is always `others`: a transfer reaches no budget, so its category is
+ * filler, exactly as on the 33 seeded transfers.
+ */
+export function sendCategory(
+  recipient: Recipient,
+  transactions: readonly Transaction[],
+): TransactionCategoryId {
+  if (recipient.kind !== 'business') return 'others'
+  let latest: Transaction | undefined
+  for (const t of transactions) {
+    if (t.kind !== 'payment' || t.merchant !== recipient.name) continue
+    if (!latest || t.occurredAt > latest.occurredAt) latest = t
+  }
+  return latest?.category ?? 'others'
+}
+
+/**
+ * THE ROW A SEND WRITES — Gate 93 (DESIGN D8). Built here, beside the rules
+ * that judge it, and handed WHOLE to `sendMoney`: the row is the instruction.
+ *
+ * THE ID AND THE REFERENCE ARE GENUINELY NEW (`crypto.randomUUID`,
+ * `newReference`), which is what makes this a record rather than a rendering —
+ * and why no walk state photographs either. `occurredAt` is the local wall
+ * clock, Gate 51's item T, never `toISOString`.
+ */
+export function buildSend(input: {
+  recipient: Recipient
+  accountId: string
+  amountSen: number
+  now: Date
+  transactions: readonly Transaction[]
+}): Transaction {
+  const { recipient, accountId, amountSen, now, transactions } = input
+  const occurredAt = localWallClock(now)
+  return {
+    id: `txn-send-${crypto.randomUUID()}`,
+    accountId,
+    merchant: recipient.name,
+    logo: recipient.mark,
+    method: 'Fund Transfer',
+    kind: sendKind(recipient),
+    amount: -amountSen / 100,
+    currency: 'MYR',
+    occurredAt,
+    category: sendCategory(recipient, transactions),
+    recipientId: recipient.id,
+    reference: newReference(occurredAt),
+  }
+}
+
+/**
+ * WHY `sendMoney` MUST REFUSE A ROW, OR NULL — Gate 93 (DESIGN D8).
+ *
+ * Pure, so the rule is testable in Node, and called by `sendMoney` BEFORE any
+ * setter (R89-8, "validate outside, write pure"): a refusal throws at the call
+ * site against the committed collections, never inside an updater. Every clause
+ * is a programmer error the screen cannot produce.
+ *
+ * `amount < 0` STRICTLY. A send of exactly 0 is refused here, so this writer
+ * can never emit the row `transactionDisposition`'s `>= 0` test would call
+ * income — the zero-amount predicate is not worsened.
+ */
+export function sendRowProblem(
+  row: Transaction,
+  accounts: readonly FiatAccount[],
+  recipients: readonly Recipient[],
+): string | null {
+  const account = accounts.find((a) => a.id === row.accountId)
+  if (!account) return `no cash account ${row.accountId}`
+  if (!(row.amount < 0)) return `must debit its account, got ${row.amount}`
+  if (-toSen(row.amount) > toSen(account.balance)) {
+    return `${row.amount} is more than ${account.id}'s balance of ${account.balance}`
+  }
+  if (row.method !== 'Fund Transfer') return `is a ${row.method}, not a Fund Transfer`
+  const recipient = recipients.find((r) => r.id === row.recipientId)
+  if (!recipient) return `no recipient ${String(row.recipientId)}`
+  if (row.kind !== sendKind(recipient)) {
+    return `is a ${row.kind}, but a send to a ${recipient.kind} is a ${sendKind(recipient)}`
+  }
+  if (!row.reference) return 'carries no reference'
+  return null
+}
+
+/**
+ * THE PICKER'S "RECENT RECIPIENTS" ORDER — Gate 93 (DESIGN D10). Everyone a
+ * send has gone to comes first, newest send first; the rest keep the order
+ * given (Figma's). A seeded row carries no `recipientId`, so until the first
+ * send this IS Figma's order, and the picker's committed baselines cannot move.
+ */
+export function recentRecipients(
+  recipients: readonly Recipient[],
+  transactions: readonly Transaction[],
+): Recipient[] {
+  const lastSend = new Map<string, string>()
+  for (const t of transactions) {
+    if (!t.recipientId) continue
+    const seen = lastSend.get(t.recipientId)
+    if (seen === undefined || t.occurredAt > seen) lastSend.set(t.recipientId, t.occurredAt)
+  }
+  const sent = recipients
+    .filter((r) => lastSend.has(r.id))
+    .sort((a, b) => lastSend.get(b.id)!.localeCompare(lastSend.get(a.id)!))
+  return [...sent, ...recipients.filter((r) => !lastSend.has(r.id))]
+}
+
+/**
+ * A cash account's number line through its bank holding — "6235474597 • MN",
+ * or empty for an account with no bank holding (the seed has none). What the
+ * From field, the review and the success page print beside the account's name.
+ */
+export function cashAccountLine(holdings: readonly Holding[], account: FiatAccount): string {
+  const holding = bankHoldingFor(holdings, account.id)
+  return holding ? accountNumberLine(holding) : ''
+}

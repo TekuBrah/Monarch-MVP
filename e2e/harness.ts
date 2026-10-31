@@ -6,7 +6,8 @@ import { BUDGETS } from '../src/data/budgets'
 import { COMMITMENTS } from '../src/data/commitments'
 import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
-import { TRANSACTION_CATEGORIES } from '../src/data/transactions'
+import { RECIPIENTS } from '../src/data/recipients'
+import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import { recategorised } from '../src/data/derive'
 import type { Goal, TransactionCategoryId } from '../src/data/types'
 import { GOAL_PLACEHOLDER_IMAGE } from '../src/config/media'
@@ -260,6 +261,21 @@ export const ROUTES: string[] = ROUTE_TABLE.flatMap(({ path }) => {
   // hand-written pair would go quietly green the day a commitment is renamed.
   if (path === '/finance/plans/commitments/:commitmentId') {
     return COMMITMENTS.map((c) => `/finance/plans/commitments/${c.id}`)
+  }
+  // Gate 93 - Flow 4's amount screen, one route per recipient. TOTAL OVER
+  // `RECIPIENTS` (R93-10), Gate 80's rule: a logo row and a photo row are two
+  // shapes of the To field, and a hand-picked pair would go quietly green the day
+  // a recipient is renamed.
+  if (path === '/transfer/send/:recipientId') {
+    return RECIPIENTS.map((r) => `/transfer/send/${r.id}`)
+  }
+  // Gate 93 - the success page, one route per SEEDED SEND. There are none: no
+  // seeded row carries a `recipientId`, and a written send's id is random, so it
+  // could not be listed here anyway. Expanded over the data all the same, so the
+  // day the seed gains a send the walk grows a route by itself; until then the
+  // page is photographed through `[overlay:sent]`, which writes one.
+  if (path === '/transfer/done/:transactionId') {
+    return TRANSACTIONS.filter((t) => t.recipientId).map((t) => `/transfer/done/${t.id}`)
   }
   throw new Error(
     `harness: parameterised route "${path}" has no expansion. Every :param must be ` +
@@ -786,6 +802,25 @@ const UNREAD_CAPTURE_NAME = capturedImageName(PINNED_NOW)
 const BUDGET_DELETE_BODY =
   "This removes 'Monthly Budget' and its settings. Your transactions aren't affected. This can't be undone."
 
+/** Gate 93 — the amount screen's field and button, and the two steps the states share. */
+const SEND_AMOUNT = '.mvp-send input[role="combobox"]'
+const SEND_PRIMARY = '.mvp-send__body > .mn-btn--primary'
+const SEND_FILL: PrepareStep = {
+  control: SEND_AMOUNT,
+  controlName: 'Transfer Amount',
+  action: 'fill',
+  value: '2550.00',
+  settlesOn: '.mvp-send__balance',
+  settlesText: 'Your new balanceRM 25,428.59',
+}
+const SEND_REVIEW: PrepareStep = {
+  control: SEND_PRIMARY,
+  controlName: 'Transfer money',
+  action: 'click',
+  settlesOn: '.mvp-review__amount',
+  settlesText: 'RM 2,550.00',
+}
+
 export const OVERLAY_STATES: WalkState[] = [
   // Gate 92 — the Transfer sheet over Home, opened through the bar's Transfer item (18A, R92-1).
   {
@@ -820,6 +855,90 @@ export const OVERLAY_STATES: WalkState[] = [
           settlesText: 'No recipients matchTry a name, account number or bank.Clear search',
         },
       ],
+    },
+  },
+  // ── Gate 93 — the amount screen, the review and the success page ─────────────
+  //
+  // All five start on Rachum Greene's amount screen, Figma's own drawn recipient
+  // (`1266:14392`). The first four open no dialog of their own — the `opens: []`
+  // branch, with the screen as the surface — and reach their state through
+  // `prepare` steps; the last two open the review sheet that way.
+  {
+    route: '/transfer/send/recipient-rachum-greene',
+    tab: null,
+    overlay: {
+      // Figma's drawn state: "RM 2550.00" and the balance it leaves.
+      id: 'amount',
+      control: SEND_AMOUNT,
+      controlLabel: 'Transfer Amount',
+      title: 'Transfer Amount',
+      opens: [],
+      settlesOn: '.mvp-send',
+      prepare: [SEND_FILL],
+    },
+  },
+  {
+    route: '/transfer/send/recipient-rachum-greene',
+    tab: null,
+    overlay: {
+      // `1266:14393`: the From menu open. Not a dialog — the DS menu is a listbox.
+      id: 'from',
+      control: '.mvp-send__parties .mn-form-field:first-child .mn-select-wallet-account__control',
+      controlLabel: 'From Main — 6235474597 • MN',
+      title: 'From',
+      opens: [],
+      settlesOn: '.mn-select-wallet-account__menu',
+    },
+  },
+  {
+    route: '/transfer/send/recipient-rachum-greene',
+    tab: null,
+    overlay: {
+      // "Transfer money" with nothing typed: the amount's error, and focus on it.
+      id: 'invalid',
+      control: SEND_PRIMARY,
+      controlLabel: 'Transfer money',
+      title: 'Transfer money',
+      opens: [],
+      settlesOn: '.mvp-send .mn-field-message--error',
+    },
+  },
+  {
+    route: '/transfer/send/recipient-rachum-greene',
+    tab: null,
+    overlay: {
+      // The review sheet over the amount screen (R93-5, undrawn).
+      id: 'review',
+      control: SEND_AMOUNT,
+      controlLabel: 'Transfer Amount',
+      title: 'Transfer Amount',
+      opens: [],
+      dialogs: ['Review transfer'],
+      settlesOn: '.mvp-send',
+      prepare: [SEND_FILL, SEND_REVIEW],
+    },
+  },
+  {
+    route: '/transfer/send/recipient-rachum-greene',
+    tab: null,
+    overlay: {
+      // "Transfer now", landing on the success page (R93-6, undrawn). NO `landsOn`:
+      // the page's path carries the new row's id, which is random, so it cannot be
+      // written down here. The settle text proves the page; `send.spec.ts` asserts
+      // the URL's shape.
+      id: 'sent',
+      control: SEND_AMOUNT,
+      controlLabel: 'Transfer Amount',
+      title: 'Transfer Amount',
+      opens: [],
+      settlesOn: '.mvp-send',
+      prepare: [SEND_FILL, SEND_REVIEW],
+      confirm: {
+        control: '.mn-sheet__actions .mn-btn--primary',
+        controlLabel: 'Transfer now',
+        settlesOn: '.mvp-transfer-done__hero',
+        settlesText: 'Transfer successfulRM 2,550.00to Rachum Greene',
+      },
     },
   },
   {
@@ -3315,6 +3434,15 @@ export async function gotoRoute(page: Page, route: string, theme: Theme): Promis
   // Poppins is loaded by src/main.tsx (@fontsource). Measuring or
   // screenshotting before the faces resolve reads the sans-serif fallback.
   await page.waitForFunction(() => document.fonts.status === 'loaded')
+
+  // GATE 93 (R93-8): EVERY ROUTE'S IMAGES ARE DECODED BEFORE ANYTHING READS THE
+  // PAGE. Until this gate `settleImages` ran only from `activateTab` and
+  // `openOverlay`, so the route-only and store-only walk states were never
+  // image-checked — and the dev server answers a missing image with the SPA's
+  // own `200 text/html`, so `routes.spec.ts`'s ">= 400" check could not see one
+  // either. Gate 51-B's record that it ran "at the end of `gotoRoute`" was wrong
+  // from that gate on. Phase A measured this line inert over the whole suite.
+  await settleImages(page)
 }
 
 /**

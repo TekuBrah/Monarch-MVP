@@ -9,6 +9,8 @@ import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { TransferScreen } from './flows/transfer/TransferScreen'
+import { SendScreen } from './flows/transfer/SendScreen'
+import { TransferDoneScreen } from './flows/transfer/TransferDoneScreen'
 
 /**
  * The route table. One place to see every screen in the app (architecture
@@ -31,6 +33,12 @@ export default function App() {
 
         {/* Flow 4 (Gate 92) — the recipient picker. */}
         <Route path="transfer" element={<TransferScreen />} />
+        {/* Flow 4 (Gate 93) — the amount screen for one recipient, and the success
+            page for one written send. Both are drill-downs with their own chrome
+            (`chrome.ts`); the success page carries the row's id so a reload can
+            read it back (fork X3). */}
+        <Route path="transfer/send/:recipientId" element={<SendScreen />} />
+        <Route path="transfer/done/:transactionId" element={<TransferDoneScreen />} />
         {/*
           Flow 7. ONE route for the overview, whose five tabs are in-screen state
           the same way the Homepage's four are — and one route PER HOLDING for

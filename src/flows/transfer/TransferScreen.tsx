@@ -6,7 +6,8 @@ import { ComingSoon } from '../../components/ComingSoon'
 import { NoResults } from '../../components/NoResults'
 import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
-import { filterRecipients, listPresence, recipientAccountLine } from '../../data/derive'
+import { useAccounts } from '../../accounts/AccountsProvider'
+import { filterRecipients, listPresence, recentRecipients, recipientAccountLine } from '../../data/derive'
 import { RECIPIENTS } from '../../data/recipients'
 import { raiseNotice } from '../../shell/notices'
 import { requestedTransferTab } from './transferTabs'
@@ -27,7 +28,10 @@ export function TransferScreen() {
     () => requestedTransferTab(location.state, TAB_IDS) ?? 'bank',
   )
   const [search, setSearch] = useState('')
-  const visible = filterRecipients(RECIPIENTS, search)
+  const { transactions } = useAccounts()
+  // Gate 93 (DESIGN D10): whoever was sent to most recently comes first. Until
+  // the first send this is Figma's own order, so the committed baselines hold.
+  const visible = recentRecipients(filterRecipients(RECIPIENTS, search), transactions)
   const presence = listPresence(RECIPIENTS.length, visible.length)
 
   const back = () => {
@@ -75,7 +79,7 @@ export function TransferScreen() {
                       title={r.name}
                       titleInfo={recipientAccountLine(r)}
                       hasChevron={false}
-                      onClick={() => raiseNotice('coming-soon')}
+                      onClick={() => navigate(`/transfer/send/${r.id}`)}
                     />
                   </li>
                 ))}

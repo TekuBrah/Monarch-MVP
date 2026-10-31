@@ -347,3 +347,25 @@ const OFFER_IMAGE_DIR = '/media/promotions'
 export function offerImageUrl(filename: string): string {
   return `${OFFER_IMAGE_DIR}/${filename}`
 }
+
+// ------------------------------------------------ cash-account marks (Flow 4)
+
+/**
+ * The directory a cash account's leading mark is served from — Gate 93 (R93-3).
+ *
+ * Main's mark is Margaret's profile photograph, the `profile` slot itself, as
+ * Figma draws it on `1266:14392/14393`. Joint Account's is DS `192:8180`
+ * (`Avatar/photo/Placeholder`, DS R93D-1): a member of Figma's photo family, so
+ * the DS draws it through `Avatar src`, exactly as it draws Margaret's. The file
+ * is a read-only export of that node, kept beside her photograph.
+ *
+ * ITS `#77c3cc` FILL IS IMAGE CONTENT, NOT A COLOUR VALUE IN THIS APP'S CSS
+ * (DS R93D-1), so the token rule does not reach it — the same position as every
+ * photograph under `public/media/`.
+ */
+const ACCOUNT_MARK_DIR = '/media/profile'
+
+/** Resolve an account mark's filename to a public URL. No fallback: a missing file is a data defect. */
+export function accountMarkUrl(filename: string): string {
+  return `${ACCOUNT_MARK_DIR}/${filename}`
+}

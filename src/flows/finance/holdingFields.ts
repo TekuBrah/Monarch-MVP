@@ -7,6 +7,7 @@ import {
   hasTrend,
   holdingChangePct,
   holdingValue,
+  maskedAccountNo,
   trendOf,
   walletHoldings,
 } from '../../data/derive'
@@ -172,9 +173,9 @@ export function holdingFields(
         .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
 
       return {
-        hero: { trend, footnote: `${holding.bank} · ${holding.accountNo}` },
+        hero: { trend, footnote: `${holding.bank} · ${maskedAccountNo(holding.accountNumber)}` },
         tiles: [
-          { info: 'Account no.', content: holding.accountNo },
+          { info: 'Account no.', content: maskedAccountNo(holding.accountNumber) },
           { info: 'Bank', content: holding.bank },
           { info: 'Type', content: holding.accountType },
         ],
