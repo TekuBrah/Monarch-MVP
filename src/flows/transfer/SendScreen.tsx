@@ -84,7 +84,8 @@ export function SendScreen() {
   const { recipientId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { fiatAccounts, primaryAccount, holdings, transactions, sendMoney } = useAccounts()
+  const { fiatAccounts, primaryAccount, holdings, transactions, categoryRules, sendMoney } =
+    useAccounts()
   const draft = useTransferDraft()
   const [fromOpen, setFromOpen] = useState(false)
   const [fromSearch, setFromSearch] = useState('')
@@ -130,6 +131,7 @@ export function SendScreen() {
       amountSen,
       now: new Date(),
       transactions,
+      rules: categoryRules,
     })
     sendMoney(row)
     draft.clear()

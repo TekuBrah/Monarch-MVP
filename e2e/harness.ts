@@ -8,7 +8,7 @@ import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { RECIPIENTS } from '../src/data/recipients'
 import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
-import { recategorised } from '../src/data/derive'
+import { recategorised, recategorisedAllFrom, withCategoryRule } from '../src/data/derive'
 import type { Goal, TransactionCategoryId } from '../src/data/types'
 import { GOAL_PLACEHOLDER_IMAGE } from '../src/config/media'
 import { toStored } from '../src/persistence/boundary'
@@ -1356,8 +1356,45 @@ export const OVERLAY_STATES: WalkState[] = [
           control: '.mn-option-list [role="option"]:has-text("Dining & Leisure")',
           controlName: 'Dining & Leisure',
           action: 'click',
+          settlesOn: '.mn-option-list[aria-label="Apply to"]',
+          settlesText: 'Only this transactionAll from this merchant',
+        },
+        // Gate 94: a pick now asks "Which transactions?"; Gate 89's one-row write.
+        {
+          control: '.mn-option-list[aria-label="Apply to"] [role="option"]:has-text("Only this transaction")',
+          controlName: 'Only this transaction',
+          action: 'click',
           settlesOn: '.mvp-txn-detail__row-action',
           settlesText: 'Dining & Leisure',
+        },
+      ],
+    },
+  },
+  // Gate 94 — "Which transactions?", the undrawn choice step, with its live preview.
+  {
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    overlay: {
+      id: 'category-scope',
+      control: '.mvp-transactions__list > li:has-text("RM 250.75") .mn-list-item',
+      controlLabel: 'Aeon Big Card Payment -RM 250.75 15 Sept, 22:03',
+      title: 'Transaction details',
+      dialogs: ['Which transactions?'],
+      prepare: [
+        {
+          control: '.mvp-txn-detail__row-action',
+          controlName: 'Change category, Groceries',
+          action: 'click',
+          settlesOn: '.mn-option-list[role="listbox"]',
+          settlesText: TRANSACTION_CATEGORIES.map((c) => c.label).join(''),
+        },
+        {
+          control: '.mn-option-list [role="option"]:has-text("Dining & Leisure")',
+          controlName: 'Dining & Leisure',
+          action: 'click',
+          settlesOn: '.mvp-txn-detail__scope-note',
+          settlesText:
+            'All from this merchant changes 28 transactions from Aeon Big to Dining & Leisure, and future ones too.',
         },
       ],
     },
@@ -2873,6 +2910,20 @@ export const RECATEGORISED: StorePreset = {
 }
 
 /**
+ * "All from this merchant" on Aeon Big -> Dining & Leisure — Gate 94. Calls the
+ * app's own `recategorisedAllFrom` and `withCategoryRule`, so the preset and the
+ * writer cannot disagree.
+ */
+export const RECATEGORISED_ALL: StorePreset = {
+  id: 'recategorised-all',
+  edit: (state) => ({
+    ...state,
+    transactions: recategorisedAllFrom(state.transactions, 'Aeon Big', RECATEGORISED_TO),
+    categoryRules: withCategoryRule(state.categoryRules, { merchant: 'Aeon Big', category: RECATEGORISED_TO }),
+  }),
+}
+
+/**
  * THE STORE STATES — Gate 88. Enumerated and appended, never crossed with the
  * overlays or the tabs: the Gate α rule that a state is written down rather than
  * produced by a cross product, because most combinations mean nothing.
@@ -2893,6 +2944,8 @@ export const STORE_STATES: WalkState[] = [
   { route: '/finance', tab: { id: 'budget', label: 'Budget' }, overlay: null, store: RECATEGORISED },
   { route: '/finance/budget/budget-monthly', tab: null, overlay: null, store: RECATEGORISED },
   { route: '/finance/budget/budget-entertainment', tab: null, overlay: null, store: RECATEGORISED },
+  // Gate 94 — Entertainment after "All from this merchant": every in-range Aeon Big row.
+  { route: '/finance/budget/budget-entertainment', tab: null, overlay: null, store: RECATEGORISED_ALL },
   // Gate 90 — a receipt card under a heading of a different year from its
   // printed date (Decision 15A).
   { route: '/finance', tab: { id: 'receipts', label: 'Receipts' }, overlay: null, store: YEAR_APART },

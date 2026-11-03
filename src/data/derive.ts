@@ -12,6 +12,7 @@ import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import type {
   Amount,
+  CategoryRule,
   ContributionSource,
   CryptoHolding,
   FixedDepositHolding,
@@ -2280,6 +2281,60 @@ export function recategorised(t: Transaction, category: TransactionCategoryId): 
   return t.category === category ? t : { ...t, category }
 }
 
+// ───────────────────────────── merchant rules (Gate 94) ──────────────────────
+
+/** The stored rule for `merchant`, matched on the exact string, or undefined. */
+export function categoryRuleFor(
+  rules: readonly CategoryRule[],
+  merchant: string,
+): CategoryRule | undefined {
+  return rules.find((r) => r.merchant === merchant)
+}
+
+/**
+ * The rows "All from this merchant" would MOVE — every purchase from `merchant`
+ * not already in `category`. Its length is the live preview's count.
+ *
+ * PURCHASES ONLY, through `canRecategorise`: a transfer or a refund carrying the
+ * same merchant string (the seed's IKEA refund) is never touched.
+ */
+export function merchantRecategorisations(
+  transactions: readonly Transaction[],
+  merchant: string,
+  category: TransactionCategoryId,
+): Transaction[] {
+  return transactions.filter(
+    (t) => t.merchant === merchant && canRecategorise(t) && t.category !== category,
+  )
+}
+
+/**
+ * The ledger after "All from this merchant". Pure, and it cannot throw: it only
+ * calls `recategorised` on a row `canRecategorise` admits. THE SAME ARRAY COMES
+ * BACK WHEN NOTHING MOVES, so a no-op stores nothing.
+ */
+export function recategorisedAllFrom(
+  transactions: Transaction[],
+  merchant: string,
+  category: TransactionCategoryId,
+): Transaction[] {
+  let changed = false
+  const next = transactions.map((t) => {
+    if (t.merchant !== merchant || !canRecategorise(t) || t.category === category) return t
+    changed = true
+    return recategorised(t, category)
+  })
+  return changed ? next : transactions
+}
+
+/** The rules after storing one: an upsert keyed on `merchant`; the same array on a no-op. */
+export function withCategoryRule(rules: CategoryRule[], rule: CategoryRule): CategoryRule[] {
+  const i = rules.findIndex((r) => r.merchant === rule.merchant)
+  if (i < 0) return [...rules, rule]
+  if (rules[i].category === rule.category) return rules
+  return rules.map((r, j) => (j === i ? rule : r))
+}
+
 /**
  * The account's OWN NAME — "Main", "Joint Account", "Marge's Wallet".
  *
@@ -2542,8 +2597,12 @@ export function sendKind(recipient: Recipient): TransactionKind {
 export function sendCategory(
   recipient: Recipient,
   transactions: readonly Transaction[],
+  rules: readonly CategoryRule[],
 ): TransactionCategoryId {
   if (recipient.kind !== 'business') return 'others'
+  // GATE 94: A STORED MERCHANT RULE WINS, then the latest payment, then others.
+  const rule = categoryRuleFor(rules, recipient.name)
+  if (rule) return rule.category
   let latest: Transaction | undefined
   for (const t of transactions) {
     if (t.kind !== 'payment' || t.merchant !== recipient.name) continue
@@ -2567,8 +2626,9 @@ export function buildSend(input: {
   amountSen: number
   now: Date
   transactions: readonly Transaction[]
+  rules: readonly CategoryRule[]
 }): Transaction {
-  const { recipient, accountId, amountSen, now, transactions } = input
+  const { recipient, accountId, amountSen, now, transactions, rules } = input
   const occurredAt = localWallClock(now)
   return {
     id: `txn-send-${crypto.randomUUID()}`,
@@ -2580,7 +2640,7 @@ export function buildSend(input: {
     amount: -amountSen / 100,
     currency: 'MYR',
     occurredAt,
-    category: sendCategory(recipient, transactions),
+    category: sendCategory(recipient, transactions, rules),
     recipientId: recipient.id,
     reference: newReference(occurredAt),
   }

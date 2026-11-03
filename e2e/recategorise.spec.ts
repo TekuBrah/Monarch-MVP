@@ -171,10 +171,17 @@ async function openRow(page: Page, text: string): Promise<void> {
   await expect(sheetNamed(page, 'Transaction details')).toBeVisible()
 }
 
-async function pick(page: Page, id: TransactionCategoryId): Promise<void> {
+const onlyThis = (page: Page) => page.getByRole('option', { name: 'Only this transaction', exact: true })
+
+/** Gate 94: a NEW category goes through "Which transactions?"; `current` picks the row's own. */
+async function pick(page: Page, id: TransactionCategoryId, current = false): Promise<void> {
   await categoryControl(page).click()
   await expect(sheetNamed(page, 'Select category')).toBeVisible()
   await option(page, id).click()
+  if (!current) {
+    await expect(sheetNamed(page, 'Which transactions?')).toBeVisible()
+    await onlyThis(page).click()
+  }
   await expect(sheetNamed(page, 'Transaction details')).toBeVisible()
 }
 
@@ -371,7 +378,7 @@ test('Back, close and picking the current category change nothing', async ({ pag
   await expect(categoryControl(page)).toHaveText('Groceries')
 
   // PICKING THE CURRENT CATEGORY WRITES NOTHING: the store never gains a record.
-  await pick(page, 'groceries')
+  await pick(page, 'groceries', true)
   await expect(categoryControl(page)).toHaveText('Groceries')
   await storeIdle(page)
   const records = await readRecords(page)
@@ -385,6 +392,8 @@ test('focus moves into the picker and returns to the Category control', async ({
   await categoryControl(page).click()
   await expect(option(page, 'groceries')).toBeFocused()
   await option(page, TO).click()
+  await expect(onlyThis(page)).toBeFocused()
+  await onlyThis(page).click()
   await expect(categoryControl(page)).toBeFocused()
   await expect(categoryControl(page)).toHaveAccessibleName('Change category, Dining & Leisure')
 
@@ -451,6 +460,8 @@ test('K1 a keyboard pick returns focus with the close control\'s ring, property 
   await openRow(page, DEMO_AMOUNT)
   await keyboardToOption(page)
   await page.keyboard.press('Enter')
+  await expect(onlyThis(page)).toBeFocused()
+  await page.keyboard.press('Enter')
   await expect(categoryControl(page)).toBeFocused()
   await expect(categoryControl(page)).toHaveAccessibleName('Change category, Dining & Leisure')
   expect(await focusVisible(categoryControl(page)), 'the keyboard pick paints a ring').toBe(true)
@@ -468,7 +479,10 @@ test('K2 a mouse pick returns focus with no ring', async ({ page }) => {
   await openLedger(page)
   await openRow(page, DEMO_AMOUNT)
   await keyboardToOption(page)
-  await option(page, TO).click()
+  await page.keyboard.press('Enter')
+  await expect(onlyThis(page)).toBeFocused()
+  expect(await focusVisible(onlyThis(page)), 'precondition: the scope option shows a ring').toBe(true)
+  await onlyThis(page).click()
   await expect(categoryControl(page)).toBeFocused()
   expect(await focusVisible(categoryControl(page)), 'no ring after a mouse pick').toBe(false)
   expect((await ring(categoryControl(page))).outlineStyle, 'no outline paints').toBe('none')
@@ -476,6 +490,7 @@ test('K2 a mouse pick returns focus with no ring', async ({ page }) => {
   // And the wholly-pointer path, which the heuristic already left unringed.
   await categoryControl(page).click()
   await option(page, 'groceries').click()
+  await onlyThis(page).click()
   await expect(categoryControl(page)).toBeFocused()
   expect(await focusVisible(categoryControl(page)), 'no ring after a click-only pick').toBe(false)
 })
@@ -490,7 +505,9 @@ test.describe('touch, under mobile emulation', () => {
     await page.locator(`.mvp-transactions__list > li:has-text("${DEMO_AMOUNT}") .mn-list-item`).tap()
     await expect(sheetNamed(page, 'Transaction details')).toBeVisible()
     await keyboardToOption(page)
-    await option(page, TO).tap()
+    await page.keyboard.press('Enter')
+    await expect(onlyThis(page)).toBeFocused()
+    await onlyThis(page).tap()
     await expect(categoryControl(page)).toBeFocused()
     expect(await focusVisible(categoryControl(page)), 'no ring after a touch pick').toBe(false)
     expect((await ring(categoryControl(page))).outlineStyle, 'no outline paints').toBe('none')

@@ -84,14 +84,14 @@ test('N2 the amount rule and its three messages, compared in sen', () => {
 test('N3 a send to a business is a payment in its latest category; to a person, a transfer in others (22A)', () => {
   expect(sendKind(AEON)).toBe('payment')
   expect(sendKind(RACHUM)).toBe('transfer')
-  expect(sendCategory(AEON, TRANSACTIONS)).toBe('groceries')
-  expect(sendCategory(CARING, TRANSACTIONS)).toBe('healthcare')
-  expect(sendCategory(RACHUM, TRANSACTIONS)).toBe('others')
-  expect(sendCategory(AEON, [])).toBe('others')
+  expect(sendCategory(AEON, TRANSACTIONS, [])).toBe('groceries')
+  expect(sendCategory(CARING, TRANSACTIONS, [])).toBe('healthcare')
+  expect(sendCategory(RACHUM, TRANSACTIONS, [])).toBe('others')
+  expect(sendCategory(AEON, [], [])).toBe('others')
 })
 
 test('N4 buildSend writes the row the screen sends, with a new id and reference', () => {
-  const row = buildSend({ recipient: AEON, accountId: MAIN.id, amountSen: 1230, now: PINNED_NOW, transactions: TRANSACTIONS })
+  const row = buildSend({ recipient: AEON, accountId: MAIN.id, amountSen: 1230, now: PINNED_NOW, transactions: TRANSACTIONS, rules: [] })
   expect(row).toMatchObject({
     accountId: MAIN.id,
     merchant: 'Aeon Big',
@@ -107,12 +107,12 @@ test('N4 buildSend writes the row the screen sends, with a new id and reference'
   expect(row.id).toMatch(/^txn-send-[0-9a-f-]{36}$/)
   expect(row.reference).toMatch(REFERENCE)
   expect(transactionDisposition(row)).toBe('purchase')
-  const person = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 1, now: PINNED_NOW, transactions: TRANSACTIONS })
+  const person = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 1, now: PINNED_NOW, transactions: TRANSACTIONS, rules: [] })
   expect(transactionDisposition(person)).toBe('transfer')
 })
 
 test('N5 sendRowProblem refuses every malformed row and accepts a good one', () => {
-  const good = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 255000, now: PINNED_NOW, transactions: TRANSACTIONS })
+  const good = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 255000, now: PINNED_NOW, transactions: TRANSACTIONS, rules: [] })
   expect(sendRowProblem(good, FIAT_ACCOUNTS, RECIPIENTS)).toBeNull()
   const bad: [string, Partial<Transaction>][] = [
     ['zero', { amount: 0 }],
@@ -133,7 +133,7 @@ test('N5 sendRowProblem refuses every malformed row and accepts a good one', () 
 test('N6 recents: everyone sent to first, newest send first, then Figma order', () => {
   expect(recentRecipients(RECIPIENTS, TRANSACTIONS).map((r) => r.id)).toEqual(RECIPIENTS.map((r) => r.id))
   const at = (recipient: Recipient, occurredAt: string): Transaction => ({
-    ...buildSend({ recipient, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [] }),
+    ...buildSend({ recipient, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [], rules: [] }),
     occurredAt,
   })
   const ledger = [...TRANSACTIONS, at(PERRY, '2026-08-15T09:00:00'), at(CARING, '2026-08-15T10:00:00')]
@@ -159,10 +159,10 @@ test('N7 ruling 23: the account number lives on the holding and the masked form 
 })
 
 test('N8 schema v2: an identity step from v1, and recipientId validated', () => {
-  expect(SCHEMA_VERSION).toBe(2)
+  expect(SCHEMA_VERSION).toBe(3) // Gate 94: v3 added categoryRules
   const snapshot = { transactions: [] }
   expect(MIGRATIONS[1]!(snapshot)).toBe(snapshot)
-  const row = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [] })
+  const row = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [], rules: [] })
   expect(isStoredTransaction(row)).toBe(true)
   expect(isStoredTransaction({ ...row, recipientId: undefined })).toBe(true)
   expect(isStoredTransaction({ ...row, recipientId: '' })).toBe(false)
@@ -358,34 +358,34 @@ test('B13 the draft is cleared when the path leaves /transfer', async ({ page })
 // time. Pure and Node-only: no seed, no baseline, no browser.
 
 const synthetic = (recipient: Recipient, change: Partial<Transaction>): Transaction => ({
-  ...buildSend({ recipient, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [] }),
+  ...buildSend({ recipient, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [], rules: [] }),
   ...change,
 })
 
 test('N9 sendCategory: the LATEST payment wins, in whatever order the ledger lists them', () => {
   const older = synthetic(AEON, { id: 'older', kind: 'payment', category: 'shopping', occurredAt: '2026-01-01T10:00:00' })
   const newer = synthetic(AEON, { id: 'newer', kind: 'payment', category: 'dining', occurredAt: '2026-03-01T10:00:00' })
-  expect(sendCategory(AEON, [older, newer])).toBe('dining')
-  expect(sendCategory(AEON, [newer, older])).toBe('dining')
+  expect(sendCategory(AEON, [older, newer], [])).toBe('dining')
+  expect(sendCategory(AEON, [newer, older], [])).toBe('dining')
 })
 
 test('N10 sendCategory: only PAYMENTS count, and only this business\'s own', () => {
   const payment = synthetic(AEON, { id: 'payment', kind: 'payment', category: 'transport', occurredAt: '2026-01-01T10:00:00' })
   const newerTransfer = synthetic(AEON, { id: 'transfer', kind: 'transfer', category: 'bills', occurredAt: '2026-03-01T10:00:00' })
   const newerElsewhere = synthetic(CARING, { id: 'elsewhere', kind: 'payment', category: 'healthcare', occurredAt: '2026-04-01T10:00:00' })
-  expect(sendCategory(AEON, [payment, newerTransfer, newerElsewhere])).toBe('transport')
-  expect(sendCategory(AEON, [newerElsewhere, newerTransfer, payment])).toBe('transport')
+  expect(sendCategory(AEON, [payment, newerTransfer, newerElsewhere], [])).toBe('transport')
+  expect(sendCategory(AEON, [newerElsewhere, newerTransfer, payment], [])).toBe('transport')
 })
 
 test('N11 sendCategory: a business with no payment of its own falls back to others', () => {
   const onlyTransfer = synthetic(AEON, { id: 'transfer', kind: 'transfer', category: 'bills', occurredAt: '2026-03-01T10:00:00' })
   const otherBusiness = synthetic(CARING, { id: 'elsewhere', kind: 'payment', category: 'healthcare', occurredAt: '2026-04-01T10:00:00' })
-  expect(sendCategory(AEON, [onlyTransfer, otherBusiness])).toBe('others')
-  expect(sendCategory(AEON, [])).toBe('others')
+  expect(sendCategory(AEON, [onlyTransfer, otherBusiness], [])).toBe('others')
+  expect(sendCategory(AEON, [], [])).toBe('others')
 })
 
 test('N12 sendCategory: a person is others even when payment rows carry their name', () => {
   const named = synthetic(RACHUM, { id: 'named', kind: 'payment', category: 'shopping', occurredAt: '2026-03-01T10:00:00' })
-  expect(sendCategory(RACHUM, [named])).toBe('others')
-  expect(sendCategory(PERRY, TRANSACTIONS)).toBe('others')
+  expect(sendCategory(RACHUM, [named], [])).toBe('others')
+  expect(sendCategory(PERRY, TRANSACTIONS, [])).toBe('others')
 })

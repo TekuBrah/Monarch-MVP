@@ -62,6 +62,7 @@ export function toStored(state: AppState): StoredRecords {
     fiatAccounts: state.fiatAccounts,
     goals: state.goals.map(storeGoal),
     budgets: state.budgets,
+    categoryRules: state.categoryRules,
   }
 }
 
@@ -108,5 +109,6 @@ export function fromStored(records: StoredRecords, images: ReadonlyMap<string, B
     fiatAccounts: records.fiatAccounts,
     goals,
     budgets: records.budgets,
+    categoryRules: records.categoryRules,
   }
 }

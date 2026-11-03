@@ -190,6 +190,24 @@ export type TransactionKind = 'payment' | 'transfer'
  */
 export type TransactionDisposition = 'purchase' | 'transfer' | 'income'
 
+/**
+ * A MERCHANT RULE — Gate 94 (Decision 11A's second half, reached through 22A).
+ *
+ * Stored when a category change is applied to "All from this merchant": every
+ * past PURCHASE from `merchant` is rewritten in place (11A, 12A — no
+ * provenance), and every purchase a writer creates later for that merchant takes
+ * `category` (`sendCategory` reads it first). ONE RULE PER MERCHANT; a later
+ * "All" for the same merchant replaces it.
+ *
+ * `merchant` IS THE ROW'S OWN `merchant` STRING, MATCHED EXACTLY — the key
+ * `sendCategory` already joins on (`t.merchant === recipient.name`). The seed
+ * has no two merchants differing only in case (measured at Gate 94).
+ */
+export interface CategoryRule {
+  merchant: string
+  category: TransactionCategoryId
+}
+
 
 /**
  * Who the row is with — a curated merchant mark, a person, a photograph of the

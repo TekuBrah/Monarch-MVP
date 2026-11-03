@@ -1,6 +1,7 @@
 import { TRANSACTION_CATEGORIES } from '../data/transactions'
 import type {
   Budget,
+  CategoryRule,
   FiatAccount,
   Goal,
   Receipt,
@@ -36,7 +37,12 @@ import type { CaptureSource } from './captureFacts'
  * parses that value.
  */
 
-export const SCHEMA_VERSION = 2
+/*
+ * VERSION 3 — Gate 94: a sixth collection, `categoryRules`. `MIGRATIONS[2]`
+ * adds it EMPTY; every other collection is unchanged. The seed fingerprint does
+ * NOT include it (the seed holds none), so this bump resets no tester.
+ */
+export const SCHEMA_VERSION = 3
 
 export interface StoredReceipt extends Omit<Receipt, 'sourceUrl'> {
   /** The image's id in the `images` store, present exactly for a capture. */
@@ -53,6 +59,7 @@ export interface StoredRecords {
   fiatAccounts: FiatAccount[]
   goals: Goal[]
   budgets: Budget[]
+  categoryRules: CategoryRule[]
 }
 
 export interface StoredMeta {
@@ -63,7 +70,14 @@ export interface StoredMeta {
   revision: number
 }
 
-export const RECORD_KEYS = ['transactions', 'receipts', 'fiatAccounts', 'goals', 'budgets'] as const
+export const RECORD_KEYS = [
+  'transactions',
+  'receipts',
+  'fiatAccounts',
+  'goals',
+  'budgets',
+  'categoryRules',
+] as const
 export type RecordKey = (typeof RECORD_KEYS)[number]
 
 // ───────────────────────────── the validators ─────────────────────────────
@@ -212,6 +226,10 @@ export function isStoredBudget(v: unknown): boolean {
   )
 }
 
+export function isStoredCategoryRule(v: unknown): boolean {
+  return isRec(v) && isNonEmptyStr(v.merchant) && isCategory(v.category)
+}
+
 export function isStoredMeta(v: unknown): v is StoredMeta {
   return (
     isRec(v) &&
@@ -229,6 +247,7 @@ const RECORD_VALIDATORS: Record<RecordKey, (v: unknown) => boolean> = {
   fiatAccounts: isStoredFiatAccount,
   goals: isStoredGoal,
   budgets: isStoredBudget,
+  categoryRules: isStoredCategoryRule,
 }
 
 const isArrayOf = (check: (v: unknown) => boolean) => (v: unknown) =>
@@ -251,6 +270,8 @@ export function storedRecordsProblem(
   }
   const stored = records as StoredRecords
   if (stored.fiatAccounts.length === 0) return 'no cash account'
+  const merchants = stored.categoryRules.map((r) => r.merchant)
+  if (new Set(merchants).size !== merchants.length) return 'categoryRules names a merchant twice'
   for (const id of referencedImageIds(stored)) {
     if (!imageIds.has(id)) return `image ${id} is referenced but has no bytes`
   }
@@ -283,6 +304,9 @@ export function referencedImageIds(records: StoredRecords): Set<string> {
  */
 export const MIGRATIONS: Record<number, (records: unknown) => unknown> = {
   1: (records) => records,
+  // 2 -> 3 (Gate 94): the new collection, empty. A non-object is passed through
+  // for `storedRecordsProblem` to report, never thrown on.
+  2: (records) => (isRec(records) ? { ...records, categoryRules: [] } : records),
 }
 
 // ───────────────────────────── the fingerprint ─────────────────────────────

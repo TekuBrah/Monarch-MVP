@@ -20,11 +20,14 @@ import {
   netWorthSeries,
   canRecategorise,
   recategorised,
+  recategorisedAllFrom,
   sendRowProblem,
   toSen,
+  withCategoryRule,
 } from '../data/derive'
 import type {
   Amount,
+  CategoryRule,
   Commitment,
   CommitmentOffer,
   CryptoHolding,
@@ -338,6 +341,15 @@ interface AccountsContextValue {
    * budget figure is derived from the ledger on render.
    */
   recategoriseTransaction: (transactionId: string, category: TransactionCategoryId) => void
+  /**
+   * "ALL FROM THIS MERCHANT" — Gate 94. Rewrites every purchase from the row's
+   * merchant to `category` and stores the merchant's rule, in ONE commit (two
+   * sibling pure updaters). The merchant is read off the committed row, so a
+   * caller cannot name an arbitrary one. VALIDATE OUTSIDE, WRITE PURE (R89-8).
+   */
+  recategoriseMerchant: (transactionId: string, category: TransactionCategoryId) => void
+  /** The stored merchant rules — Gate 94. Read by `buildSend`. */
+  categoryRules: CategoryRule[]
   /**
    * CREATE A GOAL. It starts at `savedAmount: 0` and there is no second path.
    *
@@ -742,6 +754,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     `Commitment` is still a pass-through constant with no writer at all.
   */
   const [goals, setGoals] = useState<Goal[]>(() => hydratedState().goals)
+  const [categoryRules, setCategoryRules] = useState<CategoryRule[]>(
+    () => hydratedState().categoryRules,
+  )
 
   /*
     PERSISTENCE OBSERVES; IT NEVER WRITES FROM HERE. The four atoms are reported
@@ -755,8 +770,12 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     setReceipts(state.receipts)
     setFiatAccounts(state.fiatAccounts)
     setGoals(state.goals)
+    setCategoryRules(state.categoryRules)
   }, [])
-  usePersistence({ transactions, receipts, fiatAccounts, goals }, applyStoredState)
+  usePersistence(
+    { transactions, receipts, fiatAccounts, goals, categoryRules },
+    applyStoredState,
+  )
 
   /**
    * See the contract on `AccountsContextValue.topUpGoal`.
@@ -851,6 +870,23 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         if (next === current[i]) return current
         return current.map((t, j) => (j === i ? next : t))
       })
+    },
+    [transactions],
+  )
+
+  /** See the context type. VALIDATE OUTSIDE, WRITE PURE (R89-8). */
+  const recategoriseMerchant = useCallback(
+    (transactionId: string, category: TransactionCategoryId) => {
+      const target = transactions.find((t) => t.id === transactionId)
+      if (!target) {
+        throw new Error(`recategoriseMerchant: no transaction ${transactionId}`)
+      }
+      if (!canRecategorise(target)) {
+        throw new Error(`recategoriseMerchant: ${transactionId} is not a purchase`)
+      }
+      const merchant = target.merchant
+      setTransactions((current) => recategorisedAllFrom(current, merchant, category))
+      setCategoryRules((current) => withCategoryRule(current, { merchant, category }))
     },
     [transactions],
   )
@@ -1011,6 +1047,8 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       topUpGoal,
       sendMoney,
       recategoriseTransaction,
+      recategoriseMerchant,
+      categoryRules,
       createGoal,
       updateGoal,
       deleteGoal,
@@ -1031,6 +1069,8 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     topUpGoal,
     sendMoney,
     recategoriseTransaction,
+    recategoriseMerchant,
+    categoryRules,
     createGoal,
     updateGoal,
     deleteGoal,

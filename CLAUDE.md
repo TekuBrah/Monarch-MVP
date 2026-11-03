@@ -20074,3 +20074,118 @@ Merchant-wide recategorisation (Gate 94); the Crypto send (Flow 5); adding a rec
 Bank-side approval; Today / Yesterday (R93-1); moving the account number onto `FiatAccount` (next seed re-dating);
 G58, G60, G61 (DS round); any DS, token or seed change; the harness clock; every earlier flow's retrofit; the DS
 repo.
+
+## Merchant-wide recategorisation — "Which transactions?" (Gate 94)
+
+No DS re-pin — **v2.12.0 throughout**, and no DS file was written. Gate 89 let a tester change one purchase's
+category; this gate adds the question Gate 89 deferred, **"Which transactions?"**, and stores a merchant rule. **|WALK|
+103 -> 105, `ROUTES` 31, `OVERLAY_STATES` 56 -> 57, `STORE_STATES` 8 -> 9, baselines 412 -> 420 (8 added, 0 changed,
+0 deleted), tests 1367 -> 1395 in 48 files.** `lint:tokens` scans **121** files (no file entered `src/`) with the same
+**4** exemptions. Phase A (Opus) designed and measured it in a census copy (`D:\Claude\_handoffs\gate94-phaseA\`); the
+build session (Sonnet) applied the measured diff and proved it matches. Phase B runs the mutation proofs and three clean
+runs. **Teku does every git write.** Register `2aq` carries the decision, R94-1 to R94-13 and the records.
+
+**UNDESIGNED WORK.** No frame in either Figma file draws a category change, "apply to all" or a merchant rule (Phase A
+searched every text node of the seven case-study pages and the DS file).
+
+### The rules and the writer
+
+- **Decision 27 = A** (Teku, 2 Nov 2026): every change to a new category on a purchase goes through "Which
+  transactions?", including shops with one purchase. Anchor: Revolut's help page. Thread rulings R94-1 to R94-13 are
+  in `2aq` (overturnable); the next free Teku decision is 28.
+- **A rule is `CategoryRule { merchant, category }`**, one per merchant, keyed on the EXACT `Transaction.merchant`
+  string (R94-5). Four pure functions in `derive.ts`: `categoryRuleFor`, `merchantRecategorisations` (the rows "All"
+  would move; its length is the preview's count), `recategorisedAllFrom` (returns THE SAME ARRAY when nothing moves;
+  cannot throw) and `withCategoryRule` (an upsert; the same array on a no-op). **PURCHASES ONLY**, through
+  `canRecategorise`: the seed's IKEA refund and every transfer carrying a merchant's name never move.
+- **`recategoriseMerchant(transactionId, category)`** in `AccountsProvider` reads the merchant off the COMMITTED row
+  (a caller cannot name an arbitrary one), validates outside the updaters (unknown id or non-purchase throws at the
+  call site, R89-8) and then calls two sibling pure updaters in one commit: `setTransactions(recategorisedAllFrom…)`
+  and `setCategoryRules(withCategoryRule…)`. `recategoriseTransaction` ("Only this transaction") is UNCHANGED and
+  leaves an existing rule alone (R94-6).
+- **Sends read the rule** (R94-7). `sendCategory(recipient, transactions, rules)`'s third parameter is REQUIRED; a
+  person is always Others; a business takes its rule, else its latest payment, else Others. `buildSend`'s input gained
+  `rules`; `SendScreen` passes `categoryRules`. `sendMoney` is the only writer that creates a purchase, so this is the
+  whole of "future rows" today.
+
+### The choice step — a third view, holding the height
+
+`TransactionDetailSheet` gains `SheetView = 'detail' | 'category' | 'scope'` and a `pending` category. In "Select
+category" a tap on a NEW category no longer writes: it sets `pending` and swaps to **"Which transactions?"** (back on the
+left to the list, ✕ on the right), a single-select `OptionList` of "Only this transaction" then "All from this
+merchant", `value={[]}` so nothing is pre-selected and a tap commits (R94-3). The current category still writes nothing
+and returns to the detail view (R94-4). Under the list a live preview line (`.mvp-txn-detail__scope-note`, `type-body-sm`,
+`--mapped-text-subtle-default`, inset `--brand-scale-400`) states the effect, with the count from the live ledger and
+"1 transaction" singular. The scope pane is the same held-height pane (Gate 81-C / 89): detail pane mounted, hidden,
+`inert`, `aria-hidden`; `contentPadding="none"` in every view. Focus: entering the list or the scope view focuses the
+selected option, or the first option when none is selected, without scrolling; returning to detail focuses the Category
+control under the Gate 89-B pointer rule (the pane's `onClickCapture` sees the scope pick too). Back, ✕, Escape and the
+scrim write nothing. **No toast** (the surface stays and its row shows the new value, Gate 51's rule). DS parts only; no
+new component, token or asset.
+
+### Schema v3
+
+`SCHEMA_VERSION = 3`; `RECORD_KEYS` gains `categoryRules` (sixth, last); `StoredRecords` and `AppState` gain it;
+`isStoredCategoryRule` (non-empty merchant, known category); `storedRecordsProblem` rejects a merchant named twice;
+`MIGRATIONS[2]` adds `categoryRules: []` and passes a non-object through (never throws). `seedState()` returns `[]`.
+**`seedFingerprint()` is unchanged** (it hashes the five raw seeds), so **no tester is reset**: a v2 snapshot classifies
+`migrated` and is written back whole on the next commit. `DB_VERSION` does not move (the harness parses it). **The
+provider must report the `categoryRules` atom to `usePersistence`, or `reportState` never completes and ALL persistence
+stops** (mutation B2b).
+
+### Harness, tests and baselines
+
+The `recategorised` overlay gains a third prepare step ("Only this transaction"); new overlay `category-scope` (settles on
+the preview's exact text); new store preset `RECATEGORISED_ALL`, built from the app's own `recategorisedAllFrom` and
+`withCategoryRule`, and one store state `/finance/budget/budget-entertainment [store:recategorised-all]`.
+`e2e/merchant-rules.spec.ts`: **12 tests, no baseline** (N1–N6 in Node: purchases only, the count, the upsert,
+`sendCategory`, schema v3, the Entertainment figures; B1–B6 in the browser: one row and no rule, the preview and a
+rule KEPT across a reload, a send following the rule after a one-off on the newest row, a hydrated rule deciding a send,
+Back / ✕ / Escape writing nothing, and the held height). B3 uses the bottom-nav locator (R94-12). 1367 + 2 states × 8 +
+12 = **1395 in 48 files** (`visual` 420, `routes` 211, `section-headers` 212).
+
+**Predicted in writing before the pre-mint run** (`gate94-build\PREDICTION.md`): 8 failed, exactly the 8 new names, 0
+changed. **The pre-mint run matched name for name: 8 failed / 412 passed (21.9 min), all 8 "snapshot doesn't exist", 0
+`writing actual`, digest unchanged, arm 1 green.** The mint ran `--update-snapshots=all` over an exact, escaped,
+end-anchored `-g` of the 8 titles (dry run: 8): 8 passed, 8 write lines. Reconciled against a manifest taken outside the
+repo: **412 -> 420, 8 added, 0 changed, 0 deleted, 412 byte-identical**. All 8 minted PNGs are **byte-identical to the
+prototype's** (`census\proto`). Digest after the mint (filesystem form, 8 files untracked until staged):
+**`254a1aab4a0692904ccfaa0fe7978e5d5f516f37bde8acac5a5837d4a4e5b737`**, by the standing command.
+
+**All 8 were opened.** `category-scope` ×4 (19,054 px tall; the sheet cropped): "Which transactions?" with back left, ✕
+right, title centred; the two rows, nothing selected; the preview line (three lines at 375, two at 430). **In dark both
+option rows paint black** — the DS `OptionList` unselected-row surface, the open decision already on record for the
+Funding Source and category pickers, not new. `recategorised-all` ×4: Entertainment **19% · RM 196.30 left of RM
+1,000.00**, Spent **RM 803.70** (123.76 + 250.75 + 429.19), Duration 30 Aug – 20 Sept 2025, a one-segment ring with a hole,
+the Dining & Leisure legend open at 100% with four rows (Aeon Big −250.75, KFC −25.50, Tony Roma's −98.26 with a receipt
+glyph, Aeon Big −429.19 with a receipt glyph). Figures identical in all four.
+
+### Verification (the build session)
+
+| run | result |
+|---|---|
+| diff applied by hunk | `git apply` in a scratch dir over LF copies: every hunk applied exactly; all 14 edited files and the new spec are **raw byte-identical** to `census\proto` |
+| `tsc -b --force`, `lint:tokens`, `lint:linkage` | clean; 121 files / 4 exemptions; all four sources on v2.12.0 |
+| non-visual sweep (every spec except `visual.spec.ts`) | **975 passed / 0 failed**, 34.8 min, npm exit 0; 0 `writing actual` |
+| pre-mint `visual.spec.ts` | **8 failed / 412 passed**, 21.9 min — the 8 predicted names; 0 `writing actual`; 412 PNGs unchanged |
+| mint and reconcile | 8 passed; **412 -> 420, 8 added, 0 changed, 0 deleted** |
+| full suite on the final tree | **1394 passed / 1 failed**, 54.2 min, npm exit 1  the one is `baselines.spec.ts:216` arm 1 naming exactly the 8 untracked PNGs, as predicted; 0 `writing actual`; 420 PNGs, digest stable |
+
+**Arm 1 of the baseline guard fails until Teku stages the 8 new PNGs** — predicted, not a defect. The three clean runs
+are Phase B's. The documents (`CLAUDE.md`, the register) were appended after the full run began; no spec, script or
+source reads either.
+
+### Corrections to the record (insert-only)
+
+- **R93-14 was never recorded** (above, register `2aq`): the Gate 93 record should read `send.spec.ts` 25 tests and the
+  suite 1367 in 47 files, not 21 and 1363.
+- **Decision 11 wording**, **Decision 13 = A**, **Monzo's three options** and **no Malaysian source** (register `2aq`).
+- **Build finding:** `git apply` run outside the repo rewrote LF scratch files as CRLF under `core.autocrlf=true`, so a
+  converter that added CRs afterwards doubled them (restored from the control copy by bytes; no commit was involved).
+  Normalise after `git apply`, not before.
+
+### Deliberately not in scope
+
+A rules list or undo surface (R94-9, paused); naming rules in the Reset confirmation (R94-10); case-folded merchant
+matching (R94-5); the dark black option rows (DS round, 1A); capping the full-page capture height (`2ad`); recategorising a
+transfer or income row; any DS, seed, token or asset change; persistence beyond the new collection; and the DS repo.

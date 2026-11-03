@@ -1706,6 +1706,14 @@ button.mvp-receipt-card:focus-visible {
   visibility: hidden;
 }
 
+/* Gate 94 — the "Which transactions?" view's preview line, on the content
+   column's own inset, below the two flat options. */
+.mvp-txn-detail__scope-note {
+  margin: 0;
+  padding-inline: var(--brand-scale-400);
+  color: var(--mapped-text-subtle-default);
+}
+
 /*
   THE CATEGORY CONTROL. A bare button that looks like the value it replaces:
   the value's own type and colour, then Figma's 20px `chevron_right` at

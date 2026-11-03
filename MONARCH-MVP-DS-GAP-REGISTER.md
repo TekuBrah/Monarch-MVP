@@ -4929,3 +4929,104 @@ identity migration). Baselines 372 -> 412 (40 added, 4 changed, 0 deleted); test
 - **`section-headers.spec.ts`'s "`Label` is used by no other DS component"** (above).
 
 ### Nothing was removed from this register at this gate.
+
+## 2aq. Status at MVP Gate 94 (2026-11-02) — merchant-wide recategorisation; DS v2.12.0; no gap opened
+
+**THE TALLY DOES NOT MOVE: 60 entries, 34 closed, 26 open; the highest number is G61.** No DS gap was opened or
+closed, and no MVP-local override was added for any open one. Still open and still deferred, unchanged: G6, G13, G14,
+G17's prop half, G19–G23, G28–G33, G44, G48, G49, G50, G51, G52, G53, G58, G60, G61, `MODEL-1` and `UI-3`. **Next
+free: section `2ar`, gap `G62`; next free Teku decision 28.**
+
+**The gate ships on DS `v2.12.0`**, unchanged (no re-pin, no DS file read or written). It reverses the second half of
+Decision 11 = A ("no merchant-wide prompt and no rules store") and discharges the obligation that decision recorded
+(`2al`: "the first flow that creates purchases also builds the merchant-wide choice"). Gate 93's `sendMoney` is that
+flow.
+
+### Decision (Teku)
+
+- **Decision 27 = A** (Teku, 2 Nov 2026). Every change to a new category on a purchase goes through "Which
+  transactions?", including shops with one purchase. Anchor: Revolut's help page ("After selecting the new
+  category, a pop-up will ask you which transactions to move").
+- **Next free Teku decision: 28.**
+
+### Thread rulings (overturnable)
+
+- **R94-1 (X1).** The choice is a THIRD VIEW in the existing category sheet, "Which transactions?", back on the left
+  and ✕ on the right; the Gate 81-C held height and the Gate 89-B focus rule are unchanged.
+- **R94-2 (X2).** Revolut's labels verbatim: "Only this transaction" and "All from this merchant". The merchant is
+  named in the live preview line, not in the option.
+- **R94-3 (X3).** "Only this transaction" comes first and is focused on arrival. Nothing is pre-selected; a tap
+  commits. The least destructive option is the one Enter reaches.
+- **R94-4 (X4).** Picking the row's CURRENT category writes nothing and skips the step (Gate 89's test stands).
+- **R94-5 (X5).** A rule matches the exact `Transaction.merchant` string.
+- **R94-6 (X6).** "Only this transaction" leaves an existing rule alone.
+- **R94-7 (X7).** `sendCategory`'s `rules` parameter is REQUIRED (the omitted-prop trap). Order: rules, then the
+  latest payment, then Others; a person is always Others.
+- **R94-8 (X8).** Two walk states, `[overlay:category-scope]` and `[store:recategorised-all]` on Entertainment: +8
+  baselines.
+- **R94-9 (X9).** No undo surface. Re-picking "All from this merchant" replaces a rule; Reset data clears them all.
+  No help page sources a rule list. **A rules list in Settings is registered as a paused item.**
+- **R94-10 (X10).** The Reset confirmation copy is unchanged ("Everything you've added or changed is removed"
+  already covers rules; naming them would move the Settings baselines for no new information).
+- **R94-11.** Schema v3: `categoryRules` is the sixth record key, with an empty-collection migration, a validator
+  that rejects a merchant named twice, `seedFingerprint` unchanged (no tester reset) and `DB_VERSION` unchanged.
+- **R94-12.** B3 uses the bottom-nav locator (`.mvp-shell__nav .mn-bottom-nav__item` with `hasText: 'Transfer'`). A
+  `getByRole` name match is a substring match and matched 38 "Fund Transfer" ledger rows.
+- **R94-13.** The records below.
+
+### What shipped
+
+After a category pick on a purchase the sheet asks "Which transactions?". "Only this transaction" is Gate 89's
+one-row write. "All from this merchant" rewrites every PURCHASE from that merchant (`recategorisedAllFrom`, through
+`canRecategorise`, so a refund or transfer carrying the same name never moves) and stores a `CategoryRule`
+(`withCategoryRule`, an upsert keyed on the merchant) in one commit of two sibling pure updaters
+(`recategoriseMerchant`, validated outside the updaters, R89-8). `sendMoney` is the only writer that creates a
+purchase, so `buildSend` reading the rule through `sendCategory` is the whole of "future rows" today. A live preview
+line states the effect and its count from the live ledger ("All from this merchant changes 28 transactions from Aeon
+Big to Dining & Leisure, and future ones too."). Back, ✕, Escape and the scrim write nothing. No toast.
+
+**Schema v2 -> v3.** `SCHEMA_VERSION = 3`; `MIGRATIONS[2]` adds `categoryRules: []` and passes a non-object through;
+`isStoredCategoryRule` validates; `storedRecordsProblem` reports "categoryRules names a merchant twice".
+`seedFingerprint()` hashes the five raw seeds and the seed holds no rules, so **no tester is reset**: a stored v2
+snapshot classifies `migrated`, gains an empty collection and is written back whole on the next commit. A v3 store
+opened by v2 code is read-only (unchanged mechanism). The provider must report the `categoryRules` atom or ALL
+persistence stops (`reportState` waits for every record key); mutation B2b pins it.
+
+**Walk states and tests.** |WALK| 103 -> 105 (`31 + 8 + 57 + 9`), `OVERLAY_STATES` 56 -> 57, `STORE_STATES` 8 -> 9;
+baselines 412 -> 420 (8 added, 0 changed, 0 deleted); tests 1367 -> 1395 in 48 files (`merchant-rules.spec.ts`, 12:
+N1–N6 in Node, B1–B6 in the browser; `visual` 420, `routes` 211, `section-headers` 212). `recategorise.spec.ts`,
+`send.spec.ts` and `persistence-writers.spec.ts` changed only where a pick now passes through the scope view, a
+signature gained its required parameter, or the schema version moved 2 -> 3.
+
+### The records (R94-13; insert-only, earlier text is left as written)
+
+- **R93-14 was never recorded.** It is the Gate 93 fix-before-commit: `sendCategory`'s tests N9–N12 on synthetic
+  rows, written after Phase B's survivors S4b and S4c. The Gate 93 record should read `send.spec.ts` **25** tests
+  and the suite **1367 in 47 files**, not 21 and 1363.
+- **Decision 11's wording.** On disk 11A is "one recategorisation changes that transaction only; no merchant-wide
+  prompt and no rules store". Gate 94 reverses its second sentence and discharges the obligation 11A recorded. It
+  does not "complete 11A".
+- **Decision 13 = A** (Teku, 21 Oct 2026, shipped at Gate 90). The review thread's "13 B deferred" was wrong.
+- **Monzo offers three options** (this payment only / this and future / all past and future). The two-option scope
+  follows Revolut.
+- **No Malaysian app's behaviour is sourced.** MAE's FAQ PDF failed to fetch four times; no help page from GXBank,
+  Touch 'n Go, Boost, AEON Bank or Ryt Bank describes a category change.
+- **In dark mode the scope view's unselected rows paint black.** This is the existing DS-round `OptionList`
+  behaviour (1A), the same item as the Funding Source and category pickers; nothing new.
+- **`sendCategory` already followed a business's latest payment**, so straight after "All" a send landed in the new
+  category with or without a rule. The stored rule changes the outcome only after a later one-off on the newest row
+  (B3, B6). It is what makes "All" mean "future ones too".
+
+### Findings, recorded and not fixed
+
+- **The seed is uniform:** every merchant's 220 purchases share one category (17 purchase merchants, no case
+  collisions, no transfer sharing a purchase merchant's name), so the rules are proved on synthetic rows where that
+  matters (N1, N2).
+- **The `category-scope` captures are 19,054 px tall** (the whole ledger behind the sheet, about 2 MB each); the
+  known capped-capture item (`2ad`) applies.
+- **Build finding: `git apply` run outside the repo rewrote the LF scratch files as CRLF** (`core.autocrlf=true`),
+  so a converter that then added CR doubled them. The files were restored from the control copy by bytes and the
+  apply re-run with the converter normalising first. Any future "apply a diff to CRLF files" step must normalise
+  after `git apply`, not before.
+
+### Nothing was removed from this register at this gate.

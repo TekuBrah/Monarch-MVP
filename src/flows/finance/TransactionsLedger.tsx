@@ -77,6 +77,7 @@ export function TransactionsLedger() {
     addReceipt,
     linkReceipt,
     recategoriseTransaction,
+    recategoriseMerchant,
   } = useAccounts()
   const [search, setSearch] = useState('')
 
@@ -608,6 +609,7 @@ export function TransactionsLedger() {
           // GATE 89 — one row, by id. The sheet re-resolves `detail` from the live
           // ledger every render, so the Category row shows the new value at once.
           onRecategorise={(category) => recategoriseTransaction(detail.id, category)}
+          onRecategoriseMerchant={(category) => recategoriseMerchant(detail.id, category)}
           onClose={closeDetail}
         />
       )}

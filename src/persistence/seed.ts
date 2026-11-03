@@ -4,7 +4,7 @@ import { backfillAddedAt, backfillReferences } from '../data/derive'
 import { GOALS } from '../data/goals'
 import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
-import type { Budget, FiatAccount, Goal, Receipt, Transaction } from '../data/types'
+import type { Budget, CategoryRule, FiatAccount, Goal, Receipt, Transaction } from '../data/types'
 import { fingerprintOf } from './schema'
 
 /** Every piece of application data the app persists, in its RUNTIME shape. */
@@ -14,6 +14,7 @@ export interface AppState {
   fiatAccounts: FiatAccount[]
   goals: Goal[]
   budgets: Budget[]
+  categoryRules: CategoryRule[]
 }
 
 /**
@@ -38,6 +39,9 @@ export function seedState(): AppState {
     fiatAccounts: FIAT_ACCOUNTS,
     goals: GOALS,
     budgets: BUDGETS,
+    // Gate 94: the seed holds no rules, and `seedFingerprint` below does NOT
+    // hash this collection, so adding it reset no tester's data.
+    categoryRules: [],
   }
 }
 

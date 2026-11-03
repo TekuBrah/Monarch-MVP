@@ -19,6 +19,7 @@ import { advisoryBody, advisoryTitle, isPdfCapture, retakeLabel } from '../advis
 import {
   canRecategorise,
   contributionSourceLabel,
+  merchantRecategorisations,
   goalSavedAfter,
   transactionReference,
   movementParties,
@@ -179,6 +180,12 @@ export interface TransactionDetailSheetProps {
    * stays).
    */
   onRecategorise: (category: TransactionCategoryId) => void
+  /**
+   * "All from this merchant" — Gate 94. Called from the "Which transactions?"
+   * view; the provider rewrites every purchase from this row's merchant and
+   * stores the rule.
+   */
+  onRecategoriseMerchant: (category: TransactionCategoryId) => void
   onClose: () => void
 }
 
@@ -212,7 +219,13 @@ export interface TransactionDetailSheetProps {
  * control, which scrolls it back into view.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-type SheetView = 'detail' | 'category'
+type SheetView = 'detail' | 'category' | 'scope'
+
+/** Gate 94 — the two scopes, in Monzo's order: the one-row change first. */
+const SCOPE_OPTIONS = [
+  { id: 'one', label: 'Only this transaction' },
+  { id: 'merchant', label: 'All from this merchant' },
+]
 
 export function TransactionDetailSheet({
   transaction,
@@ -225,10 +238,13 @@ export function TransactionDetailSheet({
   goals,
   transactions,
   onRecategorise,
+  onRecategoriseMerchant,
   onClose,
 }: TransactionDetailSheetProps) {
   const [view, setView] = useState<SheetView>('detail')
-  const isPicking = view === 'category'
+  // Gate 94: the category picked in the list, held until a scope is chosen.
+  const [pending, setPending] = useState<TransactionCategoryId | null>(null)
+  const isPicking = view !== 'detail'
   const categoryControl = useRef<HTMLButtonElement>(null)
   const pickerPane = useRef<HTMLDivElement>(null)
   // Whether the picker was open on the previous render, so focus returns to the
@@ -240,14 +256,17 @@ export function TransactionDetailSheet({
   const pickedByPointer = useRef(false)
 
   useEffect(() => {
-    if (isPicking) {
+    if (view !== 'detail') {
       wasPicking.current = true
       pickedByPointer.current = false
       const pane = pickerPane.current
       pane?.scrollIntoView({ block: 'start' })
-      pane
-        ?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
-        ?.focus({ preventScroll: true })
+      // The selected option in the category list; the first option ("Only this
+      // transaction") in the scope list, which selects nothing.
+      ;(
+        pane?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]') ??
+        pane?.querySelector<HTMLElement>('[role="option"]')
+      )?.focus({ preventScroll: true })
     } else if (wasPicking.current) {
       wasPicking.current = false
       /*
@@ -264,7 +283,7 @@ export function TransactionDetailSheet({
       categoryControl.current?.focus(pickedByPointer.current ? withoutRing : undefined)
       pickedByPointer.current = false
     }
-  }, [isPicking])
+  }, [view])
 
   /*
     WHAT THIS ROW IS, DERIVED — Gate 79. `transactionDisposition` reads `kind`
@@ -287,7 +306,13 @@ export function TransactionDetailSheet({
         absent from a sheet whose sibling passes it.
       */
       sizing="hug"
-      title={isPicking ? 'Select category' : 'Transaction details'}
+      title={
+        view === 'category'
+          ? 'Select category'
+          : view === 'scope'
+            ? 'Which transactions?'
+            : 'Transaction details'
+      }
       /*
         THE ✕ STAYS, UNLIKE THE FILTER SHEET, and both readings come from the
         same node type. `1021:13772` — this sheet's header — draws a 24×24
@@ -295,7 +320,13 @@ export function TransactionDetailSheet({
         Gate 43 passed `showCloseButton={false}` and this does not. They simply
         differ in the file.
       */
-      onBack={isPicking ? () => setView('detail') : undefined}
+      onBack={
+        view === 'scope'
+          ? () => setView('category')
+          : view === 'category'
+            ? () => setView('detail')
+            : undefined
+      }
       backLabel="Back to transaction details"
       // IN BOTH VIEWS — measured fix 1 in the header above. The detail pane
       // restores the side padding itself, so its width never changes.
@@ -503,22 +534,64 @@ export function TransactionDetailSheet({
             `1266:14336`) draws none either. Flat full-bleed rows: the sheet's
             content padding is already `none`.
           */}
-          <OptionList
-            selectionMode="single"
-            ariaLabel="Category"
-            options={TRANSACTION_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))}
-            value={[transaction.category]}
-            onChange={(value) => {
-              const picked = value[0] as TransactionCategoryId | undefined
-              if (picked) onRecategorise(picked)
-            }}
-            onDismiss={() => setView('detail')}
-          />
+          {view === 'category' && (
+            <OptionList
+              selectionMode="single"
+              ariaLabel="Category"
+              options={TRANSACTION_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))}
+              value={[transaction.category]}
+              /*
+                GATE 94: A PICK NO LONGER COMMITS. A new category moves to the
+                "Which transactions?" view; the current category writes nothing
+                and returns to the detail view, as before.
+              */
+              onChange={(value) => {
+                const picked = value[0] as TransactionCategoryId | undefined
+                if (!picked || picked === transaction.category) {
+                  setView('detail')
+                  return
+                }
+                setPending(picked)
+                setView('scope')
+              }}
+            />
+          )}
+          {view === 'scope' && pending && (
+            <>
+              <OptionList
+                selectionMode="single"
+                ariaLabel="Apply to"
+                options={SCOPE_OPTIONS}
+                value={[]}
+                onChange={(value) => {
+                  if (value[0] === 'merchant') onRecategoriseMerchant(pending)
+                  else onRecategorise(pending)
+                  setView('detail')
+                }}
+              />
+              <p className="mvp-txn-detail__scope-note type-body-sm">
+                {scopeNote(
+                  transaction.merchant,
+                  merchantRecategorisations(transactions, transaction.merchant, pending).length,
+                  transactionCategory(pending)?.label ?? pending,
+                )}
+              </p>
+            </>
+          )}
         </div>
       )}
       </div>
     </Sheet>
   )
+}
+
+/**
+ * THE LIVE PREVIEW — Gate 94. States what "All from this merchant" would do, in
+ * the merchant's own name, counted from the live ledger.
+ */
+function scopeNote(merchant: string, count: number, label: string): string {
+  const rows = count === 1 ? '1 transaction' : `${count} transactions`
+  return `All from this merchant changes ${rows} from ${merchant} to ${label}, and future ones too.`
 }
 
 /**
