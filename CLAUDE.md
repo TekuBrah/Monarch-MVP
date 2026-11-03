@@ -20189,3 +20189,34 @@ source reads either.
 A rules list or undo surface (R94-9, paused); naming rules in the Reset confirmation (R94-10); case-folded merchant
 matching (R94-5); the dark black option rows (DS round, 1A); capping the full-page capture height (`2ad`); recategorising a
 transfer or income row; any DS, seed, token or asset change; persistence beyond the new collection; and the DS repo.
+
+## Flow 4 completion record (Gate 95)
+
+**FLOW 4 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-4-COMPLETION.md` AT THE REPO ROOT.** Read that file first,
+before any Flow 4 work, before Flow 5 (crypto) or Flow 6 (new recipients, Scan QR), and before a later gate touches
+the transfer screens, `sendMoney`, merchant rules or `TransactionMark`. It covers the screens and writers, the money
+flow and write path with their reasons (history entries, the draft, schema v2 and v3), the data, Teku's decisions
+18A to 27 and the thread rulings by gate, the standards the flow established for later flows, the Figma-to-code
+lineage, the deviations from Figma, every deferred and open item, the open decisions, the corrections to the record,
+what it hands on, and the gate list across both repos. The per-gate sections above (Gates 92, 93 and 94) remain the
+evidence behind it. **Do not restate its content here.** If the two disagree, re-derive from disk, correct whichever
+is wrong, and say so.
+
+Gate 95 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every baseline is
+byte-identical (420, digest `254a1aab4a0692904ccfaa0fe7978e5d5f516f37bde8acac5a5837d4a4e5b737`; `--list` 1395 tests in 48
+files). No DS re-pin: v2.12.0 applies throughout. Register §2ar records the flow's close, opens G62 and G63, and
+carries the Gate 93 and Gate 94 Phase B records; the tally is 62 entries, 34 closed, 28 open, highest G63.
+
+**THREE THINGS GATE 95 FOUND THAT A SUCCESSOR WOULD OTHERWISE GET WRONG:**
+
+- **G62: the To field's business logo overflows its slot, and not where Teku's walk said.** `TransactionMark`
+  passes one `size` to two DS components whose ramps differ (`Logo` `l` is 56, `Avatar` `l` is 40), so Aeon Big
+  and Caring Pharmacy draw a 56px disc in the To field's 40px slot — 5px inside the left border, not across it.
+  Measured on the committed baselines; MVP-only fix proposed in §2ar; not fixed.
+- **G63 does not reproduce with a pointer.** After View transaction the detail sheet's ✕ rings under a keyboard
+  activation and does not under a mouse or a touch tap, in the harness's Chromium 151. The open-time focus is the DS
+  `Sheet`'s plain `.focus()`; Gate 89-B's rule covers only the MVP's own focus returns. Opened unconfirmed; it
+  needs a device repro (input method, browser, version).
+- **The Gate 93 and Gate 94 Phase B records were on no file** until §2ar, and R93-14 (the `sendCategory` tests
+  N9–N12) had been recorded only in Gate 94's section. The Gate 93 figures read `send.spec.ts` 25 tests and the
+  suite 1367 in 47 files.

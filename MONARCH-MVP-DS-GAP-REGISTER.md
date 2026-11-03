@@ -5030,3 +5030,95 @@ signature gained its required parameter, or the schema version moved 2 -> 3.
   after `git apply`, not before.
 
 ### Nothing was removed from this register at this gate.
+
+## 2ar. Status at MVP Gate 95 (2026-11-04) — Flow 4 closed; two walk findings opened (G62, G63); the Gate 93 and Gate 94 Phase B records
+
+**THE TALLY MOVES BY TWO: G62 AND G63 ARE OPENED.** **62 entries, 34 closed, 28 open; the highest number is G63.**
+Derived from §2aq's 60 / 34 / 26: G62 opens (+1 entry, +1 open) and G63 opens (+1 entry, +1 open). 60 + 2 = 62;
+34 + 0 = 34; 26 + 2 = 28. Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop half,
+G19–G23, G28–G33, G44, G48, G49, G50, G51, G52, G53, G58, G60, G61, `MODEL-1` and `UI-3`. **No MVP-local override was
+added for any of them**, and the `G33` workaround class is untouched and still carries its removal condition.
+**G63 is opened UNCONFIRMED (below); if it is closed as not-reproduced the tally reads 62 / 35 / 27.** **Next free:
+section `2as`, gap `G64`; next free Teku decision 28.**
+
+**The gate ships on DS `v2.12.0`**, unchanged (`fbc6e2f215194909f5afbc77c7fb83832f82992b`, `lint:linkage` PASS at
+this gate). Gate 95 wrote Flow 4's completion record (`FLOW-4-COMPLETION.md`) and changed no code, no spec, no
+baseline and no config: **420 PNGs, digest `254a1aab4a0692904ccfaa0fe7978e5d5f516f37bde8acac5a5837d4a4e5b737`
+before and after; `--list` 1395 tests in 48 files.** The two findings below came from Teku's walk of the live site
+at `main@8540004`, on a desktop browser at phone width [carried]; both were checked against the committed baselines
+and the source before being filed. A throwaway probe (outside the repo, in
+`D:\Claude\_handoffs\gate95\`) measured G63 in the harness's Chromium; the dev server it used was stopped and no
+file in the repo was touched.
+
+### G62 — the To field's recipient mark overflows its slot when the recipient is a business (opened, MVP-side)
+
+| | |
+|---|---|
+| **where** | MVP `src/flows/transfer/SendScreen.tsx:204` (`leadingSlot={<TransactionMark mark={recipient.mark} size="l" />}`) and `src/components/TransactionMark.tsx`; DS `SelectWalletAccount.css` `.mn-select-wallet-account__leading` (a fixed 40 × 40 flex box, no `overflow` rule), `Logo.css` (`l` = 56, `m` = 40) and `Avatar.css` (`l` = 40, `m` = 32) |
+| **what** | On "Send money" the To field for **Aeon Big** and **Caring Pharmacy** shows the logo disc far larger than the From field's photo. Measured on the committed `transfer-send-recipient-aeon-big-375-light` baseline (decoded at pixel level): the disc is **56 × 56** at x 21–76, y 245–300, against a field whose border is at x = 16 and whose top and bottom borders are at y = 242 and 303 — so it does **not cross the left border** (it is 5px inside it) but it fills the field's inner height to within 2px of the top and bottom borders and sits flush against the name text at x ≈ 78. The slot is 40 × 40, so the mark overflows it by 8px on every side. Identical at 430 and in dark; Caring Pharmacy's disc is the same size (read from its 375 baseline). The three **photo** recipients are `Avatar size="l"` = 40 and fit, as does the From field's photo. The same `size="l"` is passed at `ReviewTransferSheet.tsx:61` and `TransferScreen.tsx:78`; in the picker baseline the orange pixels span 36px across at 375 (a rough read, not isolated per row), which suggests the picker's row constrains the mark where the To slot does not — the review sheet's To row is **not measured** (no baseline of a business recipient's review exists) |
+| **cause** | `TransactionMark`'s `size` is one value for two DS components whose ramps differ: its comment says `Logo` and `Avatar` "share one ramp", but `Logo` `l` is 56 and `Avatar` `l` is 40 (Logo `m` 40, Avatar `m` 32). A photo or initials mark and a merchant `Logo` of the same `size` therefore differ by 16px. Gate 92's record already noted the mismatch ("`Logo l` is 56 and `Avatar l` 40", §2ao findings) and left it |
+| **proposed fix** | **MVP-only.** Pass the size that gives a 40px mark per kind — for the To slot, `Logo m` for a merchant mark and `Avatar l` for a photo — either by a `size` mapping inside `TransactionMark` (the one component that knows which DS component it renders) or at the two `leadingSlot` / `leading` call sites. It moves the baselines of the two business recipients' send states only (`transfer-send-recipient-aeon-big-*`, `…-caring-pharmacy-*`, 8 files), and the review state if one is added. **Optional DS hardening:** `.mn-select-wallet-account__leading` could clip or scale its child (`overflow: hidden` or `> * { max-height: 100% }`) so a mis-sized mark cannot overflow; that is a DS decision and is not required to fix this |
+| **decision** | registered; **not fixed at this gate** (documents only). Owner: the next gate that edits `SendScreen.tsx` or `TransactionMark.tsx` |
+
+### G63 — a focus ring on the transaction detail sheet's ✕ after View transaction (opened UNCONFIRMED)
+
+| | |
+|---|---|
+| **where** | MVP `src/flows/finance/TransactionsLedger.tsx:137-147` (the sheet is opened by id from router location state, read once in the `detailId` initialiser and then dropped); `src/flows/transfer/TransferDoneScreen.tsx:76-86` (View transaction); DS `Sheet.tsx:198-203` (open-time focus: `(initial[0] ?? panel)?.focus()`, a plain `.focus()`) and `OverlayHeader.css` (the close control's `:focus-visible` ring) |
+| **what** | Teku reports a focus ring on the detail sheet's ✕ when he arrives from the success page by a mouse or touch tap on View transaction, against Gate 89-B's rule that a pointer action leaves no ring. **Not reproduced with a pointer.** Probe, Chromium 151 (the harness's), 375 × 812 at DPR 2, dev server, the real flow (picker → Aeon Big → 9.99 → Transfer money → Transfer now → View transaction): active element after the sheet opens is in every case `button.mn-overlay-header__control` ("Close") inside `.mn-sheet`, and — **mouse:** `:focus-visible` false, outline `none`; **touch (`tap`):** false, `none`; **mouse after typing the amount with real key events:** false, `none`; **keyboard (Enter on View transaction):** `:focus-visible` **true**, `solid 2px rgb(4, 110, 255)` |
+| **cause** | The sheet's open-time focus is the DS's plain `.focus()`, so whether the ✕ rings follows the browser's own `:focus-visible` heuristic for script focus — a ring after a keyboard activation, none after a pointer one — exactly as Gate 89-B measured for the same control after a click-open versus an Enter-open. **Gate 89-B's rule is the MVP's own focus returns to the Category control (`focus({ focusVisible: false })` after a pointer pick); it does not govern the DS `Sheet`'s open-time focus.** Teku's observation is therefore consistent with a keyboard activation, or with a Chrome build whose heuristic differs from 151; which one is unestablished |
+| **proposed fix** | None until it reproduces. If it does with a pointer: the sheet is opened with no user-input event in the new document (the tap landed on a route that has since unmounted), so the open-time focus should be made pointer-aware in the **DS** `Sheet` (a `focusVisible: false` on its initial focus when the opening input was a pointer), not patched from the MVP (rule 3). A device repro (input method, browser and version) is what is needed |
+| **decision** | registered **unconfirmed**; **not fixed**. Closed as not-reproduced if a device repro does not arrive by the next flow's close |
+
+### Walk note — not a gap
+
+The review thread's walk step said to pick an "Entertainment" category. **There is none:** the seven categories are
+Bills & Utilities, Groceries, Dining & Leisure, Healthcare, Transport, Shopping and Others / Misc
+(`TRANSACTION_CATEGORIES`, `src/data/transactions.ts:135-141`); the seeded *budget* named Entertainment counts
+`dining` (`src/data/budgets.ts:36-38`). A correction to the walk instructions; no product change. **Also recorded:**
+Teku's walk was on the live site in a desktop browser at phone width [carried]; a **real-phone walk of Flow 4 is
+still unconfirmed**, and the iOS focus behaviour in G58 can only be seen there.
+
+### The Gate 93 Phase B record (30–31 Oct 2026), condensed from its report [reported]
+
+Source: `D:\Claude\_handoffs\gate93-phaseB\PHASE-B-REPORT.md`, which was never inserted here (Gate 90's was, in §2ao).
+Premises held: 412 baselines, digest `6cccb8345ba348f26dee98a8f7fdd1a13771617aac61443581cd7db2140bf720` in both its
+filesystem and git-blob forms, 1363 tests in 47 files, `lint:linkage` PASS on v2.12.0. **Mutation run:** negative
+control refused as required; **29 proved**; S27b (a contrast case) passed by design; **S4b and S4c SURVIVED** —
+`sendCategory`'s `kind` clause and its "latest row" rule had no test that could fail, because the seed has one
+category and one kind per business. That is why the Gate 93 fix-before-commit added tests N9–N12 on synthetic rows
+(R93-14, recorded at §2aq). A live check: 20 of 20 fresh contexts landed on `/transfer` after Back from the success
+page, with `history.length` unchanged. **Three clean runs: 1363 passed each, 58.8 / 53.9 / 54.5 minutes.** Run 3 was
+void — the PC slept (2.5 h, Kernel-Power events) — and a replacement run 3b passed. Process findings: "three clean
+runs, nothing else running" is not safe on a machine that can sleep (hold it awake or keep runs shorter than the
+idle timer); the draft S4 (drop the clause and take the earliest row together) is not detectable from this seed.
+
+### The Gate 94 Phase B record (3–4 Nov 2026), condensed from its report [reported]
+
+Source: `D:\Claude\_handoffs\gate94-phaseB\PHASE-B-REPORT.md`. Premises held: HEAD `ee780f91843c…`, staged 25 paths (8
+PNGs), 420 baselines, digest `254a1aab4a0692904ccfaa0fe7978e5d5f516f37bde8acac5a5837d4a4e5b737` in both forms, 1395
+tests in 48 files, `lint:tokens` 121 files / 4 exemptions, `lint:linkage` PASS, `SCHEMA_VERSION = 3`. **Mutation run:**
+negative control (type-valid, ran, target passed, NO PROOF) as required; every planned mutation PROVED, each landing at
+its spec line and signature, each restored byte for byte, each re-passing. **A live check of seven scenarios** (Only this
+transaction; All from this merchant — the preview read "changes 28 transactions", stored 28 as `dining` and one rule;
+Back, ✕ and Escape each writing nothing; the current category skipping the step; a rule surviving a reload and deciding
+a later send) all passed with 0 console errors. `build:package` exit 0: entry chunk **5,979,569** bytes (Gate 93:
+5,977,508), CSS **200,664** (200,549), 0 `modulepreload`, the OCR chunks unchanged. **Three clean runs of the staged
+tree: 1395 passed / 0 failed each, 53.3 / 53.8 / 56.4 minutes, npm exit 0, 0 `writing actual`, digest unchanged.** The
+known `section-headers` mount-timing flake did not appear. Process findings: B4's matcher is at
+`merchant-rules.spec.ts:286` not `:385`; R1b's predicted signature was wrong and was re-aimed; the inherited driver
+tested signatures with `new RegExp` so a signature containing `expect(received)` could never match — changed to a
+literal substring test.
+
+### Corrections to the record (insert-only; earlier text is left as written)
+
+- **The Gate 93 and Gate 94 Phase B records were on no file in this repo** until this section.
+- **The Gate 95 brief called the frames `1266:14389`–`14393`.** `14389` is the Section; the screens are
+  `14390`–`14393`.
+- **The Gate 95 brief said G62 shows the mark "overlapping the To field's left border".** Measured: it overflows the
+  slot, not the border (G62).
+- **The Gate 95 brief described G63 as a ring after a mouse or touch tap.** Not reproduced with a pointer (G63).
+- **The Gate 95 brief cited "R93D" rulings.** Only R93D-1 and R93D-4 are cited on this repo's disk; the rest are in the
+  DS repo's Gate 93 record.
+
+### Nothing was removed from this register at this gate.
