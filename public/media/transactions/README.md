@@ -88,3 +88,28 @@ read at 40 and 80 px with no line along the top.
 **NOT DOWNSCALED, for the reason given above for the merchant photographs:** `Avatar l` paints 80 device px,
 so these are 5.6–7.3× oversupplied, and a common size would upscale Fiona (446). No EXIF orientation tag on any
 of the three (Chromium canvas encodes none).
+
+## Crypto recipient photographs, Gate 96
+
+The Crypto tab's four photograph contacts (`src/data/cryptoRecipients.ts`, Figma `1266:14395`) draw through
+the same photograph mark as the recipients above, so they live here too. **Rachum Greene's crypto contact
+reuses `rachum-greene.jpg` above** — it is one person in two lists.
+
+| file | dimensions | bytes | sha256 |
+|---|---|---|---|
+| `granddaughter.jpg` | **256 x 256** | 11,392 | `7e4d90e4af0ff5ed0c2a191a62a0e5682d9229c57ebe50a2523d95855087f0bd` |
+| `grandson.jpg` | **256 x 256** | 4,766 | `4812fc7c467762bdc10a88c7c6af4a69164ed574b1dfa0a173c120ea27220d3a` |
+| `jonathan-llango.jpg` | **256 x 256** | 13,296 | `6481ae8aa3266f175dbf8cb19f6a31fa72c20189f98681e50b2b92195cedcbbe` |
+| `tobey-jibriani.jpg` | **256 x 256** | 13,392 | `3c9bad02d3c3e33c570a3ff1e2cb6faac50a2ffd0bb6349953989552fcef8a12` |
+
+**PROVENANCE — Decision 31H (Teku, 4 Nov 2026): Teku supplied the four photos** (RGBA PNGs, 256 x 256,
+circle-masked, exported at 4x from Figma `1266:14395`). They are the cat, the pixel-art avatar and two men
+drawn in the frame.
+
+**HOW THEY WERE CONVERTED.** Outside the repo, with headless Chromium (no dependency added): each PNG was kept
+at its circle's square bounds (the whole 256), every non-opaque pixel was composited over the circle's own edge
+colour at the same angle, and the result was encoded as JPEG quality 0.90 to match `rachum-greene.jpg`'s tables.
+The round `Avatar` clips the corners either way.
+
+**NOT DOWNSCALED.** The largest render is `Avatar l` = 40 CSS px = 80 device px at DPR 2, so 256 px is 6.4x
+CSS — above the 3x floor. No EXIF orientation tag (a canvas encode writes none).

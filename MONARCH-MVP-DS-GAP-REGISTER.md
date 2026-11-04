@@ -5122,3 +5122,74 @@ literal substring test.
   DS repo's Gate 93 record.
 
 ### Nothing was removed from this register at this gate.
+
+## 2as. Status at MVP Gate 96 (2026-11-04) — Flow 5 part 1: the crypto recipient picker and Select Token; DS v2.12.0; G64, G65 and G66 opened; Decisions 28–31
+
+**THE TALLY MOVES BY THREE: G64, G65 AND G66 ARE OPENED.** **65 entries, 34 closed, 31 open; the highest number is
+G66.** Derived from §2ar's 62 / 34 / 28: three opens (+3 entries, +3 open). 62 + 3 = 65; 34 + 0 = 34; 28 + 3 = 31.
+Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop half, G19–G23, G28–G33, G44, G48,
+G49, G50, G51, G52, G53, G58, G60, G61, G62, G63, `MODEL-1` and `UI-3`. **No MVP-local override was added for any of
+them**, and the `G33` workaround class is untouched. **Next free: section `2at`, gap `G67`; next free Teku decision 32.**
+
+**The gate ships on DS `v2.12.0`**, unchanged (`fbc6e2f215194909f5afbc77c7fb83832f82992b`, `lint:linkage` PASS). It
+builds Flow 5's first two screens — the Crypto tab of `/transfer` (Figma `1266:14395`) and Select Token at
+`/transfer/crypto/:recipientId` (`1266:14396`) — and no writer, no schema change and no DS change. G64–G66 are the
+DS shortfalls the NEXT two gates meet (the amount screen and the fee sheet, Gate 98); R96-6 rules that a DS gate
+(97) fixes them first, following Figma.
+
+### Decisions 28–31 (Teku, 4 Nov 2026: "Decision follow yours, Great recommendations")
+
+| # | ruling | built at |
+|---|---|---|
+| **28A** | the crypto confirm follows the drawing: the amount screen grows in place after the Network Fee sheet; the summary state is its own history entry so device Back returns to the editable amount | Gate 98 |
+| **29D** | `CRYPTO_HOLDINGS` is hashed into `seedFingerprint` when crypto holdings become stored, resetting testers once | Gate 98 |
+| **30F** | a grey helper line under To: "Only send <TOKEN> to wallets on the <network> network." | Gate 98 |
+| **31H** | Teku supplies the four recipient photos | **Gate 96** (below) |
+
+Thread rulings R96-1 … R96-16 (overturnable) are recorded in `CLAUDE.md`'s Gate 96 section; R96-12 to R96-16 are the
+recorded divergences (the crypto contacts' newest-send order, six holdings, Next in flow, focus after a failed Next, and the
+README listing).
+
+### G64 — `SelectTransfer` inside a `FormField` never renders its caption (opened, DS)
+
+| | |
+|---|---|
+| **where** | DS `src/components/SelectTransfer/SelectTransfer.tsx:75-81` (R91D-7: "Figma's case study turns it off") |
+| **what** | Inside a `FormField` the `label` caption is not rendered. Flow 5's amount field (`1266:14397` / `1266:14398`) draws the caption — the token quantity "0.313 ETH" — inside the field labelled "Transfer Amount". Flow 4's frame turned it off; Flow 5's shows it |
+| **proposed fix** | DS: render the caption inside a `FormField` when the caller passes one (an explicit prop rather than the presence of `label` alone, so Flow 4's field does not change) |
+| **decision** | registered; **DS Gate 97** (R96-6, R96-10) before the amount screen |
+
+### G65 — `HeaderDefault.title` is a plain string; Flow 5 draws a two-colour title (opened, DS)
+
+| | |
+|---|---|
+| **where** | DS `src/components/Header/HeaderDefault.tsx:7` (`title?: string`) |
+| **what** | `1266:14397` draws "Send **Ethereum**" with the token name in primary blue. A string cannot carry the second colour |
+| **proposed fix** | DS: an optional emphasised part of the title (for example `titleEmphasis`), styled by the DS with a mapped token, so no consumer passes markup |
+| **decision** | registered; **DS Gate 97** (R96-6) |
+
+### G66 — no single-choice row with a sub-line and a trailing value (opened, DS)
+
+| | |
+|---|---|
+| **where** | DS `Radio.tsx` (`label` only) and `OptionList.tsx:41-46` (options `{ id, label }`) |
+| **what** | The Network Fee sheet (`1266:14399`) draws two rows, each "tier / duration / price / radio at the end" (detached `Field` frames holding `Code parts / <RadioIcon>`, inventory B2). No DS row carries a sub-line and a trailing value with single-choice semantics |
+| **proposed fix** | DS: an `OptionList` option with an optional sub-line and trailing value (Flow 8's filter and Flow 9's pickers would use it too), or a fee-tier row |
+| **decision** | registered; **DS Gate 97** (R96-6) |
+
+### Notes — not gaps
+
+- **DS Figma `<Transfer amount>` (`191:12031`)**: the `•` separator uses a raw style (`Mcfont/Caption/2`, `Neutral02
+  #6b7280`), not a token. The coded `TransferAmount` already uses `type-body-caption`. Record only.
+- **`SelectTransfer.currencyFlag`** expects a 20px mark; a token logo meets the same `Logo` ramp gap as G61 (no `Logo`
+  size is 20). Covered by G61; no new number.
+- **Select Token's row is DS `MenuItem type="crypto"`, used outside `Menu`.** Figma draws `Item/list` with no selected
+  state; `ListItem` has none. `MenuItem`'s crypto type carries exactly the drawn four labels and a selected treatment
+  (`.mn-menu-item--selected`: a 10% primary tint, primary text). `Menu` itself paints a floating panel the page must
+  not have, so the screen supplies the `role="listbox"` and `Menu`'s roving keyboard model itself (about 25 lines).
+  Not a gap — composition of DS parts — but it is the shape G66's fix would serve; a flat, selectable list of rich rows
+  would let the screen drop its own listbox code.
+- **Figma `1266:14396` pins "Next" to the bottom** (`Frame 464` at y=665 over a fade); the MVP keeps it in flow and
+  sticky, on Gate 80's precedent (pinning needs a shell change or a viewport-height floor). Recorded divergence.
+
+### Nothing was removed from this register at this gate.

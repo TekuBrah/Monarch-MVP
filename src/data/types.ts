@@ -1240,3 +1240,19 @@ export interface Recipient {
   /** Drawn through `TransactionMark`: a DS logo or a photograph. */
   mark: TransactionLogo
 }
+
+/**
+ * Flow 5 (Gate 96) — a saved contact the user can send crypto to, Figma
+ * `1266:14395`. A constant, never stored, outside the seed fingerprint (as
+ * `Recipient`, R92-5; R96-4). A SEPARATE LIST from `Recipient`: Rachum Greene
+ * appears in both as two records sharing one photo file, because a bank
+ * account and a wallet address are different facts about her.
+ */
+export interface CryptoRecipient {
+  id: string
+  name: string
+  /** A well-formed 0x + 40-hex-digit address (inventory A7). Figma prints only the ends. */
+  address: string
+  /** Drawn through `TransactionMark`. */
+  mark: TransactionLogo
+}

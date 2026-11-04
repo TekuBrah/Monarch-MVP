@@ -9,6 +9,7 @@ import { HoldingDetailScreen } from './flows/finance/HoldingDetailScreen'
 import { HomepageScreen } from './flows/homepage/HomepageScreen'
 import { SettingsScreen } from './settings/SettingsScreen'
 import { TransferScreen } from './flows/transfer/TransferScreen'
+import { SelectTokenScreen } from './flows/transfer/SelectTokenScreen'
 import { SendScreen } from './flows/transfer/SendScreen'
 import { TransferDoneScreen } from './flows/transfer/TransferDoneScreen'
 
@@ -37,6 +38,7 @@ export default function App() {
             page for one written send. Both are drill-downs with their own chrome
             (`chrome.ts`); the success page carries the row's id so a reload can
             read it back (fork X3). */}
+        <Route path="transfer/crypto/:recipientId" element={<SelectTokenScreen />} />
         <Route path="transfer/send/:recipientId" element={<SendScreen />} />
         <Route path="transfer/done/:transactionId" element={<TransferDoneScreen />} />
         {/*

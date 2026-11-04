@@ -7,6 +7,7 @@ import { COMMITMENTS } from '../src/data/commitments'
 import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { RECIPIENTS } from '../src/data/recipients'
+import { CRYPTO_RECIPIENTS } from '../src/data/cryptoRecipients'
 import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import { recategorised, recategorisedAllFrom, withCategoryRule } from '../src/data/derive'
 import type { Goal, TransactionCategoryId } from '../src/data/types'
@@ -266,6 +267,11 @@ export const ROUTES: string[] = ROUTE_TABLE.flatMap(({ path }) => {
   // `RECIPIENTS` (R93-10), Gate 80's rule: a logo row and a photo row are two
   // shapes of the To field, and a hand-picked pair would go quietly green the day
   // a recipient is renamed.
+  // Gate 96 - Flow 5's Select Token, one route per crypto contact. TOTAL OVER
+  // `CRYPTO_RECIPIENTS` (R96-9), for the same reason as the amount screen below.
+  if (path === '/transfer/crypto/:recipientId') {
+    return CRYPTO_RECIPIENTS.map((r) => `/transfer/crypto/${r.id}`)
+  }
   if (path === '/transfer/send/:recipientId') {
     return RECIPIENTS.map((r) => `/transfer/send/${r.id}`)
   }
@@ -855,6 +861,59 @@ export const OVERLAY_STATES: WalkState[] = [
           settlesText: 'No recipients matchTry a name, account number or bank.Clear search',
         },
       ],
+    },
+  },
+  // Gate 96 - the Crypto tab's search with no match. Not a dialog: the
+  // `opens: []` branch, the screen as the surface, as the Bank tab's above.
+  {
+    route: '/transfer',
+    tab: { id: 'crypto', label: 'Crypto' },
+    overlay: {
+      id: 'no-match',
+      control: '.mvp-transfer input[aria-label="Search recipients"]',
+      controlLabel: 'Search recipients',
+      title: 'Search recipients',
+      opens: [],
+      settlesOn: '.mvp-transfer',
+      prepare: [
+        {
+          control: '.mvp-transfer input[aria-label="Search recipients"]',
+          controlName: 'Search recipients',
+          action: 'fill',
+          value: 'zzz',
+          settlesOn: '.mvp-no-results',
+          settlesText: 'No recipients matchTry a name or wallet address.Clear search',
+        },
+      ],
+    },
+  },
+  // Gate 96 - Select Token with a token chosen: the DS `MenuItem` selected
+  // treatment on the page, which no other state photographs. Rachum Greene,
+  // Flow 4's drawn recipient; Ethereum, the frame's drawn token.
+  {
+    route: '/transfer/crypto/crypto-rachum-greene',
+    tab: null,
+    overlay: {
+      id: 'selected',
+      control: '#token-eth',
+      // The option's COMPUTED name: Chromium separates the row's four parts with spaces.
+      controlLabel: "Ethereum Marge's Wallet RM 25,588.51 1.3786 ETH",
+      title: 'Ethereum',
+      opens: [],
+      settlesOn: '#token-eth[aria-selected="true"]',
+    },
+  },
+  // Gate 96 - Select Token, Next with nothing chosen: the inline message.
+  {
+    route: '/transfer/crypto/crypto-rachum-greene',
+    tab: null,
+    overlay: {
+      id: 'invalid',
+      control: '.mvp-token__actions .mn-btn--primary',
+      controlLabel: 'Next',
+      title: 'Next',
+      opens: [],
+      settlesOn: '.mvp-token__message .mn-field-message--error',
     },
   },
   // ── Gate 93 — the amount screen, the review and the success page ─────────────

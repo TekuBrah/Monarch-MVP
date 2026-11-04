@@ -2,7 +2,6 @@ import { Button, HeaderDefault, Icon, ListItem, StatusBar, Tabs, Field } from '@
 import type { TabItem } from '@monarch/design-system'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ComingSoon } from '../../components/ComingSoon'
 import { NoResults } from '../../components/NoResults'
 import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
@@ -10,6 +9,7 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { filterRecipients, listPresence, recentRecipients, recipientAccountLine } from '../../data/derive'
 import { RECIPIENTS } from '../../data/recipients'
 import { raiseNotice } from '../../shell/notices'
+import { CryptoRecipientList } from './CryptoRecipientList'
 import { requestedTransferTab } from './transferTabs'
 import './transfer.css'
 
@@ -20,7 +20,11 @@ const TABS: TabItem[] = [
 
 const TAB_IDS = TABS.map((t) => t.id)
 
-/** Gate 92 — the recipient picker, Figma `1266:14391`. */
+/**
+ * Gate 92 — the recipient picker, Figma `1266:14391` (Bank) and, from Gate 96,
+ * `1266:14395` (Crypto). Each tab follows its own drawing, including the title:
+ * "Send" over Bank, "Send Crypto" over Crypto.
+ */
 export function TransferScreen() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -42,7 +46,11 @@ export function TransferScreen() {
   return (
     <div className="mvp-transfer">
       <StatusBar mode="Light" time="9:41" />
-      <HeaderDefault title="Send" hasSubtitle={false} onBack={back} />
+      <HeaderDefault
+        title={selected === 'crypto' ? 'Send Crypto' : 'Send'}
+        hasSubtitle={false}
+        onBack={back}
+      />
 
       <div className="mvp-transfer__tabs mvp-column">
         <Tabs tabs={TABS} selectedId={selected} onChange={setSelected} ariaLabel="Transfer type" />
@@ -97,13 +105,7 @@ export function TransferScreen() {
         </div>
       )}
 
-      {selected === 'crypto' && (
-        <ComingSoon
-          title="Crypto"
-          description="Send crypto to wallets and people. Coming with the crypto transfer flow."
-          icon="icon_crypto_transfers"
-        />
-      )}
+      {selected === 'crypto' && <CryptoRecipientList />}
     </div>
   )
 }

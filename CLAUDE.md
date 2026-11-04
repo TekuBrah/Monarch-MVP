@@ -20220,3 +20220,169 @@ carries the Gate 93 and Gate 94 Phase B records; the tally is 62 entries, 34 clo
 - **The Gate 93 and Gate 94 Phase B records were on no file** until §2ar, and R93-14 (the `sendCategory` tests
   N9–N12) had been recorded only in Gate 94's section. The Gate 93 figures read `send.spec.ts` 25 tests and the
   suite 1367 in 47 files.
+
+## Flow 5 part 1 — the crypto recipient picker and Select Token (Gate 96)
+
+No DS re-pin — **v2.12.0 throughout**, and no DS file was written. Flow 5's first two screens: the Crypto tab of
+`/transfer` replaces its `ComingSoon` stub (Figma `1266:14395`), and a contact tap opens **Select Token** at
+`/transfer/crypto/:recipientId` (`1266:14396`). No writer, no stored shape and no schema change: a writer never lands
+before its caller (Gate 98 builds the amount screen and `sendCrypto`). **|WALK| 105 -> 113, `ROUTES` 31 -> 36,
+`OVERLAY_STATES` 57 -> 60, `STORE_STATES` 9; baselines 420 -> 452 (32 added, 4 changed, 0 deleted); tests 1395 -> 1474
+in 49 files.** `lint:tokens` PASS with the same **4** exemptions. Phase A (Opus) investigated without prototyping
+(`D:\Claude\_handoffs\gate96-phaseA\REPORT.md`). The build session (Opus) wrote the code, the spec and the harness states
+and ran the pre-mint suite, then stopped on its usage limit; **a resume session (Sonnet) proved the fixed
+`[overlay:selected]` state, minted, ran the full suite and wrote these records.** Phase B (Sonnet) runs the mutations
+and three clean runs. **Teku does every git write.** Register `2as` carries G64–G66, the notes and
+the decisions.
+
+### Decisions (Teku, 4 Nov 2026: "Decision follow yours, Great recommendations")
+
+- **28A** — the crypto confirm follows the drawing: the amount screen grows in place after the Network Fee sheet; the
+  summary state is its own history entry so device Back returns to the editable amount. (Built at Gate 98.)
+- **29D** — `CRYPTO_HOLDINGS` is hashed into `seedFingerprint` when crypto holdings become stored, resetting testers
+  once. (Gate 98.)
+- **30F** — a grey helper line under To: "Only send <TOKEN> to wallets on the <network> network." (Gate 98.)
+- **31H** — Teku supplies the four recipient photos. Built here.
+
+**The next free Teku decision is 32.**
+
+### Thread rulings R96-1 … R96-16 (overturnable)
+
+- **R96-1** holdings stored as quantity; value = a fixed per-token price × quantity.
+- **R96-2** a per-token two-tier fee table anchored on the drawn ETH figures; the fee in the sent token; total =
+  amount + fee.
+- **R96-3** a crypto send is `kind: 'transfer'`, and the row carries the token and its quantities.
+- **R96-4** saved contacts as drawn; New recipient and Scan QR say "Coming soon."; each recipient has its own valid
+  address.
+- **R96-5** the amount is entered in RM, with the token quantity as the caption.
+- **R96-6** G64 / G65 / G66 are fixed in a DS gate (97) before the amount screen, following Figma.
+- **R96-7** the fee sheet's OK commits; Cancel / ✕ / the scrim discard.
+- **R96-8** the token chip returns to Select Token; the OS keyboard; "Your new balance" = the wallet total plus a
+  per-token row; the token list from the six real holdings (a recorded divergence).
+- **R96-9** routes `/transfer/crypto/:recipientId` (Select Token) and `/transfer/crypto/send/:tokenId` (amount, Gate 98).
+- **R96-10** sequence: Gate 96 MVP picker + Select Token → Gate 97 DS G64–G66 → Gate 98 MVP amount / fee / summary /
+  send / schema v4 / success → Gate 99 record.
+- **R96-11** register G64–G66 plus the two notes.
+- **R96-12** the crypto contacts follow the Bank tab's newest-send ordering, so Rachum Greene sits second where
+  Figma draws Grandson (a recorded divergence).
+- **R96-13** Select Token lists the six real holdings, where Figma draws five (R96-8, recorded).
+- **R96-14** Next stays in the page flow instead of pinned to the bottom, under the drill-down "action bars stay in
+  flow" standard (Gate 80).
+- **R96-15** after a failed Next, focus moves to the first token row so the DS row's own ring applies. **Phase B checks
+  it live after a pointer tap:** a ring there would go against Gate 89-B.
+- **R96-16** the photo folder's README gains the four new files (insert-only), which adds one path to the closed list.
+
+### The Crypto tab — `CryptoRecipientList.tsx`
+
+- **Each tab follows its own drawing.** On Crypto the header reads **"Send Crypto"** (Bank: "Send"), and "Recent
+  recipients" is the search field's LABEL, 10 above it (Figma `Input`); on Bank the heading sits under the search.
+  Rendered as `SectionHeader` (the same `body/sm-semibold` subtle face) because it heads the list; the field keeps its
+  own name, "Search recipients". The crypto body starts straight under the tab row (the Bank tab's extra 16 is that
+  tab's drawing).
+- **Rows:** `ListItem type="profile"`, `TransactionMark size="l"` (a 40px `Avatar` photo), name, the address's ends as
+  drawn (`0x92fa...1ae3`, three full stops), `hasChevron={false}` (load-bearing: the DS defaults it on).
+- **`CRYPTO_RECIPIENTS`** (`src/data/cryptoRecipients.ts`): five contacts in Figma's order, a constant outside
+  `seedFingerprint` (R92-5) — **no tester is reset**. Each address keeps the drawn first and last four hex digits and
+  fills the 32 between them with the first 32 hex digits of SHA-256 of the contact's name, written as literals (0x + 40
+  lowercase hex). Rachum Greene is in both lists as two records sharing `rachum-greene.jpg`.
+- **Order — the Bank tab's rule over crypto sends** (`recentCryptoRecipients`, `derive.ts`): newest send first, the rest
+  in Figma's order. A crypto send is a `Crypto Transfer` out of a wallet (`amount < 0`); a written send (Gate 98) names
+  its contact by `recipientId`; **the two seeded crypto rows carry none, so a row with no `recipientId` is matched by its
+  `merchant` naming the contact exactly — no seed edit.** Over today's seed: **Granddaughter, Rachum Greene, Grandson,
+  Jonathan Llango, Tobey Jibriani**, where Figma draws Granddaughter, Grandson, Rachum Greene, … — a recorded divergence:
+  the drawing is a still, the rule is the behaviour. `recentRecipients` (Bank) is unchanged in behaviour; the ordering
+  step is now one shared private function, `newestSendFirst`.
+- **Search** (`filterCryptoRecipients`): name or address, case-insensitive; no match shows `NoResults` ("No recipients
+  match" / "Try a name or wallet address." / "Clear search"). The tab keeps its own search state.
+- **A tap** replaces the picker's history entry state with `{ transferTab: 'crypto' }` before pushing Select Token, so
+  Back lands on the Crypto tab (the Gate 87 / R92-3 precedent; the tab is in-screen state).
+- New recipient and the bar's Scan QR say "Coming soon." (R96-4).
+
+### Select Token — `SelectTokenScreen.tsx`
+
+- **`HeaderDefault title="Select Token" subtitle="Enter Transfer Details"`**; chrome is the existing `/transfer/`
+  prefix (nav suppressed, no FAB) — `src/shell/*` untouched.
+- **Rows are the six real holdings** (R96-8), grouped by wallet in `cryptoWallets` order with Flow 7's names and values,
+  through `walletHoldings`, `formatMyr` and `formatQuantity`. Figma draws five ("Marg's Wallet" / "Fun Tokens",
+  RM 5,117.70 for Stellar and Uniswap, no Solana) — the pre-Flow-7 figures.
+- **The row is DS `MenuItem type="crypto"`**, not `ListItem`: Figma draws `Item/list` with no selected state, and
+  `MenuItem`'s crypto type carries exactly the drawn four labels plus `.mn-menu-item--selected` (a 10% primary tint and
+  primary text) — **the DS's existing selected treatment for that row type**. Its unselected surface equals the page
+  surface in both themes, so the rows sit flat. Its 12px padding makes the drawn 44px rows land on Figma's 68 pitch with
+  no gap; the list's side inset is `calc(var(--mvp-gutter) - var(--brand-scale-300))`, so the content sits on the
+  gutter and the tint reaches 12 past it. Measured at 375: first row content at y=156, Figma's.
+- **The list is the screen's own `role="listbox"` ("Tokens")** with `Menu`'s roving model: one tab stop (the selected
+  token, else the first), arrows / Home / End move focus, Enter or Space selects. `Menu` itself paints a floating panel.
+- **Selection is undrawn** (thread ruling): nothing pre-selected; a tap selects; **"Next" is never disabled**. With
+  nothing chosen, **"Choose a token to send."** (DS `FieldMessage tone="error"`, `aria-describedby` from the list)
+  shows once the list is left or Next is pressed — Gate 71-B's `useTouchedValidation`, reused as Flow 4 does — and a
+  failed press focuses the list, which hands focus to its tab stop (so the list box never wears an outline). With a
+  token chosen, Next raises the `'coming-soon'` notice (the amount screen is Gate 98's).
+- **Back** (header or device) returns to the picker's Crypto tab; opened directly it replaces itself with
+  `/transfer` on the Crypto tab (R93-7); an unknown id does the same (R93-10).
+- **"Next" stays in flow and sticky**, where Figma pins it to the bottom over a fade (`Frame 464` at y=665): pinning
+  needs a shell change or a viewport-height floor, and Gate 80 ruled the in-flow bar. A recorded divergence.
+
+### The photos (31H)
+
+Teku's four RGBA PNGs (256 × 256, circle-masked, exported at 4× from `1266:14395`) were converted outside the repo with
+headless Chromium (no dependency added): `rachum-greene.jpg` is a full square photo, so each PNG was kept at its
+circle's square bounds (the whole 256) and every non-opaque pixel was composited over the circle's own edge colour at
+the same angle, then encoded at quality 0.90 (IJG ≈ 90, matching `rachum-greene.jpg`'s tables). The round `Avatar`
+clips the corners either way. `granddaughter.jpg` 11,392 B, `grandson.jpg` 4,766 B, `jonathan-llango.jpg` 13,296 B,
+`tobey-jibriani.jpg` 13,392 B, all 256 × 256 in `public/media/transactions/`. The largest render is 40 CSS px (`Avatar
+l`), so 256 is 6.4× — above the 3× floor. `public/media/transactions/README.md` lists them in a new "Crypto recipient photographs, Gate 96" section (R96-16,
+insert-only; sha256 per file).
+
+### Harness, tests, baselines
+
+`ROUTES` expands `/transfer/crypto/:recipientId` totally over `CRYPTO_RECIPIENTS` (R96-9). Three overlay states:
+`/transfer [tab:crypto] [overlay:no-match]`, and on Rachum Greene's Select Token `[overlay:selected]` (Ethereum chosen
+— the `MenuItem` selected treatment, which no other state photographs) and `[overlay:invalid]` (Next with nothing
+chosen). Top-level overlay states take no `settlesText`, so `invalid` settles on `.mvp-token__message
+.mn-field-message--error` and the spec asserts the text.
+
+`e2e/crypto-transfer.spec.ts`, **15 tests, no baseline**: N1–N5 in Node (the contacts, search, the order over the seed
+and over synthetic rows, the Bank order unchanged) and B1–B10 in the browser. `transfer.spec.ts` **B6 rewritten**: it
+asserted the Crypto tab's `ComingSoon`. 1395 + 8 walk states × 8 + 15 = **1474 in 49 files**.
+
+### Results — measured
+
+**The stopped session and the resume session.** The build session ran out of usage after the code, the spec, the
+harness states and one full pre-mint run, and left `RESUME.md`. The resume session re-derived every premise from disk,
+finished the work below and changed no code.
+
+- **Pre-mint run (build session):** 40 failed / 1434 passed, 58.9 min, 0 `writing actual`. 36 visual failures equal the
+  prediction name for name — but their causes split 28 `snapshot doesn't exist`, 4 pixel diffs on `transfer-crypto-*` and 4 on
+  `[overlay:selected]` that failed at the harness label step. **The other 4 failures were `routes` and `section-headers`
+  on `[overlay:selected]`** (8 label-step failures in all) — the harness's `controlLabel` lacked the spaces Chromium puts
+  in the option's computed name (`Ethereum Marge's Wallet RM 25,588.51 1.3786 ETH`). Fixed in `e2e/harness.ts` after that
+  run; only that one string changed.
+- **Post-fix proof (resume session):** the 8 tests of that state alone: routes ×2 and section-headers ×2 pass; the 4 visual
+  tests fail only as `snapshot doesn't exist`; 0 `writing actual`; 420 PNGs unchanged. Appended to `PREDICTION.md`.
+- **Mint:** `--update-snapshots=all` over an exact, escaped, `$`-anchored `-g` of the 36 titles (dry run: 36). 36 passed in
+  1.5 min; 40 write lines (32 new once, 4 modified twice). Reconciled against a manifest taken outside the repo: **420 -> 452,
+  32 added, 4 changed, 0 deleted, 416 byte-identical.**
+- **The four changed captures** (`transfer-crypto-{375,430}-{light,dark}`) decoded against their pre-mint copies: same size,
+  every difference inside y 61–629 (about 26,000 px each), the status bar, header text and bar untouched — the stub replaced by
+  the list.
+- **Digest after the mint** (filesystem form; 32 files untracked until Teku stages them): `83e525984a902b60ce84b77560c0149461f2ac581dc17a3aee1bc8fe012d7fc9`,
+  452 PNGs, stable across the final run. The git-blob form exists only once the 32 are staged.
+- **Full suite on the final tree:** **1473 passed / 1 failed**, 55.1 min, npm exit 1, 0 `writing actual`. The one failure is
+  `baselines.spec.ts:216` arm 1 ("every baseline on disk is tracked by git"), naming the 32 untracked PNGs — predicted. Staging
+  is Teku's.
+- **All 36 minted PNGs were opened**, both themes and widths. The five Select Token routes are byte-identical per theme and
+  width: the screen does not show the recipient, so they differ only by route.
+- **Divergences from Figma (the recorded ones, plus two measured here).** Crypto tab: the body sits 2–5 px higher than drawn and
+  the rows render 44 tall against Figma's 48 (the DS `ListItem` height already recorded for the Bank tab, R92-15), so the
+  pitch is 68 against 72 and "New recipient" lands at y 605 against 628. Select Token: "Marge's Wallet" / "Fun Wallet" and six
+  rows with Solana against Figma's "Marg's Wallet" / "Fun Tokens" and five rows (R96-13); Next in flow at y 604 against
+  pinned at 721 (R96-14); the primary blue is the DS's current `--alias-primary-600`, visibly darker than the frame's. In dark the
+  Next button paints white with blue text (the DS inverted primary). The `[overlay:invalid]` capture is 826 tall, not 812 (the cause was not investigated; every other state is 812),
+- **Bundle:** not re-measured by the resume session.
+
+
+### Deliberately not in scope
+
+The amount screen, the Network Fee sheet, the summary, `sendCrypto`, the draft widening, schema v4, the success page and
+the network warning line (Gate 98); G64–G66 (DS Gate 97); G62 / G63; the Netlify badge; any seed, persistence, token or DS change.

@@ -132,7 +132,9 @@ test('B6 the crypto card Send opens the Crypto tab; Back returns to Home Crypto'
   await page.locator('.mvp-balance-card').getByRole('button', { name: 'Send' }).click()
   await expect(page).toHaveURL(/\/transfer$/)
   await expect(page.locator('[role="tab"][aria-selected="true"]')).toHaveText('Crypto')
-  await expect(page.locator('.mvp-coming-soon')).toHaveCount(1)
+  // Gate 96: the Crypto tab is the crypto recipient list, no longer `ComingSoon`.
+  await expect(page.locator('.mvp-transfer__body--crypto')).toHaveCount(1)
+  await expect(page.locator('.mvp-coming-soon')).toHaveCount(0)
   await page.getByRole('button', { name: 'Back' }).click()
   await expect(page.locator('[role="tab"][aria-selected="true"]')).toHaveText('Crypto')
 })

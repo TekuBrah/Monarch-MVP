@@ -15,6 +15,7 @@ import type {
   CategoryRule,
   ContributionSource,
   CryptoHolding,
+  CryptoRecipient,
   FixedDepositHolding,
   GoldHolding,
   Holding,
@@ -2692,13 +2693,81 @@ export function recentRecipients(
   const lastSend = new Map<string, string>()
   for (const t of transactions) {
     if (!t.recipientId) continue
-    const seen = lastSend.get(t.recipientId)
-    if (seen === undefined || t.occurredAt > seen) lastSend.set(t.recipientId, t.occurredAt)
+    noteSend(lastSend, t.recipientId, t.occurredAt)
   }
+  return newestSendFirst(recipients, lastSend)
+}
+
+/** Keeps the newest `occurredAt` per recipient id. */
+function noteSend(lastSend: Map<string, string>, id: string, occurredAt: string): void {
+  const seen = lastSend.get(id)
+  if (seen === undefined || occurredAt > seen) lastSend.set(id, occurredAt)
+}
+
+/**
+ * THE ONE ORDERING BOTH PICKERS USE (Gate 93's D10, shared at Gate 96): everyone
+ * with a send comes first, newest send first; the rest keep the order given.
+ */
+function newestSendFirst<R extends { id: string }>(
+  recipients: readonly R[],
+  lastSend: ReadonlyMap<string, string>,
+): R[] {
   const sent = recipients
     .filter((r) => lastSend.has(r.id))
     .sort((a, b) => lastSend.get(b.id)!.localeCompare(lastSend.get(a.id)!))
   return [...sent, ...recipients.filter((r) => !lastSend.has(r.id))]
+}
+
+// ───────────────────────────── sending crypto (Gate 96, Flow 5) ─────────────
+
+/**
+ * A crypto contact's second line, as Figma prints it: the first six characters,
+ * three full stops, the last four — `0x92fa...1ae3` (`1266:14395`).
+ */
+export function cryptoAddressLine(r: CryptoRecipient): string {
+  return `${r.address.slice(0, 6)}...${r.address.slice(-4)}`
+}
+
+/** Flow 5 (Gate 96): name or wallet address, case-insensitive — the Bank tab's search behaviour. */
+export function filterCryptoRecipients(
+  recipients: readonly CryptoRecipient[],
+  search: string,
+): CryptoRecipient[] {
+  const needle = search.trim().toLowerCase()
+  if (needle === '') return [...recipients]
+  return recipients.filter((r) => `${r.name} ${r.address}`.toLowerCase().includes(needle))
+}
+
+/**
+ * THE CRYPTO TAB'S "RECENT RECIPIENTS" ORDER — Gate 96. The Bank tab's rule
+ * (newest send first, the rest in Figma's order) applied over CRYPTO sends: a
+ * `Crypto Transfer` OUT of a wallet (`amount < 0`).
+ *
+ * WHICH CONTACT A CRYPTO ROW WENT TO. A written send (Gate 98) carries
+ * `recipientId`. The two SEEDED crypto rows (`txn-granddaughter-0911`,
+ * `txn-rachum-0910`) carry none — they predate Flow 4 — so a row with no
+ * `recipientId` is matched by its `merchant` naming the contact exactly. No
+ * seed edit. A bank row can never reach a crypto contact: it is a `Fund
+ * Transfer`, and a written crypto row's `recipientId` names this list's ids,
+ * which no bank recipient shares.
+ *
+ * Over today's seed this puts Granddaughter (11 Sept) then Rachum Greene
+ * (10 Sept) first, where Figma draws Granddaughter, Grandson, Rachum Greene —
+ * a recorded divergence: the drawing is a still, the rule is the behaviour.
+ */
+export function recentCryptoRecipients(
+  recipients: readonly CryptoRecipient[],
+  transactions: readonly Transaction[],
+): CryptoRecipient[] {
+  const lastSend = new Map<string, string>()
+  for (const t of transactions) {
+    if (t.method !== 'Crypto Transfer' || t.amount >= 0) continue
+    const to = t.recipientId
+      ? recipients.find((r) => r.id === t.recipientId)
+      : recipients.find((r) => r.name === t.merchant)
+    if (to) noteSend(lastSend, to.id, t.occurredAt)
+  }
+  return newestSendFirst(recipients, lastSend)
 }
 
 /**

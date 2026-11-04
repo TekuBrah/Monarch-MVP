@@ -190,3 +190,57 @@
   flex-direction: column;
   gap: var(--brand-scale-300);
 }
+
+/* ── Gate 96 — the Crypto tab, Figma `1266:14395` ─────────────────────────── */
+
+/* `Frame 455` starts straight after the tab row's own 10px bottom padding: the
+   Bank tab's 16 above its search is that tab's drawing, not this one's. */
+.mvp-transfer__body--crypto {
+  padding-top: 0;
+}
+
+/* Figma `Input`: the "Recent recipients" label 10 above the search field. */
+.mvp-transfer__search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-250);
+}
+
+/* ── Gate 96 — Select Token, Figma `1266:14396` ───────────────────────────── */
+
+.mvp-token {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* `Frame 455`'s 48 above the first row is this list's 32 plus the row's own 12
+   (DS `MenuItem` padding). The side inset is the content column less that same
+   12, so each row's CONTENT sits on the gutter while its selected tint reaches
+   12 past it. The rows themselves are 68 tall and touch: Figma's 44 + 24 pitch. */
+.mvp-token__list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--brand-scale-800) calc(var(--mvp-gutter) - var(--brand-scale-300)) 0;
+}
+
+.mvp-token__message {
+  padding: var(--brand-scale-200) var(--mvp-gutter) 0;
+}
+
+/* `Frame 464`: the button 32 below a fade. Sticky, so it stays reachable when the
+   list outgrows the screen; in flow when it does not (the Gate 80 precedent). The
+   page surface sits behind it, so the scrim needs no `--gradient-surface`. */
+.mvp-token__actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--brand-scale-800) var(--mvp-gutter) var(--brand-scale-400);
+  background-image: var(--mapped-gradient-default);
+}
+
+.mvp-token__actions > * {
+  width: 100%;
+}
