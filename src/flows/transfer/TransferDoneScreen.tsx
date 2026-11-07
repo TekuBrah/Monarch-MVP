@@ -1,8 +1,9 @@
 import { Button, Divider, Icon, IconObject, StatusBar } from '@monarch/design-system'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
-import { cashAccountLine, recipientAccountLine } from '../../data/derive'
-import { formatMyr, formatTimestamp } from '../../data/format'
+import { CRYPTO_RECIPIENTS } from '../../data/cryptoRecipients'
+import { cashAccountLine, cryptoSendAddressLine, recipientAccountLine } from '../../data/derive'
+import { formatMyr, formatQuantity, formatTimestamp } from '../../data/format'
 import { RECIPIENTS } from '../../data/recipients'
 import { TODAY } from '../../data/today'
 import { FINANCE_TAB_STATE_KEY, OPEN_TRANSACTION_STATE_KEY } from '../finance/financeTabs'
@@ -31,14 +32,60 @@ import './transfer.css'
  */
 export function TransferDoneScreen() {
   const { transactionId } = useParams()
-  const navigate = useNavigate()
-  const { transactions, fiatAccounts, holdings } = useAccounts()
+  const { transactions, fiatAccounts, holdings, cryptoHoldings, cryptoWallets } = useAccounts()
 
   const row = transactions.find((t) => t.id === transactionId)
+
+  /*
+    GATE 98 — A CRYPTO SEND (fork F-d: one success page, branching on the row).
+    It prints the token quantity as the headline, the wallet as From, the
+    address on the token's network as To, and the fee in both currencies. Still
+    no reference (fork X2). A row with no `crypto` detail is not a send.
+  */
+  if (row?.method === 'Crypto Transfer') {
+    const detail = row.crypto
+    const to = CRYPTO_RECIPIENTS.find((r) => r.id === row.recipientId)
+    const token = detail ? cryptoHoldings.find((h) => h.id === detail.tokenId) : undefined
+    const wallet = cryptoWallets.find((w) => w.id === row.accountId)
+    if (!detail || !to || !token || !wallet) return <Navigate to="/" replace />
+    const q = (n: number) => formatQuantity(n, token.quantityDecimals, token.symbol)
+    return (
+      <DoneLayout
+        amount={q(detail.quantity)}
+        to={to.name}
+        rows={[
+          ['From', wallet.name],
+          ['To', cryptoSendAddressLine(to, token)],
+          ['Network fee', `${q(detail.feeQuantity)} • ${formatMyr(detail.fee)}`],
+          ['Total', formatMyr(-row.amount)],
+          ['Date', formatTimestamp(row.occurredAt, TODAY.getFullYear())],
+        ]}
+        rowId={row.id}
+      />
+    )
+  }
+
   const recipient = row?.recipientId ? RECIPIENTS.find((r) => r.id === row.recipientId) : undefined
   const account = row ? fiatAccounts.find((a) => a.id === row.accountId) : undefined
   if (!row || !recipient || !account) return <Navigate to="/" replace />
 
+  return (
+    <DoneLayout
+      amount={formatMyr(-row.amount)}
+      to={recipient.name}
+      rows={[
+        ['From', `${account.name} · ${cashAccountLine(holdings, account)}`],
+        ['To', recipientAccountLine(recipient)],
+        ['Date', formatTimestamp(row.occurredAt, TODAY.getFullYear())],
+      ]}
+      rowId={row.id}
+    />
+  )
+}
+
+/** The page's one layout, shared by a bank send and a crypto send (Gate 98). */
+function DoneLayout(props: { amount: string; to: string; rows: [string, string][]; rowId: string }) {
+  const navigate = useNavigate()
   return (
     <div className="mvp-transfer-done">
       <StatusBar mode="Light" time="9:41" />
@@ -48,25 +95,19 @@ export function TransferDoneScreen() {
             <Icon name="check" size="l" />
           </IconObject>
           <h1 className="mvp-transfer-done__title type-header-h6">Transfer successful</h1>
-          <p className="mvp-transfer-done__amount type-header-h4">{formatMyr(-row.amount)}</p>
-          <p className="mvp-transfer-done__to type-body-m">to {recipient.name}</p>
+          <p className="mvp-transfer-done__amount type-header-h4">{props.amount}</p>
+          <p className="mvp-transfer-done__to type-body-m">to {props.to}</p>
         </div>
 
         <Divider />
 
         <dl className="mvp-transfer-done__rows">
-          <div className="mvp-transfer-done__row">
-            <dt className="type-body-sm">From</dt>
-            <dd className="type-body-m-medium">{`${account.name} · ${cashAccountLine(holdings, account)}`}</dd>
-          </div>
-          <div className="mvp-transfer-done__row">
-            <dt className="type-body-sm">To</dt>
-            <dd className="type-body-m-medium">{recipientAccountLine(recipient)}</dd>
-          </div>
-          <div className="mvp-transfer-done__row">
-            <dt className="type-body-sm">Date</dt>
-            <dd className="type-body-m-medium">{formatTimestamp(row.occurredAt, TODAY.getFullYear())}</dd>
-          </div>
+          {props.rows.map(([label, value]) => (
+            <div key={label} className="mvp-transfer-done__row">
+              <dt className="type-body-sm">{label}</dt>
+              <dd className="type-body-m-medium">{value}</dd>
+            </div>
+          ))}
         </dl>
 
         <Divider />
@@ -80,7 +121,7 @@ export function TransferDoneScreen() {
             onClick={() =>
               navigate('/finance', {
                 replace: true,
-                state: { [FINANCE_TAB_STATE_KEY]: 'transactions', [OPEN_TRANSACTION_STATE_KEY]: row.id },
+                state: { [FINANCE_TAB_STATE_KEY]: 'transactions', [OPEN_TRANSACTION_STATE_KEY]: props.rowId },
               })
             }
           />

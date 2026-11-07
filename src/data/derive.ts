@@ -10,12 +10,15 @@ import {
 import { formatDay, formatDayMonthYear, formatMonthYear, formatMyr, formatPeriod } from './format'
 import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
+import { CRYPTO_UNIT_PRICES } from './accounts'
+import { CRYPTO_NETWORKS, FEE_TIER_LABELS, type FeeTier } from './cryptoNetworks'
 import type {
   Amount,
   CategoryRule,
   ContributionSource,
   CryptoHolding,
   CryptoRecipient,
+  CryptoSendDetail,
   FixedDepositHolding,
   GoldHolding,
   Holding,
@@ -2778,4 +2781,181 @@ export function recentCryptoRecipients(
 export function cashAccountLine(holdings: readonly Holding[], account: FiatAccount): string {
   const holding = bankHoldingFor(holdings, account.id)
   return holding ? accountNumberLine(holding) : ''
+}
+
+// ───────────────────────── sending crypto: the money (Gate 98, Flow 5) ──────
+
+/**
+ * QUANTITIES ARE INTEGERS OF 1e-8 OF A TOKEN, the way every money comparison in
+ * this file is in sen. Floats cannot add 0.098279 and 0.00024782 exactly; units
+ * can. Eight places is finer than any token's display (`quantityDecimals`), so
+ * a figure the screen shows is never the place rounding happens.
+ */
+export const CRYPTO_UNITS_PER_TOKEN = 100_000_000
+
+export function cryptoUnits(quantity: number): number {
+  return Math.round(quantity * CRYPTO_UNITS_PER_TOKEN)
+}
+
+/**
+ * A HOLDING'S VALUE IS DERIVED FROM ITS QUANTITY (R96-1): the fixed unit price
+ * from the seed (`valueMyr / quantity`, `CRYPTO_UNIT_PRICES`) times the quantity,
+ * to the sen. All six seeded holdings reproduce their seeded value exactly
+ * (`e2e/crypto-send.spec.ts` N1), so making the value derived moves nothing.
+ */
+export function cryptoValueOf(tokenId: string, quantity: number): Amount {
+  return toSen(CRYPTO_UNIT_PRICES[tokenId] * quantity) / 100
+}
+
+/** How many tokens `sen` buys at the token's unit price, rounded to a unit. */
+export function cryptoQuantityForSen(tokenId: string, sen: number): number {
+  return Math.round((sen / 100 / CRYPTO_UNIT_PRICES[tokenId]) * CRYPTO_UNITS_PER_TOKEN) / CRYPTO_UNITS_PER_TOKEN
+}
+
+export interface CryptoFee {
+  tier: FeeTier
+  label: string
+  wait: string
+  /** In MYR, as the sheet prints it. */
+  fee: Amount
+  /** In the SENT token (R96-2): the fee is paid in the token being sent. */
+  quantity: number
+}
+
+/** The fee for one token at one tier (R96-2, `CRYPTO_NETWORKS`). */
+export function cryptoFee(tokenId: string, tier: FeeTier): CryptoFee {
+  const row = CRYPTO_NETWORKS[tokenId].fees[tier]
+  return {
+    tier,
+    label: FEE_TIER_LABELS[tier],
+    wait: row.wait,
+    fee: row.fee,
+    quantity: cryptoQuantityForSen(tokenId, toSen(row.fee)),
+  }
+}
+
+/** Decision 30F: "Only send ETH to wallets on the Ethereum network." */
+export function cryptoNetworkLine(holding: CryptoHolding): string {
+  return `Only send ${holding.symbol} to wallets on the ${CRYPTO_NETWORKS[holding.id].name} network.`
+}
+
+/**
+ * THE ADDRESS A SEND GOES TO (R96-4, Decision 33): the contact's own address on
+ * the token's network. The drawn 0x address serves every EVM token (ETH, USDT,
+ * UNI); Bitcoin, Solana and Stellar each have their own.
+ */
+export function cryptoSendAddress(recipient: CryptoRecipient, holding: CryptoHolding): string {
+  const family = CRYPTO_NETWORKS[holding.id].family
+  return family === 'evm' ? recipient.address : recipient.addresses[family]
+}
+
+/** The To field's line: the address's ends, as Figma prints them (`0x9dj6...0fgm`). */
+export function cryptoSendAddressLine(recipient: CryptoRecipient, holding: CryptoHolding): string {
+  const address = cryptoSendAddress(recipient, holding)
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
+/**
+ * THE ONE RULE FOR A CRYPTO AMOUNT, AND ITS MESSAGE — Gate 98. The amount is
+ * typed in RM (R96-5); null when it can be sent with `feeSen` on top. TOTAL =
+ * AMOUNT + FEE (R96-2), judged in UNITS against the holding — the same test
+ * `cryptoSendProblem` makes, so the screen and the writer cannot disagree by a
+ * rounding unit. Zero is not an amount, so no exactly-zero row can be written.
+ */
+export function cryptoAmountError(amount: string, holding: CryptoHolding, fee: CryptoFee): string | null {
+  const sen = sendAmountSen(amount)
+  if (sen <= 0) return 'Enter an amount'
+  const point = amount.indexOf('.')
+  if (point >= 0 && amount.length - point - 1 > 2) return 'Up to 2 decimal places'
+  const have = cryptoUnits(holding.quantity)
+  const send = cryptoUnits(cryptoQuantityForSen(holding.id, sen))
+  if (send > have) return `More than your balance of ${formatMyr(holding.valueMyr)}`
+  if (send + cryptoUnits(fee.quantity) > have) return `Not enough left for the network fee of ${formatMyr(fee.fee)}`
+  return null
+}
+
+/**
+ * THE ROW A CRYPTO SEND WRITES — Gate 98 (R96-3). A `transfer` (a Crypto
+ * Transfer is never a purchase, Teku 30 Sept), out of the holding's WALLET, for
+ * the negative MYR TOTAL — the seeded crypto rows' convention. `crypto` carries
+ * what the MYR figure cannot: the token, the quantity sent, and the fee in both
+ * currencies. Handed WHOLE to `sendCrypto`: the row is the instruction.
+ */
+export function buildCryptoSend(input: {
+  recipient: CryptoRecipient
+  holding: CryptoHolding
+  amountSen: number
+  tier: FeeTier
+  now: Date
+}): Transaction {
+  const { recipient, holding, amountSen, tier, now } = input
+  const fee = cryptoFee(holding.id, tier)
+  const occurredAt = localWallClock(now)
+  return {
+    id: `txn-crypto-${crypto.randomUUID()}`,
+    accountId: holding.walletId,
+    merchant: recipient.name,
+    logo: recipient.mark,
+    method: 'Crypto Transfer',
+    kind: 'transfer',
+    amount: -(amountSen + toSen(fee.fee)) / 100,
+    currency: 'MYR',
+    occurredAt,
+    category: 'others',
+    recipientId: recipient.id,
+    reference: newReference(occurredAt),
+    crypto: {
+      tokenId: holding.id,
+      quantity: cryptoQuantityForSen(holding.id, amountSen),
+      feeQuantity: fee.quantity,
+      fee: fee.fee,
+      tier,
+    },
+  }
+}
+
+/**
+ * WHY `sendCrypto` MUST REFUSE A ROW, OR NULL — Gate 98. Pure, and called BEFORE
+ * any setter against the COMMITTED holdings (R89-8, Flow 4 standard 2). Every
+ * clause is a programmer error the screen cannot produce.
+ */
+export function cryptoSendProblem(
+  row: Transaction,
+  holdings: readonly CryptoHolding[],
+  recipients: readonly CryptoRecipient[],
+): string | null {
+  if (row.method !== 'Crypto Transfer') return `is a ${row.method}, not a Crypto Transfer`
+  if (row.kind !== 'transfer') return `is a ${row.kind}; a crypto send is a transfer`
+  if (!row.crypto) return 'carries no token'
+  const holding = holdings.find((h) => h.id === row.crypto!.tokenId)
+  if (!holding) return `no holding ${row.crypto.tokenId}`
+  if (holding.walletId !== row.accountId) return `${holding.id} is not in wallet ${row.accountId}`
+  if (!(row.amount < 0)) return `must debit its wallet, got ${row.amount}`
+  if (!(row.crypto.quantity > 0)) return `sends ${row.crypto.quantity} ${holding.symbol}`
+  if (-toSen(row.amount) <= toSen(row.crypto.fee)) return 'its total does not exceed its fee'
+  if (cryptoUnits(row.crypto.quantity) + cryptoUnits(row.crypto.feeQuantity) > cryptoUnits(holding.quantity)) {
+    return `more ${holding.symbol} than the holding's ${holding.quantity}`
+  }
+  if (!recipients.some((r) => r.id === row.recipientId)) return `no crypto contact ${String(row.recipientId)}`
+  if (!row.reference) return 'carries no reference'
+  return null
+}
+
+/**
+ * THE HOLDINGS AFTER A CRYPTO SEND — pure. The sent token loses the quantity
+ * sent plus its fee, in units, and its value re-derives from what is left. Used
+ * by the writer AND by the screen's "Your new balance" preview, so the two
+ * cannot drift.
+ */
+export function holdingsAfterCryptoSend(
+  holdings: readonly CryptoHolding[],
+  detail: Pick<CryptoSendDetail, 'tokenId' | 'quantity' | 'feeQuantity'>,
+): CryptoHolding[] {
+  return holdings.map((h) => {
+    if (h.id !== detail.tokenId) return h
+    const left =
+      (cryptoUnits(h.quantity) - cryptoUnits(detail.quantity) - cryptoUnits(detail.feeQuantity)) /
+      CRYPTO_UNITS_PER_TOKEN
+    return { ...h, quantity: left, valueMyr: cryptoValueOf(h.id, left) }
+  })
 }

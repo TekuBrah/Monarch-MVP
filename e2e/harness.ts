@@ -9,7 +9,20 @@ import { GOALS } from '../src/data/goals'
 import { RECIPIENTS } from '../src/data/recipients'
 import { CRYPTO_RECIPIENTS } from '../src/data/cryptoRecipients'
 import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
-import { recategorised, recategorisedAllFrom, withCategoryRule } from '../src/data/derive'
+import {
+  CRYPTO_UNITS_PER_TOKEN,
+  cryptoFee,
+  cryptoQuantityForSen,
+  cryptoUnits,
+  cryptoWalletTotal,
+  holdingsAfterCryptoSend,
+  recategorised,
+  recategorisedAllFrom,
+  walletHoldings,
+  withCategoryRule,
+} from '../src/data/derive'
+import { CRYPTO_HOLDINGS, CRYPTO_WALLETS } from '../src/data/accounts'
+import { formatMyr, formatQuantity } from '../src/data/format'
 import type { Goal, TransactionCategoryId } from '../src/data/types'
 import { GOAL_PLACEHOLDER_IMAGE } from '../src/config/media'
 import { toStored } from '../src/persistence/boundary'
@@ -271,6 +284,15 @@ export const ROUTES: string[] = ROUTE_TABLE.flatMap(({ path }) => {
   // `CRYPTO_RECIPIENTS` (R96-9), for the same reason as the amount screen below.
   if (path === '/transfer/crypto/:recipientId') {
     return CRYPTO_RECIPIENTS.map((r) => `/transfer/crypto/${r.id}`)
+  }
+  // Gate 98 - Flow 5's amount screen. EXPANDED OVER NOTHING, and that is the
+  // done route's reasoning (below) applied to a draft: the contact lives in the
+  // transfer draft, not the URL (R96-9), so a cold navigation to this path has
+  // no contact and REPLACES itself with the Crypto tab — six routes here would
+  // photograph that tab six times. The screen is walked through the
+  // `amount-<token>` overlay states, which reach it from Select Token.
+  if (path === '/transfer/crypto/send/:tokenId') {
+    return []
   }
   if (path === '/transfer/send/:recipientId') {
     return RECIPIENTS.map((r) => `/transfer/send/${r.id}`)
@@ -827,6 +849,148 @@ const SEND_REVIEW: PrepareStep = {
   settlesText: 'RM 2,550.00',
 }
 
+/* ── Gate 98 — Flow 5's amount screen, fee sheet, summary and send ──────────
+   All on Rachum Greene's Select Token (Flow 4's drawn recipient; Gate 96's
+   states use it too). Each opens by choosing a token (the opening control) and
+   reaches the amount screen through Select Token's Next. Every expected string
+   is DERIVED through the app's own functions, never written out. */
+const CRYPTO_START = '/transfer/crypto/crypto-rachum-greene'
+const CRYPTO_FIELD = '.mvp-crypto-send input[role="combobox"]'
+const CRYPTO_PRIMARY = '.mvp-crypto-send__body > .mn-btn--primary'
+/** Figma's drawn amount for Ethereum; RM 1,000.00 elsewhere (every holding covers it). */
+const cryptoAmountFor = (id: string) => (id === 'eth' ? '5800.00' : '1000.00')
+
+/** The rows block's text: `TransferAmount` rows, title then "details•amount". */
+function cryptoRowsText(id: string, amount: string, summary: boolean): string {
+  const h = CRYPTO_HOLDINGS.find((x) => x.id === id)!
+  const sen = Math.round(Number(amount) * 100)
+  const fee = cryptoFee(id, 'regular')
+  const sent = cryptoQuantityForSen(id, sen)
+  const after = holdingsAfterCryptoSend(CRYPTO_HOLDINGS, { tokenId: id, quantity: sent, feeQuantity: summary ? fee.quantity : 0 })
+  const token = after.find((x) => x.id === id)!
+  const q = (n: number) => formatQuantity(n, h.quantityDecimals, h.symbol)
+  const total = (cryptoUnits(sent) + cryptoUnits(fee.quantity)) / CRYPTO_UNITS_PER_TOKEN
+  return [
+    ...(summary
+      ? [`Network Fees${q(fee.quantity)}•${formatMyr(fee.fee)}`, `Total${q(total)}•${formatMyr((sen + Math.round(fee.fee * 100)) / 100)}`]
+      : []),
+    `Your new balance${formatMyr(cryptoWalletTotal(walletHoldings(after, h.walletId)))}`,
+    `${h.symbol} balance${q(token.quantity)}•${formatMyr(token.valueMyr)}`,
+  ].join('')
+}
+
+function cryptoOpen(id: string): Pick<OverlayState, 'control' | 'controlLabel' | 'title' | 'opens' | 'settlesOn'> {
+  const h = CRYPTO_HOLDINGS.find((x) => x.id === id)!
+  const wallet = CRYPTO_WALLETS.find((w) => w.id === h.walletId)!
+  return {
+    control: `#token-${id}`,
+    // The option's COMPUTED name: Chromium separates the row's four parts with spaces.
+    controlLabel: `${h.name} ${wallet.name} ${formatMyr(h.valueMyr)} ${formatQuantity(h.quantity, h.quantityDecimals, h.symbol)}`,
+    title: h.name,
+    opens: [],
+    // Present once at open (the chosen token) AND at capture (the amount screen).
+    settlesOn: `#token-${id}[aria-selected="true"], .mvp-crypto-send`,
+  }
+}
+const cryptoNext = (id: string): PrepareStep => ({
+  control: '.mvp-token__actions .mn-btn--primary',
+  controlName: 'Next',
+  action: 'click',
+  settlesOn: '.mvp-crypto-send .mn-header-default__title',
+  settlesText: `Send ${CRYPTO_HOLDINGS.find((x) => x.id === id)!.name}`,
+})
+const cryptoFill = (id: string): PrepareStep => ({
+  control: CRYPTO_FIELD,
+  controlName: 'Transfer Amount',
+  action: 'fill',
+  value: cryptoAmountFor(id),
+  settlesOn: '.mvp-crypto-send__rows',
+  settlesText: cryptoRowsText(id, cryptoAmountFor(id), false),
+})
+const CRYPTO_FEE_OPEN: PrepareStep = {
+  control: CRYPTO_PRIMARY,
+  controlName: 'Next',
+  action: 'click',
+  settlesOn: '[role="dialog"] .mvp-fee__options',
+  settlesText: [cryptoFee('eth', 'regular'), cryptoFee('eth', 'priority')]
+    .map((f) => `${f.label} ${f.wait} ${formatMyr(f.fee)}`)
+    .join(''),
+}
+const CRYPTO_FEE_OK: PrepareStep = {
+  control: '.mn-sheet__actions .mn-btn--primary',
+  controlName: 'OK',
+  action: 'click',
+  settlesOn: '.mvp-crypto-send__rows',
+  settlesText: cryptoRowsText('eth', cryptoAmountFor('eth'), true),
+}
+
+const CRYPTO_SEND_STATES: WalkState[] = [
+  // One per token: the field filled, the caption and the two rows (`1266:14397`).
+  ...CRYPTO_HOLDINGS.map(
+    (h): WalkState => ({
+      route: CRYPTO_START,
+      tab: null,
+      overlay: { id: `amount-${h.id}`, ...cryptoOpen(h.id), prepare: [cryptoNext(h.id), cryptoFill(h.id)] },
+    }),
+  ),
+  // "Next" with nothing typed: the amount's error.
+  {
+    route: CRYPTO_START,
+    tab: null,
+    overlay: {
+      id: 'amount-invalid',
+      ...cryptoOpen('eth'),
+      prepare: [
+        cryptoNext('eth'),
+        {
+          control: CRYPTO_PRIMARY,
+          controlName: 'Next',
+          action: 'click',
+          settlesOn: '.mvp-crypto-send .mn-field-message--error',
+          settlesText: 'Enter an amount',
+        },
+      ],
+    },
+  },
+  // The Network Fee sheet over the amount (`1266:14399`).
+  {
+    route: CRYPTO_START,
+    tab: null,
+    overlay: {
+      id: 'fee',
+      ...cryptoOpen('eth'),
+      dialogs: ['Network Fee'],
+      prepare: [cryptoNext('eth'), cryptoFill('eth'), CRYPTO_FEE_OPEN],
+    },
+  },
+  // OK: the screen grown in place (`1266:14398`, Decision 28A).
+  {
+    route: CRYPTO_START,
+    tab: null,
+    overlay: {
+      id: 'summary',
+      ...cryptoOpen('eth'),
+      prepare: [cryptoNext('eth'), cryptoFill('eth'), CRYPTO_FEE_OPEN, CRYPTO_FEE_OK],
+    },
+  },
+  // "Transfer crypto": the success page by replace (undrawn). No `landsOn`: the path carries a random id.
+  {
+    route: CRYPTO_START,
+    tab: null,
+    overlay: {
+      id: 'sent',
+      ...cryptoOpen('eth'),
+      prepare: [cryptoNext('eth'), cryptoFill('eth'), CRYPTO_FEE_OPEN, CRYPTO_FEE_OK],
+      confirm: {
+        control: CRYPTO_PRIMARY,
+        controlLabel: 'Transfer crypto',
+        settlesOn: '.mvp-transfer-done__hero',
+        settlesText: `Transfer successful${formatQuantity(cryptoQuantityForSen('eth', 580000), 4, 'ETH')}to Rachum Greene`,
+      },
+    },
+  },
+]
+
 export const OVERLAY_STATES: WalkState[] = [
   // Gate 92 — the Transfer sheet over Home, opened through the bar's Transfer item (18A, R92-1).
   {
@@ -916,6 +1080,7 @@ export const OVERLAY_STATES: WalkState[] = [
       settlesOn: '.mvp-token__message .mn-field-message--error',
     },
   },
+  ...CRYPTO_SEND_STATES,
   // ── Gate 93 — the amount screen, the review and the success page ─────────────
   //
   // All five start on Rachum Greene's amount screen, Figma's own drawn recipient

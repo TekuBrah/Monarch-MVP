@@ -5193,3 +5193,65 @@ README listing).
   sticky, on Gate 80's precedent (pinning needs a shell change or a viewport-height floor). Recorded divergence.
 
 ### Nothing was removed from this register at this gate.
+
+## 2at. Status at MVP Gate 98 (2026-11-06) — Flow 5 part 2: the amount screen, the Network Fee sheet, the summary and the send; DS v2.13.0; G61, G64, G65 and G66 closed; G67 opened; Decisions 33 and 34
+
+**THE TALLY MOVES: FOUR GAPS CLOSE AND ONE OPENS.** **66 entries, 38 closed, 28 open; the highest number is G67.** Derived
+from §2as's 65 / 34 / 31: G61, G64, G65 and G66 close (DS v2.13.0), so closed 34 + 4 = 38 and open 31 − 4 = 27; G67 opens,
+so entries 65 + 1 = 66 and open 27 + 1 = 28. 38 + 28 = 66. Still open and still deferred, unchanged by this gate: G6, G13,
+G14, G17's prop half, G19–G23, G28–G33, G44, G48, G49, G50, G51, G52, G53, G58, G60, G62, G63, `MODEL-1` and `UI-3`. **No
+MVP-local override was added for any of them**, and the `G33` workaround class is untouched. **Next free: section `2au`, gap
+`G68`; next free Teku decision 35.**
+
+**The gate ships on DS `v2.13.0`** (`11349b8a9dccf682ce4b15e94ee1cd8c75e14f5a`, installed by name, `lint:linkage` PASS). It
+builds Flow 5's amount screen, Network Fee sheet, summary, writer (`sendCrypto`) and the shared success page, and bumps the
+schema to v4. See `CLAUDE.md`'s Gate 98 section for the build record. **The re-pin alone moved 0 baselines** (Phase A,
+measured in a census copy); the feature added 40 and changed none.
+
+### Closures (DS v2.13.0, DS Gate 97)
+
+| gap | DS change | adopted |
+|---|---|---|
+| **G64** `SelectTransfer` caption inside a `FormField` | `SelectTransfer` gains `caption?: string` (a `<span id>`, never a `<label>`; its id appended to `aria-describedby`) | the amount field's token quantity |
+| **G65** two-colour title | `HeaderDefault` gains `titleAccent?: string`, coloured by Decision 32's token | "Send **Ethereum**" |
+| **G66** row with a sub-line and a trailing value | `Radio` gains `layout?: 'inline' \| 'row'`, `description`, `trailingLabel` | the Network Fee sheet |
+| **G61** no `Logo` size fits the 20px flag slot | `LogoSize` gains `'fill'` (a height fill) | the token flag in the new screen |
+
+**G61 IS CLOSED AT THE DS, AND FLOW 4's FLAG IS NOT RETROFITTED:** Flow 4's send screen keeps its `Logo size="xs"` workaround.
+Say so wherever G61's closure is claimed for Flow 4.
+
+### G67 — a deep-linked Select Token leaves the app on Back (opened, MVP, Gate 96 code)
+
+| | |
+|---|---|
+| **where** | `src/flows/transfer/SelectTokenScreen.tsx` (Gate 96) |
+| **what** | Opened by URL, Select Token replaces itself with `/transfer`; Back from there leaves the app (`about:blank`) instead of going Home, because the replaced entry no longer carries the "opened directly" key. Two Backs leave the app |
+| **found by** | Phase A's B9 mutation proof (finding F-l) |
+| **proposed fix** | MVP: replace with `/` when the entry is the first, or carry the key through the replace |
+| **decision** | registered; not fixed here; the UI integration round |
+
+### Decisions 33 and 34 (Teku, 6 Nov 2026, delegated to the review thread)
+
+- **33 = A** — one well-formed address per network on each contact; the drawn 0x address stays. Basis: Coinbase's wallet API
+  says an address is meaningful only with its network and its address-book entries carry one; Binance's entries are label,
+  coin, address, network.
+- **34 = D** — To reuses Flow 4's contact field (photo, name, address; a tap returns to the Crypto tab keeping the amount; no QR
+  icon). A recorded divergence from `1266:14397`. Basis: address-poisoning research recommends named saved contacts; the DS
+  `Field` has no read-only state. (Option E would have needed a DS read-only `Field` first.)
+
+### Rulings recorded here
+
+R96-17 (the 14 px Select Token scroll), R96-18 (B6's 400 ms focus window), R96-19 (N6's synthetic rows) — on no repo file
+until this gate — and R98-1 … R98-12 (fee table, networks, schema v4, shared success page, detail rows, history, recents,
+states and cost, no split, From's chevron, the 833 px summary, B4 / B9 strengthened). Details are in `CLAUDE.md`.
+
+### Notes — not gaps
+
+- **The drawn fee copy has no place for "estimated"**; the fee table is a committed constant (ETH as drawn). Recorded.
+- **The summary's 833 px capture** is the 160 px shell bottom reserve again, accepted as R96-17 was.
+- **`history.length` read 4 after header Back from the summary where it read 7 before** — unexplained, every outcome right;
+  Phase B re-measures it.
+- **29D resets every tester once on deploy** (the fingerprint is compared before migrating); `MIGRATIONS[3]` serves only a v3
+  store carrying the new fingerprint.
+
+### Nothing was removed from this register at this gate.

@@ -6,7 +6,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CRYPTO_HOLDINGS, CRYPTO_WALLETS } from '../data/accounts'
+import { CRYPTO_WALLETS } from '../data/accounts'
+import { CRYPTO_RECIPIENTS } from '../data/cryptoRecipients'
 import { COMMITMENTS } from '../data/commitments'
 import { COMMITMENT_OFFERS } from '../data/offers'
 import { buildHoldings } from '../data/holdings'
@@ -22,6 +23,8 @@ import {
   recategorised,
   recategorisedAllFrom,
   sendRowProblem,
+  cryptoSendProblem,
+  holdingsAfterCryptoSend,
   toSen,
   withCategoryRule,
 } from '../data/derive'
@@ -320,6 +323,14 @@ interface AccountsContextValue {
    * stored together.
    */
   sendMoney: (row: Transaction) => void
+  /**
+   * SEND CRYPTO — Gate 98 (Flow 5). The row is the instruction (Flow 4 standard
+   * 2): `buildCryptoSend` builds it, `cryptoSendProblem` judges it against the
+   * COMMITTED holdings and throws at the call site, then two sibling pure
+   * updaters append it and debit the token (quantity sent + fee; value
+   * re-derived). NO FIAT ACCOUNT MOVES. Persisted (schema v4).
+   */
+  sendCrypto: (row: Transaction) => void
   /**
    * CHANGE ONE PURCHASE'S CATEGORY — Gate 89. THE FIRST WRITER THAT UPDATES AN
    * EXISTING TRANSACTION; every other ledger writer appends.
@@ -757,6 +768,11 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   const [categoryRules, setCategoryRules] = useState<CategoryRule[]>(
     () => hydratedState().categoryRules,
   )
+  // Gate 98: crypto holdings became state — a send moves a token, and every
+  // wallet card, the Homepage Crypto tab and net worth must follow it.
+  const [cryptoHoldings, setCryptoHoldings] = useState<CryptoHolding[]>(
+    () => hydratedState().cryptoHoldings,
+  )
 
   /*
     PERSISTENCE OBSERVES; IT NEVER WRITES FROM HERE. The four atoms are reported
@@ -771,9 +787,10 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     setFiatAccounts(state.fiatAccounts)
     setGoals(state.goals)
     setCategoryRules(state.categoryRules)
+    setCryptoHoldings(state.cryptoHoldings)
   }, [])
   usePersistence(
-    { transactions, receipts, fiatAccounts, goals, categoryRules },
+    { transactions, receipts, fiatAccounts, goals, categoryRules, cryptoHoldings },
     applyStoredState,
   )
 
@@ -843,6 +860,18 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       )
     },
     [fiatAccounts],
+  )
+
+  /** See the contract on `AccountsContextValue.sendCrypto`. */
+  const sendCrypto = useCallback(
+    (row: Transaction) => {
+      const problem = cryptoSendProblem(row, cryptoHoldings, CRYPTO_RECIPIENTS)
+      if (problem !== null) throw new Error(`sendCrypto: ${row.id} ${problem}`)
+      setTransactions((current) => [...current, row])
+      // `cryptoSendProblem` has already refused a row with no `crypto`.
+      setCryptoHoldings((current) => holdingsAfterCryptoSend(current, row.crypto!))
+    },
+    [cryptoHoldings],
   )
 
   /**
@@ -1017,9 +1046,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       fiatAccounts,
       primaryAccount,
       cryptoWallets: CRYPTO_WALLETS,
-      cryptoHoldings: CRYPTO_HOLDINGS,
-      cryptoTotal: cryptoWalletTotal(CRYPTO_HOLDINGS),
-      cryptoChange: cryptoWalletChange(CRYPTO_HOLDINGS),
+      cryptoHoldings,
+      cryptoTotal: cryptoWalletTotal(cryptoHoldings),
+      cryptoChange: cryptoWalletChange(cryptoHoldings),
       transactions,
       holdings,
       /*
@@ -1036,8 +1065,8 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         RM 9.41 above its accrued value on the last day), so the hero figure and
         the chart's last point have never been the same number.
       */
-      netWorth: netWorth(holdings, CRYPTO_HOLDINGS, goals),
-      netWorthSeries: netWorthSeries(holdings, CRYPTO_HOLDINGS),
+      netWorth: netWorth(holdings, cryptoHoldings, goals),
+      netWorthSeries: netWorthSeries(holdings, cryptoHoldings),
       receipts,
       goals,
       commitments: COMMITMENTS,
@@ -1046,6 +1075,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       adjustFiatBalance,
       topUpGoal,
       sendMoney,
+      sendCrypto,
       recategoriseTransaction,
       recategoriseMerchant,
       categoryRules,
@@ -1061,6 +1091,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     }
   }, [
     fiatAccounts,
+    cryptoHoldings,
     transactions,
     receipts,
     goals,
@@ -1068,6 +1099,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     adjustFiatBalance,
     topUpGoal,
     sendMoney,
+    sendCrypto,
     recategoriseTransaction,
     recategoriseMerchant,
     categoryRules,

@@ -244,7 +244,7 @@ test('B4 a contact opens Select Token: six derived rows, nothing selected; Back 
   await expect(selectedTab(page)).toHaveText('Crypto')
 })
 
-test('B5 a tap selects one token; Next then says Coming soon. and stays', async ({ page }) => {
+test('B5 a tap selects one token; Next then opens the amount screen for it', async ({ page }) => {
   await gotoRoute(page, '/transfer/crypto/crypto-rachum-greene', 'light')
   await page.locator('#token-eth').click()
   await expect(page.locator('#token-eth')).toHaveAttribute('aria-selected', 'true')
@@ -256,9 +256,10 @@ test('B5 a tap selects one token; Next then says Coming soon. and stays', async 
   await expect(page.locator('#token-eth')).toHaveAttribute('aria-selected', 'false')
   await expect(page.locator('#token-sol')).toHaveAttribute('aria-selected', 'true')
   await next(page).click()
-  await expect(notice(page)).toHaveText('Coming soon.')
-  await expect(page.locator('.mvp-token__message')).toHaveCount(0)
-  expect(new URL(page.url()).pathname).toBe('/transfer/crypto/crypto-rachum-greene')
+  // Gate 98 (R96-9): Next opens the amount screen for the chosen token.
+  await expect(page).toHaveURL(/\/transfer\/crypto\/send\/sol$/)
+  await expect(page.locator('.mvp-crypto-send .mn-header-default__title')).toHaveText('Send Solana')
+  await expect(notice(page)).toHaveCount(0)
 })
 
 test('B6 Next with nothing chosen: the message, focus on the first token, and a choice clears it', async ({ page }) => {

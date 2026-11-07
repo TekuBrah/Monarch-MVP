@@ -179,3 +179,13 @@ export const CRYPTO_HOLDINGS: CryptoHolding[] = [
     changePct: 0,
   },
 ]
+
+/**
+ * THE FIXED UNIT PRICE OF EACH TOKEN — Gate 98 (R96-1): its seeded value over
+ * its seeded quantity. A holding stores its QUANTITY; its value is this price
+ * times the quantity (`cryptoValueOf`), so a send moves value in proportion.
+ * Read from the seed constant, which `seedFingerprint` hashes (Decision 29D).
+ */
+export const CRYPTO_UNIT_PRICES: Readonly<Record<string, number>> = Object.fromEntries(
+  CRYPTO_HOLDINGS.map((h) => [h.id, h.valueMyr / h.quantity]),
+)

@@ -1,3 +1,5 @@
+import { CRYPTO_HOLDINGS } from '../data/accounts'
+import { cryptoValueOf } from '../data/derive'
 import type { Goal, Receipt, Transaction } from '../data/types'
 import {
   captureFactsOf,
@@ -63,6 +65,8 @@ export function toStored(state: AppState): StoredRecords {
     goals: state.goals.map(storeGoal),
     budgets: state.budgets,
     categoryRules: state.categoryRules,
+    // Gate 98: the quantity only; everything else is the seed's or derived.
+    cryptoHoldings: state.cryptoHoldings.map(({ id, quantity }) => ({ id, quantity })),
   }
 }
 
@@ -110,5 +114,11 @@ export function fromStored(records: StoredRecords, images: ReadonlyMap<string, B
     goals,
     budgets: records.budgets,
     categoryRules: records.categoryRules,
+    // Gate 98: the seed's holding with the stored quantity and its derived value.
+    // `storedRecordsProblem` has already proved every seeded id is present once.
+    cryptoHoldings: CRYPTO_HOLDINGS.map((seed) => {
+      const quantity = records.cryptoHoldings.find((h) => h.id === seed.id)!.quantity
+      return { ...seed, quantity, valueMyr: cryptoValueOf(seed.id, quantity) }
+    }),
   }
 }

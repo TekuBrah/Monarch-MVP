@@ -20386,3 +20386,149 @@ finished the work below and changed no code.
 
 The amount screen, the Network Fee sheet, the summary, `sendCrypto`, the draft widening, schema v4, the success page and
 the network warning line (Gate 98); G64–G66 (DS Gate 97); G62 / G63; the Netlify badge; any seed, persistence, token or DS change.
+
+## Flow 5 part 2 — the amount screen, the Network Fee sheet, the summary and the send (Gate 98)
+
+The pin moved `v2.12.0` (`fbc6e2f2…`) -> **`v2.13.0`** (`11349b8a9dccf682ce4b15e94ee1cd8c75e14f5a`, installed by name;
+`lint:linkage` PASS with all four sources on `11349b8a9dcc`). There is no MVP Gate 97; DS Gate 97 shipped v2.13.0 (the
+`SelectTransfer` caption, `HeaderDefault.titleAccent`, `Radio layout="row"`, `Logo size="fill"`). **|WALK| 113 -> 123,
+`ROUTES` 36 (the new route expands over nothing), `OVERLAY_STATES` 60 -> 70, `STORE_STATES` 9, baselines 452 -> 492 (40
+added, 0 changed, 0 deleted), tests 1475 -> 1576 in 50 files, schema v3 -> v4.** `lint:tokens` scans **127** files (124 +
+`cryptoNetworks.ts`, `CryptoSendScreen.tsx`, `NetworkFeeSheet.tsx`) with the same **4** exemptions. Phase A (Opus) designed
+and measured it in a census copy (`D:\Claude\_handoffs\gate98-phaseA\`); this build session (Sonnet) applied Phase A's
+measured diff (`proto-final.diff`, sha256 `2e593047…2e38d`, 66 paths) and proved every path byte-identical to the
+prototype. Phase B runs the mutation proofs and three clean runs. **Teku does every git write.** Register `2at` carries
+the decisions, the gap closures and G67.
+
+**THE SECOND MONEY-MOVING WRITER SINCE FLOW 11 (`sendCrypto`), AND THE SECOND SCHEMA BUMP SINCE GATE 85.**
+
+### Decisions and rulings
+
+Teku, 4–6 Nov 2026:
+
+- **28A** — the drawn in-place confirm: the amount screen grows after the Network Fee sheet; the summary is its own history
+  entry, so device Back returns to the editable amount. **29D** — `CRYPTO_HOLDINGS` is hashed into the seed fingerprint, so
+  **every tester's saved data resets once on deploy**. **30F** — a grey helper line under To: "Only send <TOKEN> to wallets
+  on the <network> network." **31H** — the four recipient photos (Gate 96). **32A** — the DS's accent title colour.
+- **Decision 33 = A** (6 Nov): each crypto contact keeps its drawn 0x address and gains a well-formed Bitcoin, Solana and
+  Stellar address, one per network. Teku asked the review thread to "do research on the best UX and industry standard
+  practice … and you choose the best decision". Basis: Coinbase's wallet API states an address is only meaningful with its
+  network and its address-book entries carry one; Binance's address entries are label, coin, address and network.
+- **Decision 34 = D** (6 Nov, delegated the same way): To reuses Flow 4's contact field — photo, name, address; a tap returns
+  to the Crypto tab keeping the amount; no QR icon. A **recorded divergence** from frame `1266:14397`'s bare field. Basis:
+  address-poisoning research recommends named saved contacts over truncated hex, and the DS `Field` has no read-only state.
+  **The next free Teku decision is 35.**
+
+Thread rulings (overturnable):
+
+- **R96-17** (carried, never on disk until now): Select Token's invalid-state 14 px scroll at 375×812 is accepted; the
+  message and Next are fully visible. **R96-18**: Gate 96's B6 observes focus over a 400 ms window. **R96-19**: Gate 96's N6
+  is a synthetic-row test for the Bank order. The 160 px shell bottom reserve is a finding for the UI integration round.
+- **R98-1 (F-a)** the fee table (`cryptoNetworks.ts`): ETH as drawn (Regular RM 4.60 · 60+ Min, Priority RM 24.50 · 30
+  Minutes); the others scale it by sourced network costs; anything below RM 0.01 is charged as RM 0.01. "Estimated" is not
+  shown — the drawn copy has no place for it (a recorded gap). **R98-2 (F-b)** USDT and UNI travel on Ethereum; BTC on
+  Bitcoin, SOL on Solana, XLM on Stellar. **R98-3 (F-c)** schema v4 (below). **R98-4 (F-d)** one shared success page at
+  `/transfer/done/:transactionId`, branching on `method`; no reference is shown. **R98-5 (F-e)** the detail sheet adds
+  Amount, Network fee and Network for a written crypto send; the seeded crypto rows are unchanged. **R98-6 (F-f)** history
+  (below). **R98-7 (F-g)** a crypto send puts its contact first on the Crypto tab. **R98-8 (F-h)** the amount route has an
+  empty expansion: 10 overlay states, +40 baselines, +80 walk tests, +21 spec tests. **R98-9 (F-i)** one gate, no split.
+  **R98-10 (F-j)** From's chevron returns to Select Token. **R98-11 (F-k)** the summary's 833 px capture is accepted as
+  R96-17 was. **R98-12** B4 and B9 were strengthened by the M9 and M11 proofs; B9 enters and leaves only through the app's
+  own controls.
+
+### The money
+
+- A holding stores its **quantity**; its value is `CRYPTO_UNIT_PRICES[id] × quantity` to the sen (R96-1); all six seeded
+  values reproduce exactly (N1). Quantities are integers of 1e-8 of a token. The amount is entered in RM, with the token
+  quantity as the caption (R96-5).
+- The fee is paid in the sent token (R96-2); total = amount + fee, judged in units (`cryptoAmountError`).
+- The row (`buildCryptoSend`): `kind: 'transfer'`, `method: 'Crypto Transfer'`, `accountId` the wallet, `amount` the negative
+  MYR total, `category: 'others'`, `recipientId`, a real reference, and `crypto: { tokenId, quantity, feeQuantity, fee, tier }`.
+  `sendCrypto` judges it with `cryptoSendProblem` against the committed holdings BEFORE any setter (R89-8), then two sibling
+  pure updaters (append; debit). **No fiat account moves**, and net worth falls by the amount plus the fee. A crypto send
+  is a `transfer`, so no budget can move.
+
+### History (28A, F-f) — measured in headless Chromium by Phase A
+
+Next pushes the same path with `{ fee: true }` (length 6 -> 7). **OK REPLACES that entry with `{ summary: true }`** (length
+stays 7), so the summary is its own entry and Back from it — header or device — returns to the editable amount. The summary
+is derived from the draft: an edit recomputes the rows, and an amount that no longer fits shows its error and "Transfer
+crypto" refuses. "Transfer crypto" writes, pops the summary, then **replaces** the amount entry with the success page. Back
+from the success page lands on Select Token. A reload or deep link has no contact in the draft and replaces itself with the
+Crypto tab (R93-7). **One reading is unexplained:** `history.length` read 4 after header Back from the summary where it read 7
+before — a back navigation does not shrink session history. Every user-visible outcome is right; recorded, not investigated;
+Phase B re-measures it in the repo.
+
+### Schema v4
+
+`SCHEMA_VERSION = 4`; the new key is **`cryptoHoldings`** (seventh, last), stored as `{ id, quantity }` only — name, symbol,
+logo and wallet are the seed's and the value is derived. `isStoredCryptoHolding` (known id, finite quantity ≥ 0);
+`storedRecordsProblem` requires every seeded token exactly once; `MIGRATIONS[3]` adds the seeded quantities;
+`Transaction.crypto?` is one optional validated object. **29D's consequence, in `store.ts`: the fingerprint is compared
+before migrating**, so every stored v3 snapshot classifies `seed-changed` and resets once; `MIGRATIONS[3]` runs only for a v3
+store carrying the new fingerprint (tests), and must still exist or such a store is quarantined. No MIGRATED-in-the-browser
+test was added — a real v3 store resets by design (N8 proves why). `DB_VERSION` does not move. The provider must report the
+`cryptoHoldings` atom to `usePersistence`, or persistence stops (the Gate 94 lesson).
+
+### The screens
+
+`CryptoSendScreen.tsx` (three states: amount, fee sheet, summary), `NetworkFeeSheet.tsx` (`Radio layout="row"` in a
+`radiogroup` "Network Fee"; OK commits the tier, Cancel / ✕ / the scrim discard) and the shared `TransferDoneScreen.tsx`. The
+amount screen uses the v2.13.0 parts: the `SelectTransfer` caption (G64), `titleAccent` (G65, 32A) and `Logo fill` in an
+`ElementWrapper m` (G61). **Flow 4's flag is NOT retrofitted** (it keeps `Logo xs`). The 30F helper line shows under To; To
+is Flow 4's contact field (Decision 34 = D). The chip and From both return to Select Token (R96-8, F-j).
+
+### Harness, tests and baselines
+
+`:tokenId` (`/transfer/crypto/send/:tokenId`) expands over nothing; the screen is walked through **10 overlay states** on Rachum
+Greene's Select Token: `amount-{btc,eth,usdt,sol,xlm,uni}` (RM 5,800 for ETH as drawn, RM 1,000 otherwise), `amount-invalid`,
+`fee`, `summary`, `sent`; every expected string is derived. `e2e/crypto-send.spec.ts`, **21 tests, no baseline** (N1–N10 in
+Node, B1–B11 in the browser); `crypto-transfer.spec.ts` B5 rewritten; five other specs changed `SCHEMA_VERSION` 3 -> 4 or the
+fingerprint's raw seed. 1475 + 10 states × 8 (visual 492, routes 247, section-headers 248) + 21 = **1576 in 50 files**.
+
+Phase A's figures (a census copy; the git arms of `baselines.spec.ts` always fail there): re-pin alone 1473 passed / 2
+failed (the two git arms), digest unchanged — **the DS v2.13.0 re-pin moves 0 baselines**. Pre-mint: exactly the 40 predicted
+names failed, all "snapshot doesn't exist"; mint reconciled 452 -> 492, 40 added, 0 changed. Mutation proofs: **18 of 18
+proved**, the syntax-error negative control refused, a reorder control passed. Run 1 found three weak spots: M1's signature
+was corrected (the test was right), M9 made B4 assert the fee sheet closed before clicking, and **M11 survived — B9 re-entered
+the flow with `gotoRoute`, a page load, which empties an in-memory draft whatever the provider does** (and its third Back left
+the app). B9 was rebuilt to enter and leave through the app's own controls only.
+
+**The build session (this record):** the diff applied with no reject; **all 66 paths are byte-identical to `census\proto`**
+(64 on the first compare). `package.json` and `package-lock.json` came out CRLF — see the corrections. The re-pin install
+left both files unchanged; `tsc -b --force` 0; `lint:tokens` PASS (127 files, 4 exemptions); `lint:linkage` PASS.
+
+| | re-pin only (Phase A) | with the feature (this build) | change |
+|---|---|---|---|
+| `build:package` entry chunk | 5,984,741 | **5,994,986** | +10,245 |
+| CSS | 202,306 | **202,882** | +576 |
+| OCR lazy chunks (read, recognise, parseReceipt, diagnose) | unchanged | 1,092 / 4,368 / 13,481 / 2,866 | none |
+| `modulepreload` | 0 | **0** | |
+
+Full run on the final tree: **1575 passed / 1 failed**, 60.6 min (3,637 s), npm exit 1, 0 `writing actual`, 492 PNGs and the digest `efd3d4a8702196a5c77a840e7fcd666639eaeb676f1d55e5ff81ba5234e13535` (filesystem form; 40 files untracked until staged) before and after. The one failure is `baselines.spec.ts:216` arm 1 ("every baseline on disk is tracked by git"), naming the 40 untracked `transfer-crypto-crypto-rachum-greene-*` PNGs — predicted; arms 2 and 3 stayed green, and the known `section-headers` mount-timing flake did not appear. Staging is Teku's. The three clean runs are Phase B's.
+
+### Findings
+
+- The `summary` captures are 833 px: the 160 px shell bottom reserve (R96-17's mechanism); "Transfer crypto" stays fully
+  visible (R98-11).
+- The drawn fee copy has no place for "estimated" (R98-1), Next stays in flow
+  (R96-14) and To is Flow 4's field (Decision 34) — recorded divergences.
+- **G67 (F-l), Gate 96 code, not fixed here:** a deep-linked Select Token replaces itself with `/transfer`, and Back from there
+  leaves the app (`about:blank`) instead of going Home, because the replaced entry no longer carries the "opened directly"
+  key; two Backs leave the app. To the UI integration round.
+- `npm install` reported 3 high-severity advisories (Gate 85 recorded two); the hygiene round's, not touched.
+
+### Corrections to the record (insert-only)
+
+- **The Gate 96 section above says 1474 tests; it was 1475** after N6 (Gate 96 Phase B).
+- **`git apply` converts line endings through `.gitattributes`.** `package.json` and `package-lock.json` are LF in the working
+  copy; applying a patch with `core.autocrlf=false` still wrote them back CRLF (the `text=auto` attribute with a platform
+  default of CRLF). Their content was identical to the prototype modulo CR; the prototype's LF bytes were copied back and the
+  install confirmed them unchanged. The other 64 paths needed no correction.
+- R96-17, R96-18 and R96-19 were in the Gate 96 commit message and Phase B's report only; they are recorded above.
+
+### Deliberately not in scope
+
+Retrofitting Flow 4's flag to `Logo fill`; G67's fix; a Bitcoin / Solana / Stellar address book beyond the one address per
+network; "estimated" fee copy; the 160 px shell reserve; a real fee oracle; adding a recipient (Flow 6); Scan QR; any seed,
+token or DS change; and the DS repo.

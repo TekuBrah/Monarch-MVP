@@ -1,3 +1,4 @@
+import { CRYPTO_HOLDINGS } from '../data/accounts'
 import { TRANSACTION_CATEGORIES } from '../data/transactions'
 import type {
   Budget,
@@ -42,7 +43,26 @@ import type { CaptureSource } from './captureFacts'
  * adds it EMPTY; every other collection is unchanged. The seed fingerprint does
  * NOT include it (the seed holds none), so this bump resets no tester.
  */
-export const SCHEMA_VERSION = 3
+/*
+ * VERSION 4 — Gate 98 (Flow 5): a seventh collection, `cryptoHoldings`, stored
+ * as `{ id, quantity }` only — the name, symbol, logo and wallet come from the
+ * seed constant, and the value is derived (R96-1), so nothing derived and
+ * nothing constant is stored. `MIGRATIONS[3]` adds the seeded quantities. One
+ * optional row field, `Transaction.crypto`. THIS BUMP DOES RESET TESTERS ONCE:
+ * Decision 29D hashes `CRYPTO_HOLDINGS` into the seed fingerprint, and the store
+ * compares the fingerprint BEFORE it migrates (`store.ts` `classify`), so every
+ * stored v3 snapshot classifies `seed-changed`. `MIGRATIONS[3]` therefore runs
+ * only on a v3 snapshot already carrying the new fingerprint — which exists in
+ * tests, not in the field — and must exist all the same, or such a store is
+ * quarantined instead of migrated.
+ */
+export const SCHEMA_VERSION = 4
+
+/** A crypto holding as stored: the quantity is the only fact a send changes. */
+export interface StoredCryptoHolding {
+  id: string
+  quantity: number
+}
 
 export interface StoredReceipt extends Omit<Receipt, 'sourceUrl'> {
   /** The image's id in the `images` store, present exactly for a capture. */
@@ -60,6 +80,7 @@ export interface StoredRecords {
   goals: Goal[]
   budgets: Budget[]
   categoryRules: CategoryRule[]
+  cryptoHoldings: StoredCryptoHolding[]
 }
 
 export interface StoredMeta {
@@ -77,6 +98,7 @@ export const RECORD_KEYS = [
   'goals',
   'budgets',
   'categoryRules',
+  'cryptoHoldings',
 ] as const
 export type RecordKey = (typeof RECORD_KEYS)[number]
 
@@ -149,8 +171,32 @@ export function isStoredTransaction(v: unknown): boolean {
     optional(isNonEmptyStr)(v.reference) &&
     isNonEmptyStr(v.accountId) &&
     // Gate 93, schema v2: the recipient a send went to.
-    optional(isNonEmptyStr)(v.recipientId)
+    optional(isNonEmptyStr)(v.recipientId) &&
+    // Gate 98, schema v4: what a crypto send moved, in the token.
+    optional(isCryptoSendDetail)(v.crypto)
   )
+}
+
+const CRYPTO_IDS = CRYPTO_HOLDINGS.map((h) => h.id)
+const isCryptoId = oneOf(...CRYPTO_IDS)
+
+function isCryptoSendDetail(v: unknown): boolean {
+  return (
+    isRec(v) &&
+    isCryptoId(v.tokenId) &&
+    isNum(v.quantity) &&
+    (v.quantity as number) > 0 &&
+    isNum(v.feeQuantity) &&
+    (v.feeQuantity as number) >= 0 &&
+    isNum(v.fee) &&
+    (v.fee as number) >= 0 &&
+    oneOf('regular', 'priority')(v.tier)
+  )
+}
+
+/** Gate 98: a known token and a finite, non-negative quantity. */
+export function isStoredCryptoHolding(v: unknown): boolean {
+  return isRec(v) && isCryptoId(v.id) && isNum(v.quantity) && (v.quantity as number) >= 0
 }
 
 function isLineItem(v: unknown): v is ReceiptLineItem {
@@ -248,6 +294,7 @@ const RECORD_VALIDATORS: Record<RecordKey, (v: unknown) => boolean> = {
   goals: isStoredGoal,
   budgets: isStoredBudget,
   categoryRules: isStoredCategoryRule,
+  cryptoHoldings: isStoredCryptoHolding,
 }
 
 const isArrayOf = (check: (v: unknown) => boolean) => (v: unknown) =>
@@ -272,6 +319,12 @@ export function storedRecordsProblem(
   if (stored.fiatAccounts.length === 0) return 'no cash account'
   const merchants = stored.categoryRules.map((r) => r.merchant)
   if (new Set(merchants).size !== merchants.length) return 'categoryRules names a merchant twice'
+  // Gate 98: every seeded token exactly once — the seed constant supplies the
+  // rest of each holding, so a missing or repeated id has nothing to render.
+  const tokens = stored.cryptoHoldings.map((h) => h.id)
+  if (tokens.length !== CRYPTO_IDS.length || CRYPTO_IDS.some((id) => !tokens.includes(id))) {
+    return 'cryptoHoldings does not hold every token exactly once'
+  }
   for (const id of referencedImageIds(stored)) {
     if (!imageIds.has(id)) return `image ${id} is referenced but has no bytes`
   }
@@ -307,6 +360,11 @@ export const MIGRATIONS: Record<number, (records: unknown) => unknown> = {
   // 2 -> 3 (Gate 94): the new collection, empty. A non-object is passed through
   // for `storedRecordsProblem` to report, never thrown on.
   2: (records) => (isRec(records) ? { ...records, categoryRules: [] } : records),
+  // 3 -> 4 (Gate 98): the seeded quantities, as nothing has been sent yet.
+  3: (records) =>
+    isRec(records)
+      ? { ...records, cryptoHoldings: CRYPTO_HOLDINGS.map(({ id, quantity }) => ({ id, quantity })) }
+      : records,
 }
 
 // ───────────────────────────── the fingerprint ─────────────────────────────

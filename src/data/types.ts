@@ -444,6 +444,26 @@ export interface Transaction {
    * an identity migration — a v1 row simply has none.
    */
   recipientId?: string
+  /**
+   * WHAT A CRYPTO SEND MOVED, IN THE TOKEN — Gate 98 (R96-3), schema v4. Present
+   * exactly on a written crypto send; the two seeded crypto rows predate it and
+   * carry none. ONE optional object, not four peer optionals, so a row cannot
+   * carry a token without its quantity (the Gate 77 lesson). `amount` stays the
+   * negative MYR TOTAL (sent + fee), the seeded crypto rows' convention.
+   */
+  crypto?: CryptoSendDetail
+}
+
+export interface CryptoSendDetail {
+  /** The `CryptoHolding.id` sent. */
+  tokenId: string
+  /** Tokens sent, excluding the fee. */
+  quantity: number
+  /** The fee in the SENT token (R96-2). */
+  feeQuantity: number
+  /** The fee in MYR, as the Network Fee sheet printed it. */
+  fee: Amount
+  tier: 'regular' | 'priority'
 }
 
 // -------------------------------------------------------------- crypto
@@ -1255,4 +1275,11 @@ export interface CryptoRecipient {
   address: string
   /** Drawn through `TransactionMark`. */
   mark: TransactionLogo
+  /**
+   * THE SAME CONTACT'S ADDRESS ON EACH NON-EVM NETWORK — Gate 98 (Decision 33,
+   * recommended option). `address` above (0x, as drawn) serves ETH, USDT and
+   * UNI; Bitcoin, Solana and Stellar use these. Well-formed and checksummed,
+   * derived from SHA-256 of the name and network and written as literals.
+   */
+  addresses: { bitcoin: string; solana: string; stellar: string }
 }

@@ -1,10 +1,10 @@
-import { FIAT_ACCOUNTS } from '../data/accounts'
+import { CRYPTO_HOLDINGS, FIAT_ACCOUNTS } from '../data/accounts'
 import { BUDGETS } from '../data/budgets'
 import { backfillAddedAt, backfillReferences } from '../data/derive'
 import { GOALS } from '../data/goals'
 import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
-import type { Budget, CategoryRule, FiatAccount, Goal, Receipt, Transaction } from '../data/types'
+import type { Budget, CategoryRule, CryptoHolding, FiatAccount, Goal, Receipt, Transaction } from '../data/types'
 import { fingerprintOf } from './schema'
 
 /** Every piece of application data the app persists, in its RUNTIME shape. */
@@ -15,6 +15,8 @@ export interface AppState {
   goals: Goal[]
   budgets: Budget[]
   categoryRules: CategoryRule[]
+  /** Gate 98: provider state, stored (schema v4). */
+  cryptoHoldings: CryptoHolding[]
 }
 
 /**
@@ -42,6 +44,7 @@ export function seedState(): AppState {
     // Gate 94: the seed holds no rules, and `seedFingerprint` below does NOT
     // hash this collection, so adding it reset no tester's data.
     categoryRules: [],
+    cryptoHoldings: CRYPTO_HOLDINGS,
   }
 }
 
@@ -70,6 +73,9 @@ export function seedFingerprint(): string {
     fiatAccounts: FIAT_ACCOUNTS,
     goals: GOALS,
     budgets: BUDGETS,
+    // Decision 29D (Gate 98): the crypto seed is hashed now that holdings are
+    // stored, so this gate resets every tester's saved data ONCE.
+    cryptoHoldings: CRYPTO_HOLDINGS,
   })
   return cached
 }

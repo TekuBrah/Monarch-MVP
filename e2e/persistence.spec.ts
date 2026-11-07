@@ -253,7 +253,8 @@ test('the seed fingerprint is stable, key-order-blind, and changes when one seed
   expect(seedFingerprint()).toMatch(/^[0-9a-f]{14}$/)
   // Canonical: the same values written in a different key order hash the same.
   expect(canonicalJson({ b: 1, a: [{ d: 2, c: 3 }] })).toBe(canonicalJson({ a: [{ c: 3, d: 2 }], b: 1 }))
-  const raw = { transactions: TRANSACTIONS, receipts: RECEIPTS, fiatAccounts: FIAT_ACCOUNTS, goals: GOALS, budgets: BUDGETS }
+  // Gate 98 (Decision 29D): the crypto seed is hashed too.
+  const raw = { transactions: TRANSACTIONS, receipts: RECEIPTS, fiatAccounts: FIAT_ACCOUNTS, goals: GOALS, budgets: BUDGETS, cryptoHoldings: CRYPTO_HOLDINGS }
   expect(fingerprintOf(raw)).toBe(seedFingerprint())
   const edited = { ...raw, goals: [{ ...GOALS[0], savedAmount: GOALS[0].savedAmount + 0.01 }, ...GOALS.slice(1)] }
   expect(fingerprintOf(edited)).not.toBe(seedFingerprint())

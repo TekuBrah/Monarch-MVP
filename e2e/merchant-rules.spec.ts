@@ -97,7 +97,7 @@ test('N4 sendCategory reads a rule first, then the latest payment; a person igno
 })
 
 test('N5 schema v3: a new collection, an empty-collection step from v2, a total validator', () => {
-  expect(SCHEMA_VERSION).toBe(3)
+  expect(SCHEMA_VERSION).toBe(4) // Gate 98: v4 added cryptoHoldings
   expect(RECORD_KEYS).toContain('categoryRules')
   const v3 = toStored(seedState())
   expect(v3.categoryRules).toEqual([])

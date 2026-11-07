@@ -1098,7 +1098,7 @@ test('MIGRATED: a schema-1 store hydrates through the identity step, unquarantin
   await page.getByRole('dialog', { name: 'Review transfer' }).getByRole('button', { name: 'Transfer now' }).click()
   const dump = await settled(page)
   expect((dump.records.meta as { schemaVersion: number }).schemaVersion, 'written back whole as v2').toBe(SCHEMA_VERSION)
-  expect(SCHEMA_VERSION).toBe(3)
+  expect(SCHEMA_VERSION).toBe(4) // Gate 98
   expect(records(dump, 'fiatAccounts').find((a) => a.id === MAIN.id)!.balance).toBe(1233.56)
   expect(records(dump, 'transactions').filter((t) => t.recipientId === 'recipient-perry-matthew')).toHaveLength(1)
 })

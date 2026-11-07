@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
+import type { FeeTier } from '../../data/cryptoNetworks'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -24,6 +25,20 @@ export interface TransferDraft {
   /** What the amount field keeps of what was typed (`sendAmountInput`). */
   amount: string
   fromId: string | null
+  /** Gate 98 (Flow 5, R96-9): the crypto send in progress. Its own part, so a
+      bank amount and a crypto amount never leak into each other. */
+  crypto: CryptoDraft
+}
+
+export interface CryptoDraft {
+  /** Set by Select Token's Next. The amount screen's URL names only the token. */
+  recipientId: string | null
+  /** The token last chosen for that contact, so Select Token re-opens on it. */
+  tokenId: string | null
+  /** In RM (R96-5), as `sendAmountInput` keeps it. */
+  amount: string
+  /** Committed by the Network Fee sheet's OK; Regular until then (R96-7). */
+  tier: FeeTier
 }
 
 interface TransferDraftContextValue extends TransferDraft {
@@ -31,9 +46,14 @@ interface TransferDraftContextValue extends TransferDraft {
   setFromId: (fromId: string) => void
   /** Empty the draft — after a send, so Back cannot offer the same money twice. */
   clear: () => void
+  /** Gate 98. A DIFFERENT contact starts a fresh crypto send; the same one keeps its amount. */
+  setCryptoSend: (recipientId: string, tokenId: string) => void
+  setCryptoAmount: (amount: string) => void
+  setCryptoTier: (tier: FeeTier) => void
 }
 
-const EMPTY: TransferDraft = { amount: '', fromId: null }
+const EMPTY_CRYPTO: CryptoDraft = { recipientId: null, tokenId: null, amount: '', tier: 'regular' }
+const EMPTY: TransferDraft = { amount: '', fromId: null, crypto: EMPTY_CRYPTO }
 
 const TransferDraftContext = createContext<TransferDraftContextValue | null>(null)
 
@@ -52,10 +72,29 @@ export function TransferDraftProvider({ children }: { children: ReactNode }) {
   const setAmount = useCallback((amount: string) => setDraft((d) => ({ ...d, amount })), [])
   const setFromId = useCallback((fromId: string) => setDraft((d) => ({ ...d, fromId })), [])
   const clear = useCallback(() => setDraft(EMPTY), [])
+  const setCryptoSend = useCallback(
+    (recipientId: string, tokenId: string) =>
+      setDraft((d) => ({
+        ...d,
+        crypto:
+          d.crypto.recipientId === recipientId
+            ? { ...d.crypto, tokenId }
+            : { ...EMPTY_CRYPTO, recipientId, tokenId },
+      })),
+    [],
+  )
+  const setCryptoAmount = useCallback(
+    (amount: string) => setDraft((d) => ({ ...d, crypto: { ...d.crypto, amount } })),
+    [],
+  )
+  const setCryptoTier = useCallback(
+    (tier: FeeTier) => setDraft((d) => ({ ...d, crypto: { ...d.crypto, tier } })),
+    [],
+  )
 
   const value = useMemo(
-    () => ({ ...draft, setAmount, setFromId, clear }),
-    [draft, setAmount, setFromId, clear],
+    () => ({ ...draft, setAmount, setFromId, clear, setCryptoSend, setCryptoAmount, setCryptoTier }),
+    [draft, setAmount, setFromId, clear, setCryptoSend, setCryptoAmount, setCryptoTier],
   )
   return <TransferDraftContext.Provider value={value}>{children}</TransferDraftContext.Provider>
 }

@@ -5,7 +5,7 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { CRYPTO_RECIPIENTS } from '../../data/cryptoRecipients'
 import { walletHoldings } from '../../data/derive'
 import { formatMyr, formatQuantity } from '../../data/format'
-import { raiseNotice } from '../../shell/notices'
+import { useTransferDraft } from './transferDraft'
 import { useTouchedValidation } from '../finance/useTouchedValidation'
 import { TRANSFER_TAB_STATE_KEY } from './transferTabs'
 import './transfer.css'
@@ -37,7 +37,8 @@ const TOKEN_MESSAGE_ID = 'select-token-message'
  * "Next" is never disabled. With nothing chosen, "Choose a token to send."
  * shows once the list is left or Next is pressed (Gate 71-B's touched rule, the
  * hook Flow 4 reuses), and a press moves focus to the first token. With a token chosen, Next
- * says "Coming soon." — the amount screen is Gate 98's.
+ * opens the amount screen at `/transfer/crypto/send/:tokenId` with the contact in the draft
+ * (Gate 98, R96-9).
  *
  * KEYBOARD: one tab stop (the selected token, else the first); arrows, Home and
  * End move focus; Enter or Space selects — `Menu`'s own roving model, written
@@ -54,7 +55,12 @@ export function SelectTokenScreen() {
   const location = useLocation()
   const navigate = useNavigate()
   const { cryptoWallets, cryptoHoldings } = useAccounts()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const draft = useTransferDraft()
+  // Gate 98: back from the amount screen (the chip or From's chevron) re-opens on
+  // the token that was chosen for this contact; a first visit chooses nothing.
+  const [selectedId, setSelectedId] = useState<string | null>(() =>
+    draft.crypto.recipientId === recipientId ? draft.crypto.tokenId : null,
+  )
   const validation = useTouchedValidation({ token: selectedId === null })
 
   const recipient = CRYPTO_RECIPIENTS.find((r) => r.id === recipientId)
@@ -110,8 +116,9 @@ export function SelectTokenScreen() {
   }
 
   const onNext = () => {
-    if (!validation.attempt()) return
-    raiseNotice('coming-soon')
+    if (!validation.attempt() || selectedId === null) return
+    draft.setCryptoSend(recipient.id, selectedId)
+    navigate(`/transfer/crypto/send/${selectedId}`)
   }
 
   return (

@@ -159,7 +159,7 @@ test('N7 ruling 23: the account number lives on the holding and the masked form 
 })
 
 test('N8 schema v2: an identity step from v1, and recipientId validated', () => {
-  expect(SCHEMA_VERSION).toBe(3) // Gate 94: v3 added categoryRules
+  expect(SCHEMA_VERSION).toBe(4) // Gate 94: v3 added categoryRules; Gate 98: v4 cryptoHoldings
   const snapshot = { transactions: [] }
   expect(MIGRATIONS[1]!(snapshot)).toBe(snapshot)
   const row = buildSend({ recipient: RACHUM, accountId: MAIN.id, amountSen: 100, now: PINNED_NOW, transactions: [], rules: [] })

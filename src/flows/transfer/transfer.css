@@ -244,3 +244,47 @@
 .mvp-token__actions > * {
   width: 100%;
 }
+
+/* ── Gate 98 — Send <Token>: the crypto amount screen (`1266:14397` / `…14398`) ──
+   `Frame 455` starts 20 below the header; From (88) and To (68) are 16 apart;
+   the amount block is 24 below; the rows sit 8 under the field on a 41px pitch
+   (20 + 10 + 1 + 10, the drawn `<divider 1px>` between). The button stays in
+   flow (R96-14, Gate 80). */
+.mvp-crypto-send {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+.mvp-crypto-send__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+  padding-top: var(--brand-scale-500);
+}
+
+.mvp-crypto-send__parties {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+}
+
+.mvp-crypto-send__amount {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-200);
+  margin-bottom: var(--brand-scale-600);
+}
+
+.mvp-crypto-send__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-250);
+}
+
+/* The Network Fee sheet's two rows (`1266:14399`): `Divider` between them. */
+.mvp-fee__options {
+  display: flex;
+  flex-direction: column;
+}

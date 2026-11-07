@@ -9,7 +9,8 @@ import {
   Sheet,
 } from '@monarch/design-system'
 import type { IconName } from '@monarch/design-system'
-import { CRYPTO_WALLETS } from '../../../data/accounts'
+import { CRYPTO_HOLDINGS, CRYPTO_WALLETS } from '../../../data/accounts'
+import { CRYPTO_NETWORKS } from '../../../data/cryptoNetworks'
 import { HOLDINGS } from '../../../data/holdings'
 import { TRANSACTION_CATEGORIES } from '../../../data/transactions'
 import { TransactionMark } from '../../../components/TransactionMark'
@@ -36,6 +37,7 @@ import {
   formatMyrOrUnread,
   goalProgressAfter,
   formatReceiptDate,
+  formatQuantity,
   formatSignedMyr,
   formatTimestamp,
 } from '../../../data/format'
@@ -750,6 +752,10 @@ function MovementSummary({
   transactions: Transaction[]
 }) {
   const parties = movementParties(transaction, HOLDINGS, CRYPTO_WALLETS, goals)
+  // Static token metadata only (symbol, decimals), as `HOLDINGS` above is (D-18).
+  const cryptoToken = transaction.crypto
+    ? CRYPTO_HOLDINGS.find((h) => h.id === transaction.crypto!.tokenId)
+    : undefined
   const goal =
     transaction.goalId === undefined
       ? undefined
@@ -773,6 +779,21 @@ function MovementSummary({
         <InfoRow label="From" value={parties.from} />
         <InfoRow label="To" value={parties.to} />
         <InfoRow label="Date" value={formatTimestamp(transaction.occurredAt, TODAY.getFullYear())} />
+        {/* GATE 98 — a written crypto send says what it moved, in the token, and on which
+            network. The two seeded crypto rows carry no `crypto` detail and are unchanged. */}
+        {cryptoToken && transaction.crypto && (
+          <>
+            <InfoRow
+              label="Amount"
+              value={formatQuantity(transaction.crypto.quantity, cryptoToken.quantityDecimals, cryptoToken.symbol)}
+            />
+            <InfoRow
+              label="Network fee"
+              value={`${formatQuantity(transaction.crypto.feeQuantity, cryptoToken.quantityDecimals, cryptoToken.symbol)} • ${formatMyr(transaction.crypto.fee)}`}
+            />
+            <InfoRow label="Network" value={CRYPTO_NETWORKS[cryptoToken.id].name} />
+          </>
+        )}
         {transaction.contributionSource && (
           <InfoRow
             label="Type"
