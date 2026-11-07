@@ -5255,3 +5255,95 @@ states and cost, no split, From's chevron, the 833 px summary, B4 / B9 strengthe
   store carrying the new fingerprint.
 
 ### Nothing was removed from this register at this gate.
+
+## 2au. Status at MVP Gate 99 (2026-11-07) — Flow 5 closed; no gap opened or closed; the Gate 96, Gate 97 DS and Gate 98 Phase B records
+
+**THE TALLY DOES NOT MOVE.** **66 entries, 38 closed, 28 open; the highest number is G67.** Derived from §2at's 66 / 38 /
+28: no gap opens and none closes at this gate. Still open and still deferred, unchanged: G6, G13, G14, G17's prop half,
+G19–G23, G28–G33, G44, G48, G49, G50, G51, G52, G53, G58, G60, G62, G63, G67, `MODEL-1` and `UI-3`. **No MVP-local override
+was added for any of them**, and the `G33` workaround class is untouched. **Next free: section `2av`, gap `G68`; next free
+Teku decision 35.**
+
+**The gate ships on DS `v2.13.0`**, unchanged (`11349b8a9dccf682ce4b15e94ee1cd8c75e14f5a`, `lint:linkage` PASS at this gate).
+Gate 99 wrote Flow 5's completion record (`FLOW-5-COMPLETION.md`) and changed no code, no spec, no baseline and no config:
+**492 PNGs, digest `efd3d4a8702196a5c77a840e7fcd666639eaeb676f1d55e5ff81ba5234e13535` before and after; `--list` 1576 tests in
+50 files; `lint:tokens` 127 files, 4 exemptions; `SCHEMA_VERSION = 4`.** No suite was run (Markdown only).
+
+### Walk note — not a gap
+
+Teku walked Flow 5 on the live site at `main@a0264c9` on 7 Nov 2026 and reported **"all tests good"** [verified as his
+words]. Whether that was on a real phone is **not stated**, so a real-phone walk of Flow 5 is still unconfirmed; the iOS
+focus behaviour in G58 can only be seen on a device. Nothing was filed from the walk.
+
+### Record gaps found between §2as, §2at and this gate (insert-only; earlier text is left as written)
+
+- **R97-1 to R97-8 were in no MVP file; R97-9 and R97-10 are in no DS document.** The DS `CLAUDE.md` "Gate 97 DS" §0 table
+  stops at R97-8; R97-9 (the `caption={undefined}` guard now compares each of the 28 pinned `SelectTransfer` paths with its
+  v2.9.0 hash) and R97-10 (a test for the FormField `aria-label` arm) are in the DS commit message and in
+  `D:\Claude\_handoffs\gate97-ds\fix\REPORT.md` only. The DS `CHANGELOG.md` v2.13.0 entry and the DS `CLAUDE.md` §4 read
+  "1,004 to 1,047"; the tag carries **1,048 in 77 files** (caption 16). All ten are reproduced in `FLOW-5-COMPLETION.md` §5.2.
+- **`history.length` "7 → 4" is explained.** §2at's "Notes" call it unexplained and promise a Phase B re-measure. Phase B
+  (`D:\Claude\_handoffs\gate98-phaseB\REPORT.md` §2) measured it: the length is 4 at the fee sheet, 4 at the summary and 4
+  after both Backs, sampled at 0 / 50 / 200 / 800 ms; Phase A's helper wrote every reading under a fixed key and ran
+  `toSummary` twice on one page, so 7 and 4 came from two different sequences. Replaying Phase A's script verbatim gave the
+  same 6 / 7 / 7 / 4; one clean sequence gave 3 / 4 / 4 / 4. **A script artefact; nothing to register.**
+- **`src/data/cryptoNetworks.ts:10` still says the sheet carries "Estimated network fee".** Nothing under
+  `src/flows/transfer` does; R98-1 records that the drawn copy has no place for it. A stale source comment, not touched here.
+- **The Gate 96 mutation count.** The thread said "35 proved plus 2 NCs"; the fix session could reach 33 proved plus 2
+  negative controls, and the Gate 96 commit message says 33.
+- **§2at is dated 2026-11-06; the Gate 98 commit and tag are dated 2026-11-07.** **§2as said "next free Teku decision 32";**
+  DS Gate 97 used 32A the same day (Teku, 4 Nov 2026), and §2at corrected the next free number to 35.
+- **`FLOW-4-COMPLETION.md` §12 said a crypto review shows "what Figma does not draw".** Figma draws it (the Network Fee sheet
+  and the grown summary, Gate 96 Phase A §2).
+- **The Phase B records for Gates 96, 97 DS and 98 were on no file** (as Gates 93 and 94's were until §2ar). They are
+  condensed below.
+
+### The Gate 96 Phase B record (4 Nov 2026), condensed from its reports [reported]
+
+Sources: `D:\Claude\_handoffs\gate96-phaseB\REPORT.md` and `gate96-fix\REPORT.md`. Premises held: HEAD `8cab71a9…`, 54 staged
+paths (40 A, 14 M), 36 PNGs, digest `83e525984a902b60ce84b77560c0149461f2ac581dc17a3aee1bc8fe012d7fc9` in both its forms.
+**Live checks:** after a failed Next, focus lands on the first token option — no ring after a mouse click or a touch tap,
+a `solid 2px rgb(4,110,255)` ring under Tab+Enter (R96-15, as Gate 89-B requires); the invalid-state 14 px scroll is real
+(826 against 812 at 375×812, plain and selected states 812, 430×932 none) — the message (top 560, bottom 576) and the Next
+button (top 608, bottom 650) are fully inside the viewport (R96-17). **Mutation run (Gate 94's driver, copied):** the
+negative control (an equivalent edit) passed and reported NO PROOF; M7 and M12a were refused at the typecheck and redone as
+M7r and M12ar; **M9b and M9c SURVIVED the whole of `crypto-transfer.spec.ts`** — B6 asserted focus with a retrying matcher
+that returns the instant the element is focused, so a handler that dropped focus 50 or 250 ms later passed — and **M13b**
+survived as an equivalent mutant over this seed (the three Bank recipients with ledger rows are already the first three, in
+order; M13c, the mutation of N6's actual claim, was proved). The session stopped per its own rule. **The fix session** edited
+only `e2e/crypto-transfer.spec.ts` (+48/−0): B6 gained a document-level `focusout` counter, a 400 ms window and a second
+`toBeFocused()` (R96-18), and N6 was added on synthetic rows (R96-19); M9a/M9b/M9c and M13b were then caught, and Phase B's
+re-run against the staged tree caught M9b and M13b again. **33 proved plus 2 negative controls.** **Three clean runs of the
+staged tree: 1475 passed / 0 failed each, 58.3 / 56.1 / 55.0 minutes, npm exit 0, 0 `writing actual`, digest unchanged.**
+Process findings: the driver's failing-line regex missed 3-digit padded frames; no saved copy of the fix session's final
+spec existed, so the closing session compared the staged blob with the working copy instead.
+
+### The Gate 97 DS Phase B record (5 Nov 2026), condensed from its report [reported]
+
+Source: `D:\Claude\_handoffs\gate97-ds\phaseB\REPORT.md` (final index tree `c2e587a31aaf2d147cebad584a2e5965572ff96f`). The
+first pass found **C6i**: the caption file's guard compared `caption={undefined}` with an omitted `caption` — the same value in
+JavaScript — so it could not fail. R97-9 and R97-10 fixed it before the commit, in that one test file; the fix is recorded in
+the DS commit message. **Re-pin (independent):** of 339 existing render paths, 0 moved in markup and 0 of 678 light and dark
+computed rows moved; 17 new-prop cases (34 rows) moved as expected. **Live focus check:** in `Radio layout="row"` the ring
+surrounds the whole 343×56 row under Tab and the arrow keys, and not after a mouse click or a touch tap, in either theme.
+**Mutation run:** 51 PROOF, two negative controls (NO PROOF, as required), **R12f** survived its target and was killed by its
+whole file (the native `required` attribute is mirrored by `aria-required`), C6i closed. **Three clean `npm test` runs:
+1,048 passed in 77 files each**; `tsc -b` 0; `build:lib` `dist/index.js` 5,616,326 B, `dist/index.css` 159,960 B. The first
+final-session prompt was wrong about one thing: the index still held the old caption-test blob.
+
+### The Gate 98 Phase B record (7 Nov 2026), condensed from its report [reported]
+
+Source: `D:\Claude\_handoffs\gate98-phaseB\REPORT.md`. Premises held: HEAD `16c94347…`, 68 staged paths (44 A, 24 M), 40
+PNGs, 1576 tests in 50 files, digest `efd3d4a8…3e13535` in both its forms, `lint:tokens` 127 files / 4 exemptions,
+`lint:linkage` PASS on v2.13.0, `build:package` entry 5,994,986 and CSS 202,882 (0 `modulepreload`). **Live check (Chromium,
+375×812, DPR 2):** Next `{ fee: true }`, OK `{ fee: false, summary: true }` replacing, Back from the summary — header and
+device — to the editable amount, Transfer crypto replacing to the success page, Back from success to Select Token, a reload
+anywhere on the amount screen to the Crypto tab; the fee sheet opens with the close control focused and unringed, no ring
+after a mouse or touch press, the whole row ringed under Tab and the arrows; the summary's "Transfer crypto" at 631–673 of 812
+(R98-11); the accent `rgb(3, 88, 204)` light and `rgb(104, 168, 255)` dark; the chip mark 20×20. **Mutation run:** the
+syntax-error control REFUSED, the equivalent-change control passed, **18 of 18 proved**, each landing on its Phase A spec
+line and restored SHA-identical. **Three clean runs of the staged tree: 1576 passed / 0 failed each, 61.5 / 65.2 / 58.9
+minutes by wall clock, npm exit 0, 0 `writing actual`, digest unchanged.** The known `section-headers` mount-timing flake did
+not appear.
+
+### Nothing was removed from this register at this gate.

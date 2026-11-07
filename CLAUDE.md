@@ -20532,3 +20532,35 @@ Full run on the final tree: **1575 passed / 1 failed**, 60.6 min (3,637 s), npm 
 Retrofitting Flow 4's flag to `Logo fill`; G67's fix; a Bitcoin / Solana / Stellar address book beyond the one address per
 network; "estimated" fee copy; the 160 px shell reserve; a real fee oracle; adding a recipient (Flow 6); Scan QR; any seed,
 token or DS change; and the DS repo.
+
+## Flow 5 completion record (Gate 99)
+
+**FLOW 5 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-5-COMPLETION.md` AT THE REPO ROOT.** Read that file first,
+before any Flow 5 work, before Flow 6 (new recipients, Scan QR, the AI alert), before a later gate that moves money in a
+non-ringgit unit, and before a gate touches the transfer screens, `sendCrypto`, `cryptoNetworks.ts` or the crypto
+holdings. It covers the screens and the writer, the money model and write path with their reasons (quantities as the
+stored fact, the fee table, the network rule, `cryptoSendProblem`, the in-place confirm's history entries, schema v4 and
+the one-time tester reset), the data, Teku's decisions 28A to 34D and the thread rulings by gate (R96, DS R97, R98), the
+standards the flow established for later flows, the Figma-to-code lineage, the deviations from Figma, every deferred and
+open item, the open decisions, the corrections to the record, what it hands on, and the gate list across both repos. The
+per-gate sections above (Gates 96 and 98) remain the evidence behind it. **Do not restate its content here.** If the two
+disagree, re-derive from disk, correct whichever is wrong, and say so.
+
+Gate 99 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every baseline is
+byte-identical (492, digest `efd3d4a8702196a5c77a840e7fcd666639eaeb676f1d55e5ff81ba5234e13535`; `--list` 1576 tests in 50
+files). No DS re-pin: v2.13.0 applies throughout. Register §2au records the flow's close and carries the Gate 96, Gate 97
+DS and Gate 98 Phase B records; the tally does not move (66 entries, 38 closed, 28 open, highest G67).
+
+**THREE THINGS GATE 99 FOUND THAT A SUCCESSOR WOULD OTHERWISE GET WRONG:**
+
+- **The DS Gate 97 rulings were on no MVP file, and two of them are on no DS document.** R97-1 to R97-8 live in the DS
+  repo's `CLAUDE.md` only; **R97-9 and R97-10** (the fix-before-commit that made the `caption={undefined}` guard able to
+  fail) are in the DS commit message and the Gate 97 fix and Phase B reports only; and the DS `CHANGELOG.md` and
+  `CLAUDE.md` still read 1,047 tests where the tag carries 1,048. `FLOW-5-COMPLETION.md` §5.2 reproduces all ten.
+- **The `history.length` "7 → 4" is not an app behaviour.** Gate 98's section and register §2at still call it
+  unexplained; Phase B measured it as a script artefact (one helper writing a fixed key from two different runs). The
+  amount screen's history is exactly: Next pushes `{ fee: true }`, OK replaces it with `{ summary: true }`, Transfer crypto
+  replaces the amount entry with the success page.
+- **`src/data/cryptoNetworks.ts:10` is stale.** Its header says the sheet "says so (\"Estimated network fee\")". Nothing
+  under `src/flows/transfer` carries the word and R98-1 records that the drawn copy has no place for it. A source comment;
+  not touched at a documents-only gate.
