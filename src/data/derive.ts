@@ -14,8 +14,10 @@ import { CRYPTO_UNIT_PRICES } from './accounts'
 import { CRYPTO_NETWORKS, FEE_TIER_LABELS, type FeeTier } from './cryptoNetworks'
 import type {
   Amount,
+  Bank,
   CategoryRule,
   ContributionSource,
+  DirectoryAccount,
   CryptoHolding,
   CryptoRecipient,
   CryptoSendDetail,
@@ -37,6 +39,7 @@ import type {
   TransactionDisposition,
   TransactionKind,
   TransactionMethod,
+  UserRecipient,
 } from './types'
 
 /**
@@ -2698,6 +2701,15 @@ export function recentRecipients(
     if (!t.recipientId) continue
     noteSend(lastSend, t.recipientId, t.occurredAt)
   }
+  // GATE 101 (R101-6): SAVING A RECIPIENT COUNTS AS ACTIVITY. A user-added
+  // recipient carries `addedAt`, which takes part exactly as a send's
+  // `occurredAt` does — newest first — so the one just added comes first even
+  // before it is paid, and a later send to an older recipient still overtakes
+  // it. A seeded recipient has no `addedAt`, so Figma's order is untouched.
+  for (const r of recipients) {
+    const addedAt = (r as Partial<UserRecipient>).addedAt
+    if (addedAt) noteSend(lastSend, r.id, addedAt)
+  }
   return newestSendFirst(recipients, lastSend)
 }
 
@@ -2719,6 +2731,130 @@ function newestSendFirst<R extends { id: string }>(
     .filter((r) => lastSend.has(r.id))
     .sort((a, b) => lastSend.get(b.id)!.localeCompare(lastSend.get(a.id)!))
   return [...sent, ...recipients.filter((r) => !lastSend.has(r.id))]
+}
+
+// ───────────────────────────── adding a bank recipient (Gate 101, Flow 6) ───
+
+/**
+ * EVERY RECIPIENT A SCREEN CAN NAME — Gate 101 (R100-3). The user's own first
+ * (newest saves are theirs), then the five seeded constants. Every reader of
+ * recipients goes through this, so a stored recipient is never "unknown".
+ */
+export function mergeRecipients(
+  userRecipients: readonly UserRecipient[],
+  seeded: readonly Recipient[],
+): Recipient[] {
+  return [...userRecipients, ...seeded]
+}
+
+/**
+ * THE ACCOUNT-NUMBER LENGTH RANGE — Gate 101 (R100-2, R101-3). Loose on purpose:
+ * the directory lookup is the real check. Current/savings accounts at the banks
+ * in `BANKS` run from 5 digits (Bank of America) to 19 (ICBC) in the cited UOB
+ * table, and Figma's 10-digit Affin number (`6451352078`) sits inside it.
+ */
+export const ACCOUNT_NUMBER_MIN = 5
+export const ACCOUNT_NUMBER_MAX = 19
+
+/**
+ * WHAT THE ACCOUNT NUMBER FIELD KEEPS OF WHAT WAS TYPED — digits only, capped at
+ * the longest length. `Field` has no digit filter of its own, so the input is
+ * sanitised the way `sendAmountInput` sanitises the amount; spaces a user types
+ * to group digits are simply dropped.
+ */
+export function accountNumberInput(raw: string): string {
+  return raw.replace(/\D/g, '').slice(0, ACCOUNT_NUMBER_MAX)
+}
+
+/** The mock name enquiry (R100-1): the payee bank's record, or none. */
+export function lookupAccount(
+  directory: readonly DirectoryAccount[],
+  bankCode: string,
+  accountNo: string,
+): DirectoryAccount | undefined {
+  return directory.find((a) => a.bankCode === bankCode && a.accountNo === accountNo)
+}
+
+/**
+ * WHY THE ACCOUNT NUMBER CANNOT BE SAVED, OR NULL — Gate 101. The ONE definition
+ * the form shows on its row and `recipientProblem` refuses on, so the two can
+ * never disagree. In order: empty, not digits, out of range, already saved (a
+ * seeded or stored recipient at the same bank with the same number), and not in
+ * the directory.
+ *
+ * DUPLICATE BEFORE LOOKUP, deliberately: a seeded recipient's account is not in
+ * the mock directory, and "already saved" is the more useful answer anyway.
+ */
+export function accountNumberProblem(
+  input: { bankCode: string; accountNo: string },
+  existing: readonly Recipient[],
+  directory: readonly DirectoryAccount[],
+): string | null {
+  const n = input.accountNo
+  if (n === '') return 'Enter the account number.'
+  if (!/^\d+$/.test(n)) return 'Use digits only.'
+  if (n.length < ACCOUNT_NUMBER_MIN || n.length > ACCOUNT_NUMBER_MAX) {
+    return `Account numbers are ${ACCOUNT_NUMBER_MIN} to ${ACCOUNT_NUMBER_MAX} digits.`
+  }
+  if (existing.some((r) => r.bankCode === input.bankCode && r.accountNo === n)) {
+    return 'This account is already in your recipients.'
+  }
+  if (!lookupAccount(directory, input.bankCode, n)) return "We couldn't find this account."
+  return null
+}
+
+/**
+ * THE RECORD A SAVE WRITES — Gate 101. The name and kind come from the
+ * directory (so 22A's business -> payment holds for a new recipient), the id is
+ * a UUID (Gate 85 D-9: never a module counter), the mark is the drawn
+ * silhouette, and `addedAt` is the local wall clock (Gate 51 item T).
+ */
+export function buildRecipient(input: { account: DirectoryAccount; now: Date }): UserRecipient {
+  const { account, now } = input
+  return {
+    id: `recipient-${crypto.randomUUID()}`,
+    name: account.name,
+    kind: account.kind,
+    accountNo: account.accountNo,
+    bankCode: account.bankCode,
+    mark: { kind: 'placeholder' },
+    addedAt: localWallClock(now),
+  }
+}
+
+/**
+ * WHY `addRecipient` MUST REFUSE A RECORD, OR NULL — Gate 101. Pure, Node-tested,
+ * and called BEFORE any setter (R89-8), so a refusal throws at the call site and
+ * writes nothing. Every clause is a programmer error the form cannot produce.
+ */
+export function recipientProblem(
+  recipient: UserRecipient,
+  existing: readonly Recipient[],
+  directory: readonly DirectoryAccount[],
+): string | null {
+  if (!recipient.id.startsWith('recipient-')) return `has no recipient id, got ${recipient.id}`
+  if (existing.some((r) => r.id === recipient.id)) return `reuses the id ${recipient.id}`
+  const problem = accountNumberProblem(recipient, existing, directory)
+  if (problem !== null) return problem
+  const account = lookupAccount(directory, recipient.bankCode, recipient.accountNo)!
+  if (account.name !== recipient.name || account.kind !== recipient.kind) {
+    return "does not match the bank's record of the account"
+  }
+  if (recipient.mark.kind !== 'placeholder') return 'must carry the placeholder mark'
+  return null
+}
+
+/** The A–Z groups Figma `1266:14386` draws: one per first letter, in list order. */
+export function bankGroups(banks: readonly Bank[]): { letter: string; banks: Bank[] }[] {
+  const sorted = [...banks].sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+  const groups: { letter: string; banks: Bank[] }[] = []
+  for (const bank of sorted) {
+    const letter = bank.name[0]!.toUpperCase()
+    const last = groups[groups.length - 1]
+    if (last && last.letter === letter) last.banks.push(bank)
+    else groups.push({ letter, banks: [bank] })
+  }
+  return groups
 }
 
 // ───────────────────────────── sending crypto (Gate 96, Flow 5) ─────────────

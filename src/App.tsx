@@ -13,6 +13,7 @@ import { SelectTokenScreen } from './flows/transfer/SelectTokenScreen'
 import { CryptoSendScreen } from './flows/transfer/CryptoSendScreen'
 import { SendScreen } from './flows/transfer/SendScreen'
 import { TransferDoneScreen } from './flows/transfer/TransferDoneScreen'
+import { NewRecipientScreen } from './flows/transfer/NewRecipientScreen'
 
 /**
  * The route table. One place to see every screen in the app (architecture
@@ -42,6 +43,9 @@ export default function App() {
         <Route path="transfer/crypto/:recipientId" element={<SelectTokenScreen />} />
         <Route path="transfer/crypto/send/:tokenId" element={<CryptoSendScreen />} />
         <Route path="transfer/send/:recipientId" element={<SendScreen />} />
+        {/* Gate 101 (Flow 6): add a new bank recipient — three steps, one route,
+            each step its own history entry (R101-1). */}
+        <Route path="transfer/new" element={<NewRecipientScreen />} />
         <Route path="transfer/done/:transactionId" element={<TransferDoneScreen />} />
         {/*
           Flow 7. ONE route for the overview, whose five tabs are in-screen state

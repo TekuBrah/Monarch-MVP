@@ -178,8 +178,9 @@ test('B9 search narrows the list; no match shows NoResults; Clear search restore
 })
 
 // Gate 93 rewrote this test: a recipient tap now opens that recipient's amount
-// screen (it said "Coming soon." until then). New recipient and Scan QR still do.
-test('B10 a recipient opens its amount screen; New recipient and Scan QR each say Coming soon.', async ({ page }) => {
+// screen (it said "Coming soon." until then). Gate 101 rewrote it again: New
+// recipient now opens Select Transfer Type (Flow 6). Scan QR still says Coming soon.
+test('B10 a recipient opens its amount screen; New recipient opens Select Transfer Type; Scan QR says Coming soon.', async ({ page }) => {
   await gotoRoute(page, '/transfer', 'light')
   await page.locator('.mvp-transfer__list > li').first().getByRole('button').click()
   await expect(page).toHaveURL(/\/transfer\/send\/recipient-aeon-big$/)
@@ -188,15 +189,19 @@ test('B10 a recipient opens its amount screen; New recipient and Scan QR each sa
   await page.getByRole('button', { name: 'Back' }).click()
   await expect(page).toHaveURL(/\/transfer$/)
   await page.getByRole('button', { name: 'New recipient' }).click()
-  await expect(notice(page)).toHaveText('Coming soon.')
-  await notice(page).getByRole('button').click()
+  await expect(page).toHaveURL(/\/transfer\/new$/)
+  await expect(page.locator('.mvp-new-recipient .mn-header-default__subtitle')).toHaveText('Select Transfer Type')
+  await expect(page.locator('.mvp-notice')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back' }).click()
+  await expect(page).toHaveURL(/\/transfer$/)
   await page.locator('.mvp-shell__nav').getByRole('button', { name: 'Scan QR' }).click()
   await expect(notice(page)).toHaveText('Coming soon.')
 })
 
+// Gate 101: raised from Scan QR now — New recipient no longer says Coming soon.
 test('B11 a Coming soon. notice does not follow the user to another screen', async ({ page }) => {
   await gotoRoute(page, '/transfer', 'light')
-  await page.getByRole('button', { name: 'New recipient' }).click()
+  await page.locator('.mvp-shell__nav').getByRole('button', { name: 'Scan QR' }).click()
   await expect(notice(page)).toHaveText('Coming soon.')
   await page.getByRole('button', { name: 'Back' }).click()
   await expect(page.locator('.mvp-notice')).toHaveCount(0)

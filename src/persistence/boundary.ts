@@ -67,6 +67,8 @@ export function toStored(state: AppState): StoredRecords {
     categoryRules: state.categoryRules,
     // Gate 98: the quantity only; everything else is the seed's or derived.
     cryptoHoldings: state.cryptoHoldings.map(({ id, quantity }) => ({ id, quantity })),
+    // Gate 101: stored as held — a recipient carries no image.
+    userRecipients: state.userRecipients,
   }
 }
 
@@ -120,5 +122,6 @@ export function fromStored(records: StoredRecords, images: ReadonlyMap<string, B
       const quantity = records.cryptoHoldings.find((h) => h.id === seed.id)!.quantity
       return { ...seed, quantity, valueMyr: cryptoValueOf(seed.id, quantity) }
     }),
+    userRecipients: records.userRecipients,
   }
 }

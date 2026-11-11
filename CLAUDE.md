@@ -20564,3 +20564,146 @@ DS and Gate 98 Phase B records; the tally does not move (66 entries, 38 closed, 
 - **`src/data/cryptoNetworks.ts:10` is stale.** Its header says the sheet "says so (\"Estimated network fee\")". Nothing
   under `src/flows/transfer` carries the word and R98-1 records that the drawn copy has no place for it. A source comment;
   not touched at a documents-only gate.
+
+## Flow 6 part 1 — add a new bank recipient, and the DS v2.14.0 re-pin (Gate 101)
+
+The pin moved `v2.13.0` (`11349b8a…`) -> **`v2.14.0`** (`723b02f117249a983bdf0795a6f5ecf4d4fb9061`, tag object
+`970afab37be2fa22945bf31e8f2a881742c8bf18`). DS v2.14.0 (per Phase A2's report) adds `Banner` and the `Field` `error` / `helper` / `ariaDescribedBy`
+props. **|WALK| 123 -> 134, `ROUTES` 36 -> 37,
+`OVERLAY_STATES` 70 -> 78, `STORE_STATES` 9 -> 11; baselines 492 -> 536 (44 added, 0 changed, 0 deleted); tests 1576 -> 1679
+in 51 files; schema v4 -> v5.** `lint:tokens` scans **131** files (127 + `bankDirectory.ts`, `banks.ts`,
+`NewRecipientScreen.tsx`, `newRecipientOptions.ts`) with the same **4** exemptions. Phase A2 (a restart on v2.14.0
+after a stopped first attempt) designed, built and measured it in a census copy
+(`D:\Claude\_handoffs\gate101-phaseA2\`); this build session (Sonnet) applied its measured diff (`proto-final.diff`, sha256
+`81c8d54c…bebb`, 70 paths) and proved every path byte-identical to the census tree. Phase B runs the full suite three times and
+re-proves the mutations against the staged tree. **Teku does every git write.** Register `2av` carries the gaps and the rulings.
+
+**THE FIRST FLOW 6 GATE, AND ONLY THE FIRST HALF: A WRITER FOR A NEW BANK RECIPIENT, WITH NO ALERT.** Flow 6's "Warning /
+High-Risk Transfer" block (`Banner`, G68) is Gate 103's. This gate supplies the data that rule needs (the directory's account age
+and transaction count, membership of `userRecipients`) and builds no part of the alert.
+
+### The re-pin
+
+Installed by name in the census (`npm install @monarch/design-system@github:TekuBrah/Monarch-Design-System#v2.14.0`, exit 0);
+in the repo by `npm ci` from the lockfile. `package.json:28` reads `#v2.14.0`, `package-lock.json` resolves
+`723b02f117249a983bdf0795a6f5ecf4d4fb9061`, `node_modules/@monarch/design-system/package.json` reads `2.14.0`, `lint:linkage`
+PASS with all four sources on `723b02f11724`. **The re-pin alone moved 0 baselines** (Phase A2: 1576 passed / 0 failed, digest
+`efd3d4a8702196a5c77a840e7fcd666639eaeb676f1d55e5ff81ba5234e13535` before and after). `package.json` and
+`package-lock.json` are LF in the working tree; applying the diff with `core.autocrlf=false` rewrites them CRLF through
+`.gitattributes` (the Gate 98 trap). The census bytes were copied back and re-compared.
+
+### The flow
+
+Figma frames `1266:14385` (Select Transfer Type), `1266:14386` (Select recipient bank), `1266:14387` (Enter recipient details) and
+`1266:14388` (Send money with the new recipient), read through the remote connector (`figma-local` refused, ECONNREFUSED).
+
+- **One route, `/transfer/new`; every step is its own history entry** (`{ newRecipientStep }` in location state, the Gate 93
+  review-entry shape). Select Transfer Type -> the bank list -> the details form, plus three option pickers (Account Type, Transfer
+  Type, Recipient Reference) that are history entries too, so device Back closes one. **Next** saves, pops back to the first step's
+  entry and **replaces** it with the amount screen. Back from the amount screen, and Flow 4's To field (`navigate(-1)`), land on the
+  **picker**, never on a live form. A deep-linked first step puts `/transfer` under the amount screen.
+- **The picker's "+ New recipient" now opens the flow.** (It said "Coming soon." until this gate.) Scan QR still does.
+- **The form** is five DS `Select`s pinned closed (a trigger that navigates, the Gate 81-B Funding Source pattern) and two DS `Field`s,
+  Account Number (`inputMode="numeric"`, `maxLength` 19, `error` and `isInvalid`, v2.14.0) and Other Payment Details (optional, 40
+  characters). The five `Select`s draw the DS **Filled** state, not **Selected**: `isSelected` is Figma's focus or active state,
+  not "has a value" (found by opening the minted baselines).
+- **The directory** (`src/data/bankDirectory.ts`) is a mock name enquiry: five fictional accounts with a bank, an account number, a
+  kind, an age in days and a transaction count, so Decision 35's three conditions are each reachable. Gunther Cenperk at Affin
+  (`6451352078`, Figma's own number) is the drawn case.
+- **The bank list** (`src/data/banks.ts`) is 37 banks from UOB Malaysia's "IBG & DuitNow Participating Bank code & account length"
+  table (read 9 Nov 2026, undated). Bangkok Bank is kept as drawn although the table gives it no DuitNow code; Bank Muamalat is a
+  participant Figma omits and is inserted alphabetically. Both are recorded divergences.
+- **Every step starts at the top and the form sits 20 below the header**; Figma centres the list vertically in a 557 box, a drawing
+  artefact (the Gate 96 Select Token call).
+
+### The record and schema v5
+
+`UserRecipient` (`id` `recipient-<uuid>`, `name`, `kind` person or business, `accountNo`, `bankCode`, `mark`, `addedAt`); one new
+atom, `userRecipients`, stored whole. `SCHEMA_VERSION = 5`; `RECORD_KEYS` gains `userRecipients` (eighth and last);
+`isStoredRecipient` (the `recipient-` prefix, a non-empty name, `person` or `business`, `^\d{5,19}$`, a code in `BANKS`, a valid
+mark, a timestamp); `storedRecordsProblem` rejects an id named twice and an account named twice; **`MIGRATIONS[4]` adds
+`userRecipients: []`** and passes a non-object through (never throws); `isLogo` accepts the new `placeholder` mark. **`seedFingerprint()`
+is unchanged**, so **no tester is reset**: a v4 snapshot with the current fingerprint classifies `migrated` and is written back whole
+on the next commit. `DB_VERSION` does not move. **The provider must report the `userRecipients` atom to `usePersistence`, or
+persistence stops** (the Gate 94 lesson; mutation M11 proves the spec catches it).
+
+### The reader merge
+
+`RECIPIENTS` (the five seeded Bank recipients, a constant outside the fingerprint) is now read in exactly one place: the provider's
+merge (`mergeRecipients(userRecipients, RECIPIENTS)`). Every reader takes the merged `recipients` from `useAccounts()`:
+`sendMoney` (`sendRowProblem`), the picker, the amount screen and the success page. Without it a saved recipient would be "unknown"
+on the amount screen. `recentRecipients` counts `addedAt` as activity, so a just-saved recipient sorts first and a later send to
+anyone overtakes it. `buildSend`, `sendKind` and `sendCategory` are unchanged: `kind` comes from the directory, so Decision 22A (a
+send to a business is a purchase) holds. The crypto readers are untouched.
+
+**A new `TransactionLogo` member, `{ kind: 'placeholder' }`**, draws the DS `Avatar` with no `src`, `name` or `initials` (its `person`
+glyph): Figma draws a grey silhouette for the new recipient. It is copied onto a stored row on send, so the validator accepts it.
+
+### Rulings (thread rulings, 9 Nov 2026; Teku delegated all decisions; overturnable)
+
+- **Decisions 35 to 38** (Teku, delegated to the review thread after research, 7 Nov): **35** the high-risk rule (first payment to
+  a user-added payee AND an account under 30 days OR under 10 transactions OR an amount above any previous payment to another party;
+  only the reasons that fired are listed); **36** honest copy, no "AI" claim for a rule; **37** the shield image ships as drawn;
+  **38 = A** the field-error line is DS-first (shipped in v2.14.0). Gate 103 builds them.
+- **R101-1** one route, each step its own history entry (above). **R101-2** a field whose value came from an earlier step returns to
+  that step. **R101-3** account number: digits only (input sanitised), 5 to 19 digits (UOB and BNP tables). **R101-4** duplicate
+  wording "This account is already in your recipients.", checked before the lookup against seeded and stored recipients at the same
+  bank and number; Monzo's payee rework shows an error on a duplicate account, so real apps refuse one. **R101-5** option lists:
+  Account Type (Current/Savings, Credit Card, Loan/Financing), Transfer Type (DuitNow, Interbank GIRO), Recipient Reference (Fund
+  Transfer, Family Support, Rent, Bill Payment, Loan Repayment, Gift; no free text). The unavailable options (Credit Card,
+  Loan/Financing, IBG) raise "Coming soon."; every Recipient Reference preset is selectable. **R101-6** a never-paid saved recipient
+  ranks by its `addedAt`. **R101-7** Other Payment Details capped at 40 characters (Standard Chartered Malaysia for DuitNow).
+  **R101-8** the three pickers are the Gate 74-B pattern on a page: the header keeps "New Transfer" with a subtitle naming the task,
+  flat full-bleed `OptionList` rows, no close control, no height holding. **R101-10** every step starts at the top. **R101-11** a
+  "Coming soon." raised on a step is dismissed when the step changes.
+- **R101-9 (accepted for this gate; filed as G71, OPEN, paused):** Account Type, Transfer Type, Recipient Reference and Other
+  Payment Details are collected and validated but **not carried onto the transaction**. Real apps carry the reference with the
+  transfer, so a typed value is lost today. Not built: nothing reads it yet, and a writer never lands before its caller. Where it
+  lives (the review sheet, the transaction row and its detail sheet) is decided when the Flow 6 record is written, or in the retrofit
+  session.
+- **R101-12** six existing-test edits accepted: four `SCHEMA_VERSION` 4 -> 5 assertions (`crypto-send`, `merchant-rules`,
+  `persistence-writers`, `send`), and `transfer.spec.ts` B10 and B11 (a recipient-row tap and "+ New recipient" now behave as
+  above; B11 raises its "Coming soon." from the bar's Scan QR). The original stop clause, "no existing test may need editing beyond the
+  reader merge", was the review thread's error: it was unsatisfiable given what the prompt required. **R101-13** Decision 35 (c)
+  derivation, for Gate 103 and nothing built: count every outflow (`amount < 0`) except rows with a `goalId`, by MYR magnitude,
+  crypto included; credits never count. **Today's figure is RM 2,647.67** (`txn-ikea-0815`), so the drawn RM 10,000 to Gunther
+  fires (c) as well as (a) and (b).
+
+### Measured (Phase A2, census copy)
+
+| check | result |
+|---|---|
+| `npx tsc -b --force`, `lint:tokens` | exit 0; PASS, 131 files, 4 exemptions |
+| `--list` | **1679 tests in 51 files** = 1576 + 11 walk states x 8 + 15 (`new-recipient.spec.ts`) |
+| \|WALK\| | **134** = `37 + 8 + 78 + 11`, the section-header sweep's own counts |
+| pre-mint full run | **44 failed / 1635 passed**, exactly the 44 predicted names, all "snapshot doesn't exist", 0 `writing actual`; no existing baseline changed |
+| mint 1 and 2 | 44 added in mint 1; mint 2 changed exactly the 20 predicted files (two defects found by opening the PNGs: the list had no side gutter, and the `Select`s drew the Selected state). Final: 492 -> **536**, 44 added, 0 changed, 0 deleted |
+| full suite on the final tree | **1679 passed / 0 failed**, 0 `writing actual`, digest `7ab73ce5d4ee6bb6f49faf4c412dde683ebf807fb731b54c45b6fd33f0302f7d` (536 PNGs; the 492 old ones still `efd3d4a8…3e13535`) |
+| `build:package` | exit 0; entry **6,007,236** bytes, CSS **204,728** (re-pin alone: 5,995.42 kB / 203.47 kB); OCR lazy chunks 1,092 / 4,368 / 13,481 / 2,866 unchanged; 0 `modulepreload` |
+| mutations | negative control **NC0 refused** (a syntax error); **23 of 23 proved** (M1 to M22 plus M12b), each landing at its planned spec line |
+
+**THE OVERLAY COUNT COMMAND IS STALE.** The documented anchored `awk … grep -c "^    overlay: {"` returns 68 here, and returned 60
+on the base where the record says 70: Gate 98's ten crypto send states are spread in as `...CRYPTO_SEND_STATES` instead of written as
+literal `overlay: {` lines, so it has under-counted by ten since Gate 98. This gate's eight new states do match the grep (60 -> 68).
+**Use the section-header sweep's own counts** (`37 + 8 + 78 + 11 = 134`).
+
+**M12b AND THE M13 RACE.** M12's 50 ms blur fires before the first `toBeFocused`, so on its own it proves focus moves to the field but
+not that it holds; **M12b** (250 ms) fails on the 400 ms window's own loss counter. M13 as first written cleared the draft and then
+pushed: the state update committed before the router's transition (the Gate 71 race), so the details step re-rendered with no bank and
+its redirect won. Rewritten to replace the details entry and keep the draft (the shape R101-1 rejects), it fails where B2 asserts the
+To field lands on the picker. That race is why the shipped `next()` uses the `savedId` effect and does not clear-then-navigate.
+
+### This build session
+
+The diff applied with `git -c core.autocrlf=false apply --binary`; the 70 paths are exactly the manifest's (26 text, 44 PNG), and
+all 70 are byte-identical to the census tree after the two package files were copied back. `npm ci` added 135 packages (it also
+printed 3 high-severity advisories; Gate 85 recorded two, and it is the hygiene round's). Figures this session re-measured are in the
+build report (`D:\Claude\_handoffs\gate101-build\BUILD-REPORT.md`).
+
+### Deliberately not in scope
+
+The high-risk alert, `Banner`, the review sheet's warning and Decision 35's rule (Gate 103); carrying the four collected choices onto
+the transaction (G71); merchant-wide logic; Scan QR; G58, G60, G62, G63, G67, G70 (DS or retrofit rounds); any seed,
+token or DS change; the harness clock; and the DS repo.
+
+**Next free: gap G72, Teku decision 39.**

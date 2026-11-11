@@ -79,5 +79,14 @@ export function TransactionMark({
     */
     return <Avatar size={size} src={goalImageUrl(mark.filename, mark.origin)} alt="" />
   }
+  if (mark.kind === 'placeholder') {
+    /*
+      GATE 101 — A RECIPIENT THE USER ADDED, which has no picture: the DS
+      `Avatar` with no `src`, `name` or `initials` draws its `person` glyph on
+      the placeholder surface — the grey silhouette Figma `1266:14388` draws.
+      Decorative beside the name, as every other case here is.
+    */
+    return <Avatar size={size} />
+  }
   return <Logo name={mark.name} size={size} />
 }

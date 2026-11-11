@@ -28,6 +28,27 @@ export interface TransferDraft {
   /** Gate 98 (Flow 5, R96-9): the crypto send in progress. Its own part, so a
       bank amount and a crypto amount never leak into each other. */
   crypto: CryptoDraft
+  /** Gate 101 (Flow 6): the bank recipient being added, across its three steps. */
+  newRecipient: NewRecipientDraft
+}
+
+/**
+ * GATE 101 — WHAT THE NEW-RECIPIENT STEPS HAVE CHOSEN SO FAR. Its own part, so it
+ * never leaks into a send's amount. Cleared with the rest when the path leaves
+ * `/transfer*`, and on its own after a save, so Back can never re-offer it.
+ *
+ * The three undrawn choices start at Figma's drawn values (`1266:14387`):
+ * Current/Savings, DuitNow, Fund Transfer. Ids, not labels (`newRecipientOptions.ts`).
+ */
+export interface NewRecipientDraft {
+  /** Set on Select recipient bank. `null` until then. */
+  bankCode: string | null
+  /** What the field keeps of what was typed (`accountNumberInput`). */
+  accountNo: string
+  accountType: string
+  transferType: string
+  reference: string
+  otherDetails: string
 }
 
 export interface CryptoDraft {
@@ -50,10 +71,27 @@ interface TransferDraftContextValue extends TransferDraft {
   setCryptoSend: (recipientId: string, tokenId: string) => void
   setCryptoAmount: (amount: string) => void
   setCryptoTier: (tier: FeeTier) => void
+  /** Gate 101: merge into the new-recipient draft. */
+  setNewRecipient: (patch: Partial<NewRecipientDraft>) => void
+  /** Gate 101: empty it — after a save. */
+  clearNewRecipient: () => void
 }
 
 const EMPTY_CRYPTO: CryptoDraft = { recipientId: null, tokenId: null, amount: '', tier: 'regular' }
-const EMPTY: TransferDraft = { amount: '', fromId: null, crypto: EMPTY_CRYPTO }
+const EMPTY_NEW_RECIPIENT: NewRecipientDraft = {
+  bankCode: null,
+  accountNo: '',
+  accountType: 'current-savings',
+  transferType: 'duitnow',
+  reference: 'fund-transfer',
+  otherDetails: '',
+}
+const EMPTY: TransferDraft = {
+  amount: '',
+  fromId: null,
+  crypto: EMPTY_CRYPTO,
+  newRecipient: EMPTY_NEW_RECIPIENT,
+}
 
 const TransferDraftContext = createContext<TransferDraftContextValue | null>(null)
 
@@ -92,9 +130,29 @@ export function TransferDraftProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const setNewRecipient = useCallback(
+    (patch: Partial<NewRecipientDraft>) =>
+      setDraft((d) => ({ ...d, newRecipient: { ...d.newRecipient, ...patch } })),
+    [],
+  )
+  const clearNewRecipient = useCallback(
+    () => setDraft((d) => ({ ...d, newRecipient: EMPTY_NEW_RECIPIENT })),
+    [],
+  )
+
   const value = useMemo(
-    () => ({ ...draft, setAmount, setFromId, clear, setCryptoSend, setCryptoAmount, setCryptoTier }),
-    [draft, setAmount, setFromId, clear, setCryptoSend, setCryptoAmount, setCryptoTier],
+    () => ({
+      ...draft,
+      setAmount,
+      setFromId,
+      clear,
+      setCryptoSend,
+      setCryptoAmount,
+      setCryptoTier,
+      setNewRecipient,
+      clearNewRecipient,
+    }),
+    [draft, setAmount, setFromId, clear, setCryptoSend, setCryptoAmount, setCryptoTier, setNewRecipient, clearNewRecipient],
   )
   return <TransferDraftContext.Provider value={value}>{children}</TransferDraftContext.Provider>
 }

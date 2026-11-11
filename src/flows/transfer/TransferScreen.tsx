@@ -7,8 +7,6 @@ import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { filterRecipients, listPresence, recentRecipients, recipientAccountLine } from '../../data/derive'
-import { RECIPIENTS } from '../../data/recipients'
-import { raiseNotice } from '../../shell/notices'
 import { CryptoRecipientList } from './CryptoRecipientList'
 import { requestedTransferTab } from './transferTabs'
 import './transfer.css'
@@ -32,11 +30,13 @@ export function TransferScreen() {
     () => requestedTransferTab(location.state, TAB_IDS) ?? 'bank',
   )
   const [search, setSearch] = useState('')
-  const { transactions } = useAccounts()
+  const { transactions, recipients } = useAccounts()
   // Gate 93 (DESIGN D10): whoever was sent to most recently comes first. Until
   // the first send this is Figma's own order, so the committed baselines hold.
-  const visible = recentRecipients(filterRecipients(RECIPIENTS, search), transactions)
-  const presence = listPresence(RECIPIENTS.length, visible.length)
+  // Gate 101: `recipients` is the user's own plus the seeded five, and a
+  // just-saved recipient counts as recent activity (R101-6).
+  const visible = recentRecipients(filterRecipients(recipients, search), transactions)
+  const presence = listPresence(recipients.length, visible.length)
 
   const back = () => {
     if (location.key === 'default') navigate('/', { replace: true })
@@ -100,7 +100,7 @@ export function TransferScreen() {
             size="l"
             label="New recipient"
             leadingIcon={<Icon name="add" size="l" />}
-            onClick={() => raiseNotice('coming-soon')}
+            onClick={() => navigate('/transfer/new')}
           />
         </div>
       )}

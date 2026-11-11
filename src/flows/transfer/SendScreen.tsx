@@ -26,7 +26,6 @@ import {
   transferAmountError,
 } from '../../data/derive'
 import { formatMyr } from '../../data/format'
-import { RECIPIENTS } from '../../data/recipients'
 import { raiseNotice } from '../../shell/notices'
 import { useTouchedValidation } from '../finance/useTouchedValidation'
 import { ReviewTransferSheet } from './ReviewTransferSheet'
@@ -84,14 +83,15 @@ export function SendScreen() {
   const { recipientId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { fiatAccounts, primaryAccount, holdings, transactions, categoryRules, sendMoney } =
+  const { fiatAccounts, primaryAccount, holdings, transactions, categoryRules, recipients, sendMoney } =
     useAccounts()
   const draft = useTransferDraft()
   const [fromOpen, setFromOpen] = useState(false)
   const [fromSearch, setFromSearch] = useState('')
   const [sentId, setSentId] = useState<string | null>(null)
 
-  const recipient = RECIPIENTS.find((r) => r.id === recipientId)
+  // Gate 101: a stored recipient is found here too (`mergeRecipients`).
+  const recipient = recipients.find((r) => r.id === recipientId)
   const from = fiatAccounts.find((a) => a.id === (draft.fromId ?? primaryAccount.id)) ?? primaryAccount
   const error = transferAmountError(draft.amount, from.balance)
   const errors = { amount: error !== null }

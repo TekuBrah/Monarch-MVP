@@ -8,6 +8,7 @@ import { HOLDINGS } from '../src/data/holdings'
 import { GOALS } from '../src/data/goals'
 import { RECIPIENTS } from '../src/data/recipients'
 import { CRYPTO_RECIPIENTS } from '../src/data/cryptoRecipients'
+import { BANK_DIRECTORY } from '../src/data/bankDirectory'
 import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import {
   CRYPTO_UNITS_PER_TOKEN,
@@ -23,7 +24,7 @@ import {
 } from '../src/data/derive'
 import { CRYPTO_HOLDINGS, CRYPTO_WALLETS } from '../src/data/accounts'
 import { formatMyr, formatQuantity } from '../src/data/format'
-import type { Goal, TransactionCategoryId } from '../src/data/types'
+import type { Goal, TransactionCategoryId, UserRecipient } from '../src/data/types'
 import { GOAL_PLACEHOLDER_IMAGE } from '../src/config/media'
 import { toStored } from '../src/persistence/boundary'
 import { SCHEMA_VERSION, type StoredMeta } from '../src/persistence/schema'
@@ -830,6 +831,39 @@ const UNREAD_CAPTURE_NAME = capturedImageName(PINNED_NOW)
 const BUDGET_DELETE_BODY =
   "This removes 'Monthly Budget' and its settings. Your transactions aren't affected. This can't be undone."
 
+/** Gate 101 — the new-recipient steps the states share. */
+const NR_ACCOUNT_NUMBER_ROW = '.mvp-new-recipient__rows button:text-is("Account Number")'
+const NR_DETAILS_SUBTITLE = '.mvp-new-recipient .mn-header-default__subtitle'
+const NR_AFFIN: PrepareStep = {
+  control: '.mvp-new-recipient__banks button:text-is("Affin Bank")',
+  controlName: 'Affin Bank',
+  action: 'click',
+  settlesOn: NR_DETAILS_SUBTITLE,
+  settlesText: 'Enter recipient details',
+}
+const NR_FILL = (value: string, settlesOn: string, settlesText: string): PrepareStep => ({
+  control: '.mvp-new-recipient__form input[name="accountNo"]',
+  controlName: 'Account Number',
+  action: 'fill',
+  value,
+  settlesOn,
+  settlesText,
+})
+const NR_PICKER = (key: string, name: string, subtitle: string): PrepareStep => ({
+  control: `.mvp-new-recipient__select[data-select="${key}"] .mn-select__input`,
+  controlName: name,
+  action: 'click',
+  settlesOn: NR_DETAILS_SUBTITLE,
+  settlesText: subtitle,
+})
+const NR_NEXT = (message: string): PrepareStep => ({
+  control: '.mvp-new-recipient__actions .mn-btn--primary',
+  controlName: 'Next',
+  action: 'click',
+  settlesOn: '.mvp-new-recipient__form .mn-field-message--error',
+  settlesText: message,
+})
+
 /** Gate 93 — the amount screen's field and button, and the two steps the states share. */
 const SEND_AMOUNT = '.mvp-send input[role="combobox"]'
 const SEND_PRIMARY = '.mvp-send__body > .mn-btn--primary'
@@ -1163,6 +1197,129 @@ export const OVERLAY_STATES: WalkState[] = [
         settlesOn: '.mvp-transfer-done__hero',
         settlesText: 'Transfer successfulRM 2,550.00to Rachum Greene',
       },
+    },
+  },
+  // ── Gate 101 — Flow 6, adding a new bank recipient (`/transfer/new`) ───────
+  //
+  // ONE ROUTE, THREE STEPS, EACH ITS OWN HISTORY ENTRY (R101-1), so every state
+  // below starts on Select Transfer Type and reaches its step through the real
+  // controls. None opens a dialog — the `opens: []` branch, with the bank list
+  // as the first surface — and each later rung settles on the header's subtitle
+  // or the account number's error line, so a step that silently did nothing
+  // fails before a baseline is minted.
+  // `1266:14386`: Account Number -> Select recipient bank.
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'bank',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient__banks',
+    },
+  },
+  // `1266:14387`: Affin Bank -> Enter recipient details, the account number still empty.
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'details',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [NR_AFFIN],
+    },
+  },
+  // `1266:14387` as drawn: Figma's own number typed. The value is asserted in the spec.
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'filled',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [NR_AFFIN, NR_FILL('6451352078', NR_DETAILS_SUBTITLE, 'Enter recipient details')],
+    },
+  },
+  // Account Type opens its picker view (undrawn; Gate 74-B on a page).
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'account-type',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [NR_AFFIN, NR_PICKER('accountType', 'Account Type', 'Select account type')],
+    },
+  },
+  // Transfer Type opens its picker view (undrawn).
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'transfer-type',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [NR_AFFIN, NR_PICKER('transferType', 'Transfer Type', 'Select transfer type')],
+    },
+  },
+  // Recipient Reference opens its picker view (undrawn).
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'reference',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [NR_AFFIN, NR_PICKER('reference', 'Recipient Reference', 'Select recipient reference')],
+    },
+  },
+  // Next with nothing typed: the row error and focus on the field.
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'invalid',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [NR_AFFIN, NR_NEXT('Enter the account number.')],
+    },
+  },
+  // A number the mock directory does not hold (R100-1).
+  {
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'not-found',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      settlesOn: '.mvp-new-recipient',
+      prepare: [
+        NR_AFFIN,
+        NR_FILL('1234567890', NR_DETAILS_SUBTITLE, 'Enter recipient details'),
+        NR_NEXT("We couldn't find this account."),
+      ],
     },
   },
   {
@@ -3138,6 +3295,28 @@ export const RECATEGORISED: StorePreset = {
  * app's own `recategorisedAllFrom` and `withCategoryRule`, so the preset and the
  * writer cannot disagree.
  */
+/**
+ * A RECIPIENT THE USER ADDED — Gate 101 (Flow 6). Figma's drawn payee, Gunther
+ * Cenperk at Affin, exactly as the directory answers for him, with a FIXED id
+ * and save time: a real save mints a UUID (Gate 85 D-9), which no baseline name
+ * could carry. Reopening on it photographs the picker (the new recipient first,
+ * R101-6) and the amount screen with the drawn silhouette (`1266:14388`).
+ */
+const GUNTHER = BANK_DIRECTORY.find((a) => a.accountNo === '6451352078')!
+export const STORED_RECIPIENT: UserRecipient = {
+  id: 'recipient-stored-gunther',
+  name: GUNTHER.name,
+  kind: GUNTHER.kind,
+  accountNo: GUNTHER.accountNo,
+  bankCode: GUNTHER.bankCode,
+  mark: { kind: 'placeholder' },
+  addedAt: '2026-08-15T09:41:00',
+}
+export const WITH_NEW_RECIPIENT: StorePreset = {
+  id: 'new-recipient',
+  edit: (state) => ({ ...state, userRecipients: [...state.userRecipients, STORED_RECIPIENT] }),
+}
+
 export const RECATEGORISED_ALL: StorePreset = {
   id: 'recategorised-all',
   edit: (state) => ({
@@ -3173,6 +3352,9 @@ export const STORE_STATES: WalkState[] = [
   // Gate 90 — a receipt card under a heading of a different year from its
   // printed date (Decision 15A).
   { route: '/finance', tab: { id: 'receipts', label: 'Receipts' }, overlay: null, store: YEAR_APART },
+  // Gate 101 — a saved recipient: first in the picker, and the drawn amount screen.
+  { route: '/transfer', tab: null, overlay: null, store: WITH_NEW_RECIPIENT },
+  { route: `/transfer/send/${STORED_RECIPIENT.id}`, tab: null, overlay: null, store: WITH_NEW_RECIPIENT },
 ]
 
 /**

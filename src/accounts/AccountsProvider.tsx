@@ -12,6 +12,7 @@ import { COMMITMENTS } from '../data/commitments'
 import { COMMITMENT_OFFERS } from '../data/offers'
 import { buildHoldings } from '../data/holdings'
 import { RECIPIENTS } from '../data/recipients'
+import { BANK_DIRECTORY } from '../data/bankDirectory'
 import { hydratedState, usePersistence } from '../persistence/store'
 import type { AppState } from '../persistence/seed'
 import {
@@ -25,6 +26,8 @@ import {
   sendRowProblem,
   cryptoSendProblem,
   holdingsAfterCryptoSend,
+  mergeRecipients,
+  recipientProblem,
   toSen,
   withCategoryRule,
 } from '../data/derive'
@@ -41,8 +44,10 @@ import type {
   GoalImageOrigin,
   Holding,
   Receipt,
+  Recipient,
   Transaction,
   TransactionCategoryId,
+  UserRecipient,
 } from '../data/types'
 
 /**
@@ -361,6 +366,27 @@ interface AccountsContextValue {
   recategoriseMerchant: (transactionId: string, category: TransactionCategoryId) => void
   /** The stored merchant rules — Gate 94. Read by `buildSend`. */
   categoryRules: CategoryRule[]
+  /**
+   * EVERY RECIPIENT A BANK SEND CAN GO TO — Gate 101: the user's own
+   * (`userRecipients`) then the five seeded constants (`mergeRecipients`). Every
+   * reader uses this, never `RECIPIENTS` alone, so a stored recipient is never
+   * "unknown" to the picker, the amount screen, `sendMoney` or the success page.
+   */
+  recipients: Recipient[]
+  /** The recipients the user added (schema v5). */
+  userRecipients: UserRecipient[]
+  /**
+   * SAVE A NEW BANK RECIPIENT — Gate 101 (Flow 6). THE RECORD IS THE
+   * INSTRUCTION, built by `buildRecipient` from the mock directory's answer.
+   *
+   * VALIDATE OUTSIDE, WRITE PURE (R89-8): `recipientProblem` judges it against
+   * the COMMITTED recipients before the setter, so a duplicate, an unknown
+   * account or a mismatched name throws here, at the call site, and writes
+   * nothing. ONE SIBLING PURE UPDATER, appending. It never calls `sendMoney`,
+   * and `sendMoney` never calls it: adding a payee and paying one are two
+   * commits.
+   */
+  addRecipient: (recipient: UserRecipient) => void
   /**
    * CREATE A GOAL. It starts at `savedAmount: 0` and there is no second path.
    *
@@ -773,6 +799,13 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
   const [cryptoHoldings, setCryptoHoldings] = useState<CryptoHolding[]>(
     () => hydratedState().cryptoHoldings,
   )
+  // Gate 101: the recipients the user added. Stored (schema v5) — and REPORTED
+  // to persistence below, or every write would stop (the Gate 94 lesson: the
+  // store saves only once every atom has reported).
+  const [userRecipients, setUserRecipients] = useState<UserRecipient[]>(
+    () => hydratedState().userRecipients,
+  )
+  const recipients = useMemo(() => mergeRecipients(userRecipients, RECIPIENTS), [userRecipients])
 
   /*
     PERSISTENCE OBSERVES; IT NEVER WRITES FROM HERE. The four atoms are reported
@@ -788,10 +821,21 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     setGoals(state.goals)
     setCategoryRules(state.categoryRules)
     setCryptoHoldings(state.cryptoHoldings)
+    setUserRecipients(state.userRecipients)
   }, [])
   usePersistence(
-    { transactions, receipts, fiatAccounts, goals, categoryRules, cryptoHoldings },
+    { transactions, receipts, fiatAccounts, goals, categoryRules, cryptoHoldings, userRecipients },
     applyStoredState,
+  )
+
+  /** See the contract on `AccountsContextValue.addRecipient`. */
+  const addRecipient = useCallback(
+    (recipient: UserRecipient) => {
+      const problem = recipientProblem(recipient, recipients, BANK_DIRECTORY)
+      if (problem !== null) throw new Error(`addRecipient: ${recipient.id} ${problem}`)
+      setUserRecipients((current) => [...current, recipient])
+    },
+    [recipients],
   )
 
   /**
@@ -848,7 +892,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
    */
   const sendMoney = useCallback(
     (row: Transaction) => {
-      const problem = sendRowProblem(row, fiatAccounts, RECIPIENTS)
+      const problem = sendRowProblem(row, fiatAccounts, recipients)
       if (problem !== null) throw new Error(`sendMoney: ${row.id} ${problem}`)
       setTransactions((current) => [...current, row])
       setFiatAccounts((current) =>
@@ -859,7 +903,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         ),
       )
     },
-    [fiatAccounts],
+    [fiatAccounts, recipients],
   )
 
   /** See the contract on `AccountsContextValue.sendCrypto`. */
@@ -1079,6 +1123,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
       recategoriseTransaction,
       recategoriseMerchant,
       categoryRules,
+      recipients,
+      userRecipients,
+      addRecipient,
       createGoal,
       updateGoal,
       deleteGoal,
@@ -1103,6 +1150,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     recategoriseTransaction,
     recategoriseMerchant,
     categoryRules,
+    recipients,
+    userRecipients,
+    addRecipient,
     createGoal,
     updateGoal,
     deleteGoal,

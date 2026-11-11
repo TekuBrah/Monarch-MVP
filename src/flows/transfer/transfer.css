@@ -288,3 +288,88 @@
   display: flex;
   flex-direction: column;
 }
+
+/* ── Gate 101 — Flow 6, add a new bank recipient (`1266:14385`–`1266:14387`) ──
+   Figma vertically centres each step's content in a 557px box; that is a
+   drawing artifact, so the content is top-aligned here (recorded). */
+
+.mvp-new-recipient {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* The list starts at the header's foot (`1266:14386` `Frame 463` at y=0 of
+   `Frame 455`). `.mvp-column` sits on the wrapper, never on the `<ul>`, so a
+   padding reset here cannot collapse the gutter (the Gate 14 hazard). */
+.mvp-new-recipient__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A row: `Frame 322` — 56 tall (16 round a 24 `body/m` line), a bottom rule in
+   `border/subtlest/default`, `text/default/default`. Raw frames in Figma too, so
+   composed here from tokens and the DS type class — no DS row draws this. */
+.mvp-new-recipient__row {
+  display: block;
+  width: 100%;
+  padding: var(--brand-scale-400) 0;
+  border: 0;
+  border-bottom: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+  background: none;
+  color: var(--mapped-text-default-default);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The close control's ring (DS `OverlayHeader`), as Gate 89-B copied it. */
+.mvp-new-recipient__row:focus-visible {
+  outline: var(--brand-scale-50) solid var(--mapped-border-primary-default);
+  outline-offset: var(--brand-scale-50);
+  border-radius: var(--brand-scale-200);
+}
+
+/* `1266:14386`: the A and B groups are 24 apart (`Frame 464` at y=392 = 368 + 24). */
+.mvp-new-recipient__banks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+  padding-bottom: var(--brand-scale-600);
+}
+
+/* The letter head: a raw frame named "Field" — `h6` semibold in
+   `text/primary/default`, 4px above and below (32 tall). */
+.mvp-new-recipient__letter {
+  margin: 0;
+  padding: var(--brand-scale-100) 0;
+  color: var(--mapped-text-primary-default);
+}
+
+/* `1266:14387` `Frame 465`: seven controls 12 apart. It starts 20 below the
+   header, the amount screen's own inset (`1266:14392` `Frame 455`). */
+.mvp-new-recipient__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-300);
+  padding-top: var(--brand-scale-500);
+}
+
+/* `Frame 464`: Next 32 below a fade, sticky — Select Token's button rule
+   (R96-14, the Gate 80 precedent): in flow when the form fits, still reachable
+   when the keyboard shortens the screen. */
+.mvp-new-recipient__actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--brand-scale-800) var(--mvp-gutter) var(--brand-scale-400);
+  background-image: var(--mapped-gradient-default);
+}
+
+.mvp-new-recipient__actions > * {
+  width: 100%;
+}

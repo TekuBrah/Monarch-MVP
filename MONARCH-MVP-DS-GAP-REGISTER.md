@@ -5347,3 +5347,77 @@ minutes by wall clock, npm exit 0, 0 `writing actual`, digest unchanged.** The k
 not appear.
 
 ### Nothing was removed from this register at this gate.
+
+## 2av. Status at MVP Gate 101 (2026-11-09) — Flow 6 part 1: add a new bank recipient; DS v2.14.0; G68 and G69 entered closed; G70 and G71 opened; Decisions 35–38
+
+**THE TALLY MOVES BY FOUR: TWO GAPS ARE ENTERED CLOSED AND TWO ARE OPENED.** **70 entries, 40 closed, 30 open; the highest number
+is G71.** Derived from §2au's 66 / 38 / 28: G68 and G69 are entered closed by DS v2.14.0 (+2 entries, +2 closed), and G70 and G71
+are opened (+2 entries, +2 open). 66 + 4 = 70; 38 + 2 = 40; 28 + 2 = 30; 40 + 30 = 70. **The 28 is carried, not re-derived:** the
+register has no per-entry status table, and the prose "still open" lists in §2au and earlier omit entries (G8, G11, G12 and G34
+among them) whose latest status was not re-traced here, so the open count cannot be rebuilt from the listing alone. The chain from
+§2au is what is used. Still open and still deferred, unchanged by this gate: G6, G13, G14, G17's prop half, G19–G23, G28–G33, G44,
+G48, G49, G50, G51, G52, G53, G58, G60, G62, G63, G67, `MODEL-1` and `UI-3`. **No MVP-local override was added for any of them**,
+and the `G33` workaround class is untouched. **Next free: section `2aw`, gap `G72`; next free Teku decision 39.**
+
+**The gate ships on DS `v2.14.0`** (`723b02f117249a983bdf0795a6f5ecf4d4fb9061`, tag object `970afab37be2fa22945bf31e8f2a881742c8bf18`,
+installed from the lockfile by `npm ci`, `lint:linkage` PASS). It builds the add-a-new-bank-recipient flow, a new `placeholder`
+`TransactionLogo`, schema v5 and the reader merge; see `CLAUDE.md`'s Gate 101 section for the build record. **The re-pin alone moved
+0 baselines** (Phase A2, measured in a census copy: 1576 passed / 0 failed, all 492 baselines byte-identical); the feature added 44
+and changed none.
+
+### Closures (DS v2.14.0)
+
+- **G68 — CLOSED by DS v2.14.0 `Banner`.** Flow 6's red "Warning / High-Risk Transfer" block (`801:4359`) binds `surface/error/default`
+  and `text/on-color/heading`, and before v2.14.0 no DS component painted it (`InlineMessage` tones were `neutral | warning | ai`).
+  `Banner` (`tone: 'error'`, `title`, `description`) now does. **Not adopted in this gate; Gate 103 uses it.**
+- **G69 — CLOSED by DS v2.14.0 `Field.error` / `helper` / `ariaDescribedBy`.** Before v2.14.0 a bare floating-label `Field` could not
+  carry an accessible message: it read `aria-describedby` and `aria-invalid` only from the internal `FormFieldContext`, and a
+  `FormField` moves the label out of the box. v2.14.0's `Field` renders its own `FieldMessage` 4 px below the box, wired by
+  `aria-describedby`, with `aria-invalid` on error (R102-1); `error` does not repaint the box, so `isInvalid` is passed with it
+  (R102-9). **Adopted on the Account Number row.**
+
+### Opened
+
+- **G70 — OPEN, DS round, pre-existing.** A labelled `Field` renders 60 px against Figma's 58 (`1266:14387` draws the two `Field`s at
+  343×58 and the five `Select`s at 343×54). Not caused by this gate; not overridden.
+- **G71 — OPEN, paused (opened by R101-9).** The new-recipient form collects Account Type, Transfer Type, Recipient Reference and
+  Other Payment Details, validates them, and **does not carry them onto the transaction**: the stored record is
+  `id, name, kind, accountNo, bankCode, mark, addedAt`, and nothing reads the four. Real apps carry the reference with the transfer,
+  so a typed Other Payment Details (40 characters) is discarded on save. Not built because nothing reads it yet and a writer never
+  lands before its caller. Where it lives (the review sheet, the transaction row and its detail sheet) is decided when the Flow 6
+  record is written, or in the retrofit session.
+
+### Decisions 35–38 (Teku, delegated to the review thread after research, 7 Nov 2026)
+
+**35** the high-risk rule (first payment to a user-added payee AND an account under 30 days OR under 10 transactions OR an amount
+above any previous payment to another party; the reasons listed are only those that fired). **36** honest copy, no "AI" claim for a
+rule (FTC guidance on AI claims). **37** the shield image ships as drawn. **38 = A** the field-error line is DS-first (shipped in
+v2.14.0). Gate 101 supplies 35's data (the directory's age and count, `userRecipients` membership) and builds no part of the alert.
+**Decision 35 (c) derivation (R101-13), for Gate 103:** count every outflow (`amount < 0`) except rows with a `goalId`, by MYR
+magnitude, crypto included; credits never count. Over today's seed that is **RM 2,647.67** (`txn-ikea-0815`, IKEA, 15 Aug 2025),
+whichever way goals and crypto are treated, so the drawn RM 10,000 to Gunther fires (c) as well as (a) and (b).
+
+### Rulings R101-1 to R101-13 (review thread, 9 Nov 2026; overturnable)
+
+R101-1 one route `/transfer/new`, each step its own history entry; Next saves, pops to the first step and replaces it with the amount
+screen. R101-2 a field whose value came from an earlier step returns to that step. R101-3 digits only, 5 to 19. R101-4 duplicate
+wording "This account is already in your recipients." (Monzo's payee rework shows an error when a user adds a duplicate account to
+a different payee, which closes the citation gap Phase A2 recorded). R101-5 option lists; unavailable options (Credit Card,
+Loan/Financing, IBG) raise "Coming soon.", and every Recipient Reference preset is selectable. R101-6 a never-paid saved recipient
+ranks by `addedAt`. R101-7 Other Payment Details 40 characters. R101-8 the pickers are the Gate 74-B pattern on a page. R101-9 the
+four choices are not stored (G71). R101-10 every step starts at the top. R101-11 a "Coming soon." is dismissed when the step
+changes. **R101-12** the six existing-test edits are accepted: four `SCHEMA_VERSION` 4 -> 5 assertions and `transfer.spec.ts` B10 /
+B11 (the original stop clause was the thread's error: unsatisfiable given what the prompt required). R101-13 as above.
+
+### Notes
+
+- **The bank list.** 37 banks from UOB Malaysia's participating-bank table (read 9 Nov 2026, undated); Bangkok Bank is kept as drawn
+  although the table gives it no DuitNow code, and Bank Muamalat is inserted alphabetically (a participant Figma omits). Both are
+  recorded divergences.
+- **The overlay count command is stale** (60 on the base where the record says 70, since Gate 98 spread ten states in); use the
+  section-header sweep's counts, `37 + 8 + 78 + 11 = 134`.
+- **Measured:** `--list` 1679 tests in 51 files; 536 PNGs, digest `7ab73ce5d4ee6bb6f49faf4c412dde683ebf807fb731b54c45b6fd33f0302f7d`
+  (the 492 old ones still `efd3d4a8702196a5c77a840e7fcd666639eaeb676f1d55e5ff81ba5234e13535`); Phase A2's full suite 1679 passed /
+  0 failed; 23 of 23 mutations proved, the negative control refused; `build:package` entry 6,007,236 bytes, CSS 204,728.
+
+### Nothing was removed from this register at this gate.

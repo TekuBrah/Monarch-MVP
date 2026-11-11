@@ -1,4 +1,5 @@
 import { CRYPTO_HOLDINGS } from '../data/accounts'
+import { BANKS } from '../data/banks'
 import { TRANSACTION_CATEGORIES } from '../data/transactions'
 import type {
   Budget,
@@ -9,6 +10,7 @@ import type {
   ReceiptLineItem,
   Transaction,
   TransactionLogo,
+  UserRecipient,
 } from '../data/types'
 import type { CaptureSource } from './captureFacts'
 
@@ -56,7 +58,14 @@ import type { CaptureSource } from './captureFacts'
  * tests, not in the field — and must exist all the same, or such a store is
  * quarantined instead of migrated.
  */
-export const SCHEMA_VERSION = 4
+/*
+ * VERSION 5 — Gate 101 (Flow 6): an eighth collection, `userRecipients` — the
+ * bank recipients the user added. The five seeded `RECIPIENTS` stay constants
+ * (R100-3), so `seedFingerprint` does NOT include this collection and this bump
+ * resets no tester. `MIGRATIONS[4]` adds it EMPTY. One new logo case,
+ * `{ kind: 'placeholder' }`, which a send to a new recipient writes onto its row.
+ */
+export const SCHEMA_VERSION = 5
 
 /** A crypto holding as stored: the quantity is the only fact a send changes. */
 export interface StoredCryptoHolding {
@@ -81,6 +90,8 @@ export interface StoredRecords {
   budgets: Budget[]
   categoryRules: CategoryRule[]
   cryptoHoldings: StoredCryptoHolding[]
+  /** Gate 101, schema v5. Stored exactly as the runtime holds it — no images. */
+  userRecipients: UserRecipient[]
 }
 
 export interface StoredMeta {
@@ -99,6 +110,7 @@ export const RECORD_KEYS = [
   'budgets',
   'categoryRules',
   'cryptoHoldings',
+  'userRecipients',
 ] as const
 export type RecordKey = (typeof RECORD_KEYS)[number]
 
@@ -149,6 +161,9 @@ function isLogo(v: unknown): v is TransactionLogo {
       return isNonEmptyStr(v.filename)
     case 'goal':
       return isNonEmptyStr(v.filename) && isImageOrigin(v.origin)
+    // Gate 101, schema v5: the new recipient's silhouette. No field to check.
+    case 'placeholder':
+      return true
     default:
       return false
   }
@@ -272,6 +287,29 @@ export function isStoredBudget(v: unknown): boolean {
   )
 }
 
+const isBankCode = oneOf(...BANKS.map((b) => b.code))
+
+/**
+ * Gate 101, schema v5: a recipient the user added. A known bank, a 5–19 digit
+ * number (the form's own range), a name and kind from the directory, a mark, and
+ * the wall clock it was saved at. The id carries the `recipient-` prefix every
+ * recipient id does.
+ */
+export function isStoredRecipient(v: unknown): boolean {
+  return (
+    isRec(v) &&
+    isNonEmptyStr(v.id) &&
+    (v.id as string).startsWith('recipient-') &&
+    isNonEmptyStr(v.name) &&
+    oneOf('person', 'business')(v.kind) &&
+    isStr(v.accountNo) &&
+    /^\d{5,19}$/.test(v.accountNo as string) &&
+    isBankCode(v.bankCode) &&
+    isLogo(v.mark) &&
+    isTimestamp(v.addedAt)
+  )
+}
+
 export function isStoredCategoryRule(v: unknown): boolean {
   return isRec(v) && isNonEmptyStr(v.merchant) && isCategory(v.category)
 }
@@ -295,6 +333,7 @@ const RECORD_VALIDATORS: Record<RecordKey, (v: unknown) => boolean> = {
   budgets: isStoredBudget,
   categoryRules: isStoredCategoryRule,
   cryptoHoldings: isStoredCryptoHolding,
+  userRecipients: isStoredRecipient,
 }
 
 const isArrayOf = (check: (v: unknown) => boolean) => (v: unknown) =>
@@ -325,6 +364,11 @@ export function storedRecordsProblem(
   if (tokens.length !== CRYPTO_IDS.length || CRYPTO_IDS.some((id) => !tokens.includes(id))) {
     return 'cryptoHoldings does not hold every token exactly once'
   }
+  // Gate 101: an id or a bank account twice would make one recipient two.
+  const recipientIds = stored.userRecipients.map((r) => r.id)
+  if (new Set(recipientIds).size !== recipientIds.length) return 'userRecipients names an id twice'
+  const accounts = stored.userRecipients.map((r) => `${r.bankCode} ${r.accountNo}`)
+  if (new Set(accounts).size !== accounts.length) return 'userRecipients names an account twice'
   for (const id of referencedImageIds(stored)) {
     if (!imageIds.has(id)) return `image ${id} is referenced but has no bytes`
   }
@@ -365,6 +409,8 @@ export const MIGRATIONS: Record<number, (records: unknown) => unknown> = {
     isRec(records)
       ? { ...records, cryptoHoldings: CRYPTO_HOLDINGS.map(({ id, quantity }) => ({ id, quantity })) }
       : records,
+  // 4 -> 5 (Gate 101): the new collection, empty — nobody had added a recipient.
+  4: (records) => (isRec(records) ? { ...records, userRecipients: [] } : records),
 }
 
 // ───────────────────────────── the fingerprint ─────────────────────────────

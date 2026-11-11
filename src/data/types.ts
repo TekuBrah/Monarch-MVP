@@ -287,6 +287,16 @@ export type TransactionLogo =
   | { kind: 'person'; initials: string }
   | { kind: 'image'; filename: string }
   | { kind: 'goal'; filename: string; origin: GoalImageOrigin }
+  /*
+    GATE 101 (Flow 6): A RECIPIENT THE USER ADDED HAS NO PICTURE. Figma
+    `1266:14388` draws the grey silhouette, which is the DS `Avatar`
+    placeholder (no `src`, no `name`, no `initials` -> the `person` glyph).
+    `buildSend` copies a recipient's mark onto the row it writes, so this case
+    reaches the STORED ledger, and `isLogo` (`schema.ts`) accepts it from schema
+    v5 on. NOT `person` with empty initials: that draws an empty initials disc,
+    not the drawn silhouette.
+  */
+  | { kind: 'placeholder' }
 
 export interface Transaction {
   id: string
@@ -1259,6 +1269,50 @@ export interface Recipient {
   bankCode: string
   /** Drawn through `TransactionMark`: a DS logo or a photograph. */
   mark: TransactionLogo
+}
+
+/**
+ * Gate 101 (Flow 6) — a recipient THE USER ADDED. Stored (schema v5,
+ * `userRecipients`); the five seeded `RECIPIENTS` stay constants (R100-3), and
+ * every reader merges the two (`mergeRecipients`).
+ *
+ * `addedAt` (the local wall clock when saved) is the one field the seeded
+ * recipients lack. It is what puts a never-paid new recipient first in Recent
+ * recipients (R101-6). Membership of this collection is what tells a user-added
+ * payee from a seeded one (Decision 35, Gate 103).
+ *
+ * WHAT IS NOT STORED: the payee bank's account age and transaction count. They
+ * are the mock enquiry's answer (`BANK_DIRECTORY`), looked up again whenever a
+ * rule needs them, so nothing derived or constant is copied onto the record.
+ * Nor are the form's Account Type, Transfer Type, Recipient Reference and Other
+ * Payment Details: nothing reads them yet (R101-9).
+ */
+export interface UserRecipient extends Recipient {
+  addedAt: string
+}
+
+/** Gate 101 — a bank a new recipient can be at (`banks.ts`). */
+export interface Bank {
+  /** The short code printed after an account number: "6451352078 • AFFIN". */
+  code: string
+  name: string
+  /** The DuitNow bank code from the cited participant table; `null` where it has none. */
+  bic: string | null
+}
+
+/**
+ * Gate 101 — one row of the MOCK NAME ENQUIRY (`bankDirectory.ts`, R100-1): what
+ * the payee's bank answers for a bank and account number.
+ */
+export interface DirectoryAccount {
+  bankCode: string
+  accountNo: string
+  name: string
+  kind: RecipientKind
+  /** The payee bank's fixed answer, in days — no date arithmetic here. */
+  accountAgeDays: number
+  /** The payee bank's fixed answer: transactions recorded on the account. */
+  transactionCount: number
 }
 
 /**

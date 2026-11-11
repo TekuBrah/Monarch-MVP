@@ -4,7 +4,16 @@ import { backfillAddedAt, backfillReferences } from '../data/derive'
 import { GOALS } from '../data/goals'
 import { RECEIPTS } from '../data/receipts'
 import { TRANSACTIONS } from '../data/transactions'
-import type { Budget, CategoryRule, CryptoHolding, FiatAccount, Goal, Receipt, Transaction } from '../data/types'
+import type {
+  Budget,
+  CategoryRule,
+  CryptoHolding,
+  FiatAccount,
+  Goal,
+  Receipt,
+  Transaction,
+  UserRecipient,
+} from '../data/types'
 import { fingerprintOf } from './schema'
 
 /** Every piece of application data the app persists, in its RUNTIME shape. */
@@ -17,6 +26,8 @@ export interface AppState {
   categoryRules: CategoryRule[]
   /** Gate 98: provider state, stored (schema v4). */
   cryptoHoldings: CryptoHolding[]
+  /** Gate 101: provider state, stored (schema v5). */
+  userRecipients: UserRecipient[]
 }
 
 /**
@@ -45,6 +56,10 @@ export function seedState(): AppState {
     // hash this collection, so adding it reset no tester's data.
     categoryRules: [],
     cryptoHoldings: CRYPTO_HOLDINGS,
+    // Gate 101: nobody has added a recipient yet. The five seeded recipients are
+    // constants (R100-3), and `seedFingerprint` below does NOT hash this
+    // collection, so adding it reset no tester's data.
+    userRecipients: [],
   }
 }
 

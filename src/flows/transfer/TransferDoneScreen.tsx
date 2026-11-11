@@ -4,7 +4,6 @@ import { useAccounts } from '../../accounts/AccountsProvider'
 import { CRYPTO_RECIPIENTS } from '../../data/cryptoRecipients'
 import { cashAccountLine, cryptoSendAddressLine, recipientAccountLine } from '../../data/derive'
 import { formatMyr, formatQuantity, formatTimestamp } from '../../data/format'
-import { RECIPIENTS } from '../../data/recipients'
 import { TODAY } from '../../data/today'
 import { FINANCE_TAB_STATE_KEY, OPEN_TRANSACTION_STATE_KEY } from '../finance/financeTabs'
 import './transfer.css'
@@ -32,7 +31,7 @@ import './transfer.css'
  */
 export function TransferDoneScreen() {
   const { transactionId } = useParams()
-  const { transactions, fiatAccounts, holdings, cryptoHoldings, cryptoWallets } = useAccounts()
+  const { transactions, fiatAccounts, holdings, cryptoHoldings, cryptoWallets, recipients } = useAccounts()
 
   const row = transactions.find((t) => t.id === transactionId)
 
@@ -65,7 +64,8 @@ export function TransferDoneScreen() {
     )
   }
 
-  const recipient = row?.recipientId ? RECIPIENTS.find((r) => r.id === row.recipientId) : undefined
+  // Gate 101: the user's own recipients too (`mergeRecipients`).
+  const recipient = row?.recipientId ? recipients.find((r) => r.id === row.recipientId) : undefined
   const account = row ? fiatAccounts.find((a) => a.id === row.accountId) : undefined
   if (!row || !recipient || !account) return <Navigate to="/" replace />
 
