@@ -373,3 +373,282 @@
 .mvp-new-recipient__actions > * {
   width: 100%;
 }
+
+/* ======================================================================
+   Gate 103 — Flow 6 part 2, the high-risk transfer alert
+   (`HighRiskTransferAlert.tsx`). Figma `1266:14382` (warning, card
+   `801:4352`), `1266:14383` (education, card `895:8582`) and `1266:14384`
+   (second confirm, card `801:4526`). Spacing read from each card's
+   metadata; every value is a ramp token.
+   ====================================================================== */
+
+/* `Content`: the lead group, then the details group, 16 apart. */
+.mvp-risk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+}
+
+/* `Frame 442`: the glyph, the red block and the headline, 8 apart. */
+.mvp-risk__lead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  text-align: center;
+}
+
+/* The 56px triangle, centred, in `icon/error/default`. */
+.mvp-risk__glyph {
+  display: flex;
+  justify-content: center;
+  color: var(--mapped-icon-error-default);
+}
+
+.mvp-risk__headline,
+.mvp-risk__question,
+.mvp-risk__details-label,
+.mvp-risk__party-text > p,
+.mvp-risk-education p {
+  margin: 0;
+}
+
+.mvp-risk__headline,
+.mvp-risk__error-text {
+  color: var(--mapped-text-error-default);
+}
+
+.mvp-risk__question {
+  color: var(--mapped-text-default-default);
+}
+
+/* `Frame 443`: the Details box, then the link; Figma's 4 below the link. */
+.mvp-risk__more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  padding-bottom: var(--spacing-100);
+}
+
+/* `Text area`: 1px subtlest border, radius 8, 16 / 12 padding, 12 to the rows.
+   NO FILL (R103-9). */
+.mvp-risk__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-300);
+  padding: var(--spacing-400) var(--spacing-300);
+  border: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+  border-radius: var(--brand-scale-200);
+}
+
+.mvp-risk__details-label {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* `Frame 444`: the rows, 8 apart. */
+.mvp-risk__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--mapped-text-default-default);
+}
+
+/* `Frame 480`: the explainer link, centred. */
+.mvp-risk__learn {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+}
+
+/* HighRisk02's recipient block: `Frame 291`'s 56 above and below (`Avatar xl`
+   then the name 12 below it, the account line 4 below that). */
+.mvp-risk__party {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-300);
+  padding-block: var(--brand-scale-1200);
+  text-align: center;
+}
+
+.mvp-risk__party-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+.mvp-risk__party-line {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* ── The education overlay (`895:8582`) ───────────────────────────────── */
+
+.mvp-risk-education {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  color: var(--mapped-text-default-default);
+}
+
+/* `Frame 485`: the shield, then the title pair, 8 apart. */
+.mvp-risk-education__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-200);
+  text-align: center;
+}
+
+/*
+  R103-13 — THE SHIELD'S FRAMING. Figma's 81 x 80 slot shows the shield and
+  sparkle at (10.42, 7.81), 68.24 x 66.15 CSS px. Teku's 512 x 512 export holds
+  the same art at (68, 55)-(494, 468), so an 82 x 82 square (512 x 0.16016)
+  centred on the slot reproduces it: the image sits 0.5 left and 1 above the
+  slot, and the negative block margins give it the slot's 80px of layout height,
+  so the title lands where Figma puts it.
+
+  82 IS A LITERAL, EXEMPTED ON ITS OWN LINE. No ramp step is 82 (72 and 96 sit
+  either side), and building it as `calc(72 + 10)` would be curve-fitting it out
+  of unrelated ramp steps, which the DS token-gap protocol bans (the 430 frame
+  width's exemption cites the same rule). `aspect-ratio` keeps it to one line.
+
+  R103-19 CONDITION (1) — NOTHING MAY OVERHANG THE CONTENT BOX. The 82 x 82
+  image sits 1px above its slot's top edge (and 1px below its bottom edge), and
+  the hero is the first thing in the content area, so the image's box reached
+  1px above the content box. The overhang is transparent (the art starts 7.81px
+  into the slot), so a SLOT of exactly 82 x 80 with `overflow: clip` frames it
+  without moving the art by a pixel: the image keeps its box, its position and
+  the 80px of layout height the negative margins used to give, and the slot's
+  clip removes the two empty strips. (The 2px of scroll surplus the education
+  content used to report was NOT this: it is the last text line, below.)
+*/
+.mvp-risk-education__shield-slot {
+  display: block;
+  width: 82px; /* token-exempt: the shield art's measured framing (R103-13) — no ramp step is 82 */
+  aspect-ratio: 82 / 80;
+  min-height: 0; /* `overflow: clip` is not a scroll container, so without this the box keeps its content minimum: 81, not 80 */
+  overflow: clip;
+}
+
+.mvp-risk-education__shield {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin-top: calc(-1 * var(--brand-scale-25));
+}
+
+/* `Frame 482`: title over subtitle, 4 apart. */
+.mvp-risk-education__titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+.mvp-risk-education__subtitle,
+.mvp-risk-education__checks-label,
+.mvp-risk-education__caption {
+  color: var(--mapped-text-subtle-default);
+}
+
+/* `Frame 483`: heading over body, 4 apart. */
+.mvp-risk-education__why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-100);
+}
+
+/* `Text area` (`895:8593`): the same frame as the warning's Details box. */
+.mvp-risk-education__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-400);
+  padding: var(--spacing-400) var(--spacing-300);
+  border: var(--brand-scale-25) solid var(--mapped-border-subtlest-default);
+  border-radius: var(--brand-scale-200);
+}
+
+/* `Frame 486` / `Frame 487`: a label over three rows, 8 apart. */
+.mvp-risk-education__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+}
+
+.mvp-risk-education__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* `Frame 484`: a 16px badge, the label at x=26 — `--brand-scale-250` is 10. */
+.mvp-risk-education__item {
+  display: flex;
+  align-items: start;
+  gap: var(--brand-scale-250);
+}
+
+.mvp-risk-education__caption,
+.mvp-risk-education__nsrc {
+  text-align: center;
+}
+
+/* R103-19 CONDITION (1) — THE LAST LINE'S GLYPH BOX. The 997 line is 14px type in
+   a 16px line box; Poppins' content area is taller than that, so the text's box
+   hangs 2px below the line box and, as the LAST thing in the content area, below
+   the content box too. A scroll container counts that as scrollable overflow, so a
+   card that fits still scrolled by 2px (598 against 596 at 430 x 812, measured).
+   `overflow: clip` takes it out of the scrollable overflow without moving a
+   pixel: the line was pixel-compared with and without it, light and dark at both
+   widths, and every pixel is identical, so no ink is cut. (`overflow-clip-margin`
+   was tried and does not help: the margin is counted again.) */
+.mvp-risk-education__nsrc {
+  overflow: clip;
+}
+
+/* ── R103-19 — THE ALERT'S THREE VIEWS CAP TO THE `Modal`'S OWN BOX ──────
+   `.mn-modal__card` declares no `max-height` and `.mn-modal__content` neither
+   an overflow nor a `min-height` (register G33), so a card taller than the
+   padded box centres and hangs off BOTH ends. Measured at 375 x 812 the
+   education card is 790 tall against a 780 box (y 11-801); at 375 x 667 the
+   education card (790) and the warning card (710) would both push their footer
+   buttons off the screen, "Cancel Transfer" on a fraud warning included.
+
+   THE RULE: WHEN THE CONTENT IS TALLER THAN THE BOX, THE CONTENT AREA SCROLLS AND
+   THE HEADER (THE CLOSE CONTROL) AND THE FOOTER (THE BUTTONS) STAY WHERE THEY
+   ARE. That is Material's rule for a dialog whose content scrolls (title pinned
+   at the top, buttons at the bottom) and the reason Flutter made AlertDialog
+   scroll once overflowing content hid its buttons.
+
+   THE MECHANISM IS THE RECEIPT VIEWER'S, TWO RULES, THE SAME ONES
+   (`.mvp-receipt-viewer-modal`, finance.css, Gate 51-B). `className` lands on
+   `.mn-modal`, the seam `Modal.css` documents for a caller controlling the
+   card's size, and the rules are scoped to this one consumer, so the two short
+   confirmations elsewhere in the app keep hugging. `100%` is the padded content
+   box of a `position: fixed; inset: 0` `.mn-modal` (the viewport minus the DS's
+   own 16px), so no viewport unit and no second restatement of that padding.
+   `min-height: 0` mirrors the receipt viewer's pair and is REDUNDANT next to
+   `overflow-y: auto`: a flex item with a non-visible overflow already has an
+   automatic minimum size of 0 (mutation M45b removed it and nothing changed). The
+   load-bearing half is `overflow-y: auto`: without it the content keeps its full
+   height, spills over the footer and the last line is not reachable (M45c).
+   It stays only so the two workarounds read the same and are deleted together.
+
+   ⚠ BOTH RULES ARE DELETED AT THE MVP RE-PIN THAT FOLLOWS THE DS ROUND CLOSING
+   G33, with the receipt viewer's pair. The `mvp-risk-modal` CLASS ITSELF STAYS
+   while `e2e/harness.ts` reaches the warning's secondary button through it
+   (`.mvp-risk-modal .mn-modal__footer .mn-btn--secondary`). A workaround with a
+   removal condition, not a convention; `grep -rn "mvp-risk-modal" src e2e` is
+   the checklist. */
+.mvp-risk-modal .mn-modal__card {
+  max-height: 100%;
+}
+
+.mvp-risk-modal .mn-modal__content {
+  min-height: 0;
+  overflow-y: auto;
+}

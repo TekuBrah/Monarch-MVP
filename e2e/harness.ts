@@ -30,6 +30,12 @@ import { toStored } from '../src/persistence/boundary'
 import { SCHEMA_VERSION, type StoredMeta } from '../src/persistence/schema'
 import { seedFingerprint, seedState, type AppState } from '../src/persistence/seed'
 import { THEME_STORAGE_KEY } from '../src/theme/themePreference'
+import {
+  HEADLINE_DRAWN,
+  HEADLINE_LARGE_FIRST,
+  HEADLINE_LOW_ACTIVITY,
+  HEADLINE_NEW_ACCOUNT,
+} from '../src/flows/transfer/riskCopy'
 import { capturedImageName } from './capture'
 
 /**
@@ -3317,6 +3323,150 @@ export const WITH_NEW_RECIPIENT: StorePreset = {
   edit: (state) => ({ ...state, userRecipients: [...state.userRecipients, STORED_RECIPIENT] }),
 }
 
+/**
+ * THREE MORE SAVED RECIPIENTS — Gate 103, one per headline Decision 35 can
+ * print besides the drawn one: Wren (a young but busy account, (a) alone),
+ * Orrin (an old but quiet account, (b) alone) and Delphine (a long-standing,
+ * busy account, so only a large first payment, (c), flags her). Each is the
+ * directory's own row with a FIXED id and save time, as `STORED_RECIPIENT` is.
+ * No directory or seed change.
+ */
+function storedFromDirectory(name: string, id: string): UserRecipient {
+  const account = BANK_DIRECTORY.find((a) => a.name === name)!
+  return {
+    id,
+    name: account.name,
+    kind: account.kind,
+    accountNo: account.accountNo,
+    bankCode: account.bankCode,
+    mark: { kind: 'placeholder' },
+    addedAt: '2026-08-15T09:41:00',
+  }
+}
+export const STORED_WREN = storedFromDirectory('Wren Halloway', 'recipient-stored-wren')
+export const STORED_ORRIN = storedFromDirectory('Orrin Teale', 'recipient-stored-orrin')
+export const STORED_DELPHINE = storedFromDirectory('Delphine Marrow', 'recipient-stored-delphine')
+export const WITH_RISK_PAYEES: StorePreset = {
+  id: 'risk-payees',
+  edit: (state) => ({
+    ...state,
+    userRecipients: [...state.userRecipients, STORED_WREN, STORED_ORRIN, STORED_DELPHINE],
+  }),
+}
+
+/* ── Gate 103 — the high-risk alert (Flow 6 part 2) ─────────────────────────
+   Each state opens the amount screen of a saved recipient on stored data, fills
+   an amount, presses "Transfer money" and settles on the alert's own headline,
+   so a send the rule did not flag fails before a baseline is minted. The
+   screen is the opening surface (`opens: []`); the dialog is reached by the
+   prepare steps (the Gate 93 review-state shape). */
+const RISK_TRANSFER: (headline: string) => PrepareStep = (headline) => ({
+  control: SEND_PRIMARY,
+  controlName: 'Transfer money',
+  action: 'click',
+  settlesOn: '.mvp-risk__headline',
+  settlesText: headline,
+})
+const riskFill = (value: string, balance: string): PrepareStep => ({
+  control: SEND_AMOUNT,
+  controlName: 'Transfer Amount',
+  action: 'fill',
+  value,
+  settlesOn: '.mvp-send__balance',
+  settlesText: `Your new balance${balance}`,
+})
+const riskWarning = (id: string, value: string, balance: string, headline: string): OverlayState => ({
+  id,
+  control: SEND_AMOUNT,
+  controlLabel: 'Transfer Amount',
+  title: 'Transfer Amount',
+  opens: [],
+  dialogs: ['High-Risk Transfer'],
+  settlesOn: '.mvp-send',
+  prepare: [riskFill(value, balance), RISK_TRANSFER(headline)],
+})
+// Figma's drawn send: RM 10,000.00 to Gunther, all three reasons.
+const GUNTHER_FILL = riskFill('10000.00', 'RM 17,978.59')
+export const RISK_ALERT_STATES: WalkState[] = [
+  {
+    route: `/transfer/send/${STORED_RECIPIENT.id}`,
+    tab: null,
+    store: WITH_NEW_RECIPIENT,
+    overlay: riskWarning('risk-warning', '10000.00', 'RM 17,978.59', HEADLINE_DRAWN),
+  },
+  {
+    // `1266:14383`: the explainer, one dialog at a time (R103-4).
+    route: `/transfer/send/${STORED_RECIPIENT.id}`,
+    tab: null,
+    store: WITH_NEW_RECIPIENT,
+    overlay: {
+      id: 'risk-education',
+      control: SEND_AMOUNT,
+      controlLabel: 'Transfer Amount',
+      title: 'Transfer Amount',
+      opens: [],
+      dialogs: ['Smart Fraud Protection'],
+      settlesOn: '.mvp-send',
+      prepare: [
+        GUNTHER_FILL,
+        RISK_TRANSFER(HEADLINE_DRAWN),
+        {
+          control: '.mvp-risk__learn .mn-link',
+          controlName: 'How does Monarch detect this?',
+          action: 'click',
+          settlesOn: '.mvp-risk-education__title',
+          settlesText: 'Smart Fraud Protection',
+        },
+      ],
+    },
+  },
+  {
+    // `1266:14384`: the second confirm, after the warning's "Proceed Anyway".
+    route: `/transfer/send/${STORED_RECIPIENT.id}`,
+    tab: null,
+    store: WITH_NEW_RECIPIENT,
+    overlay: {
+      id: 'risk-confirm',
+      control: SEND_AMOUNT,
+      controlLabel: 'Transfer Amount',
+      title: 'Transfer Amount',
+      opens: [],
+      dialogs: ['Proceed with high-risk transfer'],
+      settlesOn: '.mvp-send',
+      prepare: [
+        GUNTHER_FILL,
+        RISK_TRANSFER(HEADLINE_DRAWN),
+        {
+          control: '.mvp-risk-modal .mn-modal__footer .mn-btn--secondary',
+          controlName: 'Proceed Anyway',
+          action: 'click',
+          settlesOn: '.mvp-risk__question',
+          settlesText: 'You are choosing to proceed with a flagged high-risk transfer. Do you still want to continue?',
+        },
+      ],
+    },
+  },
+  // The three other headlines (R103-11), each on its own saved recipient.
+  {
+    route: `/transfer/send/${STORED_WREN.id}`,
+    tab: null,
+    store: WITH_RISK_PAYEES,
+    overlay: riskWarning('risk-warning', '100.00', 'RM 27,878.59', HEADLINE_NEW_ACCOUNT),
+  },
+  {
+    route: `/transfer/send/${STORED_ORRIN.id}`,
+    tab: null,
+    store: WITH_RISK_PAYEES,
+    overlay: riskWarning('risk-warning', '100.00', 'RM 27,878.59', HEADLINE_LOW_ACTIVITY),
+  },
+  {
+    route: `/transfer/send/${STORED_DELPHINE.id}`,
+    tab: null,
+    store: WITH_RISK_PAYEES,
+    overlay: riskWarning('risk-warning', '3000.00', 'RM 24,978.59', HEADLINE_LARGE_FIRST),
+  },
+]
+
 export const RECATEGORISED_ALL: StorePreset = {
   id: 'recategorised-all',
   edit: (state) => ({
@@ -3410,6 +3560,9 @@ export const WALK: WalkState[] = [
   ...OVERLAY_STATES,
   // Gate 88 — reopened on stored data. See `STORE_STATES`.
   ...STORE_STATES,
+  // Gate 103 — the high-risk alert, on stored recipients. Overlay states that
+  // carry a store preset, so the section-header sweep counts them as overlays.
+  ...RISK_ALERT_STATES,
 ]
 
 /**

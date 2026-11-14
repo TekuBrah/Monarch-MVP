@@ -20707,3 +20707,84 @@ the transaction (G71); merchant-wide logic; Scan QR; G58, G60, G62, G63, G67, G7
 token or DS change; the harness clock; and the DS repo.
 
 **Next free: gap G72, Teku decision 39.**
+
+## Flow 6 part 2 — the high-risk transfer alert, and the DS v2.15.0 re-pin (Gate 103)
+
+The pin moved `v2.14.0` (`723b02f1…`) -> **`v2.15.0`** (`ecefba210dbec3aee6ad7db36500f68133819c46`), installed by name;
+**the re-pin alone moved 0 baselines** (1679 passed, 536 byte-identical). **|WALK| 134 -> 140, `ROUTES` 37,
+`OVERLAY_STATES` 78 -> 84 (the six are spread in as `RISK_ALERT_STATES`), `STORE_STATES` 11; baselines 536 -> 560 (24
+added, 0 changed, 0 deleted); tests 1679 -> 1746 in 52 files.** `lint:tokens` scans **134** files with **5** exemptions
+(the shield slot's 82 px). Phase A2 (Opus) built and measured it in a census copy (`D:\Claude\_handoffs\gate103-phaseA2\`);
+the Phase A3 delta added R103-19; the build applied `proto-final.diff`. **Teku does every git write.** Register `2aw`.
+
+**No new writer, no stored field, no schema change, no seed or directory change.** The alert only reads and routes.
+
+### The rule — Decision 35, `src/data/transferRisk.ts`
+
+A bank send is flagged when it is the FIRST payment to a recipient the user added (in `userRecipients`, and no ledger row
+carries its `recipientId`) AND at least one of: (a) the directory's `accountAgeDays < 30`; (b) its `transactionCount <
+10`; (c) the amount is STRICTLY larger than every previous outflow (`amount < 0`, no `goalId`, MYR magnitude, crypto
+included, live `transactions`). Seeded `RECIPIENTS` never flag; crypto sends are not checked. Today's (c) figure is
+**RM 2,647.67** (`txn-ikea-0815`). A user-added payee the directory does not know is judged on (c) alone (R103-2).
+
+### The copy — Decision 36, `src/flows/transfer/riskCopy.ts`
+
+The headline names only what fired, and an account headline wins over (c): (a)+(b) "New Account with low activity.
+Possible Scam." (drawn); (a) "Newly opened account. Possible Scam."; (b) "Account with low activity. Possible Scam.";
+(c) alone "Unusually large first payment. Possible Scam.". The Details box lists one line per fired reason, (a) (b) (c),
+then "Flagged by Monarch's transfer checks"; 0 days reads "Account opened today", 0 transactions "No transactions
+recorded".
+
+### The screens — `HighRiskTransferAlert.tsx`, three views, each its own `Modal` keyed by view
+
+Warning ("High-Risk Transfer"), Education ("Smart Fraud Protection") and Confirm ("Proceed with high-risk transfer").
+**History:** flagged Transfer money pushes `{ alert: 'warning' }`; the explainer pushes `{ alert: 'education' }`; Proceed
+replaces with `{ alert: 'confirm' }`, then with Flow 4's `{ review: true }`; Cancel / ✕ / Escape / scrim / device Back
+go BACK. The alert is derived every render from the live draft and the live rule, so a restored alert entry with no
+draft shows nothing. **Focus** opens on each view's ✕ and returns to Transfer money on close, held over 400 ms.
+
+**All three views cap to the `Modal`'s box (R103-19):** `.mvp-risk-modal .mn-modal__card { max-height: 100% }` and
+`.mn-modal__content { min-height: 0; overflow-y: auto }`, the receipt viewer's G33 pair scoped to this class. When the
+card is taller than the box the content area scrolls and the ✕ and the buttons stay (Material pins the title and buttons
+when dialog content scrolls). Deleted with the receipt viewer's pair at the re-pin after G33 closes; the class stays
+while `e2e/harness.ts` selects through it. B8 asserts it at 375 × 667, 375 × 812 and 430 × 812.
+
+**"BACK" AND "REPLACE WITH THE PREVIOUS ENTRY" RENDER IDENTICALLY, so a spec must read `history.state.idx`** (written by
+React Router's `getHistoryState`). B3 did not, and mutation M43 survived until it did.
+
+### The shield — Decision 37
+
+`public/media/illustrations/shield.png`, Teku's export, byte-identical (sha256 `f0e45047…e1678`), through
+`illustrationUrl()`. It sits in a clipped 82 × 80 slot (`overflow: clip`, `min-height: 0`) so no part of it overhangs
+the content box; the image keeps its 82 × 82 box and the visible art lands within 0.03 px of Figma's framing (68.23 ×
+66.14 at 71.81 / 141.39 against 68.24 × 66.15 at 71.81 / 141.42) at 6.24 source px per CSS px. `alt=""`. No white
+outline in dark (a transparent cut-out, measured).
+
+### Findings
+
+- **The education card is 790 tall at 375 × 812 and the warning 710 at 375 × 667 — both capped** (R103-19, above).
+- **The 2 px scroll surplus on the education content was the 997 line, not the shield:** 14 px type in a 16 px line box;
+  Poppins' glyph box hangs 2 px below the content box and counts as scrollable overflow. `overflow: clip` on
+  `.mvp-risk-education__nsrc` removes it (pixel-identical, light and dark at 375 and 430). `overflow-clip-margin` does
+  not help (the margin is counted again). B8 asserts `scrollHeight === clientHeight` EXACTLY wherever the card fits.
+- **A scroll container re-rasters antialiased edges even when nothing scrolls:** ±1–2 on the Details box corners, and
+  the education's text moved from grayscale to subpixel antialiasing once the phantom overflow was gone (control:
+  with the 2 px put back the education 430 differs from the old image by only 124 px). 20 of the 24 alert baselines
+  were re-minted for it; the 4 confirm ones did not move.
+- **`overflow: clip` is not a scroll container, so an `aspect-ratio` box keeps its content-based minimum height:** the
+  shield slot was 81 tall until `min-height: 0` (B8 asserts 80).
+- **`min-height: 0` beside `overflow-y: auto` is redundant** (a flex item with a non-visible overflow already has an
+  automatic minimum of 0; mutation M45b). The receipt viewer's comment calling it load-bearing is wrong for the same
+  reason.
+- **The Gate 98 package-file trap recurs:** under the real `.gitattributes`, `git apply` writes `package.json` and
+  `package-lock.json` CRLF. Copy their census bytes.
+- **The anchored `OVERLAY_STATES` grep stays stale:** it counts literal `overlay: {` lines and misses spread arrays
+  (Gate 98's ten, this gate's six). Use the section-header sweep's counts.
+
+### Deliberately not in scope
+
+G71; G62, G63, G67, G70; G72–G74 (DS round); the DS `Modal` itself (G33 stays a DS-round gap); the 160 px reserve; the
+thousands separator; Flow 4's flag; crypto alerts; other identifier types; any seed or directory change; editing the
+shield.
+
+**Next free: gap G75, Teku decision 40.**

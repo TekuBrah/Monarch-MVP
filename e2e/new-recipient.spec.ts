@@ -271,6 +271,9 @@ test('B1 add Gunther, send him money: the new recipient flows through Flow 4 unc
   await page.locator('.mvp-send input[role="combobox"]').fill('10000.00')
   await expect(page.locator('.mvp-send__balance')).toHaveText('Your new balanceRM 17,978.59')
   await page.locator('.mvp-send__body > .mn-btn--primary').click()
+  // Gate 103: Gunther is Decision 35's drawn case; two Proceeds reach Flow 4's review sheet.
+  await page.getByRole('dialog', { name: 'High-Risk Transfer' }).getByRole('button', { name: 'Proceed Anyway' }).click()
+  await page.getByRole('dialog', { name: 'Proceed with high-risk transfer' }).getByRole('button', { name: 'Proceed Anyway' }).click()
   await page.locator('.mn-sheet__actions .mn-btn--primary').click()
   await expect(page.locator('.mvp-transfer-done__hero')).toHaveText('Transfer successfulRM 10,000.00to Gunther Cenperk')
 

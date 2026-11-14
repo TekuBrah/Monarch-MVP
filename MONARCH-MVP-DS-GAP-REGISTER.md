@@ -5421,3 +5421,50 @@ B11 (the original stop clause was the thread's error: unsatisfiable given what t
   0 failed; 23 of 23 mutations proved, the negative control refused; `build:package` entry 6,007,236 bytes, CSS 204,728.
 
 ### Nothing was removed from this register at this gate.
+
+## 2aw. Status at MVP Gate 103 (2026-11-13) — Flow 6 part 2: the high-risk transfer alert; DS v2.15.0; G72–G74 entered (DS Gate 104's findings); Decision 39 recorded
+
+**The pin moved `v2.14.0` -> `v2.15.0` (`ecefba210dbec3aee6ad7db36500f68133819c46`) and moved 0 baselines.** v2.15.0
+(DS Gate 104) added `Icon size="xxxl"` (56), `Avatar size="xl"` (56; placeholder glyph 32) and made
+`Link size="m" weight="semibold"` render 12 / 600. The alert uses all three. The first Phase A's draft G72 / G73 (no 56 px
+`Icon` / `Avatar`) are VOID — v2.15.0 closed them before they were entered.
+
+**Decision 39 = D (Teku, 11 Nov 2026):** the drawn sizes come from the DS first. Shipped in v2.15.0. **Next free Teku
+decision: 40.**
+
+### Entered at this gate — DS Gate 104's recorded findings, all OPEN, DS round
+
+- **G72 — OPEN.** The `Avatar` placeholder silhouette differs from Figma's at every size.
+- **G73 — OPEN.** The initials `Avatar`'s border sits outside its box, so it renders size + 2 px.
+- **G74 — OPEN.** Figma's initials surface is transparent; the code paints it white (light) / black (dark).
+
+### This gate's own findings — none opened
+
+- **The alert's three views cap to the `Modal`'s own box (R103-19).** `.mn-modal__card` has no `max-height` (G33), so the
+  education card (790 tall at 375 wide) overflowed the 780 px padded box at 375 × 812 (y 11–801), and at 375 × 667 the
+  education (790) and warning (710) cards pushed their buttons off screen. The fix is the receipt viewer's scoped G33
+  workaround (`.mvp-risk-modal .mn-modal__card { max-height: 100% }` and `.mn-modal__content { min-height: 0; overflow-y:
+  auto }`): the content scrolls, the ✕ and the footer stay (Material pins title and buttons when dialog content
+  scrolls). Removed with the receipt viewer's pair at the re-pin after the DS closes G33; the class stays while
+  `e2e/harness.ts` selects through it. **`min-height: 0` is redundant** next to `overflow-y: auto` (a flex item with a
+  non-visible overflow already has an automatic minimum of 0; mutation M45b); the receipt viewer's comment calling it
+  load-bearing is wrong for the same reason, not touched.
+- **A scroll container re-rasters antialiased edges even when nothing scrolls.** Capping all three views moved 20 of
+  the alert's 24 baselines (±1–2 on the Details box corners; the education's text changed antialiasing mode).
+- **The 2 px scroll surplus on the education content was the 997 line, not the shield.** 14 px type in a 16 px line box:
+  Poppins' glyph box hangs 2 px below the content box and counts as scrollable overflow; `overflow: clip` on that line
+  removes it pixel-identically (`overflow-clip-margin` does not). The shield's separate 1 px overhang is framed out
+  by a clipped 82 × 80 slot (`overflow: clip` is not a scroll container, so the slot also needs `min-height: 0` or it
+  is 81 tall).
+- **No white outline on the shield in dark** — measured (Phase A2 §3); nothing to enter.
+- **The warning card is 710 tall against Figma's 664** (the decided copy has four Details lines where Figma draws three;
+  two wrap at 375) and every alert footer is 140 against 152 (G28). Divergences, recorded.
+
+### Rulings (overturnable)
+
+R100-6 to R100-9, R102-8 and R103-1 to R103-11 as ruled 11 Nov; R103-12 to R103-17 proposed by the Gate 103 Phase A2
+report and taken at the build; **R103-18 withdrawn, replaced by R103-19** (the review thread, 13 Nov: cap all three
+views to the `Modal`'s box, content scrolls, ✕ and buttons stay; condition (1): nothing in the education content may
+extend past the content box, the visible art within 0.5 px of Figma's framing, the PNG untouched).
+
+**Tally: unchanged except G72–G74 entered OPEN.** Highest number G74; next free G75.

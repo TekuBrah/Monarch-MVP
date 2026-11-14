@@ -369,3 +369,19 @@ const ACCOUNT_MARK_DIR = '/media/profile'
 export function accountMarkUrl(filename: string): string {
   return `${ACCOUNT_MARK_DIR}/${filename}`
 }
+
+// ------------------------------------------------ illustrations (Flow 6)
+
+/**
+ * The directory decorative illustrations are served from — Gate 103 (R103-12).
+ * The high-risk alert's education overlay draws Teku's shield (Decision 37),
+ * which is neither a transaction mark nor a promotion, so it gets its own folder
+ * with its own README rather than borrowing one whose resolver means something
+ * else. No placeholder and no fallback: a missing file is a data defect, and
+ * `settleImages` fails the walk on it.
+ */
+const ILLUSTRATION_DIR = '/media/illustrations'
+
+export function illustrationUrl(filename: string): string {
+  return `${ILLUSTRATION_DIR}/${filename}`
+}

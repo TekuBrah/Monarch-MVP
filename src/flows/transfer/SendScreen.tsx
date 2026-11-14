@@ -17,6 +17,7 @@ import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAccounts } from '../../accounts/AccountsProvider'
 import { TransactionMark } from '../../components/TransactionMark'
 import { accountMarkUrl, mediaUrl } from '../../config/media'
+import { BANK_DIRECTORY } from '../../data/bankDirectory'
 import {
   buildSend,
   cashAccountLine,
@@ -26,8 +27,10 @@ import {
   transferAmountError,
 } from '../../data/derive'
 import { formatMyr } from '../../data/format'
+import { transferRisk } from '../../data/transferRisk'
 import { raiseNotice } from '../../shell/notices'
 import { useTouchedValidation } from '../finance/useTouchedValidation'
+import { HighRiskTransferAlert, type RiskAlertView } from './HighRiskTransferAlert'
 import { ReviewTransferSheet } from './ReviewTransferSheet'
 import { useTransferDraft } from './transferDraft'
 import './transfer.css'
@@ -50,6 +53,26 @@ function isReviewState(state: unknown): boolean {
   return typeof state === 'object' && state !== null
     ? (state as Record<string, unknown>)[REVIEW_STATE_KEY] === true
     : false
+}
+
+/**
+ * Location state that says which high-risk alert view is open — Gate 103
+ * (R103-3). Each view is its own history entry, like the review sheet.
+ */
+const ALERT_STATE_KEY = 'alert'
+const ALERT_VIEWS: readonly RiskAlertView[] = ['warning', 'education', 'confirm']
+
+function alertState(state: unknown): RiskAlertView | null {
+  if (typeof state !== 'object' || state === null) return null
+  const value = (state as Record<string, unknown>)[ALERT_STATE_KEY]
+  return ALERT_VIEWS.find((v) => v === value) ?? null
+}
+
+/** The location state with the alert key removed, for the review entry that replaces it. */
+function withoutAlert(state: unknown): Record<string, unknown> {
+  const next = { ...((state as Record<string, unknown> | null) ?? {}) }
+  delete next[ALERT_STATE_KEY]
+  return next
 }
 
 /**
@@ -77,14 +100,31 @@ function isReviewState(state: unknown): boolean {
  * here with everything kept. "Transfer now" writes the row, pops that entry and
  * then REPLACES this screen with the success page, so Back from the success
  * page lands on the picker (R93-6) and can never re-offer the same money.
+ *
+ * THE HIGH-RISK ALERT COMES FIRST WHEN THE RULE FLAGS THE SEND — Gate 103
+ * (Decision 35, R100-7, R103-3). "Transfer money" pushes `{ alert: 'warning' }`
+ * instead of the review; the explainer pushes `{ alert: 'education' }`;
+ * "Proceed Anyway" REPLACES the warning with `{ alert: 'confirm' }` and the
+ * confirm's "Proceed Anyway" REPLACES that with Flow 4's `{ review: true }`. So
+ * Cancel, ✕, the scrim, Escape and device Back all go one step back with the
+ * draft kept, and the history after a send is exactly Flow 4's. An unflagged
+ * send never sees any of it.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function SendScreen() {
   const { recipientId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const { fiatAccounts, primaryAccount, holdings, transactions, categoryRules, recipients, sendMoney } =
-    useAccounts()
+  const {
+    fiatAccounts,
+    primaryAccount,
+    holdings,
+    transactions,
+    categoryRules,
+    recipients,
+    userRecipients,
+    sendMoney,
+  } = useAccounts()
   const draft = useTransferDraft()
   const [fromOpen, setFromOpen] = useState(false)
   const [fromSearch, setFromSearch] = useState('')
@@ -119,10 +159,29 @@ export function SendScreen() {
   // amount behind it shows nothing — there is nothing to review.
   const isReviewOpen = reviewInHistory && error === null && sentId === null
 
+  // Decision 35, over the live ledger and the user's own recipients.
+  const risk = transferRisk({
+    recipient,
+    userRecipients,
+    directory: BANK_DIRECTORY,
+    transactions,
+    amountSen,
+  })
+  // A restored alert entry with no valid draft behind it, or one the rule no
+  // longer flags, shows nothing (R103-3) — the `isReviewOpen` pattern.
+  const alertView = error === null && sentId === null && risk.flagged ? alertState(location.state) : null
+
   const openReview = () => {
     if (!validation.attempt()) return
+    if (risk.flagged) {
+      navigate(location.pathname, { state: { ...(location.state as object), [ALERT_STATE_KEY]: 'warning' } })
+      return
+    }
     navigate(location.pathname, { state: { ...(location.state as object), [REVIEW_STATE_KEY]: true } })
   }
+
+  const showAlert = (view: RiskAlertView, replace: boolean) =>
+    navigate(location.pathname, { replace, state: { ...(location.state as object), [ALERT_STATE_KEY]: view } })
 
   const confirm = () => {
     const row = buildSend({
@@ -260,6 +319,23 @@ export function SendScreen() {
         fromLabel={`${from.name} · ${cashAccountLine(holdings, from)}`}
         newBalance={newBalance}
       />
+
+      {alertView && (
+        <HighRiskTransferAlert
+          view={alertView}
+          risk={risk}
+          recipient={recipient}
+          onClose={() => navigate(-1)}
+          onLearn={() => showAlert('education', false)}
+          onProceed={() => showAlert('confirm', true)}
+          onProceedConfirmed={() =>
+            navigate(location.pathname, {
+              replace: true,
+              state: { ...withoutAlert(location.state), [REVIEW_STATE_KEY]: true },
+            })
+          }
+        />
+      )}
     </div>
   )
 }
