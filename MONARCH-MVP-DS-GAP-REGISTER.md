@@ -5468,3 +5468,109 @@ views to the `Modal`'s box, content scrolls, ✕ and buttons stay; condition (1)
 extend past the content box, the visible art within 0.5 px of Figma's framing, the PNG untouched).
 
 **Tally: unchanged except G72–G74 entered OPEN.** Highest number G74; next free G75.
+
+## 2ax. Status at MVP Gate 105 (2026-11-15) — Flow 6 closed; G75 opened; G71 investigated, Decision 40 = B (stays OPEN until Gate 106); corrections to the record
+
+**The tally moves by one: G75 is opened.** Chained from §2av's 70 / 40 / 30 (G72–G74 entered OPEN at §2aw: 73 / 40 / 33):
+**74 entries, 40 closed, 34 open; the highest number is G75.** The open count is chained, not re-derived (the §2av caveat
+still applies; the register-tally audit is the hygiene round's). **Next free: section `2ay`, gap `G76`; next free Teku
+decision 41** (Decision 40 = B is G71's, below). Gate 105 wrote documents only: `FLOW-6-COMPLETION.md` (new), `CLAUDE.md` and this section.
+No file under `src/`, `e2e/` or `public/` changed; 560 baselines, digest
+`63fe1401c56717b4a918cab1302c436038ffcad8bc8da57a3a79b6adcc39ba80`; `--list` 1746 tests in 52 files; DS `v2.15.0`.
+
+### Opened
+
+- **G75 — OPEN, UI integration round. The "Demo data restored." notice stays on screen after leaving Settings and sits
+  over the lower half of "+ New recipient"** (button y 596–646, toast y 612–652 at 375 × 812), so a tap at the button's
+  centre is intercepted until the toast's × is pressed [reported, Gate 103 Phase B §6]. Owner, re-derived at Gate 105:
+  the notice kind `reset-done` (`src/shell/notices.ts:96`, Gate 87), raised by `src/settings/SettingsScreen.tsx:82` after
+  Reset data and drawn by `src/shell/NoticeHost.tsx`; `AppShell.tsx:37-39` dismisses only the `coming-soon` kind on a
+  route change, so `reset-done` follows the user (Gate 87: no timer, like every toast here). **Decision: solution
+  concluded, fix put off** — the UI integration round decides whether `reset-done` clears on a route change like
+  `coming-soon`, takes a timer, or stays and lifts clear of in-page controls.
+
+### G71 — investigated at Gate 105; Decision 40 = B; stays OPEN until Gate 106
+
+The form collects Account Type, Transfer Type, Recipient Reference and Other Payment Details, validates them, and
+discards them at save (R101-9). Gate 105 read, read-only:
+
+- **Figma** (case study `v9MI8jxTaXiJA234Hkanlf`, remote connector; `figma-local` refused): **no frame after the form
+  draws a reference or payment-details row.** Flow 6 `1266:14356` holds seven frames (`1266:14382`–`14388`); only
+  `1266:14387` (the form) draws "Recipient Reference" and "Other Payment Details ( Optional )". `1266:14388` (the amount
+  screen), `1266:14382`, `1266:14383` and `1266:14384` (the alert) draw none. Flow 4's section `1266:14389` holds four
+  frames (`1266:14390`–`14393`) and draws no review and no success screen. The transaction-detail frame `1266:14278`
+  draws Date & Time, Category, Payment Method and an "Add a note" field (`I1266:14278;1029:9930`, G52) — a note, not a
+  reference.
+- **Code:** the stored `UserRecipient` is `id, name, kind, accountNo, bankCode, mark, addedAt`; the draft
+  (`NewRecipientDraft`, `transferDraft.tsx:43`) holds the four values until the flow ends. The review sheet prints To,
+  From and Your new balance; the bank success page prints From, To and Date; the detail sheet's **"Reference" row is
+  Monarch's own `MNRC…` bank reference** (Gate 81, `transactionReference`), a different thing from the form's
+  "Recipient Reference".
+- **Real world:** Malaysian banks treat the recipient reference as **per transfer and shown to the payee** — BNP
+  Paribas Malaysia lists "Recipient Reference (Mandatory)" and "Other Payment Details (Optional)" as fields that appear on
+  the payee's statement; CIMB describes it as a note the recipient sees in their bank statement, entered when you make a
+  transfer; HSBC Malaysia raised the DuitNow recipient-reference field to 140 characters from 21 March 2021. So a reference
+  belongs on a transfer, not on a payee — R101-7's 40 characters (Standard Chartered) is the shorter of two documented
+  limits.
+- **Options with costs** are in `D:\Claude\_handoffs\gate105\REPORT.md` §4: leave it discarded and record why; carry it
+  onto the first send's ledger row (schema v6); a per-transfer field on Flow 4's amount screen pre-filled from the payee;
+  or remove the fields from the form.
+- **Decision 40 = B, delegated** (Teku's standing Flow 6 delegation of 7 Nov 2026, applied by the review thread 15 Nov
+  2026). The Recipient Reference and Other Payment Details typed on the new-recipient form are carried onto that first
+  send's ledger row, and shown on the review sheet and the detail sheet only when present. The rows are labelled
+  "Recipient Reference" and "Other Payment Details", kept distinct from the detail sheet's existing "Reference" row
+  (Monarch's `MNRC…` bank reference). Account Type and Transfer Type stay discarded (one working option each).
+  - **Basis:** the Gate 105 report §4.3 (CIMB, BNP Paribas Malaysia, HSBC Malaysia: a per-transfer reference shown to
+    the payee); it uses only drawn inputs; 0 existing baselines move; no tester reset.
+  - **Rejected:** A (the form keeps asking for something it discards), C (needs an undrawn field on a drawn screen,
+    which is Teku's call), D (overrides the drawing).
+  - **Recorded divergence:** a second payment has no reference entry, because Figma draws none; a drawn field would be
+    Teku's call.
+  - **Implementation: Gate 106** (schema v6, `MIGRATIONS[5]`). **G71 stays OPEN until Gate 106 closes.** Next free Teku
+    decision: 41.
+
+### Corrections to the record (history is not rewritten; the correction lives here)
+
+- **`mvp-gate103`'s tag message carries only its first line** ("MVP Gate 103 — Flow 6 part 2: the high-risk transfer
+  alert on DS v2.15.0."). Sourcetree's tag box dropped the pasted second line, so `close-check.sh tag` printed FAIL on the
+  message [verified 14 Nov]. The tag stays as published. From Gate 105 on, the tag message is one line.
+- **`close-check.sh` went silent, it did not die.** Teku's MinTTY runs (Gate 101 `commit`; Gate 103 `staged` and
+  `commit`) ended right after the last check before the baseline PNG count and digest, with no final line, while the
+  same scripts passed in the Phase B shells [verified 14 Nov]. At Gate 105 the Gate 103 script was re-run read-only in
+  Git for Windows' own MinTTY 3.8.2 (bash 5.3.9), with `--login -i`, with `LC_ALL=C` and with an ISO-8859-1 locale: **it
+  reached its final line every time, in 74–96 s**. The digest step alone is a loop of one `git`, one `sha256sum` and one
+  `cut` per PNG — **1,680 child processes, 51–80 s with no output**. Stopping the script from outside in that window
+  (`timeout -s INT` and `-s HUP`) reproduces the reported output exactly: the last line is the check before the digest
+  and there is no final line. What stopped Teku's runs (Ctrl+C, closing the window, or something else) is not
+  established. Gate 105's script computes the digest in one `node` process with one `git cat-file --batch`, prints a
+  progress line before it, and has an `EXIT` trap that prints `STOP - script ended early after: <last check>`.
+- **The receipt viewer's G33 comment (`finance.css`) calls `min-height: 0` load-bearing**; Gate 103's M45b shows it is
+  redundant beside `overflow-y: auto`. Hygiene round; not edited.
+- **Gate 103 Phase B's walk-text corrections:** "Total Balance" exists nowhere in `src/` or `e2e/` (Home shows "Hi,
+  Margaret" and the Main card); the "Demo data restored." toast must be dismissed before tapping "+ New recipient"
+  (G75); after Cancel Transfer the next payee is reached through the **To** field; the step-15 reset starts by going
+  back to Home (the picker has no Settings avatar).
+- **Gate 100** (the Flow 6 investigation, 7 Nov 2026, no commit) is named in no record before `FLOW-6-COMPLETION.md`.
+- **R100-5, R100-10 and R103-11 had no wording on any file before Gate 105.** Their wording is carried from the review
+  thread here and in `FLOW-6-COMPLETION.md` §5.3:
+  - **R100-5** [carried: review thread, wording as held 14 Nov; date not recorded]: Crypto "+ New recipient" and Scan QR
+    stay "Coming soon." (undrawn; scope rule).
+  - **R100-10** [carried: review thread, wording as held 14 Nov; date not recorded]: the sequence, amended after Gate
+    101's first Phase A stopped: 101 → 102 DS → 101 restart → 103 → 104. **Superseded:** DS Gate 104 took the number 104,
+    and the record became Gate 105.
+  - **R103-11** [carried: review thread, wording as held 14 Nov; ruled 11 Nov]: headlines by what fired, an account
+    headline winning over (c): (a) + (b) "New Account with low activity. Possible Scam." (drawn); (a) only "Newly opened
+    account. Possible Scam."; (b) only "Account with low activity. Possible Scam."; (c) only "Unusually large first
+    payment. Possible Scam.". It matches the shipped copy (`src/flows/transfer/riskCopy.ts:16-19`).
+- **Gate 101's date: built 9 Nov 2026, committed and tagged 11 Nov 2026.** §2av is headed 2026-11-09, the build date;
+  the `mvp-gate101` commit and tag are dated 2026-11-11 (Phase B ran on the 10th–11th).
+- **Four orphan pack indexes** (`.git/objects/pack/*.idx` with no `.pack`) make `git count-objects` print warnings;
+  harmless to every read, not touched.
+
+### The Flow 6 tally
+
+Flow 6 entered G68 and G69 closed (v2.14.0), opened G70 and G71, entered G72–G74 open (DS Gate 104's findings) and
+opened G75: **8 entries, 2 closed, 6 open.** Decisions 35–40 (Teku, delegated; 40 applied by the review thread).
+**Next free: gap G76, Teku decision 41.**
+
+### Nothing was removed from this register at this gate.

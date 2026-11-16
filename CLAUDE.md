@@ -20788,3 +20788,37 @@ thousands separator; Flow 4's flag; crypto alerts; other identifier types; any s
 shield.
 
 **Next free: gap G75, Teku decision 40.**
+
+## Flow 6 — completion record (Gate 105)
+
+**FLOW 6 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-6-COMPLETION.md` AT THE REPO ROOT.** Read it first, before any
+Flow 6 work, before Scan QR or another identifier type, and before a gate touches `/transfer/new`, `userRecipients`,
+`bankDirectory.ts`, `transferRisk.ts` or the alert. It covers the screens and the one writer, the history shapes, the rule
+and its copy, schema v5, **the test-accounts table** (which payee alerts at any amount and which only above the (c)
+figure, RM 2,647.67 on fresh demo data), Teku's Decisions 35–39 and the R100, R101, DS R102, R103 and DS R104 rulings, the
+deviations from Figma, the open items and the gate list. The per-gate sections above (Gates 101 and 103) remain the
+evidence behind it. **Do not restate its content here.**
+
+**Gate 100 is the Flow 6 investigation** (7 Nov 2026, Phase A only, no commit; `D:\Claude\_handoffs\gate100-phaseA\`). Its
+forks F1–F14 became Decisions 35–39 and the R100 rulings. The Gate 101 section above does not name it.
+
+Gate 105 wrote documents only: no file under `src/`, `e2e/` or `public/` changed; 560 baselines at digest
+`63fe1401c56717b4a918cab1302c436038ffcad8bc8da57a3a79b6adcc39ba80`; `--list` 1746 tests in 52 files; DS `v2.15.0`.
+Register §2ax opens G75 (the "Demo data restored." notice over "+ New recipient"), records G71's investigation and
+Decision 40, and records why the close-check scripts went silent in MinTTY: a 51–80 s digest loop with no output, not a
+crash.
+
+**Decision 40 = B, delegated** (Teku's standing Flow 6 delegation of 7 Nov 2026, applied by the review thread 15 Nov
+2026; `FLOW-6-COMPLETION.md` §10). The Recipient Reference and Other Payment Details typed on the new-recipient form are
+carried onto that first send's ledger row, and shown on the review sheet and the detail sheet only when present, under
+the labels "Recipient Reference" and "Other Payment Details" — never "Reference", which is the detail sheet's existing
+row for Monarch's `MNRC…` bank reference (Gate 81). Account Type and Transfer Type stay discarded (one working option
+each). Basis: CIMB, BNP Paribas Malaysia and HSBC Malaysia document a per-transfer reference shown to the payee
+(Gate 105 report §4.3); only drawn inputs; 0 existing baselines move; no tester reset. Rejected: A (the form keeps asking
+for something it discards), C (an undrawn field on a drawn screen, Teku's call), D (overrides the drawing). Recorded
+divergence: a second payment has no reference entry, because Figma draws none. **Built at Gate 106** (schema v6,
+`MIGRATIONS[5]`); **G71 stays OPEN until Gate 106 closes.**
+
+**THE TAG MESSAGE IS ONE LINE.** Sourcetree's tag box keeps only the first line (`mvp-gate103`'s second line was lost).
+
+**Next free: section `2ay`, gap `G76`, Teku decision 41.**
