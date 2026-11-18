@@ -155,6 +155,14 @@ export function SendScreen() {
 
   const amountSen = sendAmountSen(draft.amount)
   const newBalance = (Math.round(from.balance * 100) - amountSen) / 100
+  // GATE 106 (Decision 40 = B): the form's reference and note, ONLY for the
+  // recipient it just saved, and only until this journey's first send clears the
+  // draft. A send to anyone else — or after a reload, which drops the draft —
+  // carries none.
+  const firstSendDetails =
+    draft.firstSend !== null && draft.firstSend.recipientId === recipient.id
+      ? draft.firstSend.details
+      : undefined
   // A history entry carrying `review` that a reload restored with no valid
   // amount behind it shows nothing — there is nothing to review.
   const isReviewOpen = reviewInHistory && error === null && sentId === null
@@ -191,8 +199,24 @@ export function SendScreen() {
       now: new Date(),
       transactions,
       rules: categoryRules,
+      details: firstSendDetails,
     })
-    sendMoney(row)
+    try {
+      sendMoney(row)
+    } catch (refusal) {
+      // GATE 106 (R106-9): `sendMoney` judges the row against the COMMITTED
+      // state before any write, so a refusal means this draft has gone stale
+      // (another tab changed the ledger or a balance). Nothing was written.
+      // Say so — a throw in a handler is no render error and would otherwise
+      // leave the review open with no message — close the review (the notice
+      // sits behind it), and drop the stale draft, whose carried details would
+      // be refused again on every retry. Logged, so a genuine bug is not hidden.
+      console.warn('Transfer refused:', refusal)
+      raiseNotice('send-refused')
+      draft.clear()
+      navigate(-1)
+      return
+    }
     draft.clear()
     setSentId(row.id)
     navigate(-1)
@@ -318,6 +342,7 @@ export function SendScreen() {
         recipient={recipient}
         fromLabel={`${from.name} · ${cashAccountLine(holdings, from)}`}
         newBalance={newBalance}
+        details={firstSendDetails}
       />
 
       {alertView && (

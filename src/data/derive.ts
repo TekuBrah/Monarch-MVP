@@ -12,6 +12,8 @@ import { TRANSACTION_CATEGORIES } from './transactions'
 import { firstPassFailed } from './ocr/secondPass'
 import { CRYPTO_UNIT_PRICES } from './accounts'
 import { CRYPTO_NETWORKS, FEE_TIER_LABELS, type FeeTier } from './cryptoNetworks'
+// Gate 106: the reference presets and the note's cap (a data-only module).
+import { OTHER_DETAILS_MAX, REFERENCE_OPTIONS } from './newRecipientOptions'
 import type {
   Amount,
   Bank,
@@ -39,6 +41,7 @@ import type {
   TransactionDisposition,
   TransactionKind,
   TransactionMethod,
+  TransferDetails,
   UserRecipient,
 } from './types'
 
@@ -2634,8 +2637,15 @@ export function buildSend(input: {
   now: Date
   transactions: readonly Transaction[]
   rules: readonly CategoryRule[]
+  /**
+   * GATE 106 (Decision 40 = B): what the new-recipient form said to send with
+   * this, the first payment. Omitted on every other send, and then the row
+   * carries NO `transferDetails` key at all — not `undefined` — so a send
+   * without details is byte-for-byte the Gate 93 row.
+   */
+  details?: TransferDetails
 }): Transaction {
-  const { recipient, accountId, amountSen, now, transactions, rules } = input
+  const { recipient, accountId, amountSen, now, transactions, rules, details } = input
   const occurredAt = localWallClock(now)
   return {
     id: `txn-send-${crypto.randomUUID()}`,
@@ -2649,6 +2659,7 @@ export function buildSend(input: {
     occurredAt,
     category: sendCategory(recipient, transactions, rules),
     recipientId: recipient.id,
+    ...(details ? { transferDetails: details } : {}),
     reference: newReference(occurredAt),
   }
 }
@@ -2683,6 +2694,56 @@ export function sendRowProblem(
     return `is a ${row.kind}, but a send to a ${recipient.kind} is a ${sendKind(recipient)}`
   }
   if (!row.reference) return 'carries no reference'
+  return null
+}
+
+/**
+ * WHAT THE NEW-RECIPIENT FORM'S TWO FIELDS BECOME ON A ROW — Gate 106
+ * (Decision 40 = B). The reference id passes as chosen (presets only, R101-5);
+ * the typed note is trimmed and, when nothing is left, DROPPED rather than
+ * stored as an empty string, so the detail sheet's row can only appear when
+ * there is text. Account Type and Transfer Type are not here: each has one
+ * working option, so they carry no information (Decision 40).
+ */
+export function transferDetailsFrom(fields: { reference: string; otherDetails: string }): TransferDetails {
+  const note = fields.otherDetails.trim().slice(0, OTHER_DETAILS_MAX).trim()
+  return note === ''
+    ? { recipientReference: fields.reference }
+    : { recipientReference: fields.reference, otherPaymentDetails: note }
+}
+
+/**
+ * WHY A ROW MAY NOT CARRY `transferDetails`, OR NULL — Gate 106. A SIBLING of
+ * `sendRowProblem`, not a fifth parameter on it, so its Gate 93 callers and
+ * tests are untouched; `sendMoney` calls both before any setter (R89-8). Null
+ * for a row with no details, which is every row but one.
+ *
+ * Decision 40's scope, as clauses: the details ride only on a Fund Transfer to a
+ * recipient THE USER ADDED (never a seeded one), only on its FIRST payment (no
+ * committed row names that recipient yet), never on a crypto send, and only
+ * with a preset reference and a note inside R101-7's cap.
+ */
+export function transferDetailsProblem(
+  row: Transaction,
+  userRecipients: readonly UserRecipient[],
+  transactions: readonly Transaction[],
+): string | null {
+  const details = row.transferDetails
+  if (details === undefined) return null
+  if (row.crypto !== undefined || row.method !== 'Fund Transfer') return 'carries transfer details on a crypto send'
+  if (!userRecipients.some((r) => r.id === row.recipientId)) {
+    return `carries transfer details to ${String(row.recipientId)}, a recipient the user did not add`
+  }
+  if (transactions.some((t) => t.recipientId === row.recipientId)) {
+    return `carries transfer details on a second payment to ${String(row.recipientId)}`
+  }
+  if (!REFERENCE_OPTIONS.some((o) => o.id === details.recipientReference)) {
+    return `has no reference preset ${details.recipientReference}`
+  }
+  const note = details.otherPaymentDetails
+  if (note !== undefined && (note === '' || note.length > OTHER_DETAILS_MAX || note.trim() !== note)) {
+    return `has other payment details outside 1–${OTHER_DETAILS_MAX} trimmed characters`
+  }
   return null
 }
 

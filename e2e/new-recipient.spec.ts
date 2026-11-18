@@ -149,7 +149,7 @@ test('N4 the merge, and a saved recipient counts as recent activity (R101-6)', (
 })
 
 test('N5 schema v5: a new collection, an empty step from v4, a total validator, the silhouette logo', () => {
-  expect(SCHEMA_VERSION).toBe(5)
+  expect(SCHEMA_VERSION).toBe(6) // Gate 106: v6 added transferDetails; v5 is still the step below
   expect(RECORD_KEYS).toContain('userRecipients')
   const v4 = toStored(seedState()) as unknown as Record<string, unknown>
   delete v4.userRecipients

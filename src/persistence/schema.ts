@@ -1,6 +1,9 @@
 import { CRYPTO_HOLDINGS } from '../data/accounts'
 import { BANKS } from '../data/banks'
 import { TRANSACTION_CATEGORIES } from '../data/transactions'
+// Gate 106: the reference presets and the note's cap. A data-only module with no
+// imports of its own, so the persistence layer takes no flow code with it.
+import { OTHER_DETAILS_MAX, REFERENCE_OPTIONS } from '../data/newRecipientOptions'
 import type {
   Budget,
   CategoryRule,
@@ -65,7 +68,15 @@ import type { CaptureSource } from './captureFacts'
  * resets no tester. `MIGRATIONS[4]` adds it EMPTY. One new logo case,
  * `{ kind: 'placeholder' }`, which a send to a new recipient writes onto its row.
  */
-export const SCHEMA_VERSION = 5
+/*
+ * VERSION 6 — Gate 106 (Decision 40 = B): one optional row field,
+ * `Transaction.transferDetails` — the Recipient Reference and Other Payment
+ * Details the new-recipient form collected, carried on that recipient's first
+ * send. `MIGRATIONS[5]` IS THE IDENTITY: a v5 row is a valid v6 row with none.
+ * No collection, no seed and no constant moves, so `seedFingerprint` is
+ * unchanged and this bump resets no tester; `DB_VERSION` does not move.
+ */
+export const SCHEMA_VERSION = 6
 
 /** A crypto holding as stored: the quantity is the only fact a send changes. */
 export interface StoredCryptoHolding {
@@ -188,7 +199,27 @@ export function isStoredTransaction(v: unknown): boolean {
     // Gate 93, schema v2: the recipient a send went to.
     optional(isNonEmptyStr)(v.recipientId) &&
     // Gate 98, schema v4: what a crypto send moved, in the token.
-    optional(isCryptoSendDetail)(v.crypto)
+    optional(isCryptoSendDetail)(v.crypto) &&
+    // Gate 106, schema v6: the payer's note to the payee, on a first send.
+    optional(isTransferDetails)(v.transferDetails)
+  )
+}
+
+const isReferenceId = oneOf(...REFERENCE_OPTIONS.map((o) => o.id))
+
+/**
+ * Gate 106: a preset reference id (R101-5) and, when present, a typed note that
+ * is not blank, carries no leading or trailing space (the writer trims it) and
+ * fits `OTHER_DETAILS_MAX` (R101-7). An empty note is never stored — it is absent.
+ */
+export function isTransferDetails(v: unknown): boolean {
+  return (
+    isRec(v) &&
+    isReferenceId(v.recipientReference) &&
+    optional(
+      (s) =>
+        isStr(s) && s.length > 0 && s.length <= OTHER_DETAILS_MAX && s.trim() === s,
+    )(v.otherPaymentDetails)
   )
 }
 
@@ -411,6 +442,10 @@ export const MIGRATIONS: Record<number, (records: unknown) => unknown> = {
       : records,
   // 4 -> 5 (Gate 101): the new collection, empty — nobody had added a recipient.
   4: (records) => (isRec(records) ? { ...records, userRecipients: [] } : records),
+  // 5 -> 6 (Gate 106): the identity. A v5 row is a valid v6 row that simply
+  // carries no `transferDetails`; the step must still exist, or a v5 store has
+  // no path and is quarantined.
+  5: (records) => records,
 }
 
 // ───────────────────────────── the fingerprint ─────────────────────────────

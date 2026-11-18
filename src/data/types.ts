@@ -462,6 +462,37 @@ export interface Transaction {
    * negative MYR TOTAL (sent + fee), the seeded crypto rows' convention.
    */
   crypto?: CryptoSendDetail
+  /**
+   * WHAT THE NEW-RECIPIENT FORM SAID TO SEND WITH THE FIRST PAYMENT — Gate 106
+   * (Decision 40 = B), schema v6. The form (`1266:14387`) collects a Recipient
+   * Reference and Other Payment Details; a Malaysian bank sends both with the
+   * transfer and the payee sees them (CIMB, BNP Paribas Malaysia, HSBC Malaysia —
+   * Gate 105 report §4.3), so they belong to the TRANSFER, not to the payee.
+   *
+   * PRESENT EXACTLY ON THE FIRST SEND TO A RECIPIENT THE USER JUST ADDED, made in
+   * the same journey; absent on every other row — a second payment, a send to a
+   * seeded recipient, a crypto send, and every seeded row. ONE optional object,
+   * not two peer optionals (the Gate 77 lesson `crypto` follows): the reference
+   * always has a value when the object does, so "other details without a
+   * reference" is unrepresentable.
+   *
+   * NOT `reference`. That field is Monarch's own `MNRC…` bank reference (Gate 81),
+   * printed on the detail sheet's "Reference" row; this is what the payer wrote
+   * for the payee, printed under its own labels.
+   */
+  transferDetails?: TransferDetails
+}
+
+/**
+ * Gate 106 — the payer's note to the payee, carried on the first send.
+ * `recipientReference` is an id from `REFERENCE_OPTIONS` (presets only, R101-5),
+ * printed through its label; `otherPaymentDetails` is the typed text, trimmed,
+ * at most `OTHER_DETAILS_MAX` characters (R101-7), and ABSENT — never an empty
+ * string — when nothing was typed, so its row can only appear when there is text.
+ */
+export interface TransferDetails {
+  recipientReference: string
+  otherPaymentDetails?: string
 }
 
 export interface CryptoSendDetail {

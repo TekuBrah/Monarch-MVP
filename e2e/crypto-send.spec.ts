@@ -172,7 +172,7 @@ test('N6 the debit moves only the sent token: quantity sent plus fee, value re-d
 })
 
 test('N7 schema v4: a seventh collection stored as id and quantity, a migration from v3, total validators', () => {
-  expect(SCHEMA_VERSION).toBe(5) // Gate 101: v5 added userRecipients
+  expect(SCHEMA_VERSION).toBe(6) // Gate 101: v5 added userRecipients; Gate 106: v6 transferDetails
   expect(RECORD_KEYS).toContain('cryptoHoldings')
   const v4 = toStored(seedState())
   expect(v4.cryptoHoldings).toEqual(CRYPTO_HOLDINGS.map(({ id, quantity }) => ({ id, quantity })))

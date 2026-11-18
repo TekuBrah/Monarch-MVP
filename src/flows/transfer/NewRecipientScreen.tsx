@@ -10,6 +10,7 @@ import {
   bankGroups,
   buildRecipient,
   lookupAccount,
+  transferDetailsFrom,
 } from '../../data/derive'
 import { currentNotice, dismissNotice, raiseNotice } from '../../shell/notices'
 import { useTouchedValidation } from '../finance/useTouchedValidation'
@@ -21,7 +22,7 @@ import {
   TRANSFER_TYPE_OPTIONS,
   optionLabel,
   type FormOption,
-} from './newRecipientOptions'
+} from '../../data/newRecipientOptions'
 import { useTransferDraft, type NewRecipientDraft } from './transferDraft'
 import './transfer.css'
 
@@ -245,7 +246,13 @@ export function NewRecipientScreen() {
     const account = lookupAccount(BANK_DIRECTORY, bank.code, pending.accountNo)!
     const recipient = buildRecipient({ account, now: new Date() })
     addRecipient(recipient)
-    draft.clearNewRecipient()
+    // GATE 106 (Decision 40 = B): the Recipient Reference and Other Payment
+    // Details go with the FIRST send to this recipient. Lifted out of the
+    // new-recipient draft in the same update that empties it.
+    draft.saveNewRecipient({
+      recipientId: recipient.id,
+      details: transferDetailsFrom({ reference: pending.reference, otherDetails: pending.otherDetails }),
+    })
     setSavedId(recipient.id)
     navigate(-2)
   }

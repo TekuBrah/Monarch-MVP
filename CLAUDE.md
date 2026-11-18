@@ -20822,3 +20822,179 @@ divergence: a second payment has no reference entry, because Figma draws none. *
 **THE TAG MESSAGE IS ONE LINE.** Sourcetree's tag box keeps only the first line (`mvp-gate103`'s second line was lost).
 
 **Next free: section `2ay`, gap `G76`, Teku decision 41.**
+
+## Decision 40 = B — the recipient reference rides on the first send (Gate 106)
+
+No DS re-pin — **v2.15.0 throughout**, and no DS file was written. G71 is closed: the Recipient Reference and Other
+Payment Details typed on the new-recipient form (`1266:14387`) now travel onto the ledger row of that recipient's first
+send, and show on the review sheet and the detail sheet. **|WALK| 140 -> 143, `ROUTES` 37, `OVERLAY_STATES` 84 -> 87,
+`STORE_STATES` 11; baselines 560 -> 572 (12 added, 0 changed, 0 deleted); tests 1746 -> 1783 in 53 files; schema v5 ->
+v6.** `lint:tokens` scans **134** files (no file entered `src/`) with the same **5** exemptions. Phase A (Opus) built and
+measured it in a census copy (`D:\Claude\_handoffs\gate106-phaseA\`). Register `2ay` closes G71 and records the Gate 105
+commit-message correction.
+
+### What is carried, and where it lives between the save and the send
+
+- **The row field:** `Transaction.transferDetails?: { recipientReference: string; otherPaymentDetails?: string }` — ONE
+  optional object, the `crypto` shape (the Gate 77 lesson), so a note without a reference is unrepresentable.
+  `recipientReference` is a `REFERENCE_OPTIONS` **id** (`'family-support'`), printed through `optionLabel`; the note is
+  trimmed, 1–40 characters (R101-7), and **absent — never `''` — when nothing was typed** (`transferDetailsFrom`).
+- **The draft:** `TransferDraft.firstSend: { recipientId, details } | null`. `saveNewRecipient` sets it **in the same
+  update that empties `newRecipient`** — it replaced Gate 101's `clearNewRecipient`, so there is no render in which the
+  values are in neither place. The amount screen reads it only when `firstSend.recipientId` is the screen's recipient.
+- **It is emptied** by `clear()` after any send (so a second payment carries none) and by the leave-`/transfer*` reset.
+  **Not stored:** a reload drops it, and that send carries none — the Gate 85 standard for an unsent draft, stated and
+  tested (B7).
+- **Account Type and Transfer Type stay discarded** (one working option each; Decision 40).
+
+### The write path
+
+`buildSend` takes optional `details` and adds the key **only when given** (no `transferDetails: undefined`), so every
+other send is byte-for-byte the Gate 93 row. A **sibling** pure check, `transferDetailsProblem(row, userRecipients,
+transactions)`, runs beside `sendRowProblem` in `sendMoney` before any setter (R89-8): the details may ride only on a
+Fund Transfer to a recipient the user added, on its first payment (no committed row names that recipient), with a preset
+reference and a note inside the cap. A sibling and not a fourth parameter, so `sendRowProblem`'s Gate 93 callers and
+tests are untouched. `schema.ts` and `derive.ts` import `REFERENCE_OPTIONS` and `OTHER_DETAILS_MAX` from
+`src/data/newRecipientOptions.ts`, a data-only module with no imports.
+
+### Schema v6
+
+`SCHEMA_VERSION = 6`; `MIGRATIONS[5]` is the identity (a v5 row is a valid v6 row with no details);
+`isStoredTransaction` validates `optional(isTransferDetails)`. **`seedFingerprint()` is unchanged (`047c16cbf5461b`), so
+no tester is reset**; `DB_VERSION` does not move. The five `SCHEMA_VERSION` assertions moved 5 -> 6 (`crypto-send`,
+`merchant-rules`, `new-recipient`, `persistence-writers`, `send`; the R101-12 precedent) and no other existing test was
+edited.
+
+### The two sheets (undrawn; Claude's judgement)
+
+- **Review sheet:** "Recipient Reference" always and "Other Payment Details" when typed, **between From and Your new
+  balance** — they describe this transfer, the balance is its consequence.
+- **Detail sheet, purchase body** (a business send, 22A): after Payment Method. **The glyph slot is reserved empty**: the
+  purchase rows' glyphs are a grammar naming the field and the registry has no glyph for a reference or a note, so the
+  slot keeps the label column instead (the DS `OverlayHeader` precedent of an empty reserved track).
+- **Detail sheet, transfer body** (a person send): before Monarch's own `MNRC…` "Reference" row, never merged into it.
+- **Never labelled "Reference".** A long note **wraps and is never truncated** (`overflow-wrap: anywhere`, scoped to the
+  new rows; no existing row's CSS changed). **Not on the success page** (Decision 40 names the two sheets).
+
+### Walk states and tests
+
+`PAYEE_DETAILS_STATES` (appended to `WALK`): `/transfer/new [overlay:payee-review]` — the whole journey, form to review,
+for Lumen & Larch Florist (not flagged at RM 100.00); and on store preset `WITH_PAYEE_SENDS` (`[store:payee-sends]`,
+built with the app's own `buildSend` and `transferDetailsFrom`, fixed ids and references) `/finance [tab:transactions]
+[overlay:payee-purchase]` (both rows) and `[overlay:payee-transfer]` (Gunther, reference only).
+
+**THE REVIEW STATE LEAVES ITS OPENING SURFACE**, and the harness checks `settlesOn` both after the opening click and at
+capture, so its `settlesOn` is `.mn-header-default__title` — one on each screen; the bank list is proven by the first
+prepare step, whose control exists only there.
+
+`e2e/payee-details.spec.ts`, **13 tests, no baseline**: N1 the validator; N2 the builder; N3 the scope check and
+`buildSend`'s absent key; N4 schema v6, the identity step and the unchanged fingerprint; B1 both values on the review,
+the stored row, the detail sheet (label column aligned) and KEPT across a reload; B2 reference only on a person send,
+before Reference; B3 a second payment carries none; B4 a seeded recipient carries none, straight after adding one; B5 a
+different user-added recipient carries none and the just-added one still does; B6 the high-risk path keeps them through
+warning, confirm and review, asserting `history.state.idx` (R103-17); B7 a reload mid-journey drops them; B8 a
+40-character note with no space wraps on both sheets; B9 leaving `/transfer*` after the save drops them.
+
+### Measured in the census
+
+- Non-visual sweep (every spec but `visual.spec.ts`, 12-test `payee-details`): **1210 passed / 0 failed**, 47.2 min.
+- Pre-mint `visual.spec.ts`: the 12 predicted names failed "snapshot doesn't exist", 0 `writing actual`, the 560 old
+  PNGs byte-identical. **One unpredicted failure: `/ [375] [light]`, the run's first test, timed out in `page.goto`
+  (30 s, `networkidle`) on a cold dev server — no screenshot was taken; re-run alone it passed byte-identical (7.3 s).**
+- Post-mint full run on the final tree: **1783 passed / 0 failed**, 1.2 h, npm exit 0, 0 `writing actual`, digest
+  stable. In the census the 12 PNGs are committed, so arm 1 of the baseline guard is green there; **in the repo it fails
+  until Teku stages them** (predicted, not a defect).
+- Mint: 12 written; reconciled **560 -> 572, 12 added, 0 changed, 0 deleted**. Digest (filesystem form; the 12 are
+  untracked until staged): **`512565106848175eeda00715e485ddd6458ac62df1c91e0995fc292291069037`**.
+
+### Rulings R106-1 to R106-8 (17 Nov 2026 — the review thread, under Teku's Flow 6 delegation; overturnable)
+
+Made after Phase A, in answer to its open questions; applied by the build session, which proved the census diff
+byte-for-byte and then made the one move in R106-7.
+
+- **R106-1** `Transaction.transferDetails?: { recipientReference: string; otherPaymentDetails?: string }`. The reference is
+  stored as the preset id and printed through `optionLabel`; an empty note is absent, never `''`. **A label change is safe.
+  Removing or renaming a preset id later needs a schema migration** — stored rows would otherwise fail
+  `isTransferDetails` and the whole snapshot would be quarantined.
+- **R106-2** `TransferDraft.firstSend: { recipientId, details } | null`, set by `saveNewRecipient` (which replaced Gate 101's
+  `clearNewRecipient`), read only for the matching recipient, and emptied after any send and on leaving `/transfer*`. A reload
+  drops it — the Gate 85 standard for an unsent draft (test B7).
+- **R106-3** a sibling pure check `transferDetailsProblem(row, userRecipients, transactions)`, called in `sendMoney` beside
+  `sendRowProblem` before any setter (R89-8). `buildSend` adds the key only when details are given, so every other send is
+  the Gate 93 row byte for byte. **M12 (`sendMoney` skips the check) may survive only if Phase B finds the `sendRowProblem`
+  precedent on disk; otherwise it is a finding.**
+- **R106-4** schema v6; `MIGRATIONS[5]` is the identity; `isStoredTransaction` gains `optional(isTransferDetails)`;
+  `seedFingerprint` stays `047c16cbf5461b` (no tester reset); `DB_VERSION` stays 1.
+- **R106-5** placement (undrawn, so Claude's): review sheet between From and "Your new balance"; purchase body after Payment
+  Method, with an empty 20 px glyph slot so the labels line up with Date / Category / Payment Method; transfer body before the
+  `MNRC` "Reference" row, never merged. **The note wraps** (three lines at 375 on the purchase body is accepted): real banking
+  apps wrap long values and keep labels on one line.
+- **R106-6** three walk states (`payee-review`, `payee-purchase`, `payee-transfer`), 12 new baselines; the review state
+  settles on `.mn-header-default__title`.
+- **R106-7** move `src/flows/transfer/newRecipientOptions.ts` to `src/data/newRecipientOptions.ts`. The persistence layer
+  (`schema.ts`) and `derive.ts` must not import from a UI flow folder; the module is data-only. **Done at the build:** the
+  content is byte-identical (sha256 `e61831e6529c2089b52fdd3608b36c0eddbead6c5d50c04ddb22b9f26d538a7f`, 3,778 bytes, no
+  imports); only the import specifier changed in six files — `src/data/derive.ts`, `src/persistence/schema.ts`,
+  `TransactionDetailSheet.tsx`, `NewRecipientScreen.tsx`, `ReviewTransferSheet.tsx` and `e2e/payee-details.spec.ts`. The
+  Gate 101 and Gate 105 records name the old path and are left as written. Git may report the move as a rename.
+- **R106-8** the success page does not show the details (Decision 40 names the review and detail sheets only).
+- **R106-9** (18 Nov 2026 — the review thread, under Teku's Flow 6 delegation; overturnable) **M12 was a finding, and the
+  house rule applies: a survivor is fixed before the commit, test-only, when a real path reaches the guard.** The real path is
+  the two-tab stale draft (below). B10 proves the guard; **M12 now PROVES.**
+
+**Gate 101's M13 mutation names `clearNewRecipient`, which no longer exists** (`saveNewRecipient` replaced it): its needle,
+`draft.clearNewRecipient()` then `setSavedId(recipient.id)` then `navigate(-2)`, no longer matches
+`NewRecipientScreen.tsx` (lines 252–257 now read `draft.saveNewRecipient({…})`). A later re-run of Gate 101's mutation set
+must adapt that one needle; its claim (B2 — Back and the To field land on the picker, never on a live form) is unchanged.
+
+### M12 — the two-tab stale draft, fixed before the commit (R106-9, 18 Nov 2026)
+
+Gate 106 Phase B found that skipping `transferDetailsProblem` in `sendMoney` (M12) survived the whole of
+`e2e/payee-details.spec.ts`: N3 tests the check directly, and the browser tests can only build valid first sends, so no test
+reached the guard at the place it is called. **The path that does reach it, measured through the app's own controls:** Tab A adds
+Gunther Cenperk (Affin, `6451352078`) and stops on his amount screen, so its draft holds the form's details. Tab B, in the same
+browser context (the same IndexedDB and BroadcastChannel), pays Gunther his first payment. Tab A hears the write and re-hydrates
+(`rehydrated` in the persistence log), so its ledger now names Gunther — but the draft is not stored, so it still carries the
+details. Tab A then shows no high-risk warning (it is no longer a first payment), goes straight to the review (still listing the
+stale Recipient Reference and Other Payment Details), and **Transfer now** sends a row that carries `transferDetails` to a
+recipient who already has a payment.
+
+**What Tab A did at the refusal, as first measured: it stayed up, silently.** `sendMoney` throws `sendMoney: txn-send-… a second
+payment…` at the call site, before any setter, inside the button's click handler. A throw in an event handler is not a render
+error, so there was no crash and no blank screen — but there was also **no message**: the review sheet stayed open on the same
+history entry, the draft was not cleared, no success page appeared, and the only trace was one uncaught page error. Nothing is
+written: the store holds exactly one Gunther send, Tab B's, with no `transferDetails` (Tab B's draft was empty). **Fixed now
+(R106-10, below).**
+
+**B10 (`e2e/payee-details.spec.ts`, one test, no baseline)** drives exactly that sequence. It asserts the review shows the stale
+rows, that the click raises one page error matching `sendMoney: txn-send-.* a second payment`, that the stored transactions hold
+one Gunther send (the other tab's, RM 10.00, no details) and none for Tab A's RM 20.00, and — since R106-10 — that the user is
+told (below). **M12** (`transferDetailsProblem` never runs in `sendMoney`) **PROVED** against B10. Against the first B10 it
+failed at `expect.poll(() => errors.length).toBe(1)` (`Expected: 1 / Received: 0`); against the final B10 it fails at the
+notice assertion (spec line 483, `toContainText` "That transfer wasn't sent") because the refusal never happens. The negative
+control, a syntax error in `derive.ts`, was refused (the mutated tree does not typecheck). **The suite is 1784 tests in 53
+files** after B10 (Phase B's 1783 plus one); R106-10 added no test.
+
+**R106-10 — the refusal is visible (18 Nov 2026, "Fix it now", the user's answer in the session; the first instruction to change `src/`
+in this fix).** `SendScreen.confirm` wraps `sendMoney` in a `try`; on a refusal it logs `console.warn('Transfer refused:', …)`
+(so a real bug is not hidden), raises a new shell notice `'send-refused'` — "That transfer wasn't sent / Something changed
+since you opened it. Nothing was sent. Enter the amount to try again." (warning, `role="status"`; undesigned, the copy is
+Claude's), **clears the stale draft** and goes back one step, which closes the review so the message is not behind the
+modal. Clearing is deliberate: the carried details would be refused again on every retry, so keeping the draft would loop.
+`AppShell`'s existing route-change effect now dismisses `'send-refused'` as well as `'coming-soon'`: the message belongs to
+the screen it was raised over. B10 asserts the notice and its copy, the closed review, no uncaught page error, the logged
+refusal, the empty amount field, one stored send, and that going back dismisses the notice. Five further mutations each PROVE
+against it (no notice; the draft kept; the review left open; the dismissal removed; the log removed), all restored
+SHA-identical. **Not covered by this fix:** `sendCrypto`'s same shape (`CryptoSendScreen`, G76's neighbour) still throws
+uncaught on a refusal; no baseline moves (the notice renders on no walk state).
+
+**Phase B's M13 note.** M13 (the review's balance row removed and re-inserted where it already sat) survived because it is an
+**identity mutation by design** — the file differs from the original by a blank line. It was never a test gap: **M13r** (the balance
+row moved above the two details rows) proves the row-order assertion in B1.
+
+### Deliberately not in scope
+
+A reference entry on the amount screen (option C, an undrawn field on a drawn screen); the success page; the thousands
+separator; G62, G63, G67, G70, G72–G75; the 160 px reserve; Flow 4's flag; any DS, seed, token or asset change.
+
+**Next free: section `2az`, gap `G77`, Teku decision 41.**

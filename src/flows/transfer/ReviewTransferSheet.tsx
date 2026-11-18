@@ -2,7 +2,8 @@ import { Button, Sheet } from '@monarch/design-system'
 import { TransactionMark } from '../../components/TransactionMark'
 import { recipientAccountLine } from '../../data/derive'
 import { formatMyr } from '../../data/format'
-import type { Amount, Recipient } from '../../data/types'
+import type { Amount, Recipient, TransferDetails } from '../../data/types'
+import { REFERENCE_OPTIONS, optionLabel } from '../../data/newRecipientOptions'
 import './transfer.css'
 
 export interface ReviewTransferSheetProps {
@@ -16,6 +17,11 @@ export interface ReviewTransferSheetProps {
   /** "Main · 6235474597 • MN". */
   fromLabel: string
   newBalance: Amount
+  /**
+   * Gate 106 (Decision 40 = B): the new-recipient form's reference and note,
+   * present only on the first send to the recipient that form just saved.
+   */
+  details?: TransferDetails
 }
 
 /**
@@ -34,6 +40,15 @@ export interface ReviewTransferSheetProps {
  * row — real review screens show who, from where and what is left, not a
  * bookkeeping category. Nothing here is editable: editing is the amount screen
  * underneath, one ✕ away.
+ *
+ * GATE 106 (Decision 40 = B; UNDRAWN): on the FIRST send to a recipient the
+ * new-recipient form just saved, two more rows sit between From and the new
+ * balance — "Recipient Reference" (always, the form's preset) and "Other Payment
+ * Details" (only when something was typed). Between From and the balance because
+ * they describe this transfer, like To and From, and the balance is its
+ * consequence. Never "Reference": that label is Monarch's own `MNRC…` bank
+ * reference on the detail sheet. A long note WRAPS — it is never truncated, so
+ * what the payee will see is what the payer reads here.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function ReviewTransferSheet({
@@ -44,6 +59,7 @@ export function ReviewTransferSheet({
   recipient,
   fromLabel,
   newBalance,
+  details,
 }: ReviewTransferSheetProps) {
   return (
     <Sheet
@@ -69,6 +85,20 @@ export function ReviewTransferSheet({
             <dt className="type-body-sm">From</dt>
             <dd className="type-body-m-medium">{fromLabel}</dd>
           </div>
+          {details && (
+            <div className="mvp-review__row mvp-review__row--text">
+              <dt className="type-body-sm">Recipient Reference</dt>
+              <dd className="mvp-review__note type-body-m-medium">
+                {optionLabel(REFERENCE_OPTIONS, details.recipientReference)}
+              </dd>
+            </div>
+          )}
+          {details?.otherPaymentDetails && (
+            <div className="mvp-review__row mvp-review__row--text">
+              <dt className="type-body-sm">Other Payment Details</dt>
+              <dd className="mvp-review__note type-body-m-medium">{details.otherPaymentDetails}</dd>
+            </div>
+          )}
           <div className="mvp-review__row">
             <dt className="type-body-sm">Your new balance</dt>
             <dd className="type-body-m-semibold">{formatMyr(newBalance)}</dd>

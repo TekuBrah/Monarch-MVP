@@ -24,6 +24,7 @@ import {
   recategorised,
   recategorisedAllFrom,
   sendRowProblem,
+  transferDetailsProblem,
   cryptoSendProblem,
   holdingsAfterCryptoSend,
   mergeRecipients,
@@ -326,6 +327,11 @@ interface AccountsContextValue {
    *
    * PERSISTED (Gate 85, schema v2): the two atoms commit together, so they are
    * stored together.
+   *
+   * GATE 106 (schema v6): a row may carry `transferDetails` — the new-recipient
+   * form's reference and note — and `transferDetailsProblem` judges it beside
+   * `sendRowProblem`, against the committed recipients and ledger, before any
+   * setter. The two updaters are unchanged: the details are part of the row.
    */
   sendMoney: (row: Transaction) => void
   /**
@@ -892,7 +898,11 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
    */
   const sendMoney = useCallback(
     (row: Transaction) => {
-      const problem = sendRowProblem(row, fiatAccounts, recipients)
+      const problem =
+        sendRowProblem(row, fiatAccounts, recipients) ??
+        // Gate 106: a row carrying the form's details must be a first send to a
+        // recipient the user added — judged against the COMMITTED ledger.
+        transferDetailsProblem(row, userRecipients, transactions)
       if (problem !== null) throw new Error(`sendMoney: ${row.id} ${problem}`)
       setTransactions((current) => [...current, row])
       setFiatAccounts((current) =>
@@ -903,7 +913,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         ),
       )
     },
-    [fiatAccounts, recipients],
+    [fiatAccounts, recipients, userRecipients, transactions],
   )
 
   /** See the contract on `AccountsContextValue.sendCrypto`. */

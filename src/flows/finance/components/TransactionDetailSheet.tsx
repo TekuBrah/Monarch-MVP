@@ -43,12 +43,14 @@ import {
 } from '../../../data/format'
 import { TODAY } from '../../../data/today'
 import { receiptDateWasRead } from '../receiptCapture'
+import { REFERENCE_OPTIONS, optionLabel } from '../../../data/newRecipientOptions'
 import type {
   Goal,
   Receipt,
   Transaction,
   TransactionCategoryId,
   TransactionDisposition,
+  TransferDetails,
 } from '../../../data/types'
 
 /**
@@ -508,6 +510,11 @@ export function TransactionDetailSheet({
             {account && (
               <InfoRow icon="credit_card" label="Payment Method" value={account.label} />
             )}
+            {/* GATE 106: a business send is a purchase, so its first send's
+                reference and note sit here, after Payment Method. */}
+            {transaction.transferDetails && (
+              <TransferDetailRows details={transaction.transferDetails} reserveGlyph />
+            )}
           </dl>
         </section>
         </>
@@ -594,6 +601,55 @@ export function TransactionDetailSheet({
 function scopeNote(merchant: string, count: number, label: string): string {
   const rows = count === 1 ? '1 transaction' : `${count} transactions`
   return `All from this merchant changes ${rows} from ${merchant} to ${label}, and future ones too.`
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT THE PAYER SENT WITH THE FIRST PAYMENT — Gate 106 (Decision 40 = B;
+ * UNDRAWN). "Recipient Reference" always, "Other Payment Details" only when
+ * something was typed — the row exists only when the field does. Labels exactly
+ * the form's own (`1266:14387`), and NEVER "Reference": that row is Monarch's
+ * own `MNRC…` bank reference (Gate 81) and stays a separate row.
+ *
+ * THE GLYPH SLOT, AND WHY IT IS RESERVED EMPTY ON A PURCHASE. The purchase rows'
+ * glyphs are a grammar — a literal glyph naming the field (calendar, list, card)
+ * — and the registry has no glyph for a reference or a note, so inventing one
+ * would break the grammar, and leaving the slot out would start these two labels
+ * 28px left of the three above them. An empty slot of the glyph's own width keeps
+ * the label column — the precedent is the DS `OverlayHeader`, which reserves an
+ * empty icon track so its title stays put. A movement has no glyphs at all, so
+ * there nothing is reserved.
+ *
+ * A LONG NOTE WRAPS AND IS NEVER TRUNCATED: up to 40 characters, possibly with no
+ * space, so the value may break anywhere (`__row--text`, `__row-value--text`).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function TransferDetailRows({
+  details,
+  reserveGlyph,
+}: {
+  details: TransferDetails
+  reserveGlyph: boolean
+}) {
+  const rows: Array<[string, string]> = [
+    ['Recipient Reference', optionLabel(REFERENCE_OPTIONS, details.recipientReference)],
+  ]
+  if (details.otherPaymentDetails) rows.push(['Other Payment Details', details.otherPaymentDetails])
+  return (
+    <>
+      {rows.map(([label, value]) => (
+        <div key={label} className="mvp-txn-detail__row mvp-txn-detail__row--text">
+          <dt className="mvp-txn-detail__row-label type-body-m-medium">
+            {reserveGlyph && <span className="mvp-txn-detail__glyph-slot" aria-hidden="true" />}
+            {label}
+          </dt>
+          <dd className="mvp-txn-detail__row-value mvp-txn-detail__row-value--text type-body-m-medium">
+            {value}
+          </dd>
+        </div>
+      ))}
+    </>
+  )
 }
 
 /**
@@ -799,6 +855,12 @@ function MovementSummary({
             label="Type"
             value={contributionSourceLabel(transaction.contributionSource)}
           />
+        )}
+        {/* GATE 106: a person send is a transfer; its first send's reference and
+            note sit with the movement's own details, before Monarch's own
+            Reference — never merged into it. */}
+        {transaction.transferDetails && (
+          <TransferDetailRows details={transaction.transferDetails} reserveGlyph={false} />
         )}
         <InfoRow label="Reference" value={transactionReference(transaction)} />
       </dl>

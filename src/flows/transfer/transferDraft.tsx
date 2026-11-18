@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { FeeTier } from '../../data/cryptoNetworks'
+import type { TransferDetails } from '../../data/types'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -30,6 +31,25 @@ export interface TransferDraft {
   crypto: CryptoDraft
   /** Gate 101 (Flow 6): the bank recipient being added, across its three steps. */
   newRecipient: NewRecipientDraft
+  /**
+   * GATE 106 (Decision 40 = B): what the form said to send with the FIRST
+   * payment to the recipient it just saved. Set by `saveNewRecipient`, in the
+   * same update that empties `newRecipient`, so there is no frame in which the
+   * values are in neither place. `null` otherwise.
+   *
+   * KEYED TO THE NEW RECIPIENT'S ID: the amount screen reads it only for that
+   * recipient, so a send to anyone else in the same journey carries none. It is
+   * emptied with the rest — after a send (`clear`, so a second payment carries
+   * none) and when the path leaves `/transfer*`. Not stored: a reload drops it,
+   * exactly as it drops the amount (the Gate 85 standard for an unsent draft).
+   */
+  firstSend: FirstSendDraft | null
+}
+
+/** Gate 106: the first send's details, and whose first send they belong to. */
+export interface FirstSendDraft {
+  recipientId: string
+  details: TransferDetails
 }
 
 /**
@@ -73,8 +93,14 @@ interface TransferDraftContextValue extends TransferDraft {
   setCryptoTier: (tier: FeeTier) => void
   /** Gate 101: merge into the new-recipient draft. */
   setNewRecipient: (patch: Partial<NewRecipientDraft>) => void
-  /** Gate 101: empty it — after a save. */
-  clearNewRecipient: () => void
+  /**
+   * The save's draft write: empty `newRecipient` — so Back can never re-offer it
+   * (Gate 101) — AND keep its reference and note for the first send, in ONE
+   * update (Gate 106). It replaced Gate 101's `clearNewRecipient`: a clear
+   * followed by a second write would leave a render in which the values were
+   * gone from both places.
+   */
+  saveNewRecipient: (firstSend: FirstSendDraft) => void
 }
 
 const EMPTY_CRYPTO: CryptoDraft = { recipientId: null, tokenId: null, amount: '', tier: 'regular' }
@@ -91,6 +117,7 @@ const EMPTY: TransferDraft = {
   fromId: null,
   crypto: EMPTY_CRYPTO,
   newRecipient: EMPTY_NEW_RECIPIENT,
+  firstSend: null,
 }
 
 const TransferDraftContext = createContext<TransferDraftContextValue | null>(null)
@@ -135,8 +162,9 @@ export function TransferDraftProvider({ children }: { children: ReactNode }) {
       setDraft((d) => ({ ...d, newRecipient: { ...d.newRecipient, ...patch } })),
     [],
   )
-  const clearNewRecipient = useCallback(
-    () => setDraft((d) => ({ ...d, newRecipient: EMPTY_NEW_RECIPIENT })),
+  const saveNewRecipient = useCallback(
+    (firstSend: FirstSendDraft) =>
+      setDraft((d) => ({ ...d, newRecipient: EMPTY_NEW_RECIPIENT, firstSend })),
     [],
   )
 
@@ -150,9 +178,19 @@ export function TransferDraftProvider({ children }: { children: ReactNode }) {
       setCryptoAmount,
       setCryptoTier,
       setNewRecipient,
-      clearNewRecipient,
+      saveNewRecipient,
     }),
-    [draft, setAmount, setFromId, clear, setCryptoSend, setCryptoAmount, setCryptoTier, setNewRecipient, clearNewRecipient],
+    [
+      draft,
+      setAmount,
+      setFromId,
+      clear,
+      setCryptoSend,
+      setCryptoAmount,
+      setCryptoTier,
+      setNewRecipient,
+      saveNewRecipient,
+    ],
   )
   return <TransferDraftContext.Provider value={value}>{children}</TransferDraftContext.Provider>
 }

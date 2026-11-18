@@ -146,6 +146,20 @@
   color: var(--mapped-text-subtle-default);
 }
 
+/*
+  Gate 106 — the two text rows the first send to a just-added recipient carries.
+  A typed note can be 40 characters with no space in it, so the value may break
+  anywhere and grow its row rather than overflow; the label keeps its own line,
+  aligned to the value's first line. Scoped to these rows so no Gate 93 row moves.
+*/
+.mvp-review__row--text {
+  align-items: flex-start;
+}
+
+.mvp-review__note {
+  overflow-wrap: anywhere;
+}
+
 /* ── Gate 93 — "Transfer successful" (undrawn) ───────────────────────────── */
 
 .mvp-transfer-done {

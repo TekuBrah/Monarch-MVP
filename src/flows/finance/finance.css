@@ -1668,6 +1668,33 @@ button.mvp-receipt-card:focus-visible {
 }
 
 /*
+  Gate 106 — the first send's "Recipient Reference" and "Other Payment Details"
+  rows. The note can be 40 characters with no space, so the value may shrink and
+  break anywhere, growing the row instead of overflowing it; the label keeps its
+  own width and aligns with the value's first line. Scoped to these rows, so no
+  Gate 49–94 row moves. The glyph slot is the `Icon` `m` glyph's own width
+  (20px), reserved empty on a purchase so the label column stays put.
+*/
+.mvp-txn-detail__row--text {
+  align-items: flex-start;
+}
+
+.mvp-txn-detail__row--text > .mvp-txn-detail__row-label {
+  flex: 0 0 auto;
+}
+
+.mvp-txn-detail__row-value--text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mvp-txn-detail__glyph-slot {
+  flex: 0 0 auto;
+  width: var(--brand-scale-500);
+  height: var(--brand-scale-500);
+}
+
+/*
   ── THE CATEGORY PICKER'S TWO PANES (Gate 89) ─────────────────────────────
 
   BOTH PANES IN ONE GRID CELL, so the cell is as tall as the taller one: the

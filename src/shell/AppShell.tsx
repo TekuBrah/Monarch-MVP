@@ -33,9 +33,11 @@ export function AppShell() {
   const [isTransferOpen, setTransferOpen] = useState(false)
   const closeTransfer = useCallback(() => setTransferOpen(false), [])
 
-  // A shell "Coming soon." belongs to the screen it was raised over.
+  // A shell "Coming soon." belongs to the screen it was raised over — and so
+  // does a refused transfer's message (Gate 106, R106-9).
   useEffect(() => {
-    if (currentNotice() === 'coming-soon') dismissNotice()
+    const kind = currentNotice()
+    if (kind === 'coming-soon' || kind === 'send-refused') dismissNotice()
   }, [pathname])
 
   return (

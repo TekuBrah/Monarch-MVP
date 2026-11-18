@@ -48,6 +48,7 @@ export type NoticeKind =
   | 'remote-reset'
   | 'reset-done'
   | 'coming-soon'
+  | 'send-refused'
 
 export interface NoticeSpec {
   title: string
@@ -102,6 +103,17 @@ export const NOTICES: Record<NoticeKind, NoticeSpec> = {
   'coming-soon': {
     title: 'Coming soon.',
     appearance: 'information',
+    role: 'status',
+  },
+  // Gate 106 (R106-9, "fix it now"): `sendMoney` refused the row — the unsent
+  // draft had gone stale, e.g. another tab paid this recipient first. A polite
+  // status, not an alert: nothing is lost (`role="alert"` is reserved for that,
+  // above), and the transfer's own screen is where the user is looking.
+  // UNDESIGNED WORK; the copy is Claude's.
+  'send-refused': {
+    title: "That transfer wasn't sent",
+    body: 'Something changed since you opened it. Nothing was sent. Enter the amount to try again.',
+    appearance: 'warning',
     role: 'status',
   },
 }

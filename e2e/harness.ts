@@ -12,6 +12,7 @@ import { BANK_DIRECTORY } from '../src/data/bankDirectory'
 import { TRANSACTIONS, TRANSACTION_CATEGORIES } from '../src/data/transactions'
 import {
   CRYPTO_UNITS_PER_TOKEN,
+  buildSend,
   cryptoFee,
   cryptoQuantityForSen,
   cryptoUnits,
@@ -19,6 +20,8 @@ import {
   holdingsAfterCryptoSend,
   recategorised,
   recategorisedAllFrom,
+  toSen,
+  transferDetailsFrom,
   walletHoldings,
   withCategoryRule,
 } from '../src/data/derive'
@@ -3467,6 +3470,146 @@ export const RISK_ALERT_STATES: WalkState[] = [
   },
 ]
 
+/* ── Gate 106 — Decision 40 = B: the form's reference and note on the first send ──
+   Three states, one per surface that prints them. The REVIEW is reached through
+   the whole journey — the form saves a recipient and its two fields ride on into
+   Flow 4's review — because the values exist only in the same journey's draft
+   and no store preset can hold them. Lumen & Larch Florist (CIMB): a long-standing,
+   busy business account, so a RM 100.00 send is not flagged (Decision 35) and the
+   review is reached directly. The two DETAIL SHEETS reopen on stored data: one
+   first send per body — a business send is a purchase (22A), a person send a
+   transfer — built by the app's own `buildSend` and `transferDetailsFrom`, with a
+   FIXED id and reference (a real send mints both at random; Gate 85 D-9). */
+const PAYEE_NOTE = 'Flowers for Mum, 12th birthday'
+export const STORED_FLORIST = storedFromDirectory('Lumen & Larch Florist', 'recipient-stored-florist')
+export const WITH_PAYEE_SENDS: StorePreset = {
+  id: 'payee-sends',
+  edit: (state) => {
+    const send = (
+      recipient: UserRecipient,
+      amountSen: number,
+      minute: number,
+      id: string,
+      reference: string,
+      details: ReturnType<typeof transferDetailsFrom>,
+    ) => ({
+      ...buildSend({
+        recipient,
+        accountId: 'main',
+        amountSen,
+        now: new Date(2026, 7, 15, 9, minute),
+        transactions: state.transactions,
+        rules: state.categoryRules,
+        details,
+      }),
+      id,
+      reference,
+    })
+    const florist = send(STORED_FLORIST, 18640, 30, 'txn-send-stored-florist', 'MNRC20260815G1060A',
+      transferDetailsFrom({ reference: 'family-support', otherDetails: PAYEE_NOTE }))
+    const gunther = send(STORED_RECIPIENT, 41230, 20, 'txn-send-stored-gunther', 'MNRC20260815G1060B',
+      transferDetailsFrom({ reference: 'fund-transfer', otherDetails: '' }))
+    return {
+      ...state,
+      userRecipients: [...state.userRecipients, STORED_RECIPIENT, STORED_FLORIST],
+      transactions: [...state.transactions, florist, gunther],
+      fiatAccounts: state.fiatAccounts.map((a) =>
+        a.id === 'main' ? { ...a, balance: (toSen(a.balance) - 18640 - 41230) / 100 } : a,
+      ),
+    }
+  },
+}
+const NR_CIMB: PrepareStep = {
+  control: '.mvp-new-recipient__banks button:text-is("CIMB Bank")',
+  controlName: 'CIMB Bank',
+  action: 'click',
+  settlesOn: NR_DETAILS_SUBTITLE,
+  settlesText: 'Enter recipient details',
+}
+export const PAYEE_DETAILS_STATES: WalkState[] = [
+  {
+    // The review sheet with both rows, at the end of the journey (undrawn).
+    route: '/transfer/new',
+    tab: null,
+    overlay: {
+      id: 'payee-review',
+      control: NR_ACCOUNT_NUMBER_ROW,
+      controlLabel: 'Account Number',
+      title: 'Account Number',
+      opens: [],
+      dialogs: ['Review transfer'],
+      // ONE SURFACE ON BOTH SCREENS: the harness checks `settlesOn` after the
+      // opening click AND again at capture, and this journey leaves the form for
+      // the amount screen. Each screen has exactly one header title ("New
+      // Transfer", then "Send money"); the bank list itself is proven by the
+      // first prepare step, whose control exists only there.
+      settlesOn: '.mn-header-default__title',
+      prepare: [
+        NR_CIMB,
+        NR_FILL('8001234567', NR_DETAILS_SUBTITLE, 'Enter recipient details'),
+        NR_PICKER('reference', 'Recipient Reference', 'Select recipient reference'),
+        {
+          control: '.mvp-new-recipient__picker [role="option"]:has-text("Family Support")',
+          controlName: 'Family Support',
+          action: 'click',
+          settlesOn: NR_DETAILS_SUBTITLE,
+          settlesText: 'Enter recipient details',
+        },
+        {
+          control: '.mvp-new-recipient__form input[name="otherDetails"]',
+          controlName: 'Other Payment Details (Optional)',
+          action: 'fill',
+          value: PAYEE_NOTE,
+          settlesOn: NR_DETAILS_SUBTITLE,
+          settlesText: 'Enter recipient details',
+        },
+        {
+          control: '.mvp-new-recipient__actions .mn-btn--primary',
+          controlName: 'Next',
+          action: 'click',
+          settlesOn: SEND_PRIMARY,
+          settlesText: 'Transfer money',
+        },
+        riskFill('100.00', 'RM 27,878.59'),
+        {
+          control: SEND_PRIMARY,
+          controlName: 'Transfer money',
+          action: 'click',
+          settlesOn: '.mvp-review__rows',
+          settlesText:
+            'ToLumen & Larch Florist8001234567 • CIMBFromMain · 6235474597 • MN' +
+            `Recipient ReferenceFamily SupportOther Payment Details${PAYEE_NOTE}Your new balanceRM 27,878.59`,
+        },
+      ],
+    },
+  },
+  {
+    // A business send is a purchase: both rows after Payment Method.
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    store: WITH_PAYEE_SENDS,
+    overlay: {
+      id: 'payee-purchase',
+      control: '.mvp-transactions__list > li:has-text("Lumen & Larch Florist") .mn-list-item',
+      controlLabel: 'Lumen & Larch Florist Fund Transfer -RM 186.40 15 Aug, 09:30',
+      title: 'Transaction details',
+    },
+  },
+  {
+    // A person send is a transfer: Recipient Reference only (no note typed),
+    // before Monarch's own Reference.
+    route: '/finance',
+    tab: { id: 'transactions', label: 'Transactions' },
+    store: WITH_PAYEE_SENDS,
+    overlay: {
+      id: 'payee-transfer',
+      control: '.mvp-transactions__list > li:has-text("Gunther Cenperk") .mn-list-item',
+      controlLabel: 'Gunther Cenperk Fund Transfer -RM 412.30 15 Aug, 09:20',
+      title: 'Transaction details',
+    },
+  },
+]
+
 export const RECATEGORISED_ALL: StorePreset = {
   id: 'recategorised-all',
   edit: (state) => ({
@@ -3563,6 +3706,9 @@ export const WALK: WalkState[] = [
   // Gate 103 — the high-risk alert, on stored recipients. Overlay states that
   // carry a store preset, so the section-header sweep counts them as overlays.
   ...RISK_ALERT_STATES,
+  // Gate 106 — the first send's reference and note, on the review and both
+  // detail-sheet bodies.
+  ...PAYEE_DETAILS_STATES,
 ]
 
 /**
