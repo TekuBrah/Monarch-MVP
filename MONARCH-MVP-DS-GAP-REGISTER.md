@@ -5897,3 +5897,24 @@ on the default tab. Task 5 (Capture a receipt) opens `/finance` on the Receipts 
   `abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869`, unchanged. The spec change is append-only.
 - **Mutation proofs:** a refused negative control and 38 mutations proved, each running one test, failing on an assertion,
   restoring byte-identical and re-passing. No gap number is opened or closed; the tally does not move.
+
+## 2ba. Status at MVP Gate 111 (2026-11-23) — Flow 2 completion record; no gap opened or closed
+
+**The tally does not move.** Chained from §2az: **86 entries, 41 closed, 45 open; the highest number is G87.** Gate 111
+wrote documents only (`FLOW-2-COMPLETION.md`, this section and a `CLAUDE.md` section); no gap was opened or closed, because
+the reading found none that was not already registered. **Next free: section `2bb`, gap `G88`, Teku decision 60.**
+
+- **The record.** `FLOW-2-COMPLETION.md` is the flow's summary: scope, how it works, the seed's figures, Decisions 41–59
+  and R107-1 to R110-4 with whose and when, the standards, the Figma lineage, the deviations, the open items (G77–G87 are
+  reproduced there with their owners) and the gate list (107, DS 108, 109's first start, DS 110, 109, 111).
+- **R108-1 to R108-10 and R110-1 to R110-4 are in the DS repo's `CLAUDE.md`, not in §2az.** `FLOW-2-COMPLETION.md` §5.2 is
+  their MVP home; the MVP register does not repeat them.
+- **Correction (insert-only).** The Gate 109 Phase B record in `CLAUDE.md` says `e2e/academy.spec.ts` "is LF, not CRLF as Phase
+  A2's report says". Re-checked at Gate 111: the committed blob is LF (0 CR, 502 LF; `136c78403e4751d27e0ae4f6cd779e9f1841a843`)
+  and the working-tree file is CRLF (502 CR, 502 LF). Phase A2 is right about the working tree. The earlier line is left as
+  written.
+- **Phone walks.** Flow 2's walk passed on Teku's phone on 23 Nov 2026 [verified]. Flows 4, 5 and 6 record a real-phone walk
+  as unconfirmed in their own completion records, and Flow 11's record is silent (`FLOW-2-COMPLETION.md` §9.6). Whether any of
+  the four has been walked since is on no file.
+
+### Nothing was removed from this register at this gate.

@@ -21176,3 +21176,24 @@ G75 and the DS-round items G78–G87; consolidating the first-name literal; any 
   case-insensitive; N1 asserts the exact title. `e2e/academy.spec.ts` is LF, not CRLF as Phase A2's report says.
 - **A dry run of needles must not overlap a full suite run:** the census Vite watcher reloads the page when a file is touched,
   and a first run was voided by exactly that.
+
+## Flow 2 completion record (Gate 111)
+
+**FLOW 2 IS CLOSED AS A BUILD, AND ITS RECORD IS `FLOW-2-COMPLETION.md` AT THE REPO ROOT.** Read that file first,
+before any Academy work, before a lesson, quiz or video screen is built, before a later flow changes the ledger, the
+budgets, the recipients or the receipts (the Academy's levels and task list derive from them), and before a gate touches
+`src/data/academy.ts`, `AcademyScreen.tsx` or the Home band. It covers the screens, how navigation and derivation work,
+the data and the seed's figures, Decisions 41–59 and the R107 / R108 / R109 / R110 rulings with whose and when, the
+standards the flow established, the Figma-to-code lineage, the deviations from Figma, every deferred and open item
+(G77–G87, R109-4, Teku's Figma tidy-ups, the DS round, hygiene, the phone walks still owed), the walk, the corrections to
+the record, the process lessons, and the gate list across both repos. The per-gate section above (Gate 109) remains the
+evidence behind it. **Do not restate its content here.** If the two disagree, re-derive from disk, correct whichever is
+wrong, and say so.
+
+Gate 111 wrote documents only. It changed no file under `src/`, `e2e/` or `public/`, and every baseline is
+byte-identical (592, digest `abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869`; `--list` 1873 tests in 54
+files). No DS re-pin: v2.17.0 applies throughout. State at the Gate 109 commit (`mvp-gate109` =
+`ec8039d628477a5fb54ada4de03cdd8900464a58`): 1873 tests in 54 files, 592 baselines, schema v6, DS `v2.17.0`, Flow 2
+complete. Register §2ba records the gate; the tally does not move.
+
+**Next free: section `2bb`, gap `G88`, Teku decision 60.**
