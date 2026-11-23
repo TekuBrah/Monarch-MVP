@@ -87,8 +87,8 @@ export const GOALS: Goal[] = [
     /* Backfilled for Bali's reason: all 12 of its contributions debit `main`. */
     fundingAccountId: 'main',
     /**
-     * AUTO-SAVE IS OFF HERE AND ON FOR BALI, SO BOTH STATES ARE SEEDED. Gate 78's
-     * Academy task reads whether it is enabled, and a seed in which every goal
+     * AUTO-SAVE IS OFF HERE AND ON FOR BALI, SO BOTH STATES ARE SEEDED. Gate 109's
+     * Academy task reads whether it is enabled (R107-8; this said Gate 78 until then), and a seed in which every goal
      * agreed would let a reader that ignores the flag pass.
      *
      * THE AMOUNT SURVIVES THE TOGGLE BEING OFF, which is `GoalAutoSave`'s stated

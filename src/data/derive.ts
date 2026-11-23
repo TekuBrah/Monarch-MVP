@@ -8,7 +8,17 @@ import {
   yearsBetween,
 } from './today'
 import { formatDay, formatDayMonthYear, formatMonthYear, formatMyr, formatPeriod } from './format'
-import { TRANSACTION_CATEGORIES } from './transactions'
+import { TRANSACTION_CATEGORIES, TRANSACTIONS } from './transactions'
+import {
+  ACADEMY_LEVELS,
+  ESSENTIAL_TASKS,
+  type AcademyCategorised,
+  type AcademyChipId,
+  type AcademyLevel,
+  type AcademyTileGroup,
+  type EssentialTask,
+  type EssentialTaskId,
+} from './academy'
 import { firstPassFailed } from './ocr/secondPass'
 import { CRYPTO_UNIT_PRICES } from './accounts'
 import { CRYPTO_NETWORKS, FEE_TIER_LABELS, type FeeTier } from './cryptoNetworks'
@@ -3155,4 +3165,116 @@ export function holdingsAfterCryptoSend(
       CRYPTO_UNITS_PER_TOKEN
     return { ...h, quantity: left, valueMyr: cryptoValueOf(h.id, left) }
   })
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   FLOW 2 — MONARCH ACADEMY (Gate 109)
+
+   Every figure the Academy prints is derived here from data the app already
+   stores (R107-4: nothing about the Academy is stored, schema stays 6). The
+   content itself is the constant in `academy.ts`.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** The slice of app state the Essential Tasks read — `AppState` satisfies it. */
+export interface EssentialTasksState {
+  transactions: Transaction[]
+  userRecipients: UserRecipient[]
+  budgets: Budget[]
+  goals: Goal[]
+  receipts: Receipt[]
+  categoryRules: CategoryRule[]
+}
+
+/** The seed's category for every seeded row, for task 6 (R109-2): no marker is
+    stored when a single row is recategorised (Decision 12 = A), but a seeded row
+    whose live category differs from the seed's can only have been changed. */
+const SEEDED_CATEGORY = new Map<string, TransactionCategoryId>(
+  TRANSACTIONS.map((t) => [t.id, t.category]),
+)
+
+/**
+ * Whether one Essential Task is done — Decision 46, each from stored data.
+ *
+ * TASK 1 (R109-1): a row carrying a `recipientId` (a send written through Send
+ * money or Send crypto), or an OUTGOING `kind: 'transfer'` with no `goalId`
+ * (money sent to someone, not into a goal). That counts the two seeded crypto
+ * sends, which `recentCryptoRecipients` already treats as the user's own sends
+ * (the Gate 96 precedent).
+ */
+export function essentialTaskDone(id: EssentialTaskId, state: EssentialTasksState): boolean {
+  switch (id) {
+    case 'transfer':
+      return state.transactions.some(
+        (t) =>
+          t.recipientId !== undefined ||
+          (t.kind === 'transfer' && t.amount < 0 && t.goalId === undefined),
+      )
+    case 'recipient':
+      return state.userRecipients.length > 0
+    case 'budget':
+      return state.budgets.length > 0
+    case 'auto-save':
+      return state.goals.some((g) => g.autoSave.isEnabled)
+    case 'receipt':
+      return state.receipts.length > 0
+    case 'recategorise':
+      return (
+        state.categoryRules.length > 0 ||
+        state.transactions.some((t) => {
+          const seeded = SEEDED_CATEGORY.get(t.id)
+          return seeded !== undefined && seeded !== t.category
+        })
+      )
+  }
+}
+
+export interface EssentialTasksProgress {
+  tasks: { task: EssentialTask; done: boolean }[]
+  done: number
+  /** The first task not yet done, in Decision 46's order; `null` when all six are. */
+  next: EssentialTask | null
+}
+
+/** The six tasks with their state, the count done and the first one left. */
+export function essentialTasks(state: EssentialTasksState): EssentialTasksProgress {
+  const tasks = ESSENTIAL_TASKS.map((task) => ({ task, done: essentialTaskDone(task.id, state) }))
+  return {
+    tasks,
+    done: tasks.filter((t) => t.done).length,
+    next: tasks.find((t) => !t.done)?.task ?? null,
+  }
+}
+
+/** The mastery level a number of done tasks reaches (Decision 45). */
+export function masteryLevel(done: number): AcademyLevel {
+  let reached = ACADEMY_LEVELS[0]
+  for (const level of ACADEMY_LEVELS) if (done >= level.minDone) reached = level
+  return reached
+}
+
+/** Whole thousands of ringgit in a balance, rounded DOWN (Decision 44): "RM 27K"
+    for RM 27,978.59 — the figure never overstates what is there. */
+export function thousandsOfRinggit(balance: Amount): number {
+  return Math.floor(balance / 1000)
+}
+
+/** App Guide's search (R107-3): case-insensitive on tile labels AND group names.
+    A group whose name matches keeps all its tiles; otherwise only its matching
+    tiles; a group left with none is dropped. An empty query changes nothing. */
+export function filterAcademyTileGroups(groups: AcademyTileGroup[], query: string): AcademyTileGroup[] {
+  const q = query.trim().toLowerCase()
+  if (q === '') return groups
+  return groups
+    .map((g) =>
+      g.label.toLowerCase().includes(q)
+        ? g
+        : { ...g, tiles: g.tiles.filter((t) => t.label.toLowerCase().includes(q)) },
+    )
+    .filter((g) => g.tiles.length > 0)
+}
+
+/** Wealth Wisdom's chips (R107-2): "All" keeps everything; a topic keeps only the
+    items in it, so an item with no topic shows under "All" alone. */
+export function filterAcademyCategory<T extends AcademyCategorised>(items: T[], chip: AcademyChipId): T[] {
+  return chip === 'all' ? items : items.filter((i) => i.category === chip)
 }

@@ -8,6 +8,9 @@ import { HomepageCrypto } from './HomepageCrypto'
 import { HomepageFiat } from './HomepageFiat'
 import { HOME_TAB_STATE_KEY, requestedHomeTab } from './homeTabs'
 import { TRANSFER_TAB_STATE_KEY } from '../transfer/transferTabs'
+import { destinationTarget } from '../academy/academyTabs'
+import type { AcademyDestination } from '../../data/academy'
+import { raiseNotice } from '../../shell/notices'
 import './homepage.css'
 
 /**
@@ -67,6 +70,25 @@ export function HomepageScreen() {
     navigate('/transfer', { state: { [TRANSFER_TAB_STATE_KEY]: transferTab } })
   }
 
+  // Gate 109 (R107-5): the promo band and its Explore link open the Academy, the
+  // same mechanism again, so Back from it lands on this tab.
+  const openAcademy = () => {
+    navigate('/', { replace: true, state: { [HOME_TAB_STATE_KEY]: selected } })
+    navigate('/academy')
+  }
+
+  // Gate 109 (Decision 43): the three Academy tiles do what the same tile does in
+  // the App Guide — its screen, or "Coming soon." when it has none.
+  const openDestination = (destination: AcademyDestination | null) => {
+    if (destination === null) {
+      raiseNotice('coming-soon')
+      return
+    }
+    const target = destinationTarget(destination)
+    navigate('/', { replace: true, state: { [HOME_TAB_STATE_KEY]: selected } })
+    navigate(target.path, { state: target.state })
+  }
+
   return (
     <div className="mvp-home">
       {/*
@@ -111,7 +133,13 @@ export function HomepageScreen() {
         />
       </div>
 
-      {selected === 'accounts' && <HomepageFiat onSend={() => openTransfer('bank')} />}
+      {selected === 'accounts' && (
+        <HomepageFiat
+          onSend={() => openTransfer('bank')}
+          onOpenAcademy={openAcademy}
+          onOpenDestination={openDestination}
+        />
+      )}
       {selected === 'crypto' && <HomepageCrypto onSend={() => openTransfer('crypto')} />}
       {selected === 'cards' && (
         <ComingSoon

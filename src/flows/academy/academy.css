@@ -1,0 +1,190 @@
+/*
+  Flow 2 — Monarch Academy (Gate 109). Figma `1266:14274` / `1266:14275`.
+
+  Spacing read off the frames (get_metadata, 20 Nov 2026): the tabs sit 12 below
+  the header and the content starts 10 below the tabs; sections are 24 apart; a
+  section's heading sits 10 above its content; feature tiles are 8 apart in
+  three columns; course rows are 20 apart; chips are 10 apart.
+*/
+
+.mvp-academy {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--mapped-surface-page);
+}
+
+/* The tabs HUG and are centred (Figma: 226 wide at x=74.5), unlike the
+   transfer picker's, which fill. */
+.mvp-academy__tabs {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--brand-scale-300);
+  padding-bottom: var(--brand-scale-250);
+}
+
+.mvp-academy__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-600);
+}
+
+.mvp-academy__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-250);
+}
+
+/* Three columns, each a third of the column less the gaps: 109 at 375 (the
+   tile's own cap, which Figma's fourth tile shows) and 127.33 at 430. The tiles
+   use `sizing="fill"`, so the grid track decides their width. */
+.mvp-academy__tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--brand-scale-200);
+}
+
+/* ── The level card (Decision 45, Decision 53) ───────────────────────────── */
+
+.mvp-academy-level {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  padding: var(--brand-scale-400);
+  border-radius: var(--brand-scale-200);
+}
+
+/* Decision 53: composed from brand primitives in MVP CSS (the Gate 73 precedent),
+   at Figma's own angle and stops. */
+.mvp-academy-level--guide {
+  background-image: linear-gradient(
+    135.75deg,
+    var(--brand-blue-500) 19.571%,
+    var(--brand-blue-400) 97.357%
+  );
+}
+
+.mvp-academy-level--wisdom {
+  background-image: linear-gradient(
+    135.75deg,
+    var(--brand-violet-700) 19.571%,
+    var(--brand-violet-400) 97.357%
+  );
+}
+
+/* Figma: the vector sits at (10, 12.07) in the card, 20 % opacity, overlay. Its
+   own width and height attributes size it (111 x 75.56). */
+.mvp-academy-level__mark {
+  position: absolute;
+  top: var(--brand-scale-300);
+  left: var(--brand-scale-250);
+  z-index: 0;
+  opacity: 0.2;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.mvp-academy-level__title,
+.mvp-academy-level__row,
+.mvp-academy-level__line {
+  position: relative;
+  z-index: 1;
+}
+
+.mvp-academy-level__title,
+.mvp-academy-level__line {
+  margin: 0;
+  color: var(--mapped-text-on-color-body);
+}
+
+.mvp-academy-level__row {
+  display: flex;
+  align-items: center;
+  gap: var(--brand-scale-250);
+  min-height: var(--brand-scale-600);
+}
+
+.mvp-academy-level__bar {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.mvp-academy-level__badge {
+  color: var(--mapped-text-on-color-heading);
+}
+
+/* ── New Feature Spotlight (Decision 48) ─────────────────────────────────── */
+
+/* The card keeps Figma's proportion (343 x 210); the picture is clipped by it
+   and faded into its bottom, as drawn. */
+.mvp-academy-spotlight {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  aspect-ratio: 343 / 210;
+  overflow: hidden;
+  border-radius: var(--brand-scale-200);
+  background: var(--brand-green-500);
+}
+
+/* Figma draws the picture 125.03 wide at y=13.11, radius 14.27, centred. Here:
+   the 128 ramp step, 12 from the top, the 16 radius step (the nearest of the
+   ramp to 14.27). */
+.mvp-academy-spotlight__image {
+  position: absolute;
+  top: var(--brand-scale-300);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: var(--brand-scale-1600);
+  border-radius: var(--brand-scale-400);
+}
+
+.mvp-academy-spotlight__footer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-200);
+  padding: var(--brand-scale-600) var(--brand-scale-400) var(--brand-scale-400);
+  background-image: linear-gradient(180deg, transparent 0, var(--brand-green-500) var(--brand-scale-600));
+}
+
+.mvp-academy-spotlight__title {
+  margin: 0;
+  color: var(--mapped-text-on-color-heading);
+}
+
+/* R108-8: a flex column stretches the button to the card's width, with no DS
+   CSS override. */
+.mvp-academy-spotlight__action {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Wealth Wisdom ───────────────────────────────────────────────────────── */
+
+.mvp-academy__chips {
+  display: flex;
+  gap: var(--brand-scale-250);
+  overflow-x: auto;
+}
+
+.mvp-academy__chips > * {
+  flex: 0 0 auto;
+}
+
+.mvp-academy__courses {
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-500);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mvp-academy__empty {
+  margin: 0;
+  color: var(--mapped-text-subtle-default);
+}

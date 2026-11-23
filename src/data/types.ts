@@ -1081,8 +1081,9 @@ export interface Goal {
    *
    * Nothing in this app runs on a timer, and nothing reads this to move money.
    * It is stored because Figma's drill-down draws the toggle and the amount, and
-   * because Academy's Essential Task "Set Up Auto-Save Goal — 3 of 6" reads
-   * whether it is on. Gate 78 is where that reader arrives.
+   * because Academy's Essential Task "Turn on auto-save for a goal" reads
+   * whether it is on. Gate 109 is where that reader arrived (R107-8; this line
+   * said Gate 78 until then, which built the goal drill-down, not the reader).
    *
    * THE AMOUNT SURVIVES THE TOGGLE GOING OFF, deliberately: switching auto-save
    * off and on again should not silently forget the figure the user typed. So the

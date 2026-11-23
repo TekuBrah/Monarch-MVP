@@ -135,7 +135,9 @@ export function AppShell() {
         design, removed here; dark mode is now a setting on `/settings`, reached
         from the header avatar.
       */}
-      <NoticeHost aboveChrome={chrome.nav !== 'suppressed'} />
+      {/* Gate 109: a notice also rises above a FAB shown without a nav (the
+          Academy, the first such route), or it would sit across the FAB. */}
+      <NoticeHost aboveChrome={chrome.nav !== 'suppressed' || chrome.fab} />
     </div>
   )
 }

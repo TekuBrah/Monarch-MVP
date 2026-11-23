@@ -67,7 +67,8 @@ export const ACADEMY_PROMO: PromoMessage = {
 export const FEATURE_CARDS: FeatureCard[] = [
   {
     id: 'stocks',
-    title: 'Buy and sell stocks',
+    // Decision 55 (Gate 109): Title Case, as every short label in the app.
+    title: 'Buy and Sell Stocks',
     icon: 'icon_stocks',
     variant: 'orange',
   },

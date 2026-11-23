@@ -5737,3 +5737,163 @@ Next free: section 2ay, gap G76, Teku decision 41.
 ```
 
 ### Nothing was removed from this register at this gate. `FLOW-6-COMPLETION.md` is a closed record and is not edited; this section carries the update.
+
+## 2az. Status at MVP Gate 109 (2026-11-20) — Flow 2 (Monarch Academy); DS v2.17.0; G77–G87 opened; Decisions 41–59 recorded
+
+**The tally moves by eleven: G77–G87 are opened, none closed.** Chained from §2ay's 75 / 41 / 34: **86 entries, 41
+closed, 45 open; the highest number is G87.** The open count is chained, not re-derived (the §2av caveat still applies).
+**Next free: section `2ba`, gap `G88`, Teku decision 60.**
+
+### Opened
+
+- **G77 — OPEN, retrofit session.** A refused crypto send is uncaught. `CryptoSendScreen.tsx:162` calls `sendCrypto`
+  with no `try` / `catch`, so a refusal from `cryptoSendProblem` throws inside the click handler: no message, the
+  summary stays open, one uncaught page error — the shape `SendScreen` had before R106-10. **Decision: solution
+  concluded, fix put off** — the retrofit session applies R106-10's pattern (log, the `'send-refused'` notice, clear the
+  draft, go back one step). Gate 109 does not touch `CryptoSendScreen.tsx`.
+- **G78 — OPEN, DS round (contrast).** `ProgressIcon`'s arc (`green-400`) is 2.12:1 on white and 1.90:1 on its track;
+  the track is `#262626` on the dark card (1.00:1): invisible. As written in the DS `CLAUDE.md` Gate 108 section. Flow 2
+  uses `ProgressIcon` in the Essential Tasks row, where the caption carries the count (R108-6), so the ring is
+  decorative.
+- **G79 — OPEN, DS round (contrast).** The white focus ring on a `green-500` surface is 2.56:1 (WCAG 1.4.11 needs
+  3:1), as Figma's Inverse Focus draws it. Reached in Flow 2 by "See budgets" inside the Spotlight card.
+- **G80 — OPEN, DS round.** Text-only `Button size="s"` pads 4 all round; Figma pads 4 / 12. A default-render fix that
+  moves 5 MVP buttons. "See budgets" measures 26 tall at 375 (the DS's responsive line height).
+- **G81 — OPEN, DS round (contrast).** The kicker colours (cyan-600 3.70, orange-500 2.34, red-500 3.64) and the −400
+  tile glyphs (1.99–2.86) on the light page, as drawn. Reached by Wealth Wisdom's three "Start here" tiles.
+- **G82 — OPEN, DS round.** Figma resolves `border/default` to `#e7eaed`; the repo's `--mapped-border-default` is
+  `#e5e5e5`. The build binds the name and changes nothing.
+- **G83 — OPEN, DS round.** DS `CardSmartInsightsRow`: a `default` row rendered as a `<button>` (the `onClick` case with
+  no `linkLabel`, R108-5) sets no `color`, so its leading slot takes the user-agent button colour (black). A bare
+  `currentColor` glyph passed in would show black on the dark card. **Unused by Flow 2**: the App Guide row carries a
+  link (so it is not a button) and a `ProgressIcon`; the nudge is the `green` variant, which tints its slot. DS round.
+- **G84 — OPEN, DS round (asset), raised by Gate 109 Phase A2.** The DS has no artwork for the level cards' watermark,
+  Figma `Group 279` (`logo_monarch_L`, 111 x 75.56, white, 20 % opacity, overlay blend). The DS `logo_monarch` icon is a
+  different mark (the FAB crown) in a square 24 viewBox. The prototype ships the vector exactly as the Figma remote
+  connector serves it, as an illustration (`public/media/illustrations/academy-mark.svg`, sha256 `327ca0ff…a8a9`, the
+  Decision 37 shield precedent). **Teku's fork (Phase A2 report F1):** keep that asset, add the mark to the DS, or drop
+  the watermark. **Decision 56 = A (delegated, 21 Nov): keep the asset.** The MVP is not blocked; the gap stays open
+  only as a DS-round question (add the mark to the DS if it is reused).
+- **G85 — OPEN, DS round (`shape-mismatch`, the G18 / G28 question), raised by Gate 109 Phase A2.**
+  `CardFeaturesAndEducation` hugs its content; Figma's App Guide fixes every tile at **108.33 x 108** (`1266:14274`,
+  `card/features and education`, read 20 Nov 2026). Built, the tiles render **92** tall at 375 (two-line labels) and, at
+  430, **76** for a row whose labels fit one line beside 92-tall rows — so rows of one grid differ in height. The DS has
+  no height or `sizing` option for the block axis. Not composed around (rule 3, §8 of the Gate 109 prompt). **Decision:
+  none yet** — the DS round decides whether the tile fixes its height, and at what.
+- **G86 — OPEN, DS round, raised by Gate 109 Phase A2.** `CardSmartInsightsRow` always draws the `chevron_right` after
+  its caption (its type says so: "Rendered with a trailing `chevron_right`"). With neither a link nor `onClick` the row is
+  not interactive, so Flow 2's all-done row ("Essentials complete / 6 of 6 completed ›", Decision 46) shows a chevron
+  that leads nowhere. Figma draws no all-done state. **Decision: none yet** — a DS prop to omit the chevron, or the MVP
+  accepts it.
+- **G87 — OPEN, DS round (the Gate 26 shape), raised by Gate 109 Phase A2.** `ProgressBar`'s track is
+  `--mapped-surface-subtle-default`, which flips `#f2f2f2` -> `#262626` in dark. On Flow 2's level cards — theme-invariant
+  brand gradients (Decision 53) — the dark track reads as a near-black slot on blue / violet. Figma draws no dark frame.
+  The green fill keeps its contrast; this is appearance, not a contrast failure. **Decision: none yet.**
+
+### Decisions 41–59 (Flow 2)
+
+Teku delegated Flow 2's calls to the review thread (19–20 Nov 2026); each delegated decision is overturnable by Teku.
+Bases are the Gate 107 investigation's forks (`D:\Claude\_handoffs\gate107-phaseA\REPORT.md` §6) and the DS Gate 108
+record.
+
+| | decision | basis |
+|---|---|---|
+| 41 = A | The two hubs as drawn. No lesson, quiz or video screen; every drawn control with no destination raises "Coming soon." | Gate 107 F1 |
+| 42 = B | App Guide tiles with an existing screen open it; the rest say "Coming soon." (the table below) | Gate 107 F12: the tab is called App Guide; a real screen is the most honest guide |
+| 43 = B | Home's three Academy tiles do what the same App Guide tile does (Track Spending -> Transactions; Buy and Sell Stocks and Smart Insights -> "Coming soon.") | Gate 107 F2 |
+| 44 = B | The green nudge: "You have RM {N}K in Main" / "Learn how savings interest works (4 min)", N = `Math.floor(balance / 1000)`; tap -> "Coming soon." | Gate 107 F3 (an education line, not a nudge to move money) |
+| 45 = B | Levels from the Essential Tasks checklist: 0–1 Lv1 "Getting Started", 2–3 Lv2 "Explorer", 4–5 Lv3 "Pro User", 6 Lv4 "Monarch Master". Wealth Wisdom: "Your learning", "Lessons are coming soon.", bar 0, no badge | Gate 107 F4 |
+| 46 = B | The six Essential Tasks (Make a transfer, Add a recipient, Set a budget, Turn on auto-save for a goal, Capture a receipt, Recategorise a transaction), each derived from stored data; title = first undone; caption "{done} of 6 completed"; all done: "Essentials complete", no link | Gate 107 F5 |
+| 47 = A | No "+100XP" anywhere | Gate 107 F8 (the incentive caution in its §5.2) |
+| 48 = B | Spotlight "Introducing budgets", Inverse "See budgets" -> Budget tab; no device frame; a screenshot of Monarch's own Budget screen | Gate 107 F13 (drop "smart", Decision 36) |
+| 49 = A | "Start here, {first name}"; "Budgets" for "Smart budgets"; "Safety & Support" for "Safety & Smart Support"; "Smart Insights" unchanged | Gate 107 §2.5 (AI / smart labels) and Decision 36 |
+| 50 = A | "Short courses" for "Quick Wins (2 min reads)"; course lines without the leading bullet | Gate 107 §2.4 (copy slips) |
+| 51 = B | The green row's leading slot takes the bare 32 px `insights` glyph; no `IconObject` success colour | DS Gate 108 (F6 = B) |
+| 52 = B | `.mn-card-features--outline` top-aligns its content | DS Gate 108 (F10 = B), shipped in v2.16.0 |
+| 53 | App Guide's level-card gradient ends on `--brand-blue-400`; Wealth Wisdom's runs violet-700 -> violet-400; composed in MVP CSS | DS Gate 108 (F15), the Gate 73 composed-from-brand precedent |
+| 54 = B | The level-card bar is `ProgressBar variant="green"` (green-600 light, green-400 dark) — **Teku's own decision**, "DS fill option first" | DS Gate 110, v2.17.0 |
+| 55 | Title Case for every tile label, including Home's "Buy and Sell Stocks" (delegated 20 Nov) | The app's own short labels ("This Month", "Track Spending") |
+| 56 = A | Keep Figma's level-card watermark (`Group 279`, `logo_monarch_L`) as an illustration, `academy-mark.svg`; G84 stays open only as a DS-round question | Phase A2 fork F1; the Decision 37 shield precedent. Delegated 21 Nov |
+| 57 = A | Essential task 5 "Capture a receipt" opens the Receipts tab (one tap from Add), not the add modal | Phase A2 fork F3; opening the modal directly needs a new location-state hook in `ReceiptsTab`. Delegated 21 Nov |
+| 58 | The categories and the empty line as Phase A2 proposed them (R107-2): Inflation? and Diversification -> Investing; "3 ways to save" and the nudge -> All only; the courses -> Investing / Retirement / Crypto; an empty chip reads "Nothing on {topic} yet." | Phase A2 fork F6. Delegated 21 Nov |
+| 59 = A | The promo band is a pointer target; the Explore link inside it is the announced, keyboard control | Phase A2 fork F8 (R107-5); a `<button>` around the band would nest the link. Delegated 21 Nov |
+
+**Decision 42's destination table, as built** (`src/data/academy.ts`, `src/flows/academy/academyTabs.ts`):
+
+| tile | opens | how the tab is selected |
+|---|---|---|
+| Instant Transfers | `/transfer`, Bank | `transferTab: 'bank'` in location state (Gate 92 `requestedTransferTab`) |
+| Crypto Transfers | `/transfer`, Crypto | `transferTab: 'crypto'` |
+| Monitor Asset Performance | `/finance`, Overview | `financeTab: 'overview'` (Gate 69 `requestedFinanceTab`) |
+| Track Spending | `/finance`, Transactions | `financeTab: 'transactions'` |
+| Budgets | `/finance`, Budget | `financeTab: 'budget'` |
+| Savings Goals, Automated Savings | `/finance`, Plans | `financeTab: 'plans'` |
+| Account Controls | `/settings` | — |
+| Add Money, Scheduled Payments, Managing Accounts, Buy and Sell Crypto, Buy and Sell Stocks, Fraud Protection, Smart Insights, Spending Alerts | "Coming soon." | — |
+
+Home replaces its own history entry with `homeTab` before it navigates (the Gate 87 mechanism), so Back lands on Home's
+tab. **The Academy does not hand its tab over (R109-7):** only App Guide has destinations, so Back from one always lands
+on the default tab. Task 5 (Capture a receipt) opens `/finance` on the Receipts tab (`financeTab: 'receipts'`, Decision 57).
+
+### Rulings
+
+- **R107-1** `/academy` chrome `{ nav: 'suppressed', fab: true, statusBar: 'page' }` — the first route with a
+  suppressed nav and a FAB. Measured: the FAB at `[303, 660, 56, 56]` (375) and `[358, 660, 56, 56]` (430); the last
+  content ends at y 652 when scrolled to the bottom (the 160 px reserve), 8 px clear. `AppShell`'s notice lift now keys
+  on `nav !== 'suppressed' || fab`, so a "Coming soon." sits above the FAB on this route.
+- **R107-2** The chips scroll sideways (`.mvp-column--bleed`) and filter Wealth Wisdom by category. Categories
+  (Claude's): Inflation? and Diversification -> Investing; "3 ways to save" -> none (All only); Investing 101 ->
+  Investing; Retirement planning -> Retirement; Crypto: Risks & Opportunities -> Crypto; the nudge -> All only. Taxes has
+  no item; its empty line reads "Nothing on Taxes yet."
+- **R107-3** The search matches tile labels and group names, case-insensitive; a group-name match keeps every tile in
+  the group. No match: `NoResults`, glyph `search`, "No features match" / "Try a feature name, like Budgets or
+  Transfers." / "Clear search".
+- **R107-4** Nothing stored. Schema stays 6; no migration; no tester reset.
+- **R107-5** Home's "Explore" link and the promo band open `/academy`. The band is a pointer target; the Explore link
+  inside it is the keyboard and screen-reader route, so the band is not a second control.
+- **R107-6** (the review thread's 19 Nov 2026 brief; recorded here at Gate 109 Phase A3 — Phase A2 had it as missing,
+  and this line is edited in place) **One DS gate first carries every gap:** the parts and gaps Flow 2 needed from the
+  DS were gathered into a single DS gate that ships before the MVP build, applied as **DS Gate 108** (v2.16.0; DS Gate
+  110, v2.17.0, followed with `ProgressBar variant="green"`, Decision 54). Only that phrase and its application are on
+  disk; the brief's fuller wording was not available to Phase A3.
+- **R107-7** Content in `src/data/academy.ts`, data only, outside `seedFingerprint`; colours as DS names.
+- **R107-8** The stale "Gate 78" comments in `src/data/types.ts` and `src/data/goals.ts` now name Gate 109.
+- **R109-1** Task 1 is done when any row carries a `recipientId`, or any row is an outgoing `kind: 'transfer'` with no
+  `goalId`. Seeded sends count.
+- **R109-2** Task 6 is done when there is a `categoryRules` entry, or any seeded row's live category differs from its
+  `TRANSACTIONS` category.
+- **R109-3** "Start here, {first name}" is one colour (`SectionHeader` takes one string); Figma's second colour on the
+  name is a recorded divergence.
+- **R109-4** The first name ("Margaret") is a literal in three files — Home, Finance and the Academy — and no profile
+  record exists. One `PROFILE` constant in `src/data/`, read by all three (0 baselines move), is built in the retrofit
+  session, not here. (Phase A2 fork F2.)
+- **R109-5** The Spotlight picture is **384 x 832**, resampled from the 1125 x 2436 capture (Lanczos, no sharpening, no
+  crop, same aspect within 1 px): exactly 3x the 128 px slot at DPR 3, 179,194 bytes where the capture was 678,643.
+  (Phase A2 fork F4; Gate 25 records the same concern for oversupplied assets.)
+- **R109-6** The Spotlight card keeps Figma's 343 / 210 proportion (`aspect-ratio`): 210 tall at 375 and 243.67 at 430,
+  where a fixed 210 would need a `token-exempt` literal (no ramp step is 210). (Phase A2 fork F5.)
+- **R109-7** The Academy has no tab handover of its own: the replace-with-`{ academyTab }` before navigating,
+  `requestedAcademyTab` and `ACADEMY_TAB_STATE_KEY` are removed. Nothing on Wealth Wisdom navigates, so the entry always
+  recorded the default tab and the code was inert (Phase A2 fork F7, mutation candidate A23). Back from a destination
+  lands on the Academy's default tab, the only tab with destinations; the first Wealth Wisdom control that navigates
+  brings the handover back in the Gate 87 shape. Home's `homeTab` and the Finance and Transfer tab requests are
+  unchanged.
+
+**On the seed:** tasks 1 (the seeded crypto transfers), 3, 4 (Bali Trip's auto-save) and 5 are done; 2 and 6 are not.
+4 of 6 -> **Lv3 "Pro User"**, card title **"Add a recipient"**. Main is RM 27,978.59 -> **"You have RM 27K in Main"**.
+
+### Nothing was removed from this register at this gate.
+
+### Gate 109 Phase B record (21 Nov 2026) — two test gaps found by mutation, fixed test-only
+
+- **A19 — a real test gap.** With `e.stopPropagation()` removed from Home's Explore handler the whole spec still passed: the
+  mutation leaves `history.state.idx 2` (a second Home entry; Back is needed twice). Fixed by `B16` (one history entry for
+  the Explore tap, Enter on the link and the band tap; Back returns to the starting index), which reads `history.state.idx`.
+- **E1 — a real test gap.** Only the first undone task's link was ever opened; the `destination` of the other five Essential
+  Tasks was asserted by nothing. Fixed by `B17` (six tests, one per task, a hard-coded landing table, not the data).
+- **X2 — equivalent, not a finding.** The Explore link's own handler is redundant with the band's.
+- **Totals after the fix:** `e2e/academy.spec.ts` **49 tests** (42 + B16 + six B17); suite **1873 in 54 files** (the Phase A3
+  figures of 42 and 1866 stand as that phase's record); baselines 592, digest
+  `abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869`, unchanged. The spec change is append-only.
+- **Mutation proofs:** a refused negative control and 38 mutations proved, each running one test, failing on an assertion,
+  restoring byte-identical and re-passing. No gap number is opened or closed; the tally does not move.

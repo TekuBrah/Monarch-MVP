@@ -87,6 +87,12 @@ const CHROME_BY_ROUTE: Record<string, ChromeConfig> = {
   // control: the drill-downs' chrome, declared exactly rather than left to
   // DEFAULT_CHROME (which is the same value but means "undeclared").
   '/settings': { nav: 'suppressed', fab: false, statusBar: 'page' },
+
+  // Gate 109 (R107-1): Monarch Academy, as Figma draws it — the nav hidden and
+  // the Steward FAB shown. The FIRST route with a suppressed nav and a FAB; the
+  // FAB keeps its one position, and the FAB-derived bottom reserve keeps the
+  // last content clear of it.
+  '/academy': { nav: 'suppressed', fab: true, statusBar: 'page' },
 }
 
 /**

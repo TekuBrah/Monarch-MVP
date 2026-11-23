@@ -3620,6 +3620,71 @@ export const RECATEGORISED_ALL: StorePreset = {
 }
 
 /**
+ * MONARCH ACADEMY — Gate 109 (Flow 2). The two tabs are walked by the route and
+ * tab derivation (`parseTabbedScreen` reads `AcademyScreen.tsx`'s `TABS`);
+ * these are the three states the derivation cannot reach.
+ *
+ *  - `no-match`: App Guide's search with nothing to show (R107-3). Not a dialog:
+ *    the `opens: []` branch, the screen as the surface (the Gate 92 shape).
+ *  - `taxes`: Wealth Wisdom's Taxes chip, the one topic with no items, so the
+ *    honest empty line shows (R107-2).
+ *  - `essentials-done`: all six Essential Tasks done (Decision 46), reached by a
+ *    stored recipient and one recategorised row — each written with the app's own
+ *    values and writer (`STORED_RECIPIENT`, `recategorised()`), so the preset
+ *    and the app cannot disagree about what "done" means.
+ */
+export const ESSENTIALS_DONE: StorePreset = {
+  id: 'essentials-done',
+  edit: (state) => ({
+    ...state,
+    userRecipients: [...state.userRecipients, STORED_RECIPIENT],
+    transactions: state.transactions.map((t) =>
+      t.id === RECATEGORISED_ID ? recategorised(t, RECATEGORISED_TO) : t,
+    ),
+  }),
+}
+
+const ACADEMY_SEARCH = '.mvp-academy input[aria-label="Search features"]'
+
+export const ACADEMY_STATES: WalkState[] = [
+  {
+    route: '/academy',
+    tab: null,
+    overlay: {
+      id: 'no-match',
+      control: ACADEMY_SEARCH,
+      controlLabel: 'Search features',
+      title: 'Search features',
+      opens: [],
+      settlesOn: '.mvp-academy',
+      prepare: [
+        {
+          control: ACADEMY_SEARCH,
+          controlName: 'Search features',
+          action: 'fill',
+          value: 'zzz',
+          settlesOn: '.mvp-no-results',
+          settlesText: 'No features matchTry a feature name, like Budgets or Transfers.Clear search',
+        },
+      ],
+    },
+  },
+  {
+    route: '/academy',
+    tab: { id: 'wealth-wisdom', label: 'Wealth Wisdom' },
+    overlay: {
+      id: 'taxes',
+      control: '.mvp-academy__chips button:has-text("Taxes")',
+      controlLabel: 'Taxes',
+      title: 'Taxes',
+      opens: [],
+      settlesOn: '.mvp-academy__empty',
+    },
+  },
+  { route: '/academy', tab: null, overlay: null, store: ESSENTIALS_DONE },
+]
+
+/**
  * THE STORE STATES — Gate 88. Enumerated and appended, never crossed with the
  * overlays or the tabs: the Gate α rule that a state is written down rather than
  * produced by a cross product, because most combinations mean nothing.
@@ -3709,6 +3774,7 @@ export const WALK: WalkState[] = [
   // Gate 106 — the first send's reference and note, on the review and both
   // detail-sheet bodies.
   ...PAYEE_DETAILS_STATES,
+  ...ACADEMY_STATES,
 ]
 
 /**

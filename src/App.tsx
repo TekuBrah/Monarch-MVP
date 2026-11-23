@@ -14,6 +14,7 @@ import { CryptoSendScreen } from './flows/transfer/CryptoSendScreen'
 import { SendScreen } from './flows/transfer/SendScreen'
 import { TransferDoneScreen } from './flows/transfer/TransferDoneScreen'
 import { NewRecipientScreen } from './flows/transfer/NewRecipientScreen'
+import { AcademyScreen } from './flows/academy/AcademyScreen'
 
 /**
  * The route table. One place to see every screen in the app (architecture
@@ -88,6 +89,11 @@ export default function App() {
         {/* Gate 87 — Settings, opened from the header avatar on `/` and
             `/finance`. A pushed screen with its own chrome (`chrome.ts`). */}
         <Route path="settings" element={<SettingsScreen />} />
+
+        {/* Flow 2 (Gate 109) — Monarch Academy: one route, App Guide and Wealth
+            Wisdom as in-screen tab state (B7). Opened from Home's promo band and
+            its Explore link (R107-5). */}
+        <Route path="academy" element={<AcademyScreen />} />
 
         {/* The Steward FAB's destination. It renders and routes; the flow itself
             belongs to the Assistant Section, not this one. */}

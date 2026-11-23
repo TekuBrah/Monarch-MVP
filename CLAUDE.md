@@ -20998,3 +20998,181 @@ A reference entry on the amount screen (option C, an undrawn field on a drawn sc
 separator; G62, G63, G67, G70, G72–G75; the 160 px reserve; Flow 4's flag; any DS, seed, token or asset change.
 
 **Next free: section `2az`, gap `G77`, Teku decision 41.**
+
+## Flow 2 — Monarch Academy, and the DS v2.17.0 re-pin (Gate 109)
+
+The pin moved `v2.15.0` (`ecefba21…`) -> **`v2.17.0`** (`17972f28419d9aad51a634fff34736183acbf9a0`), installed by
+name. There are no MVP Gates 107, 108 or 110: Gate 107 was the Flow 2 investigation (Phase A only,
+`D:\Claude\_handoffs\gate107-phaseA\`), DS Gate 108 shipped v2.16.0 (Flow 2's parts) and DS Gate 110 shipped v2.17.0
+(`ProgressBar variant="green"`). **The re-pin alone moved 0 baselines** (1784 passed, 572 byte-identical). **|WALK| 143
+-> 148, `ROUTES` 37 -> 38, `OVERLAY_STATES` 87 -> 89, `STORE_STATES` 11 -> 12; baselines 572 -> 592 (20 added, 8
+changed, 0 deleted); tests 1784 -> 1866 in 54 files.** No schema change (stays 6), no stored field, no
+`seedFingerprint` change: no tester is reset. Phase A2 (Opus) built and measured it in a census
+(`D:\Claude\_handoffs\gate109-phaseA2\`). **Teku does every git write.** Register `2az` carries the decisions, the
+rulings and G77–G87.
+
+**Next free: section `2ba`, gap `G88`, Teku decision 60.**
+
+### The two hubs — one route, two tab states
+
+`/academy` (`src/flows/academy/AcademyScreen.tsx`, `academy.css`, `academyTabs.ts`), Figma `1266:14274` (App Guide) and
+`1266:14275` (Wealth Wisdom). The tabs are in-screen `useState` (B7); the literal default stays in the lazy initialiser
+because the harness parses it. **Chrome (R107-1):** `{ nav: 'suppressed', fab: true, statusBar: 'page' }`, the first
+route with a suppressed nav and a FAB. `AppShell`'s notice lift now keys on `nav !== 'suppressed' || fab`, so a
+"Coming soon." sits above the FAB here.
+
+- **Back:** opened directly (`location.key === 'default'`), Back replaces itself with `/`; otherwise `navigate(-1)`.
+- **Entries:** Home's "Explore" link and its promo band (R107-5) — the band is a pointer target; the Explore link inside
+  it is the keyboard route. Home replaces its own entry with `homeTab` first (Gate 87), so Back lands on Home's tab.
+- **Destinations (Decision 42):** a tile with a screen opens it; the rest raise the shell's `'coming-soon'` notice
+  (Decision 41). The Academy hands no tab over (R109-7): only App Guide has destinations, so Back lands on the
+  default tab. The table, and how each tab is selected, is in register `2az`.
+- **Home's three tiles (Decision 43)** share ids with App Guide's and do what those do: Track Spending -> Transactions;
+  Buy and Sell Stocks and Smart Insights -> "Coming soon.".
+
+### App Guide
+
+- **Level card (Decisions 45, 53, 54):** "Your Monarch mastery"; `ProgressBar variant="green"` at done ÷ 6; badge
+  `Lv{n}`; line `Level {n}: {name}`; gradient blue-500 -> blue-400 at 135.75°, composed in MVP CSS. The watermark is
+  Figma's `Group 279` vector shipped as `public/media/illustrations/academy-mark.svg` — **an open fork (G84)**: the DS has
+  no such mark.
+- **Essential Tasks (Decision 46):** `CardSmartInsightsRow` default, leading `ProgressIcon` (`savings`, decorative),
+  title = the first undone task, caption "{done} of 6 completed", link "Set up now" to the task's screen; all six done:
+  "Essentials complete", no link.
+- **New Feature Spotlight (Decision 48):** "Introducing budgets"; "See budgets" (`Button primary s` inside a
+  `data-theme="dark"` flex column, R108-8) opens the Budget tab. The picture is a screenshot of Monarch's own Budget tab
+  (`public/media/illustrations/spotlight-budgets.png`, 384 x 832 — R109-5: resampled from a 1125 x 2436 capture at DPR
+  3, light, the seed on 15 Aug 2026), 128 wide
+  (`--brand-scale-1600`) with the 16 radius step, clipped by the card and faded into its green bottom. **It is a
+  picture of the seed; it does not follow the user's budgets.**
+- **Explore features:** a `Field` search over tile labels and group names (R107-3); no match: `NoResults` (`search`,
+  "No features match", "Clear search"). Four groups of four `CardFeaturesAndEducation sizing="fill"` tiles, three
+  columns, `Icon size="xxl"`.
+
+### Wealth Wisdom
+
+- **Level card:** "Your learning", bar at 0, no badge, "Lessons are coming soon." (Decision 45; nothing measures
+  learning). Violet-700 -> violet-400.
+- **Chips (R107-2):** All, Investing, Crypto, Taxes, Retirement — `ToggleChip`s in a sideways-scrolling row
+  (`.mvp-column--bleed`); they filter by category. Taxes has no item: "Nothing on Taxes yet."
+- **The nudge (Decisions 44, 51):** `CardSmartInsightsRow variant="green"`, the bare `insights` glyph, "You have RM
+  {N}K in Main" with N = `Math.floor(balance / 1000)`, "Learn how savings interest works (4 min)"; under All only; a tap
+  raises "Coming soon.".
+- **"Start here, Margaret" (Decision 49, R109-3):** three outline tiles with kicker and accent (R108-7). The first name
+  is a literal in `src/data/academy.ts`; Home and Finance hold the same literal (no profile record exists).
+- **"Short courses" (Decision 50):** three `ChartLegendItem variant="legend"` rows, `amount=""`, `hasChevron={false}`.
+
+### Data and derivations — nothing stored (R107-4)
+
+`src/data/academy.ts` is data only (type-only imports), outside `seedFingerprint`: the 16 tiles, the 6 tasks, the level
+table, the chips, the start tiles, the courses, the first name. `derive.ts` gains `essentialTaskDone`, `essentialTasks`,
+`masteryLevel`, `thousandsOfRinggit`, `filterAcademyTileGroups` and `filterAcademyCategory`, all pure.
+
+- **Task 1 (R109-1):** a row with a `recipientId`, or an outgoing `kind: 'transfer'` with no `goalId`. **Task 6
+  (R109-2):** a `categoryRules` entry, or a seeded row whose live category differs from its `TRANSACTIONS` category.
+- **On the seed:** tasks 1, 3, 4 and 5 are done -> 4 of 6, **Lv3 "Pro User"**, card title **"Add a recipient"**; Main is
+  RM 27,978.59 -> **"You have RM 27K in Main"**.
+
+### Copy against the drawn strings
+
+| drawn | built | why |
+|---|---|---|
+| Your Financial IQ / Level 3: Savvy Saver / Lv4 | Your learning / Lessons are coming soon. / no badge | Decision 45 |
+| Level 2: Pro User | Level 3: Pro User (on the seed) | Decision 45 (derived) |
+| Set Up Auto-Save Goal / 3 of 6 completed | Add a recipient / 4 of 6 completed (on the seed) | Decision 46 (derived) |
+| Introducing smart budgets / Watch Video (2 min) | Introducing budgets / See budgets | Decision 48 |
+| Smart budgets | Budgets | Decision 49 |
+| Safety & Smart Support | Safety & Support | Decision 49 |
+| Buy and sell Crypto, Buy and sell stocks, Monitor asset performance | Buy and Sell Crypto, Buy and Sell Stocks, Monitor Asset Performance | Decision 55 |
+| Your RM 27K is ready for more / Start: High-Yield Basics (4 min) | You have RM 27K in Main / Learn how savings interest works (4 min) | Decision 44 |
+| Personalized for Margaret (two colours) | Start here, Margaret (one colour) | Decision 49, R109-3 |
+| Quiz / Diversification / +100XP | Quiz / Diversification | Decision 47 |
+| Quick Wins (2 min reads) | Short courses | Decision 50 |
+| • 6 Modules • 15 min | 6 Modules • 15 min | Decision 50 |
+| Home: Buy and sell stocks | Buy and Sell Stocks | Decision 55 |
+
+### Harness, tests and baselines
+
+- **Walk states:** `/academy` and `/academy [tab:wealth-wisdom]` are derived; `ACADEMY_STATES` adds
+  `/academy [overlay:no-match]` (a `prepare` fill of `zzz`, the screen is the surface), `/academy [tab:wealth-wisdom]
+  [overlay:taxes]` (the empty chip) and `/academy [store:essentials-done]` (store preset `ESSENTIALS_DONE`: a stored
+  recipient and one recategorised row, built with the app's own `recategorised`).
+- **`e2e/academy.spec.ts`, 42 tests, no baseline:** N1–N8 in Node (tiles and destinations, levels, the seed's tasks, each
+  task's rule over synthetic stores, the thousands figure, search, chips, the chrome entry and the picture's header);
+  B1–B15 in the browser (Home entries and Back, direct-open Back, App Guide content, each of the 16 tiles, Set up now,
+  See budgets, Home's tiles, search, Wealth Wisdom, the chips, its "Coming soon." controls, the level boundaries 1 / 2 /
+  4 / 6 through store presets, RM 26K after a RM 1,000.00 send, keyboard, both themes).
+- **Home, measured in two steps:** the handlers alone moved **0** of the 20 Home states; the Title Case label then moved
+  exactly **8** — `index-{375,430}-{light,dark}` and `index-transfer-{375,430}-{light,dark}` (the tile sits below the
+  fold, undimmed) — every differing pixel inside the first tile's label box.
+- **The full-page captures are tall:** App Guide 1834 at 375, 1820 at 430; Wealth Wisdom 942 (the 160 px reserve).
+
+**A census dev server once served a stale `chrome.ts`** after files were copied in (its watcher missed them): the first
+Home step-1 measurement was void and was re-taken on a restarted server. **After copying files into a running census,
+check the served module, not the file on disk.**
+
+### Divergences from Figma that are DS-owned (register `2az`)
+
+- **G85:** the tiles hug (92 at 375; 76 or 92 at 430) where Figma fixes 108; rows of one grid can differ in height at 430.
+- **G86:** the all-done task row keeps the DS row's caption chevron though it leads nowhere.
+- **G87:** in dark, the level bars' empty track is `#262626` on the theme-invariant gradient cards.
+- The level card measures 96 tall against Figma's 100 and the task title line 16 against 20 — `body/sm`'s 16 px line
+  height below 768 (Gate 78's finding), not a defect.
+
+### Rulings of 21 Nov 2026 (the review thread; Teku delegated Flow 2; overturnable) — Phase A3
+
+- **Decisions 56–59** (register `2az`): **56 = A** keep Figma's watermark as an illustration (the Decision 37
+  precedent; G84 stays open only as a DS-round question); **57 = A** task 5 opens the Receipts tab; **58** the F6
+  categories and the empty line "Nothing on {topic} yet." as proposed; **59 = A** the promo band is a pointer target and
+  the Explore link is the announced control.
+- **R107-6** One DS gate first carries every gap — applied as DS Gate 108. Phase A2 had it as missing; the phrase and its
+  application are now recorded (the fuller wording of the 19 Nov brief is not on disk).
+- **R109-4** One `PROFILE` constant for the first name, in the retrofit session. **R109-5** the Spotlight picture is
+  384 x 832. **R109-6** the Spotlight card keeps Figma's 343 / 210 proportion. **R109-7** the Academy's own tab handover
+  is removed (above).
+- **Next free: section `2ba`, gap `G88`, Teku decision 60.**
+- **Phase A3 measured (census, 21 Nov 2026).** The picture: 1125 x 2436, 678,643 bytes -> **384 x 832**, 179,194 bytes,
+  sha256 `92b418e9…2aef` (Lanczos via `sharp` 0.35.5, no sharpening, no crop, `pHYs` removed). **Baselines: 592 -> 592, 12
+  changed, 0 added, 0 deleted, 580 byte-identical** — exactly the predicted Academy states that show the Spotlight
+  (`academy-`, `academy-no-match-` and `academy-essentials-done-`, each x 375 / 430 x light / dark); the pre-mint run failed
+  those 12 by pixel diff (0 "snapshot doesn't exist"), wrote nothing, and the mint wrote 24 lines over 12 files. Every
+  differing pixel sits inside the picture's box (x 124–251 at 375, 151–278 at 430, y 412–541 / 577); old and new read the
+  same at the drawn size, the new one slightly crisper (the browser no longer downsamples 4.4x). R109-7 moved 0
+  baselines and removed no test (no test asserted the handover); N8's PNG size is the one edited assertion. Tests
+  **1866 in 54 files, unchanged**; digest after the mint `abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869`.
+  **Full run on the final census tree: 1866 passed / 0 failed, 0 flaky, 1.3 h, npm exit 0, 0 `writing actual`, 592 PNGs, digest
+  unchanged.** A first full run failed one test, `B3`, which still asserted the picture's `naturalWidth` as 1125 (the
+  sweep had looked for the size in N8 only); the literal became 384 and the whole suite was re-run.
+
+### Deliberately not in scope
+
+Lessons, quizzes and videos (Decision 41); storing progress (R107-4); G77 (`CryptoSendScreen.tsx` untouched); G62, G67,
+G75 and the DS-round items G78–G87; consolidating the first-name literal; any schema, seed or DS change.
+
+### Gate 109 Phase B record (21 Nov 2026) — two test gaps found by mutation, fixed test-only
+
+- **Verified from disk:** the 882-file census equals the staged index (0 differ; only the census-only `vite.config.ts`
+  differs); the live check (375 × 812, touch, 58 checks, light and dark) passed with 0 console errors.
+- **A19 — a real test gap.** With `e.stopPropagation()` removed from Home's Explore handler the whole spec still passed. Measured
+  in a probe: the original leaves `history.state.idx 1`, Backs `/`, blank, blank; the mutation leaves `idx 2` and Backs `/`, `/`,
+  blank — a second Home entry, so Back is needed twice. **Fixed by `B16`** (one history entry for the Explore tap, Enter on the
+  link and the band tap; Back returns to the starting index), which reads `history.state.idx`, not the screen (the R103-17 shape).
+- **E1 — a real test gap.** Only the first undone task's link was ever opened (B5); the `destination` of the other five Essential
+  Tasks was asserted by nothing (a "Capture a receipt" → Budget mutation passed all 42 tests). **Fixed by `B17`** (six tests, one
+  per task, each made the next task by completing the tasks before it, then asserting the landing path and tab; a hard-coded
+  table, not the data).
+- **X2 — equivalent, not a finding.** Setting the Explore link's handler back to `preventDefault()` only leaves identical
+  history in every entry (pointer, keyboard, band): the click bubbles to the band's handler, which navigates once. The link's own
+  handler is redundant with the band's.
+- **Totals after the fix:** `e2e/academy.spec.ts` **49 tests** (42 + B16 + six B17); suite **1873 in 54 files**; baselines 592
+  at `abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869` (the spec change moves none). The spec change is
+  append-only (0 lines removed, 54 added), so every earlier proof still holds.
+- **Mutation proofs:** a refused negative control and **38 mutations proved** — A1–A22 (A23 retired), their B12 variants, X1,
+  X3–X8, and the seven proofs of the two fixes (A19 and a doubled `navigate('/academy')` against B16; the receipt, budget,
+  transfer, auto-save and recategorise task destinations against B17). Each ran exactly one test, failed on an assertion,
+  restored byte-identical and re-passed.
+- **Corrections to Phase A3's candidate table:** A8 and A10 mutate the data B4's titles are built from, so B4 renames itself and
+  cannot fail; N1 (and B7 for A8) pin them. And X7 (Home's "Buy and sell stocks") survives B7 because Playwright's `hasText` is
+  case-insensitive; N1 asserts the exact title. `e2e/academy.spec.ts` is LF, not CRLF as Phase A2's report says.
+- **A dry run of needles must not overlap a full suite run:** the census Vite watcher reloads the page when a file is touched,
+  and a first run was voided by exactly that.

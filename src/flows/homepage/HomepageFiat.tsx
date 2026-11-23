@@ -15,6 +15,7 @@ import { ACADEMY_PROMO, FEATURE_CARDS, SMART_INSIGHTS } from '../../data/insight
 import { SectionHeader } from '../../components/SectionHeader'
 import { TransactionMark } from '../../components/TransactionMark'
 import { raiseNotice } from '../../shell/notices'
+import { ACADEMY_TILES, type AcademyDestination } from '../../data/academy'
 import { BalanceCard } from './components/BalanceCard'
 
 /**
@@ -29,7 +30,15 @@ import { BalanceCard } from './components/BalanceCard'
  * Note F1 A2, recorded and left: the tab reads "Accounts" while the frame is
  * named `Homepage_Fiat`. Node IDs are authoritative; the file name is not.
  */
-export function HomepageFiat({ onSend }: { onSend: () => void }) {
+export function HomepageFiat({
+  onSend,
+  onOpenAcademy,
+  onOpenDestination,
+}: {
+  onSend: () => void
+  onOpenAcademy: () => void
+  onOpenDestination: (destination: AcademyDestination | null) => void
+}) {
   const { primaryAccount, transactions, receipts } = useAccounts()
 
   // A slice of the one ledger, newest first — not a second hand-authored list.
@@ -150,7 +159,12 @@ export function HomepageFiat({ onSend }: { onSend: () => void }) {
             here; the main component it instances renders "Monarch Academy",
             which is what the data carries.
           */}
-          <div className="mvp-home__promo">
+          {/*
+            Gate 109 (R107-5): the whole band opens the Academy for a pointer;
+            the Explore link inside it is the keyboard and screen-reader route
+            to the same place, so the band itself is not a second control.
+          */}
+          <div className="mvp-home__promo" onClick={onOpenAcademy}>
             {/*
               The Academy illustration (Gate 3b). Figma's `❖ System message`
               band leads with it — `Group 284`, 94.08 x 65 at x=0 inside a
@@ -210,7 +224,12 @@ export function HomepageFiat({ onSend }: { onSend: () => void }) {
                   */
                   iconBefore={null}
                   iconAfter={<Icon name="chevron_right" size="xs" />}
-                  onClick={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    // The band's own handler would fire too: one navigation only.
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onOpenAcademy()
+                  }}
                 />
               </div>
             </div>
@@ -224,6 +243,10 @@ export function HomepageFiat({ onSend }: { onSend: () => void }) {
                 variant={card.variant}
                 title={card.title}
                 icon={<Icon name={card.icon} size="m" />}
+                // Decision 43: what the same App Guide tile does (ids are shared).
+                onClick={() =>
+                  onOpenDestination(ACADEMY_TILES.find((t) => t.id === card.id)?.destination ?? null)
+                }
               />
             ))}
           </div>
