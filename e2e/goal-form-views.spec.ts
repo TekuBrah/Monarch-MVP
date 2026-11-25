@@ -216,9 +216,9 @@ test('the form held behind the picker is unreachable until Back — Add and Edit
   }
 })
 
-/* ───────────────────────── (e): the draft, and focus as it is ─────────────── */
+/* ───────────────────────── (e): the draft, and where focus returns ─────────── */
 
-test('the draft survives the round trip, and focus is left on the document exactly as it was before this gate', async ({
+test('the draft survives the round trip, and focus returns to the Funding Source trigger', async ({
   page,
 }) => {
   await openModal(page, 'add')
@@ -237,14 +237,17 @@ test('the draft survives the round trip, and focus is left on the document exact
   await expect(dialog.getByLabel('Auto-Save Amount / Month (RM)')).toHaveValue('75')
   await expect(dialog.locator('.mn-select__input')).toHaveValue(MAIN.name)
   /*
-    ⚠ PINNED AS IT IS, NOT AS THE GATE BRIEF ASSUMED. Focus does NOT return to the
-    Funding Source trigger on Back: before this gate the trigger was unmounted
-    with the form, and it is now only hidden, so in both cases the focused
-    element goes away with the view and `document.body` is what is left. Measured
-    on the unchanged tree. A focus-return would be a behaviour change (and the
-    retrofit session's call), so this assertion records the present state.
+    ⚠ REWRITTEN DELIBERATELY AT GATE 113 (R6). Until then this pinned focus on
+    `document.body` after Back — the state Gate 81-C measured and recorded as
+    "the retrofit session's call". Gate 113 made that call: focus returns to the
+    trigger that opened the view (the full keyboard and pointer matrix, and the
+    400 ms hold, are `picker-focus.spec.ts`). This test now pins the Goal form's
+    half of it, for Back and for a pick, after a POINTER round trip: the trigger
+    holds focus and does not match `:focus-visible`.
   */
-  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true)
+  const trigger = dialog.locator('.mn-select__input')
+  await expect(trigger).toBeFocused()
+  expect(await trigger.evaluate((e) => e.matches(':focus-visible'))).toBe(false)
 
   // OUT AND BACK THROUGH A PICK: the choice lands in the form, the rest holds.
   await openPicker(page)
@@ -252,7 +255,8 @@ test('the draft survives the round trip, and focus is left on the document exact
   await expect(dialog.getByLabel('Goal Name')).toHaveValue('Draft survives')
   await expect(dialog.getByLabel('Target Amount (RM)')).toHaveValue('1234.50')
   await expect(dialog.locator('.mn-select__input')).toHaveValue(JOINT.name)
-  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true)
+  await expect(trigger).toBeFocused()
+  expect(await trigger.evaluate((e) => e.matches(':focus-visible'))).toBe(false)
 })
 
 /* ───────────────────────── (f): the cap — measured consequence ────────────── */

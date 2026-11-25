@@ -14,6 +14,7 @@ import {
   type BudgetInput,
 } from '../budgetDraft'
 import { useTouchedValidation } from '../useTouchedValidation'
+import { usePickerFocus } from '../usePickerFocus'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -165,6 +166,33 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
    */
   const addCategoriesLabel = `Add ${pickerDraft.length} ${pickerDraft.length === 1 ? 'Category' : 'Categories'}`
 
+  /*
+    ⚠ THE FORM IS NEVER UNMOUNTED, AND THE CARD NEVER CHANGES SIZE — Gate 113
+    (R4, R112-2). Gate 81-C's mechanism, applied to the older picker.
+
+    Before this gate the picker view REPLACED the form (`isCategoryView ?
+    OptionList : form`) and the footer shrank to one button, so the card went
+    526 -> 494 (Create) or 594 -> 494 (Edit) and its top edge — the header, the
+    title, Back and ✕ — moved down 16 or 50px: two views that read as two
+    dialogs. Now both views keep the FORM view's box.
+
+    THE HELD HEIGHT IS EXACT, NOT A FLOOR — and that is where this differs from
+    the goal form. Seven categories make a 348px list, taller than the form's
+    own content (322 Create, 332 Edit), so a floor would GROW the card in the
+    picker view. The list pane is taken out of flow (`position: absolute`,
+    `.mvp-budget-views__pane--list`) and scrolls inside the box the held form
+    gives it; the last row is sliced at the edge, which is the scroll cue.
+
+    THE FOOTER IS HELD AS ONE GRID CELL (`.mvp-budget-footer`): the form's
+    buttons stay laid out but hidden and inert, and "Add N Categories" sits in
+    the same cell at the top — exactly where "Save Budget" (or "Save Changes")
+    sat, R112-2. The space the ghost Cancel (and Delete) occupy stays empty.
+
+    `contentPadding="none"` IN BOTH VIEWS, and the form pane pads itself (the
+    Gate 89 correction): a per-view switch would widen the held form by 32px in
+    the picker view, and a form that re-wraps changes height.
+  */
+  const focus = usePickerFocus(isCategoryView)
   return (
     <Modal
       isOpen
@@ -178,64 +206,70 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
       title={isCategoryView ? 'Select category' : mode === 'create' ? 'Create A Budget' : 'Edit Budget'}
       onBack={isCategoryView ? () => setView('form') : undefined}
       backLabel="Back to the budget form"
-      /* R6 — full-bleed rows; see TransactionFilterSheet for the same call. */
-      contentPadding={isCategoryView ? 'none' : 'default'}
+      /* Full-bleed rows; the form pane carries the side padding itself. */
+      contentPadding="none"
       footer={
-        isCategoryView ? (
-          /*
-            VERB PLUS COUNT, DISABLED AT ZERO. The verb follows the
-            destination: these go back INTO a form field, so "Add". Zero is a
-            genuinely invalid budget (`budgetDraftErrors` requires at least one
-            category), which is what makes disabling honest here rather than a
-            dead end.
-          */
-          <Button
-            variant="primary"
-            size="l"
-            label={addCategoriesLabel}
-            isDisabled={pickerDraft.length === 0}
-            onClick={commitCategories}
-          />
-        ) : (
-        <>
-          <Button
-            variant="primary"
-            size="l"
-            label={mode === 'create' ? 'Save Budget' : 'Save Changes'}
-            onClick={save}
-          />
-          <Button variant="secondary" size="l" label="Cancel" onClick={onClose} />
-          {props.mode === 'edit' && (
-            /*
-              DECISION 7A: borderless, red, with a bin. `tone="error"` is honoured
-              on `variant="tertiary"` ONLY (`Button.tsx:40` — the only
-              combination Figma draws: a Tertiary instance whose label and icon
-              are overridden to the error tokens). The dark-mode contrast
-              shortfall of `--mapped-text-error-default` is accepted and deferred
-              to the DS round (Gate 26 records it on the card surface).
-            */
+        <div className="mvp-budget-footer">
+          <div
+            className="mvp-budget-footer__actions"
+            data-held={isCategoryView}
+            inert={isCategoryView}
+            aria-hidden={isCategoryView || undefined}
+          >
             <Button
-              variant="tertiary"
-              tone="error"
+              variant="primary"
               size="l"
-              label="Delete budget"
-              leadingIcon={<Icon name="delete" size="l" />}
-              onClick={props.onDelete}
+              label={mode === 'create' ? 'Save Budget' : 'Save Changes'}
+              onClick={save}
             />
+            <Button variant="secondary" size="l" label="Cancel" onClick={onClose} />
+            {props.mode === 'edit' && (
+              /*
+                DECISION 7A: borderless, red, with a bin. `tone="error"` is honoured
+                on `variant="tertiary"` ONLY (`Button.tsx:40` — the only
+                combination Figma draws: a Tertiary instance whose label and icon
+                are overridden to the error tokens). The dark-mode contrast
+                shortfall of `--mapped-text-error-default` is accepted and deferred
+                to the DS round (Gate 26 records it on the card surface).
+              */
+              <Button
+                variant="tertiary"
+                tone="error"
+                size="l"
+                label="Delete budget"
+                leadingIcon={<Icon name="delete" size="l" />}
+                onClick={props.onDelete}
+              />
+            )}
+          </div>
+          {isCategoryView && (
+            <div className="mvp-budget-footer__commit">
+              {/*
+                VERB PLUS COUNT, DISABLED AT ZERO. The verb follows the
+                destination: these go back INTO a form field, so "Add". Zero is a
+                genuinely invalid budget (`budgetDraftErrors` requires at least one
+                category), which is what makes disabling honest here rather than a
+                dead end.
+              */}
+              <Button
+                variant="primary"
+                size="l"
+                label={addCategoriesLabel}
+                isDisabled={pickerDraft.length === 0}
+                onClick={commitCategories}
+              />
+            </div>
           )}
-        </>
-        )
+        </div>
       }
     >
-      {isCategoryView ? (
-        <OptionList
-          selectionMode="multiple"
-          ariaLabel="Category"
-          options={CATEGORY_OPTIONS}
-          value={pickerDraft}
-          onChange={toggleCategory}
-        />
-      ) : (
+      <div className="mvp-budget-views">
+        <div
+          className="mvp-budget-views__pane mvp-budget-views__pane--form"
+          data-held={isCategoryView}
+          inert={isCategoryView}
+          aria-hidden={isCategoryView || undefined}
+        >
       <div ref={validation.formRef} className="mvp-budget-form" onBlur={validation.onBlur}>
         <Field
           label="Name"
@@ -247,7 +281,7 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
           isRequired
           isInvalid={validation.isShown('name')}
         />
-        <div className="mvp-budget-form__category" data-field="categories">
+        <div className="mvp-budget-form__category" data-field="categories" ref={focus.trigger}>
           {/*
             A TRIGGER THAT NAVIGATES. It is pinned closed and its open request
             is intercepted, exactly as the merchant trigger has been since Gate
@@ -321,7 +355,19 @@ export function BudgetFormModal(props: BudgetFormModalProps) {
           />
         </div>
       </div>
-      )}
+        </div>
+        {isCategoryView && (
+          <div className="mvp-budget-views__pane mvp-budget-views__pane--list" ref={focus.picker}>
+            <OptionList
+              selectionMode="multiple"
+              ariaLabel="Category"
+              options={CATEGORY_OPTIONS}
+              value={pickerDraft}
+              onChange={toggleCategory}
+            />
+          </div>
+        )}
+      </div>
     </Modal>
   )
 }

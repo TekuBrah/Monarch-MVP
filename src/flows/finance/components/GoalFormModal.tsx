@@ -14,6 +14,7 @@ import {
   type GoalSettings,
 } from '../goalDraft'
 import { useTouchedValidation } from '../useTouchedValidation'
+import { usePickerFocus } from '../usePickerFocus'
 
 /**
  * ═════════════════════════════════════════════════════════════════════════════
@@ -179,6 +180,8 @@ export function GoalFormModal(props: GoalFormModalProps) {
   }
 
   const isSourceView = view === 'source'
+  // Gate 113 (R6): focus into the picker on open, back to the trigger on return.
+  const focus = usePickerFocus(isSourceView)
 
   /*
     ⚠ THE FORM IS NEVER UNMOUNTED, AND THAT IS THE MECHANISM — Gate 81-C.
@@ -338,7 +341,7 @@ export function GoalFormModal(props: GoalFormModalProps) {
                 ariaLabel="Auto-save"
               />
             </div>
-            <div className="mvp-goal-form__source" data-field="fundingAccountId">
+            <div className="mvp-goal-form__source" data-field="fundingAccountId" ref={focus.trigger}>
               {/*
                 A TRIGGER THAT NAVIGATES — pinned closed, its open request
                 intercepted, exactly as the budget form's category trigger and the
@@ -366,7 +369,7 @@ export function GoalFormModal(props: GoalFormModalProps) {
           </div>
         </div>
         {isSourceView && (
-          <div className="mvp-goal-views__pane">
+          <div className="mvp-goal-views__pane" ref={focus.picker}>
             <OptionList
               selectionMode="single"
               ariaLabel="Funding source"

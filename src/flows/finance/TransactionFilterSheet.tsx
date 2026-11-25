@@ -19,6 +19,7 @@ import {
 } from '../../data/derive'
 import type { TransactionFilter } from '../../data/derive'
 import type { Transaction, TransactionMethod } from '../../data/types'
+import { usePickerFocus } from './usePickerFocus'
 
 /**
  * The Transactions filter sheet — Figma `Finance_Transaction02` (`1266:14329`),
@@ -122,6 +123,8 @@ export function TransactionFilterSheet({
   const [view, setView] = useState<SheetView>('filters')
 
   const isMerchantView = view === 'merchant'
+  // Gate 113 (R6): focus into the list on open; back to the trigger on Back.
+  const focus = usePickerFocus(isMerchantView)
 
   /**
    * The Merchant facet's options — 20 distinct names, DERIVED.
@@ -324,19 +327,21 @@ export function TransactionFilterSheet({
       isOpen
       onClose={onClose}
       /*
-        HEIGHT, NOT WIDTH — `Sheet.sizing` is the one `sizing` prop in the DS
-        whose axis is vertical, and its values are `'hug' | 'fill'` where
-        `Select.sizing` is `'fixed' | 'fill'`. That divergence is a shipped DS
-        ruling, read from the `.d.ts` rather than assumed to match: Sheet's
-        default really is hug-height, so `'fixed'` would name behaviour it does
-        not have.
+        HUG IN BOTH VIEWS — Gate 113 (R5, R112-3). Until this gate the picker
+        opened at the panel's max-height cap (`sizing="fill"`, 764 at 812) while
+        the filters view hugged at 695, so the header — the title and the back
+        arrow — jumped up 69px on the way in and down on the way back.
 
-        The picker opens AT the panel's existing max-height cap so a 19-row
-        list has somewhere to scroll, and the filters view keeps the default
-        hug so the sheet RETURNS TO ITS NATURAL HEIGHT on the way back. No new
-        geometry either way: `'fill'` takes the cap the panel already declares.
+        NOW THE MERCHANT VIEW TAKES THE FILTERS VIEW'S HEIGHT AND ITS LIST
+        SCROLLS INSIDE. The filters pane stays mounted and in flow (hidden and
+        inert in the merchant view), so it alone sets the content region's
+        height; the merchant pane is out of flow (`.mvp-txn-filter-views__pane--list`,
+        `position: absolute`) and scrolls within that box. The Apply button is
+        held the same way in the actions region, so that region's height holds
+        too. `Sheet.sizing` is vertical: `'hug' | 'fill'`, where `Select.sizing`
+        is `'fixed' | 'fill'` — a shipped DS divergence, read from the `.d.ts`.
       */
-      sizing={isMerchantView ? 'fill' : 'hug'}
+      sizing="hug"
       title={isMerchantView ? 'Select merchant' : 'Filter transactions'}
       /*
         NO ✕, BECAUSE FIGMA DRAWS NONE. The header is title-left and "Reset"-
@@ -348,14 +353,15 @@ export function TransactionFilterSheet({
       */
       showCloseButton={false}
       /*
-        R6 — the picker view releases the content region's 16px SIDES so the
-        `OptionList` rows run the panel's whole width and a selected row's tint
-        reaches both edges. Only the sides: the bottom affordance padding and
-        the headerless top inset are untouched, so nothing vertical moves. The
-        filters view keeps the default, because its fields are meant to be
-        inset.
+        `none` IN BOTH VIEWS (Gate 113), so the `OptionList` rows run the
+        panel's whole width and a selected row's tint reaches both edges, while
+        the filters pane carries the 16px sides itself
+        (`.mvp-txn-filter-views__pane--filters`). One value for both views is
+        the Gate 89 correction: a per-view switch widens the held pane by 32px
+        and a pane that re-wraps changes height. Only the sides are released;
+        the bottom affordance padding is untouched.
       */
-      contentPadding={isMerchantView ? 'none' : 'default'}
+      contentPadding="none"
       /*
         THE BACK CONTROL IS `OverlayHeader`'S OWN, NOT A HAND-ROLLED
         `<button>` — Gate 74-B. Until this gate it was a bare button with an
@@ -401,11 +407,22 @@ export function TransactionFilterSheet({
         NO APPLY IN THE PICKER. The action region belongs to the filters view;
         a pinned "Apply Filter · N results" under a merchant list would let the
         user commit from a screen that is not showing them what they are
-        committing. Selecting returns immediately, so Apply is always one step
-        away and never skipped.
+        committing. Back returns to the filters view, so Apply is always one
+        step away and never skipped.
+
+        HELD, NOT REMOVED (Gate 113): in the merchant view the Apply button is
+        laid out but hidden and inert, so the actions region keeps its height
+        and the panel keeps the filters view's height. The wrapper restates the
+        DS actions region's own stack (`.mn-sheet__actions`: a column, children
+        full width) because the button is no longer its direct child.
       */
       actions={
-        isMerchantView ? undefined : (
+        <div
+          className="mvp-txn-filter__actions"
+          data-held={isMerchantView}
+          inert={isMerchantView}
+          aria-hidden={isMerchantView || undefined}
+        >
           <Button
             variant="primary"
             label={applyLabel}
@@ -415,18 +432,16 @@ export function TransactionFilterSheet({
               onClose()
             }}
           />
-        )
+        </div>
       }
     >
-      {isMerchantView ? (
-        <OptionList
-          selectionMode="multiple"
-          ariaLabel="Select merchant"
-          options={merchantOptions}
-          value={merchantSelection}
-          onChange={applyMerchantSelection}
-        />
-      ) : (
+      <div className="mvp-txn-filter-views">
+        <div
+          className="mvp-txn-filter-views__pane mvp-txn-filter-views__pane--filters"
+          data-held={isMerchantView}
+          inert={isMerchantView}
+          aria-hidden={isMerchantView || undefined}
+        >
         <div className="mvp-txn-filter">
           {/*
             A `fieldset` PER FACET, because each is a named group of controls and
@@ -502,7 +517,7 @@ export function TransactionFilterSheet({
             </div>
           </fieldset>
 
-          <div className="mvp-txn-filter__group">
+          <div className="mvp-txn-filter__group" ref={focus.trigger}>
             <span
               className="mvp-txn-filter__legend type-body-caption-semibold"
               id="mvp-txn-filter-merchant"
@@ -603,7 +618,19 @@ export function TransactionFilterSheet({
             />
           </div>
         </div>
-      )}
+        </div>
+        {isMerchantView && (
+          <div className="mvp-txn-filter-views__pane mvp-txn-filter-views__pane--list" ref={focus.picker}>
+            <OptionList
+              selectionMode="multiple"
+              ariaLabel="Select merchant"
+              options={merchantOptions}
+              value={merchantSelection}
+              onChange={applyMerchantSelection}
+            />
+          </div>
+        )}
+      </div>
     </Sheet>
   )
 }

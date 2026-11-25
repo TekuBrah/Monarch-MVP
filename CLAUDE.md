@@ -21261,3 +21261,65 @@ focus (115); G88's fix; the DS round; any seed, schema, token, asset or DS chang
 **One full run on the final tree: 1877 passed / 0 failed, 1.4 h (4,885 s), npm exit 0, 0 `writing actual`, 592 PNGs at
 `abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869` before and after.** The three clean runs and an independent
 repeat of the mutations are Phase B's.
+
+## The older pickers hold still, focus returns, G32 closed (Gate 113)
+
+No DS re-pin — **v2.17.0 throughout**. The second gate of the retrofit series (Phase A: `D:\Claude\_handoffs\gate113-phaseA\`).
+**|WALK| unchanged, baselines 592 -> 592 (20 changed, 0 added, 0 deleted), tests 1877 -> 1903 in 56 files, schema 6.**
+`lint:tokens` scans **139** files (138 + `usePickerFocus.ts`) with the same **5** exemptions. Register `2bc` carries the closures
+(R4, R5, R6, G32) and the two new DS gaps (G89, G90). **Teku does every git write.**
+
+### The standard now covers every dropdown-in-form picker
+
+| picker | host | held | how |
+|---|---|---|---|
+| Goal Funding Source (Gate 81-C) | `Modal` | form view's box, as a floor | one grid cell, form pane hidden + inert; footer ghost |
+| Budget Category (R4) | `Modal` | form view's box, **exactly** | form pane in flow, hidden + inert; list pane `position: absolute; inset: 0`, scrolls; footer grid cell, "Add N Categories" in Save's slot |
+| Transactions Merchant (R5) | `Sheet` | filters view's height, **exactly** | the same, `sizing="hug"` in both views; Apply held in the actions region |
+| Transaction detail Category (Gate 89) | `Sheet` | detail view's box, as a floor | one grid cell (unchanged) |
+
+**A FLOOR WHEN THE LIST IS SHORTER THAN THE FORM, EXACT WHEN IT IS LONGER.** A shared grid cell is as tall as the taller pane, so a
+list longer than the form grows the card — the Budget's 348px list against a 322px form, and the Merchant's 1148px against 512.
+Taking the list out of flow gives it exactly the held box and lets it scroll. `contentPadding="none"` in both views with the held
+pane padding itself, in the Budget and Merchant pickers (the Gate 89 correction). The Goal form is the exception: it still switches
+`contentPadding={isSourceView ? 'none' : 'default'}` per view (`GoalFormModal.tsx:239`), its height held by the Gate 81-C floor, and its
+tests pass.
+
+### Focus — `usePickerFocus` (R6)
+
+On open, focus moves to the selected option (or the first); on Back and on a commit, back to the trigger; after a pointer
+activation with `focusVisible: false` (measured load-bearing for a readonly input); held 400 ms. The pointer bit is the activation's
+own click, read from a document capture listener and cleared after the open focus. **0 baselines** (proven by capture comparison).
+The Gate 81-C pin in `goal-form-views.spec.ts` (focus on `body`) is rewritten deliberately.
+
+**THE SHARED VALIDATION HOOK IGNORES A BLUR FROM INSIDE `[inert]`.** A form kept mounted behind its picker is blurred by the browser
+when its pane becomes inert; counting that as leaving the field turned an empty Create form's Category red (and grew the card 2px).
+
+### Two DS facts the tests are written around (register G89, G90)
+
+- **`Select` cannot be opened from the keyboard** — it has no `onKeyDown`. The keyboard tests open each picker by pointer.
+- **`Select`'s focused / selected / invalid border is 2px against 1px at rest, with no padding compensation**, so returning focus to
+  an unselected trigger grows the card 2px (Modal top -1, Sheet top -2). The spec compares the after-Back box with the form
+  measured with the trigger focused. Its focus style is `:focus-within`, so "no ring after pointer" holds at `:focus-visible` only.
+
+### G32 — the receipt viewer's back control is `Modal`'s own
+
+`onBack` + `backLabel="Back to receipt"` on the two sub-views (`picker`, `editor`); flush left, neutral, header 74 -> 64. 12 baselines.
+
+### Baselines and the run
+
+Predicted in writing before the pre-mint run: exactly 20 pixel diffs — `finance-budget-create-category-*` ×4,
+`finance-transactions-merchant-*` ×4, `finance-receipts-view-{picker,editor,replace}-*` ×12. **Pre-mint full run: 20 failed / 1883
+passed (1.3 h), name for name, all pixel diffs, 0 `writing actual`, 592 PNGs unchanged.** Minted with an exact, escaped,
+end-anchored `-g` (dry run: 20): **592 -> 592, 20 changed, 0 added, 0 deleted**; digest
+`c86ebe63dba48063334d44137e19a2370f22b317a42c58b133aaf0a7d7932ef6`. All 20 opened. The `merchant` capture now shows the list
+scrolled (IKEA clicked below the fold; Aeon Big's tick out of view) — register `2bc`.
+**Post-mint full run on the minted census: 1903 passed / 0 failed, 1.2 h, npm exit 0, 0 `writing actual`, 592 PNGs, digest
+unchanged.** The three clean runs and the formal mutation set are Phase B's (`FOR-PHASE-B.md`).
+
+### Deliberately not in scope
+
+Gate 114's strings and `PROFILE`; route-change focus (Gate 115); G62, G67, G75 (Gate 116); fixing G89 / G90 (DS round); a shared
+picker component (R112-4); R10 (closed, R112-5); R11 (hygiene); any DS file.
+
+**Next free: section `2bd`, gap `G91`, Teku decision 64.**

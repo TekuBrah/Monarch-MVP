@@ -2673,8 +2673,13 @@ export const OVERLAY_STATES: WalkState[] = [
             THE FOOTER IS THE SETTLE, because it is the one assertion that
             proves the count is derived from the draft rather than drawn: two
             rows ticked must read "Add 2 Categories".
+
+            THE COMMIT CELL, NOT THE WHOLE FOOTER (Gate 113). The footer now
+            holds the form's buttons too, ghosted and inert, so
+            `.mn-modal__footer .mn-btn` resolves to three buttons; the commit
+            cell names exactly one.
           */
-          settlesOn: '.mn-modal__footer .mn-btn',
+          settlesOn: '.mvp-budget-footer__commit .mn-btn',
           settlesText: 'Add 2 Categories',
         },
       ],

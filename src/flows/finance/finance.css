@@ -844,6 +844,54 @@
 }
 
 /*
+  THE FILTER SHEET'S TWO VIEWS SHARE ONE BOX (Gate 113, R5, R112-3).
+
+  The filters pane stays IN FLOW in both views and alone sets the content
+  region's height; in the merchant view it is `visibility: hidden` and, in
+  markup, `inert` + `aria-hidden`. The merchant pane is OUT of flow and takes
+  exactly that box (`position: absolute; inset: 0`), scrolling inside it — the
+  Budget picker's mechanism, for the same reason: the list (23 rows, 1164px) is
+  far taller than the filters view, so a floor would push the sheet to its cap,
+  which is the 69px header jump this replaces.
+
+  The filters pane carries the content region's own 16px sides, because
+  `contentPadding` is `none` in both views.
+
+  `.mvp-txn-filter__actions` holds the Apply button in the actions region in
+  both views (hidden and inert in the merchant view) and restates the region's
+  own stack, `.mn-sheet__actions`: a column whose children are full width. A
+  flex column rather than a block so no line box wraps the inline-flex button.
+*/
+.mvp-txn-filter-views {
+  position: relative;
+}
+
+.mvp-txn-filter-views__pane--filters {
+  padding-inline: var(--brand-scale-400);
+}
+
+.mvp-txn-filter-views__pane[data-held='true'],
+.mvp-txn-filter__actions[data-held='true'] {
+  visibility: hidden;
+}
+
+.mvp-txn-filter-views__pane--list {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.mvp-txn-filter__actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.mvp-txn-filter__actions > * {
+  width: 100%;
+}
+
+/*
   THE MERCHANT PICKER — the sheet's second view, pushed IN PLACE.
 
   `--menu-width` IS THE DS'S OWN OVERRIDE SEAM AND THIS IS NOT AN OVERRIDE OF
@@ -2541,6 +2589,71 @@ button.mvp-receipt-card:focus-visible {
 /* Figma binds `text/subtle/default` on `body/caption-semibold`. */
 .mvp-budget-form__renew-label {
   color: var(--mapped-text-subtle-default);
+}
+
+/* THE BUDGET MODAL'S TWO VIEWS SHARE ONE BOX (Gate 113, R4).
+
+   The form pane stays IN FLOW in both views, so it alone decides the content
+   region's height; in the picker view it is `visibility: hidden` (its box kept,
+   nothing painted) and `inert` + `aria-hidden` in markup.
+
+   THE LIST PANE IS OUT OF FLOW, AND THAT IS THE DIFFERENCE FROM GATE 81-C. The
+   goal form's two-row list is shorter than its form, so a shared grid cell (a
+   floor) holds it. Seven categories make a 348px list against a 322 / 332px form,
+   so a floor would grow the card; `position: absolute; inset: 0` gives the list
+   EXACTLY the held form's box and it scrolls inside it.
+
+   THE FORM PANE CARRIES THE CONTENT REGION'S OWN SIDE PADDING (16px), because
+   `contentPadding` is `none` in both views — the Gate 89 correction: a per-view
+   switch would re-wrap the held form 32px wider and change its height.         */
+.mvp-budget-views {
+  position: relative;
+}
+
+.mvp-budget-views__pane--form {
+  padding-inline: var(--brand-scale-400);
+}
+
+.mvp-budget-views__pane[data-held='true'] {
+  visibility: hidden;
+}
+
+.mvp-budget-views__pane--list {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* THE FOOTER IS HELD AS ONE GRID CELL: the form's buttons (ghosted in the picker
+   view) and "Add N Categories" share it, the commit button at the top — where
+   "Save Budget" sat (R112-2). Each pane restates the DS footer's own stack
+   (`.mn-modal__footer`: column, 16px gap, children full width), because the
+   buttons are no longer its direct children. `.mvp-goal-form__actions`' twin.  */
+.mvp-budget-footer {
+  display: grid;
+}
+
+.mvp-budget-footer__actions,
+.mvp-budget-footer__commit {
+  grid-area: 1 / 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-scale-400);
+}
+
+.mvp-budget-footer__commit {
+  align-self: start;
+}
+
+.mvp-budget-footer__actions > *,
+.mvp-budget-footer__commit > * {
+  width: 100%;
+}
+
+.mvp-budget-footer__actions[data-held='true'] {
+  visibility: hidden;
 }
 
 /* The delete confirmation's one line — `.mvp-receipt-delete__body`'s twin. */

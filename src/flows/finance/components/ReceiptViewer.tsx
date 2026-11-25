@@ -3,7 +3,6 @@ import {
   Button,
   Chips,
   Icon,
-  IconButton,
   InlineMessage,
   ListItem,
   Modal,
@@ -100,22 +99,17 @@ import { TransactionPicker } from './TransactionPicker'
  * back affordance gives — so there is one rule ("leaving without Save discards")
  * rather than two behaviours depending on how you left.
  *
- * THE BACK AFFORDANCE STILL SHIPS VISIBLY SHORT — register **G32** — BUT THE
- * REASON CHANGED AT DS v2.8.0, so do not re-derive it from the old one. This
- * viewer passes its back control through `headerIconLeft`, which `Modal` now
- * maps to `OverlayHeader.titleLeading` — still INSIDE the centred title group.
- * The classes the old note named (`.mn-modal__header-side`) no longer exist.
- *
- * WHAT IS NEW IS THAT A FLUSH-LEFT SLOT NOW EXISTS: `Modal.onBack` renders a
- * real back control in the leading track. Adopting it here would close G32,
- * and it is NOT done in this gate, whose scope is the two pickers. It is a
- * one-prop change when someone takes it, and it moves **12 baselines**, which
- * is why it is not a drive-by. TWELVE AND NOT 28: `headerIconLeft` below is
- * passed only when `view !== 'viewer'`, so only the picker, editor and replace
- * states render a back control, and `OverlayHeader`'s leading track is a fixed
- * width whether filled or not — the four viewer states cannot shift.
- * Still not overridden with an MVP rule that moves the control — that would
- * be writing over DS geometry, which this project does not do.
+ * THE BACK AFFORDANCE IS `Modal`'S OWN — G32 CLOSED AT GATE 113 (R8). Until
+ * then this viewer passed an `IconButton` through `headerIconLeft`, which
+ * `Modal` maps to `OverlayHeader.titleLeading` — INSIDE the centred title
+ * group, so the arrow sat beside the title in primary blue, and the 34px
+ * button made the header 74px tall where every other overlay header is 64.
+ * Now the three sub-views pass `onBack` and `backLabel`, so the control is the
+ * one `OverlayHeader` renders in its fixed leading track: flush left, the
+ * neutral glyph, the header at 64. The viewer itself passes neither — there is
+ * nothing to go back to and the ✕ already closes — and the leading track is a
+ * fixed width whether filled or not, so the viewer's four states cannot shift.
+ * It moved exactly the 12 sub-view baselines (picker, editor, replace).
  * ─────────────────────────────────────────────────────────────────────────────
  * TWO STATES OF THE 'viewer' VIEW, DRIVEN BY THE DATA — `ReceiptCard`'s rule.
  *
@@ -820,25 +814,16 @@ export function ReceiptViewerHost({
         title={title}
         /*
           THE BACK AFFORDANCE — only on a sub-view, because on the viewer there
-          is nothing to go back TO and the ✕ already closes. It renders beside
-          the centred title rather than flush left; that is G32 and it ships
-          short rather than being moved by an MVP rule.
+          is nothing to go back TO and the ✕ already closes. It is `Modal`'s own
+          back control, flush left in the header's leading track (G32, closed
+          at Gate 113).
 
           ITS NAME SAYS WHERE IT GOES, not what it looks like: "Back to receipt"
           rather than "Back", so it is distinguishable from "Close" when read
           aloud in a dialog that has both.
         */
-        headerIconLeft={
-          view === 'viewer' ? undefined : (
-            <IconButton
-              variant="tertiary"
-              size="s"
-              ariaLabel="Back to receipt"
-              icon={<Icon name="arrow_back" size="l" />}
-              onClick={back}
-            />
-          )
-        }
+        onBack={view === 'viewer' ? undefined : back}
+        backLabel="Back to receipt"
         footer={footer}
       >
         {body}

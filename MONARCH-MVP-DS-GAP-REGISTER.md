@@ -5990,3 +5990,102 @@ transactions). Renaming the heading (Decision 61, Gate 114) does not fix that; r
   review's button is what calls `sendMoney`.
 
 ### Nothing was removed from this register at this gate.
+
+## 2bc. Status at MVP Gate 113 (2026-11-25) — the older pickers hold still, focus returns, G32 closed; G89 and G90 opened
+
+**The tally moves: G32 is closed; G89 and G90 are opened.** Chained from §2bb's 87 / 43 / 44: **89 entries, 44 closed, 45 open;
+the highest number is G90.** (Chained, not re-derived — the §2av caveat still applies.)
+**Next free: section `2bd`, gap `G91`, Teku decision 64.**
+
+Gate 113 is the second gate of the retrofit series (Phase A: `D:\Claude\_handoffs\gate113-phaseA\REPORT.md`, built and measured
+in a census). No DS re-pin (v2.17.0 throughout), no schema, seed, token or stored-shape change, no walk state added.
+**Baselines 592 -> 592: 20 changed, 0 added, 0 deleted. Tests 1877 -> 1903 in 56 files** (`e2e/older-pickers.spec.ts`, 26).
+
+### R4 — the Budget Category picker — CLOSED (R112-2)
+
+`BudgetFormModal` now keeps the form view's box in the picker view: Create **526 -> 526** and Edit **594 -> 594** at 375 and 430
+(before: both shrank to **494**, the header moving down 16 / 50px). The header, title, Back and ✕ do not move.
+
+- **The form pane is never unmounted** (`.mvp-budget-views__pane--form`): in the picker view it is `visibility: hidden`,
+  `inert`, `aria-hidden` — Gate 81-C's shape.
+- **The held height is EXACT, not a floor — the difference from the goal form.** Seven categories make a 348px list against
+  a 322 (Create) / 324 (Edit) form content box, so a shared grid cell would GROW the card. The list pane is out of flow
+  (`.mvp-budget-views__pane--list`, `position: absolute; inset: 0; overflow-y: auto`) and scrolls inside the held box; the last row
+  is sliced at the edge (26px of scroll in Create, 24 in Edit).
+- **The footer is held as one grid cell** (`.mvp-budget-footer`): the form's buttons ghosted (`__actions[data-held]`, inert) and
+  "Add N Categories" (`__commit`) at the top — **exactly Save Budget's / Save Changes' rect** (measured: x, y, width, height equal).
+  The space where Cancel (and Delete) sat stays empty.
+- `contentPadding="none"` in both views; the form pane carries the 16px sides (the Gate 89 correction).
+- **`useTouchedValidation` ignores a blur from inside an `[inert]` subtree.** Keeping the form mounted exposed it: the browser blurs
+  the trigger when its pane becomes inert, which marked an empty Create form's Category touched, turned the held `Select` invalid
+  (2px border, the card +2px) and left it red after Back. Opening a field's own picker is not leaving the field. Shared hook — the
+  goal form, top-up and receipt editor are unaffected in behaviour (their held fields are always valid or not held).
+
+### R5 — the Merchant picker — CLOSED (R112-3)
+
+The filter sheet's merchant view now takes the filters view's height: **695 at top 117** at 375 and 430 (before: **764 at top 48**,
+`sizing="fill"`, the header jumping 69px). `sizing="hug"` in both views; the filters pane stays in flow, held and inert; the
+merchant pane is out of flow and scrolls (23 rows, scrollHeight 1148 in 512). The Apply button is held in the actions region
+(`.mvp-txn-filter__actions[data-held]`) so that region keeps its height. Below the list sits the empty band where Apply is.
+
+### R6 — focus return — CLOSED
+
+`src/flows/finance/usePickerFocus.ts`, used by the Budget (Create and Edit), Merchant and Goal Funding Source pickers.
+
+- **On open**, focus moves to the selected option (or the first) with `preventScroll`, revealed only inside the picker's own scroll
+  box. (Not in the prompt; without it a keyboard user is left on `body`, from which Tab leaves the modal.)
+- **On Back and on a commit** ("Add N Categories"; the goal pick; the merchant view's commit is Back), focus returns to the trigger
+  (the `Select`'s input).
+- **Pointer-aware, as Gate 89-B.** A document capture-phase `click` listener records whether the activation was a pointer
+  (`detail > 0`); the flag is read for the open focus and cleared, so only a click made inside the picker sets it. After a pointer,
+  focus moves with `focusVisible: false`. **Measured load-bearing:** without it, a pointer Back leaves the readonly input matching
+  `:focus-visible` (Chromium's text-input heuristic).
+- **Holds 400 ms** (R92-24's window, asserted with a `focusout` counter).
+- **0 baselines** — proven: the 8 R4/R5 captures byte-identical with and without R6, and `add-goal-source` passes with it.
+- **The `goal-form-views.spec.ts` pin is rewritten, deliberately.** Test (e) pinned `document.activeElement === document.body` after
+  Back and after a pick (Gate 81-C: "the retrofit session's call"). It now asserts the trigger is focused with `:focus-visible`
+  false after a pointer round trip. Title changed from "…focus is left on the document exactly as it was before this gate" to
+  "…focus returns to the Funding Source trigger".
+
+### G32 — CLOSED
+
+`ReceiptViewer`'s two sub-views pass `onBack` and `backLabel="Back to receipt"` to `Modal`, replacing the `IconButton` in
+`headerIconLeft` (which rendered inside the centred title group, in primary blue, and made the header 74 tall). The control is now
+`OverlayHeader`'s own: flush left at card + 16, 32 x 32, `rgb(54, 60, 67)` (the close control's colour), header **64**. Moved exactly
+the 12 `finance-receipts-view-{picker,editor,replace}-*` baselines; the viewer's four states cannot shift. Two `link-editor.spec.ts`
+locators that named `.mn-overlay-header__title-group .mn-btn` now name the role or the leading track. `IconButton` is no longer
+imported by `ReceiptViewer.tsx`.
+
+### G89 — OPEN, DS round: `Select` has no keyboard open path
+
+`Select.tsx` opens only from the control's `onClick` (`:270-274`) and the chevron (`tabIndex={-1}`); there is no `onKeyDown`. So a
+keyboard user who Tabs to any `Select` — the three pickers' triggers included — cannot open it with Enter, Space, ArrowDown or
+Alt+ArrowDown. A combobox must open from the keyboard (WAI-ARIA combobox pattern). Not patched in the MVP (rule 3). R6's keyboard
+tests therefore open the picker by pointer and then use the keyboard inside it.
+
+### G90 — OPEN, DS round: `Select`'s 2px states grow the control by 2px
+
+`.mn-select__control` is `border: 1px` at rest and `border-width: 2px` when focused (`:focus-within`), selected or invalid
+(`Select.css:120-125`, `:139-142`), with no padding compensation, so the control's box grows 2px and everything after it moves. R6
+makes it visible: after a round trip the returned focus grows an unselected trigger (Budget Create, Merchant at rest), so the card
+ends 2px taller than it opened (Modal top -1, Sheet top -2). Clicking the field had the same effect before this gate. The spec compares
+after-Back to the form measured with the trigger focused, so the delta is attributed, not hidden.
+
+### Notes (not entries)
+
+- **`Select` paints focus with `:focus-within`, not `:focus-visible`.** So `focusVisible: false` withholds the `:focus-visible` match,
+  but a trigger focused after a pointer return still draws the field's focused border — the same state as just after clicking it.
+  Normal for a text-entry control; recorded so "no ring after pointer" is read at the `:focus-visible` level.
+- **Phase A of 112's correction carried:** the Budget picker HAS a footer since Gate 74-B ("Add N Categories"); the retrofit list's
+  "no footer" was stale. This gate holds it.
+- **`ReceiptViewer` has two sub-views (`picker`, `editor`), not three.** `view-replace` is the Replace confirmation stacked over the picker.
+- **The Gate 81-C goal form is unchanged** except for R6 (R112-5: R10 closed as not owed).
+- **The `merchant` baseline now shows the list scrolled.** Its prepare steps tick Aeon Big then IKEA; in the shorter held box
+  IKEA is below the fold, so Playwright scrolls it into view before clicking, and the capture shows Celcom … Netflix with IKEA
+  selected and Aeon Big (also selected) out of view above. Deterministic (the same scroll every run); the capture no longer shows
+  both ticks at once. Changing the prepare steps was not in this gate's scope (fork F2 in the Phase A report).
+- **Minted:** 592 -> 592, 20 changed (exactly the predicted set), 0 added, 0 deleted; digest after the mint
+  `c86ebe63dba48063334d44137e19a2370f22b317a42c58b133aaf0a7d7932ef6` (standing command). All 20 opened.
+- **Post-mint full run (census):** 1903 passed / 0 failed, 1.2 h, 0 `writing actual`, digest unchanged.
+
+### Nothing was removed from this register at this gate.

@@ -66,6 +66,17 @@ export function useTouchedValidation<K extends string>(errors: Readonly<Record<K
     const scope = target.closest<HTMLElement>('[data-field]')
     const key = scope?.dataset.field ?? target.getAttribute('name')
     if (!key) return
+    /*
+      A FORM HELD BEHIND ITS OWN PICKER HAS NOT BEEN LEFT — Gate 113. When a
+      trigger opens its picker VIEW (Gate 81-C's shape: the form stays mounted,
+      `inert`), the browser blurs the trigger because it became inert, and focus
+      then moves into the picker. Neither is the user leaving the field: the
+      picker IS that field's editor. Without this, opening the Budget form's
+      Category picker on an empty Create form marked Category touched, turned
+      its held `Select` invalid (a 2px border, +2px of card height) and left it
+      red after Back. A blur from inside an inert subtree is never counted.
+    */
+    if (target.closest('[inert]')) return
     const next = event.relatedTarget
     if (scope && next instanceof Node && scope.contains(next)) return
     setTouched((previous) => (previous.has(key) ? previous : new Set(previous).add(key)))

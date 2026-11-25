@@ -343,8 +343,9 @@ for (const theme of THEMES) {
       'the receipt WOULD re-link to this row if anything re-ran the matcher',
     ).toHaveText(`-${LINKED_ROW}`)
 
-    // Back out of the picker and edit a field instead.
-    await page.locator('.mn-overlay-header__title-group .mn-btn').click()
+    // Back out of the picker and edit a field instead. (Gate 113: `Modal`'s own
+    // back control, located by its `backLabel` rather than the title group.)
+    await page.getByRole('button', { name: 'Back to receipt' }).click()
     await page.locator('.mvp-receipt-details .mn-link').click()
     await page.locator('.mvp-receipt-editor input[type="text"]').fill('Aeon Big Wangsa Maju')
     await page.locator('.mn-modal__footer .mn-btn').click()
@@ -378,7 +379,9 @@ for (const theme of THEMES) {
     await page.locator('.mvp-receipt-details .mn-link').click()
     await page.locator('.mvp-receipt-editor input[type="text"]').fill('Typed and abandoned')
 
-    const back = page.locator('.mn-overlay-header__title-group .mn-btn')
+    // G32 (Gate 113): the back control is `Modal`'s own, in the header's
+    // leading track — not a `.mn-btn` inside the title group any more.
+    const back = page.locator('.mn-overlay-header__side--start .mn-overlay-header__control')
     await expect(back).toHaveAccessibleName('Back to receipt')
     await back.click()
 
