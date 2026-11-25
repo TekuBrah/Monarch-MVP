@@ -5918,3 +5918,75 @@ the reading found none that was not already registered. **Next free: section `2b
   the four has been walked since is on no file.
 
 ### Nothing was removed from this register at this gate.
+
+## 2bb. Status at MVP Gate 112 (2026-11-25) — the send guards; G77 and G76 closed; G88 opened; Decisions 60–63
+
+**The tally moves: G88 is opened, G76 and G77 are closed.** Chained from §2ba's 86 / 41 / 45: **87 entries, 43 closed, 44 open;
+the highest number is G88.** (The open count is chained, not re-derived — the §2av caveat still applies.)
+**Next free: section `2bc`, gap `G89`, Teku decision 64.**
+
+Gate 112 is the first gate of the retrofit series (Phase A: `D:\Claude\_handoffs\gate112-phaseA\REPORT.md`). It changes one
+source file, `src/flows/transfer/CryptoSendScreen.tsx`, and adds one spec, `e2e/send-guards.spec.ts`. No baseline, schema, seed,
+DS or token change; no walk state added.
+
+### Decisions and rulings
+
+- **Decision 60 = A (Teku, 25 Nov 2026, Phase A's F1).** Each writer check gets a real test. The spec serves the dev server's
+  `/src/data/derive.ts` to ONE tab with the UI-side amount check neutralised (`transferAmountError` for the bank,
+  `cryptoAmountError` for crypto) through `page.route`; a real two-tab drain then reaches the writer's own check. The rewrite
+  must match the served module exactly once per fetch, and every test asserts it did, so a renamed function fails loudly
+  instead of testing nothing. Dev-server-only, like `ocr.spec.ts`; under `vite preview` no fetch of the module happens and the
+  first assertion fails with a message that says why.
+- **Decision 61 = A (delegated to the review thread, F5).** Drop "Smart" wherever a rule or seed is behind it. Recorded here;
+  built in Gate 114, not this gate.
+- **Decision 62 = B (delegated, F7).** The UI integration round runs as Gate 116, after this series.
+- **Decision 63 = A (delegated, F8).** Route-change focus is Gate 115, in this series.
+- **R112-1 (F2).** On a refused crypto send, keep the contact, token and tier; clear the amount; go back one step.
+  `draft.clear()` is NOT used: the crypto screen's contact is IN the draft, so clearing it sends the screen to `/transfer`
+  while `navigate(-1)` is in flight (two navigations racing — the Gate 71 / Gate 101 M13 shape).
+- **R112-2 (F3).** In Gate 113, the Budget picker's "Add N Categories" sits where "Save Budget" was.
+- **R112-3 (F4).** In Gate 113, the Merchant view takes the filters view's height and scrolls.
+- **R112-4 (F6).** No shared picker component until a fifth site exists.
+- **R112-5.** R10 (the goal form and the Gate 89 standard) is closed as not owed while the form fits (Phase A measured 572 / 572).
+- **R112-6.** R11 (the full-page capture height) goes to the hygiene round.
+- **The series:** 112 send guards; 113 the older pickers + G32; 114 honest labels (Decision 61) + `PROFILE` (R109-4);
+  115 route-change focus; 116 the UI integration round.
+
+### G77 — CLOSED (Gate 112)
+
+A refused crypto send was uncaught. `CryptoSendScreen.confirm` now wraps `sendCrypto(row)` in a `try`; on a refusal it logs
+`console.warn('Transfer refused:', …)`, raises the existing `'send-refused'` notice, clears only the amount
+(`draft.setCryptoAmount('')`) and goes back one step (`navigate(-1)`, the summary entry — Decision 28A). Closed by the fix and by
+`send-guards.spec.ts` "G77 crypto…", whose six checks are: **C5** nothing is written (stored row count and the ETH quantity
+unchanged), **C1** the notice with its exact title and body, **C2** no uncaught page error and exactly one `Transfer refused:`
+warning, **C3** `history.state.idx` back at the amount entry (R103-17 — reads `idx`, not the screen), **C4** the amount field
+empty, To still naming the contact, the header still "Send Ethereum", **C6** leaving the route dismisses the notice (the
+`AppShell` route-change effect already covers the kind). C5 is checked first so a skip of the guard fails on the write itself.
+
+### G76 — CLOSED (Gate 112)
+
+`sendMoney`'s `sendRowProblem` call and `sendCrypto`'s `cryptoSendProblem` call had never had a skip-mutation proof, and no UI
+path reaches either (Phase A, measured). They now do: the real two-tab drain through the neutralised screen check reaches the
+writer, the refusal fires, and a skip of either call site makes the test fail (proofs P6 and P7). The "accepted equivalent
+survivor" option was not needed. Bank test: "G76 bank…"; the crypto guard is proved by the same test as G77.
+
+### G88 — OPEN, a feature gate after Gate 114
+
+Home's "Smart Insights" carousel cards are fixed seed copy the ledger does not support (`src/data/insights.ts:22-47`:
+"Healthcare spending up 12% vs last month", "RM 140.82 left to pay by 31 July", "Save 30% … nearby" — none derived from the
+transactions). Renaming the heading (Decision 61, Gate 114) does not fix that; real insights derived from the ledger are a feature.
+
+### Notes (not entries)
+
+- **A stale bank review history entry — UNCONFIRMED.** After another tab drains the account, tab A's review sheet closes itself
+  but `history.state` stays `{ review: true }` (Phase A, first observation only; Back was not pressed). Gate 116 measures it; if
+  it is real it becomes G89.
+- **Phase A's corrections to the record:** the retrofit picker list's "no footer" is stale since Gate 74-B (the Budget picker has
+  its own "Add N Categories" footer); line drift — G62's `SendScreen.tsx:204` is now `:287`, Flow 11's `e2e/harness.ts:1164` is
+  now `:1852`; and **both send guards are unreachable from the UI today** (the amount screens refuse first), which is why a
+  skip of either call site survived and why the technique above exists.
+- **Found while building:** the bank refusal fires on **"Transfer now"** in the review sheet, not on "Transfer money" as this
+  gate's prompt said — with the screen check neutralised the review stays open after the other tab drains the account, and the
+  review's button is what calls `sendMoney`.
+
+### Nothing was removed from this register at this gate.

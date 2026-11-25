@@ -32,6 +32,7 @@ import {
   CRYPTO_UNITS_PER_TOKEN,
 } from '../../data/derive'
 import { formatMyr, formatQuantity } from '../../data/format'
+import { raiseNotice } from '../../shell/notices'
 import { useTouchedValidation } from '../finance/useTouchedValidation'
 import { NetworkFeeSheet } from './NetworkFeeSheet'
 import { useTransferDraft } from './transferDraft'
@@ -159,7 +160,25 @@ export function CryptoSendScreen() {
   const confirm = () => {
     if (!validation.attempt()) return
     const row = buildCryptoSend({ recipient, holding, amountSen, tier: draft.crypto.tier, now: new Date() })
-    sendCrypto(row)
+    try {
+      sendCrypto(row)
+    } catch (refusal) {
+      // GATE 112 (G77, R112-1): `sendCrypto` judges the row against the COMMITTED
+      // holdings before any write, so a refusal means this draft has gone stale
+      // (another tab spent the token). Nothing was written. Say so — a throw in a
+      // handler is no render error and would otherwise leave the summary up with
+      // no message — and go back to the editable amount. R106-10's shape, adapted:
+      // the bank screen drops the whole draft because its recipient comes from the
+      // route; here the contact is IN the draft, and `draft.clear()` would send the
+      // screen to /transfer while `navigate(-1)` is in flight (two navigations
+      // racing). So keep the contact, token and tier, clear only the amount, and
+      // step back one entry (Decision 28A: the summary is its own entry).
+      console.warn('Transfer refused:', refusal)
+      raiseNotice('send-refused')
+      draft.setCryptoAmount('')
+      navigate(-1)
+      return
+    }
     draft.clear()
     setSentId(row.id)
     navigate(-1)

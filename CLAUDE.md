@@ -21197,3 +21197,67 @@ files). No DS re-pin: v2.17.0 applies throughout. State at the Gate 109 commit (
 complete. Register §2ba records the gate; the tally does not move.
 
 **Next free: section `2bb`, gap `G88`, Teku decision 60.**
+
+## The send guards — G77 and G76 closed (Gate 112)
+
+No DS re-pin — **v2.17.0 throughout**. The first gate of the retrofit series (Phase A: `D:\Claude\_handoffs\gate112-phaseA\`).
+**|WALK| unchanged (no walk state, overlay or store state added), baselines 592 -> 592 (0 changed, 0 added, 0 deleted — digest
+`abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869` before and after), tests 1873 -> 1877 in 55 files, schema 6.**
+Files: `src/flows/transfer/CryptoSendScreen.tsx` (+20/−1), `e2e/send-guards.spec.ts` (new). Register `2bb` carries the decisions
+(60–63), R112-1 to R112-6, the closures and G88. **Teku does every git write.**
+
+### The fix (G77, R112-1)
+
+`confirm()` in `CryptoSendScreen.tsx` wraps `sendCrypto(row)` in a `try`. On a refusal: `console.warn('Transfer refused:', …)`,
+`raiseNotice('send-refused')`, `draft.setCryptoAmount('')`, `navigate(-1)`, `return`. **It does not copy `SendScreen`'s
+`draft.clear()`**: the bank screen takes its recipient from the route, the crypto screen from the draft, so clearing it would
+empty the contact and send the screen to `/transfer` while `navigate(-1)` is in flight (the Gate 71 / Gate 101 M13 race).
+Contact, token and tier are kept; the notice's copy ("Enter the amount to try again") already fits.
+
+### The technique (Decision 60 = A) — and why it is dev-server-only
+
+Neither writer check can be reached through the UI as shipped: the amount screens re-derive their own check from live data and
+refuse first. `e2e/send-guards.spec.ts` therefore serves `/src/data/derive.ts` to **one** tab through `page.route` with
+`transferAmountError` / `cryptoAmountError` returning `null` first thing (browser-only; no file changes). The other tab is
+untouched. Tab A holds a draft that was valid when made, tab B spends the money, tab A hears the write (`rehydrated` in the
+persistence log) and confirms — and now reaches the writer's own guard. **The rewrite is counted per fetch and every test asserts
+it matched exactly once**, so a renamed function fails loudly instead of testing nothing. Like `ocr.spec.ts`, it cannot run
+against `vite preview` (no module is served); the assertion's message says so.
+
+### The four tests
+
+`G0 bank` and `G0 crypto` pin the technique (the rewrite matches once; the page's own module no longer refuses; a control tab
+still does). `G76 bank` — tab A at the review of RM 20,000.00 to Rachum Greene, tab B drains Main into Perry Matthew; pressing
+**"Transfer now"** (not "Transfer money") makes `sendRowProblem` refuse; nothing written (row count, Main's balance), the notice
+with its exact title and body, no uncaught error, one `Transfer refused:` warning, review closed. `G77 crypto` — tab A at the
+summary of RM 5,800.00 of ETH, tab B sends RM 20,000.00; checks C5, C1, C2, C3, C4, C6 in that order (register `2bb`).
+
+### Pre-proofs (mutations on the working tree, restored byte-identically)
+
+Driver: Gate 106's, adapted (`D:\Claude\_handoffs\gate112-build\driver.mjs`) — typechecks the mutated tree (refuses otherwise),
+runs exactly one test by its `$`-anchored title through an argument array with no shell, requires an assertion failure at the
+planned line, restores, verifies sha256 and re-passes. Negative control **refused** (a syntax error). **Proved:** the `try`
+removed (lands on C1); `draft.clear()` for `setCryptoAmount('')` (lands on C1 — the screen leaves and the route-change effect
+dismisses the notice); `navigate(-1)` dropped (C3); `raiseNotice` dropped (C1); the warn dropped (C2); the amount not cleared
+(C4 — added because the previous one does not reach C4); `sendRowProblem` skipped at the call site (the bank row count);
+`cryptoSendProblem` skipped at the call site (C5); and a renamed target in G0 crypto (the match-once guard). **The first run of
+`draft.clear()` was marked "NO PROOF" only because its planned line range was wrong** — it failed on an assertion, one check
+earlier than planned; re-run with the right range it proves.
+
+### Rulings carried (register `2bb`)
+
+Decisions 60 (Teku), 61 / 62 / 63 (delegated) and R112-1…6; the series is 112 send guards, 113 older pickers + G32, 114 honest
+labels + `PROFILE`, 115 route-change focus, 116 the UI integration round. **Next free: section `2bc`, gap `G89`, decision `64`.**
+
+### Deliberately not in scope
+
+G62, G67, G75 and the stale bank review history entry (Gate 116); the pickers, G32 and `PROFILE` (Gates 113–114); route-change
+focus (115); G88's fix; the DS round; any seed, schema, token, asset or DS change.
+
+### Verification
+
+`npx tsc -b --force` clean; `npm run lint:tokens` PASS (138 files, 5 exemptions — both unchanged, no file entered `src/`);
+`npm run lint:linkage` PASS on v2.17.0; `--list` **1877 tests in 55 files** (1873 + 4, as predicted in writing before the run).
+**One full run on the final tree: 1877 passed / 0 failed, 1.4 h (4,885 s), npm exit 0, 0 `writing actual`, 592 PNGs at
+`abb23d6b27f27f41966982deb10cddb84e3de103eca96863aeba21a226bd7869` before and after.** The three clean runs and an independent
+repeat of the mutations are Phase B's.
